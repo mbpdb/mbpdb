@@ -1,0 +1,47 @@
+{% extends 'peptide/base.html' %}
+{% load staticfiles %}
+{% block 'content' %}
+<h1>Contact Us</h1>
+<h4>Ask us questions or report a problem.</h4>
+{% for e in errors %}
+<div class="alert alert-danger  alert-dismissible" role="alert">
+  <button type="button" class="close" data-dismiss="alert">
+  <span aria-hidden="true">&times;</span>
+  <span class="sr-only">Close</span>
+  </button>
+  <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+  <span class="sr-only">Error:</span>
+  {{e}}
+</div>
+{% endfor %}
+{% if messages %}
+<div class="alert alert-info  alert-dismissible" role="alert">
+  <button type="button" class="close" data-dismiss="alert">
+    <span aria-hidden="true">&times;</span>
+    <span class="sr-only">Close</span>
+  </button>
+  <span class="sr-only">Error:</span>
+  {{messages}}
+</div>
+{% endif %}
+
+<form method="POST" enctype="multipart/form-data" action="." role="form">
+{% csrf_token %}
+<div class="form-group">
+    <label for="namelabel">Name</label>
+    <br/>
+    <input type="text" name="name" size="50" required />
+</div>
+<div class="form-group">
+    <label for="emaillabel">Email</label>
+    <br/>
+    <input type="text" name="email" size="50" required />
+</div>
+<div class="form-group">
+    <label for="messagelabel">Message</label>
+    <br/>
+    <textarea name="message" rows="10" cols="100" required></textarea>
+</div>
+<button class="btn btn-default">Send</button>
+</form>
+{% endblock 'content' %}

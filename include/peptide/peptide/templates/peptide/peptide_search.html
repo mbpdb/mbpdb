@@ -1,0 +1,198 @@
+{% extends 'peptide/base.html' %}
+{% load staticfiles %}
+{% block 'content' %}
+<h1>MBPDB Search</h1>
+<h6>If you are using this database please cite:<br/>
+<a href="http://www.sciencedirect.com/science/article/pii/S0308814617306222" target="_blank">Nielsen, Søren Drud, Robert L. Beverly, Yunyao Qu, and David C. Dallas. 2017. “Milk Bioactive Peptide Database: A Comprehensive Database of Milk Protein-Derived Bioactive Peptides and Novel Visualization.” <i>Food Chemistry 232 (October)</i>. Elsevier: 673–82.</a><h6>
+
+{% if latest_peptides %}
+  <b>Latest Peptides Added to Database</b>
+  <table border="1">
+  <tr><th style="padding:2px; padding-left:5px; padding-right:5px;">Time Approved</th><th style="padding:2px; padding-left:5px; padding-right:5px;">Peptide</th><th style="padding:2px; padding-left:5px; padding-right:5px;">Protein ID</th><th style="padding:2px; padding-left:5px; padding-right:5px;">Functions</th></tr>
+  {% for pep in latest_peptides %}
+    <tr><td style="padding:2px; padding-left:5px; padding-right:5px;">{{pep.time_approved}}</td><td style="padding:2px; padding-left:5px; padding-right:5px;">{{pep.peptide}}</td><td style="padding:2px; padding-left:5px; padding-right:5px;">{{pep.pid}}</td><td style="padding:2px; padding-left:5px; padding-right:5px;">{{pep.functions}}</td></tr>
+  {% endfor %}
+  </table>
+{% endif %}
+
+<br/>
+<h4><u>Search Milk Bioactive Peptide database</u></h4>
+{% for e in errors %}
+<div class="alert alert-danger  alert-dismissible" role="alert">
+  <button type="button" class="close" data-dismiss="alert">
+  <span aria-hidden="true">&times;</span>
+  <span class="sr-only">Close</span>
+  </button>
+  <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+  <span class="sr-only">Error:</span>
+  {{e}}
+</div>
+{% endfor %}
+
+<form method="POST" enctype="multipart/form-data" action="." role="form">
+{% csrf_token %}
+<div class="form-group">
+    <label for="peplabel">Single Peptide Sequence</label>
+    <br/>
+    <input type="text" name="peptide" size="100" {% if data.peptide %}value="{{data.peptide}}"{% endif %}/>
+    <br/>
+    <p class="help-block">If sequence is empty (and no file is chosen below), then it will search all sequences and search options will be ignored.</p>
+    <label for="pepfilelabel">OR file with multiple peptides (<a href="{% static 'peptide/example/multiple_peptide_example.txt' %}">Example</a>):</label><br/>
+    <input type="file" name="pepfile" />
+    <p class="help-block">A simple text file with one column of peptides.</p>
+Search type:&nbsp;
+    <input type="radio" name="peptide_option" value="sequence" {% if not data.peptide_option or data.peptide_option == 'sequence' %}checked{% endif %}>Sequence&nbsp;
+    <input type="radio" name="peptide_option" value="truncated" {% if data.peptide_option == 'truncated' %}checked{% endif %}>Truncated&nbsp;
+    <input type="radio" name="peptide_option" value="precursor" {% if data.peptide_option == 'precursor' %}checked{% endif %}>Precursor&nbsp;
+
+    <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+      <div class="mytooltiptext" style="width:580px;">
+      Sequence: Searches for peptides with a match to the above peptide sequence.<br/>
+      Truncated: Searches for peptides that contain the above peptide sequence.<br/>
+      Precursor: Searches for peptides that are contained within the above peptide sequence.<br/>
+      </div>
+    </div>
+
+    <br/>
+    <br/>
+    <table>
+    <tr><td>
+    Similarity threshold:&nbsp;
+    <select name="seqsim">
+        <option value="10" {% if data.seqsim == "10" %}selected="selected"{% endif %}>10%</option>
+        <option value="20" {% if data.seqsim == "20" %}selected="selected"{% endif %}>20%</option>
+        <option value="30" {% if data.seqsim == "30" %}selected="selected"{% endif %}>30%</option>
+        <option value="40" {% if data.seqsim == "40" %}selected="selected"{% endif %}>40%</option>
+        <option value="50" {% if data.seqsim == "50" %}selected="selected"{% endif %}>50%</option>
+        <option value="60" {% if data.seqsim == "60" %}selected="selected"{% endif %}>60%</option>
+        <option value="70" {% if data.seqsim == "70" %}selected="selected"{% endif %}>70%</option>
+        <option value="80" {% if data.seqsim == "80" %}selected="selected"{% endif %}>80%</option>
+        <option value="90" {% if data.seqsim == "90" %}selected="selected"{% endif %}>90%</option>
+        <option value="100" {% if not data.seqsim or data.seqsim == "100" %}selected="selected"{% endif %}>100%</option>
+     </select>
+
+     <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+       <div class="mytooltiptext" style="width:550px;">
+          The similarity threshold is used with the search type in the following ways:
+          <ul>
+          <li>Sequence: Percent match of query peptide against database peptides.</li>
+          <li>Truncated: Percent match of query peptide against full length of query peptide.</li>
+          <li>Precursor: Percent match of database peptides against query peptide.</li>
+          </ul>
+          Note that for a query that is less than 4 AA, similarity threshold will be 100%. Also, when choosing 100% similarity and the identity matrix, a direct database query will always be used.
+       </div>
+     </div>
+     </td>
+
+    <td style="padding-left:30px">
+    Scoring matrix:&nbsp;
+    <select name="matrix">
+        <option value="IDENTITY" {% if not data.matrix or data.matrix == "IDENTITY" %}selected="selected"{% endif %}>Identity</option>
+        <option value="BLOSUM62" {% if data.matrix == "BLOSUM62" %}selected="selected"{% endif %}>BLOSUM62</option>
+    </select>
+
+    <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+        <div class="mytooltiptext" style="width:500px;">
+            The scoring matrix determines how the matches will occur:
+            <ul>
+            <li>Identity: Matches each amino acid exactly.</li>
+            <li>BLOSUM62: Matches each amino acid using blastp and a protein alignment substitution matrix.</li>
+            </ul>
+            Note that for a query that is less than 4 AA, a direct database query will be used. Also, when choosing 100% similarity and the identity matrix, a direct database query will always be used.
+        </div>
+    </div>
+</div>
+</td></tr>
+</table>
+
+<br/>
+<div class="form-group">
+    <input type="checkbox" name="extra_output" {% if data.extra_output %}checked{% endif %}> Get extra output?</input>
+    <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+        <div class="mytooltiptext" style="width:500px;">
+            This option will add the following extra columns to the output: % alignment, query &amp; subject start and end positions, e-value, alignment length, mismatches, gap opens. Note that these extra columns will only have values for results obtained by blastp.
+        </div>
+    </div>
+</div>
+
+<br/>
+<table>
+<tr><td>
+<div class="form-group">
+    <label for="protlabel">Protein ID</label>
+    <br/>
+    <input type="text" name="proteinid" size="30" {% if data.proteinid %}value="{{data.proteinid}}"{% endif %} />
+<p class="help-block">If protein ID is empty, then it will search all protein IDs.</p>
+</div>
+</td>
+
+<td style="padding-left:30px">
+<div class="form-group">
+    <label for="funclabel">Function (choose from dropdown or type in your own)</label>
+    <br/>
+    <input list="funcs" name="function" {% if data.function %}value="{{data.function}}"{% endif %}>
+    <datalist id="funcs">
+        <option value="ACE-inhibitory">
+        <option value="Antimicrobial">
+        <option value="DPP-IV Inhibitory">
+        <option value="Antioxidant">
+        <option value="Immunomodulatory">
+        <option value="Anti-inflammatory">
+        <option value="Opioid">
+    </datalist>
+    </input>
+<p class="help-block">If function is empty, then it will search all functions.</p>
+</div>
+</td></tr>
+
+<tr><td>
+<div class="form-group">
+    <label for="speclabel">Species (choose from dropdown or type in your own)</label>
+    <br/>
+    <input list="specs" name="species" {% if data.species %}value="{{data.species}}"{% endif %}>
+    <datalist id="specs">
+        <option value="Human">
+        <option value="Cow">
+        <option value="Goat">
+        <option value="Sheep">
+        <option value="Pig">
+    </datalist>
+    </input>
+    <p class="help-block">If species is empty, then it will search all species.</p>
+</div>
+</td>
+
+<td style="padding-left:30px">
+<div class="form-group">
+    <label for="catlabel">Category</label>
+    <br/>
+    <input type="text" name="category" size="50" {% if data.category %}value="{{data.category}}"{% endif %} />
+    <p class="help-block">If category is empty, then it will search all categories.</p>
+</div>
+</td></tr>
+</table>
+
+<div class="form-group">
+    <input type="checkbox" name="return_tsv" {% if data.return_tsv %}checked{% endif %}> Download results (Tab-separated values file)</input>
+</div>
+<button class="btn btn-default">Search DB</button>
+
+<a name="search_results"></a>
+
+<br/>
+{% if results %}
+<br/>
+  <table border="1" id="results_table">
+  {{ results|first|safe }}
+  {% for r in results|slice:"1:" %}
+    <tr><td style="padding:10px;">
+    {{r|safe}}
+    </td></tr>
+  {% endfor %}
+  </table>
+  <br/>
+  <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a>
+{% endif %}
+
+</form>
+{% endblock 'content' %}

@@ -1,0 +1,44 @@
+{% extends 'peptide/base.html' %}
+{% load staticfiles %}
+{% block 'content' %}
+<h1>MBPDB Multi Search using TSV file</h1>
+<h6>If you are using this database please cite:<br/>
+<a href="http://www.sciencedirect.com/science/article/pii/S0308814617306222" target="_blank">Nielsen, Søren Drud, Robert L. Beverly, Yunyao Qu, and David C. Dallas. 2017. “Milk Bioactive Peptide Database: A Comprehensive Database of Milk Protein-Derived Bioactive Peptides and Novel Visualization.” <i>Food Chemistry 232 (October)</i>. Elsevier: 673–82.</a><h6>
+<h4>Search Milk Bioactive Peptide database</h4>
+{% for e in errors %}
+<div class="alert alert-danger  alert-dismissible" role="alert">
+  <button type="button" class="close" data-dismiss="alert">
+  <span aria-hidden="true">&times;</span>
+  <span class="sr-only">Close</span>
+  </button>
+  <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+  <span class="sr-only">Error:</span>
+  {{e|safe}}
+</div>
+{% endfor %}
+
+<form method="POST" enctype="multipart/form-data" action="." role="form">
+{% csrf_token %}
+<div class="form-group">
+     <input type="file" name="tsv_file" />
+     <p class="help-block">Use a correctly formatted TSV (tab-separated values) file with UTF-8 encoding. For format requirements, view the <a href="{% static 'peptide/example/peptide_multi_search_input_file_example.tsv'%}">example file</a>.</p>
+     <p class="help-block">Note that the Peptide Sequence, Protein ID, Function, Species, and Category columns can be empty. Also, if peptide is empty, search_type, similarity_threshold, scoring_matrix, and extra_output will be ignored.</p>
+</div>
+
+<div class="form-group">
+    <input type="checkbox" name="return_tsv"> Download results (Tab-separated values file)</input>
+</div>
+
+
+<button class="btn btn-default">Search DB</button>
+
+<br/>
+{% if results %}
+<br/>
+  {{ results|safe }}
+  <br/>
+  <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a>
+{% endif %}
+
+</form>
+{% endblock 'content' %}

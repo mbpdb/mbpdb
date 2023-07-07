@@ -1,0 +1,38 @@
+{% extends 'peptide/base.html' %}
+{% load staticfiles %}
+{% block 'content' %}
+<h1>MBPDB add proteins</h1>
+<h4>Adds proteins (in Fasta format) to database</h4>
+{% for e in errors %}
+<div class="alert alert-danger  alert-dismissible" role="alert">
+  <button type="button" class="close" data-dismiss="alert">
+  <span aria-hidden="true">&times;</span>
+  <span class="sr-only">Close</span>
+  </button>
+  <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+  <span class="sr-only">Error:</span>
+  {{e}}
+</div>
+{% endfor %}
+{% for m in messages %}
+<div class="alert alert-info  alert-dismissible" role="alert">
+  <button type="button" class="close" data-dismiss="alert">
+  <span aria-hidden="true">&times;</span>
+  <span class="sr-only">Close</span>
+  </button>
+  <span class="sr-only">Error:</span>
+  {{m}}
+</div>
+{% endfor %}
+<form method="POST" enctype="multipart/form-data" action="." role="form">
+<form method="POST" enctype="multipart/form-data" action="." role="form">
+{% csrf_token %}
+<div class="form-group">
+    <input type="file" name="input_fasta_files" multiple/>
+    <p class="help-block">You can choose multiple FASTA files at once.<br>Click the link below to see examples of the format of the protein headers.</p>
+</div>
+<button class="btn btn-default">Run</button>
+</form>
+<br />
+<a href="{% url 'protein_headers' %}" target="_blank">View current protein fasta headers (IDs)</a>
+{% endblock 'content' %}

@@ -1,0 +1,157 @@
+{% load staticfiles %}
+<!DOCTYPE html>
+<html lang="en">
+
+<link rel="shortcut icon" href="{% static 'peptide/favicon.ico' %}"/>
+
+<head>
+
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
+    <title>Milk Bioactive Peptide Database</title>
+
+    <!-- Bootstrap Core CSS -->
+    <link href="{% static 'peptide/theme/css/bootstrap.min.css' %}" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link href="{% static 'peptide/theme/css/simple-sidebar.css' %}" rel="stylesheet">
+
+    <!-- Nik's custom CSS -->
+    <link href="{% static 'peptide/theme/css/nik.css' %}" rel="stylesheet">
+
+    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+        <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+        <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+    <script src="{% static 'peptide/vendor/angular-file-upload/angular-file-upload-shim.min.js' %}"></script>
+    <script src="{% static 'peptide/vendor/angular.min.js' %}"></script>
+	<script src="{% static 'peptide/vendor/angular-file-upload/angular-file-upload.min.js' %}"></script>
+	<script>
+	main = angular.module('main', ['ui.bootstrap','angularFileUpload']);
+	main.config(function($interpolateProvider) {
+		  $interpolateProvider.startSymbol('{[');
+		  $interpolateProvider.endSymbol(']}');
+		});
+	main.config(['$httpProvider', function($httpProvider) {
+	    $httpProvider.defaults.headers.common['X-CSRFToken'] = '{{ csrf_token|escapejs }}';
+	}]);
+	</script>
+	{% block 'head' %}
+	{% endblock 'head' %}
+</head>
+
+<body>
+
+    <div id="wrapper">
+
+        <!-- Sidebar -->
+        <div id="sidebar-wrapper">
+            <ul class="sidebar-nav">
+                 <li><u><b>
+                    <a href="{% url 'index' %}">
+                        Milk Bioactive Peptide Database
+                    </a></u>
+                     </b>
+                 </li>
+                <li>
+                    <a href="{% url 'peptide_search' %}">MBPDB Search</a>
+                </li>
+                <li>
+                    <a href="{% url 'peptide_multi_search' %}">MBPDB multiple search</a>
+                </li>
+                <li>
+                    <a href="{% url 'peptide_db' %}">MBPDB add single entry</a>
+                </li>
+                <li>
+                    <a href="{% url 'peptide_db_csv' %}">MBPDB add multiple entries</a>
+                </li>
+                <li>
+                    <a href="{% url 'add_proteins' %}">MBPDB add proteins</a>
+                </li>
+                <li>
+                    <a href="{% static 'peptide/MBPDB_Help.pdf' %}" target="_blank">MBPDB help</a>
+                </li>
+                <li>
+                    <a href="{% url 'contact' %}">Contact Us</a>
+                </li>
+
+                <br/>
+                <li><u><b>
+                         Dallas Lab Peptide Tools
+                    </u></b>
+                </li>
+                <li>
+                    <a href="{% url 'remove_domains_tool' %}">Remove Domains</a>
+                </li>
+                <li>
+                    <a href="{% url 'skyline_auto' %}">Auto Skyline output enhancement</a>
+                </li>
+                
+                <li>
+                <a href="{% url 'homology_search' %}">Homology Search</a>
+                </li>
+
+                <li>
+                    <a href="{% url 'pepex' %}">PepEx</a>
+                </li>
+                <br/>
+
+Data by:
+Søren Drud Nielsen, 
+Robert L. Beverly, 
+Yunyao Qu, 
+David C. Dallas (<a href="http://www.dallaslab.org" target="_blank">www.dallaslab.org</a>)
+<br/>
+<br/>
+Web development by: Nikhil Joshi & Adam Schaal (<a href="http://bioinformatics.ucdavis.edu" target="_blank">UC Davis Bioinformatics Core</a>), Søren Drud Nielsen
+<br/>
+<h6>The database is SQLite 3.7.17 on a CentOS 7.1.1503 server. The front-end of the site was developed using HTML, Python 2.7.5 and Django 1.9.7 and is served by Apache 2.4.6. The back-end scripts were written in PERL and Python and use Blast+ 2.5.0.</h6>
+            <a href="http://mbpdb.nws.oregonstate.edu/admin/" target="_blank">admin</a>
+            </ul>
+        </div>
+        <!-- /#sidebar-wrapper -->
+
+        <!-- Page Content -->
+        <div id="page-content-wrapper">
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col-lg-12">
+{% block 'content' %}
+						<h1>Simple Sidebar</h1>
+                        <p>This template has a responsive menu toggling system. The menu will appear collapsed on smaller screens, and will appear non-collapsed on larger screens. When toggled using the button below, the menu will appear/disappear. On small screens, the page content will be pushed off canvas.</p>
+                        <p>Make sure to keep all page content within the <code>#page-content-wrapper</code>.</p>
+                        <a href="#menu-toggle" class="btn btn-default" id="menu-toggle">Toggle Menu</a>
+{% endblock 'content' %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- /#page-content-wrapper -->
+
+    </div>
+    <!-- /#wrapper -->
+
+    <!-- jQuery -->
+    <script src="{% static 'peptide/theme/js/jquery.js' %}"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="{% static 'peptide/theme/js/bootstrap.min.js' %}"></script>
+
+    <!-- Menu Toggle Script -->
+    <script>
+    $("#menu-toggle").click(function(e) {
+        e.preventDefault();
+        $("#wrapper").toggleClass("toggled");
+    });
+    </script>
+{% block 'scripts' %}
+{% endblock 'scripts' %}
+</body>
+
+</html>

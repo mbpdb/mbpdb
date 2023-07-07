@@ -1,0 +1,11 @@
+proteinID	peptide	category	function	secondary_function	ptm	title	authors	abstract	doi
+Q4GZT4	EVSIPMSKKLNGIPETTSK	dairy	ACE Inhibitory	2nd func	3xPhospho [S33; S34; S41]	asdasf	sdfgdfg	ruryrttuyr	doi1
+P60712	ALVVDNGSGMCKAGFA	dairy	Antimicrobial	2nd func	3xPhospho [S33; S34; S41]	asdfas	sdfgdfg	ruryrttuyr	doi2
+P10152	PLLLVFILGLGLTPVAPAQ	dairy	this is a function	second func	3xPhospho [S33; S34; S41]	waerawe	sdfgdfg	ruryrttuyr	doi3
+P80929	GFLRKHYDPSPTGHDDRYC	dairy	f(x)	f(f(x))	3xPhospho [S33; S34; S41]	asdfas	sdfgdfg	ruryrttuyr	doi4
+P81287	GTVADFPGFDERADAE	dairy	standard	nonstandard	3xPhospho [S33; S34; S41]	Zxzsdadf	sdfgdfg	ruryrttuyr	doi5
+Q9TUI9	VQALLLLWLCLSAVCGGPL	dairy	Antioxidant	10uM	3xPhospho [S33; S34; S41]	asdet	sdfgdfg	ruryrttuyr	doi6
+Q3ZCH6	VLGGDFVSPFDQLGL	human	Immunomodulatory	assay	3xPhospho [S33; S34; S41]	wsaesadf	sdfgdfg	ruryrttuyr	doi7
+P08037	LLGGSAAMPGASLQRACRL	human	func1	func2	3xPhospho [S33; S34; S41]	agsdfg	sdfgdfg	ruryrttuyr	doi8
+O02703	PTSSEQIMKTGAL	dairy	func2	func3	3xPhospho [S33; S34; S41]	asdasf	sdfgdfg	ruryrttuyr	doi9
+Q2KJH1	MLMVVLLCQVL	goat	funfunc	2ndfunfunc	3xPhospho [S33; S34; S41]	heyhey	meme	werwer	doi10
