@@ -1,22 +1,21 @@
-from django.conf.urls import patterns, include, url
+from django.urls import include, re_path
 from django.contrib import admin
+from peptide import views
 
-urlpatterns = patterns('',
-    # Examples:
-    # url(r'^blog/', include('blog.urls')),
-    url(r'^$', 'peptide.views.peptide_search', name='index'),
-    url(r'^homology_search/$', 'peptide.views.homology_search', name='homology_search'),
-    url(r'^skyline/$', 'peptide.views.skyline', name='skyline'),
-    url(r'^skyline_auto/$', 'peptide.views.skyline_auto', name='skyline_auto'),
-    url(r'^remove_domains_tool/$', 'peptide.views.remove_domains_tool', name='remove_domains_tool'),
-    url(r'^pepex/$', 'peptide.views.pepex_tool', name='pepex'),
-    url(r'^add_proteins/$', 'peptide.views.add_proteins_tool', name='add_proteins'),
-    url(r'^protein_headers/$', 'peptide.views.protein_headers', name='protein_headers'),
-    url(r'^tsv_search_results/', 'peptide.views.tsv_search_results', name='tsv_search_results'),
-    url(r'^peptide_db/$', 'peptide.views.peptide_db', name='peptide_db'),
-    url(r'^peptide_db_csv/$', 'peptide.views.peptide_db_csv', name='peptide_db_csv'),
-    url(r'^peptide_search/$', 'peptide.views.peptide_search', name='peptide_search'),
-    url(r'^peptide_multi_search/$', 'peptide.views.peptide_multi_search', name='peptide_multi_search'),
-    url(r'^contact/$', 'peptide.views.contact', name='contact'),
-    url(r'^admin/', include(admin.site.urls)),
-)
+urlpatterns = [
+    re_path(r'^$', views.peptide_search, name='index'),
+    re_path(r'^homology_search/$', views.homology_search, name='homology_search'),
+    re_path(r'^skyline/$', views.skyline, name='skyline'),
+    re_path(r'^skyline_auto/$', views.skyline_auto, name='skyline_auto'),
+    re_path(r'^remove_domains_tool/$', views.remove_domains_tool, name='remove_domains_tool'),
+    re_path(r'^pepex/$', views.pepex_tool, name='pepex'),
+    re_path(r'^add_proteins/$', views.add_proteins_tool, name='add_proteins'),
+    re_path(r'^protein_headers/$', views.protein_headers, name='protein_headers'),
+    re_path(r'^tsv_search_results/', views.tsv_search_results, name='tsv_search_results'),
+    re_path(r'^peptide_db/$', views.peptide_db, name='peptide_db'),
+    re_path(r'^peptide_db_csv/$', views.peptide_db_csv, name='peptide_db_csv'),
+    re_path(r'^peptide_search/$', views.peptide_search, name='peptide_search'),
+    re_path(r'^peptide_multi_search/$', views.peptide_multi_search, name='peptide_multi_search'),
+    re_path(r'^contact/$', views.contact, name='contact'),
+    re_path(r'^admin/', admin.site.urls),
+]

@@ -1,13 +1,14 @@
 from django.shortcuts import render
+
 import os, re
 from django.conf import settings
-from toolbox import blast_pipeline, skyline_pipeline, skyline_pipeline_auto, remove_domains, run_pepex, add_proteins, peptide_db_call, pepdb_add_csv,pepdb_search, pepdb_multi_search, pepdb_multi_search2, contact_us, get_latest_peptides
+from .toolbox import blast_pipeline, skyline_pipeline, skyline_pipeline_auto, remove_domains, run_pepex, add_proteins, peptide_db_call, pepdb_add_csv,pepdb_search, pepdb_multi_search, pepdb_multi_search2, contact_us, get_latest_peptides
 from sendfile import sendfile
 from django.http.response import HttpResponse, HttpResponseRedirect
 import subprocess
 from subprocess import CalledProcessError
 from django.contrib.auth.decorators import login_required
-from models import Counter
+from .models import Counter
 from datetime import datetime
 
 
@@ -23,7 +24,7 @@ def homology_search(request):
         if len(errors) == 0:
             try:
                 output_path = blast_pipeline(request.FILES['peptide_library'],request.FILES['peptide_input'])
-            except CalledProcessError, e:
+            except CalledProcessError as e:
                 return render(request, 'peptide/homology_search.html', {'errors':[e.output]})
             return sendfile(request,output_path,attachment=True)
     return render(request, 'peptide/homology_search.html', {'errors':errors})
@@ -37,7 +38,7 @@ def skyline(request):
             output_path = '/tmp/skyline.tsv'
             try:
                 skyline_pipeline(request.FILES['input_tsv'],request.FILES.getlist('input_xmls'),output_path)
-            except CalledProcessError, e:
+            except CalledProcessError as e:
                 return render(request, 'peptide/skyline.html', {'errors':[e.output]})
             return sendfile(request,output_path,attachment=True)
     return render(request, 'peptide/skyline.html', {'errors':errors})
@@ -54,12 +55,12 @@ def skyline_auto(request):
             # making absolutely sure that idotp is the correct format
             try:
                 float(idotp)
-            except ValueError, e:
+            except ValueError as e:
                 return render(request, 'peptide/skyline_auto.html', {'errors':[e.output]})
 
             try:
                 output_path = skyline_pipeline_auto(idotp, reduce_columns, only_keep_true, request.FILES['input_tsv'],request.FILES.getlist('input_xmls'))
-            except CalledProcessError, e:
+            except CalledProcessError as e:
                 return render(request, 'peptide/skyline_auto.html', {'errors':[e.output]})
             return sendfile(request,output_path,attachment=True)
     return render(request, 'peptide/skyline_auto.html', {'errors':errors})
@@ -75,7 +76,7 @@ def contact(request):
 
             try:
                 messages = contact_us(name, email, message)
-            except CalledProcessError, e:
+            except CalledProcessError as e:
                 return render(request, 'peptide/contact.html', {'errors':[e.output]})
     return render(request, 'peptide/contact.html', {'errors':errors, 'messages':messages})
 
@@ -95,10 +96,10 @@ def peptide_db(request):
             authors = request.POST['authors']
             abstract = request.POST['abstract']
             doi = request.POST['doi']
-
+            
             try:
                 messages = peptide_db_call(pep, category, protid, function, secondary_func, ptm, title, authors, abstract, doi)
-            except CalledProcessError, e:
+            except CalledProcessError as e:
                 return render(request, 'peptide/peptide_db.html', {'errors':[e.output]})
     return render(request, 'peptide/peptide_db.html', {'errors':errors, 'messages':messages})
 
@@ -111,7 +112,7 @@ def peptide_db_csv(request):
         if len(errors) == 0:
             try:
                 messages = pepdb_add_csv(request.FILES['csv_file'],messages)
-            except CalledProcessError, e:
+            except CalledProcessError as e:
                 return render(request, 'peptide/peptide_db_csv.html', {'errors':[e.output]})
     return render(request, 'peptide/peptide_db_csv.html', {'errors':errors, 'messages':messages})
 
@@ -129,7 +130,7 @@ def peptide_multi_search(request):
             rt = 1 if request.POST.get('return_tsv') else 0
             try:
                 (results,output_path) = pepdb_multi_search(request.FILES['tsv_file'])
-            except CalledProcessError, e:
+            except CalledProcessError as e:
                 return render(request, 'peptide/peptide_multi_search.html', {'errors':[e.output]})
 
             if rt == 1:
@@ -175,7 +176,7 @@ def peptide_search(request):
                     (results,output_path) = pepdb_multi_search2(request.FILES['pepfile'],peptide_option,pid,function,seqsim,matrix,extra,species,category)
                 else:
                     (results,output_path) = pepdb_search(peptide,peptide_option,pid,function,seqsim,matrix,extra,species,category)
-            except CalledProcessError, e:
+            except CalledProcessError as e:
                 return render(request, 'peptide/peptide_search.html', {'errors':[e.output], 'data':request.POST})
 
             if rt == 1:
@@ -193,7 +194,7 @@ def remove_domains_tool(request):
             remove_all_mods = "1" if request.POST.get('remove_all_mods') else "0"
             try:
                 output_path = remove_domains(request.FILES.getlist('input_xmls'), remove_all_mods)
-            except CalledProcessError, e:
+            except CalledProcessError as e:
                 return render(request, 'peptide/remove_domains_tool.html', {'errors':[e.output]})
             return sendfile(request,output_path,attachment=True)
     return render(request, 'peptide/remove_domains_tool.html', {'errors':errors})
@@ -208,7 +209,7 @@ def add_proteins_tool(request):
         if len(errors) == 0:
             try:
                 messages = add_proteins(request.FILES.getlist('input_fasta_files'), messages)
-            except CalledProcessError, e:
+            except CalledProcessError as e:
                 return render(request, 'peptide/add_proteins.html', {'errors':[e.output]})
     return render(request, 'peptide/add_proteins.html', {'errors':errors, 'messages':messages})
 
@@ -222,7 +223,7 @@ def pepex_tool(request):
             count_pep = "1" if request.POST.get('count_pep') else "0"
             try:
                 output_path = run_pepex (request.FILES['input_tsv'],count_pep)
-            except CalledProcessError, e:
+            except CalledProcessError as e:
                 return render(request, 'peptide/pepex.html', {'errors':e.output.rstrip('\n').split('\n')})
                 #return render(request, 'peptide/pepex.html', {'errors':[e.output]})
             return sendfile(request,output_path,attachment=True)

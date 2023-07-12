@@ -1,5 +1,5 @@
 {% extends 'peptide/base.html' %}
-{% load staticfiles %}
+{% load static %}
 {% block 'content' %}
 <h1>MBPDB Multi Search using TSV file</h1>
 <h6>If you are using this database please cite:<br/>
@@ -21,7 +21,7 @@
 {% csrf_token %}
 <div class="form-group">
      <input type="file" name="tsv_file" />
-     <p class="help-block">Use a correctly formatted TSV (tab-separated values) file with UTF-8 encoding. For format requirements, view the <a href="{% static 'peptide/example/peptide_multi_search_input_file_example.tsv'%}">example file</a>.</p>
+     <p class="help-block">Use a correctly formatted TSV (tab-separated values) file with UTF-8 encoding. For format requirements, view the <a href="{% static 'peptide/example/peptide_multi_search_input_example.tsv'%}">example file</a>.</p>
      <p class="help-block">Note that the Peptide Sequence, Protein ID, Function, Species, and Category columns can be empty. Also, if peptide is empty, search_type, similarity_threshold, scoring_matrix, and extra_output will be ignored.</p>
 </div>
 

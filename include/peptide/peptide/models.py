@@ -15,11 +15,11 @@ class ProteinInfo(models.Model):
 class ProteinVariant(models.Model):
     seq = models.CharField(max_length=5000)
     pvid = models.CharField(max_length=30)
-    protein = models.ForeignKey(ProteinInfo, related_name="orig_proteins")
+    protein = models.ForeignKey(ProteinInfo, on_delete=models.CASCADE, related_name="orig_proteins")
 
 class PeptideInfo(models.Model):
     peptide = models.CharField(max_length=300)
-    protein = models.ForeignKey(ProteinInfo, related_name="proteins")
+    protein = models.ForeignKey(ProteinInfo, on_delete=models.CASCADE, related_name="proteins")
     protein_variants = models.CharField(max_length=100,default='')
     intervals = models.CharField(max_length=100)
     length = models.IntegerField()
@@ -57,6 +57,7 @@ class Submission(models.Model):
     intervals = models.CharField(max_length=100)
     length = models.IntegerField()
     time_submitted = models.DateTimeField()
+
 
 class Counter(models.Model):
     ip = models.CharField(max_length=40)

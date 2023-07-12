@@ -1,0 +1,99 @@
+{% extends 'peptide/base.html' %}
+{% load static %}
+{% block 'content' %}
+<h1>MBPDB add single entry</h1>
+<h4>Add to Milk Bioactive Peptide database</h4>
+{% for e in errors %}
+<div class="alert alert-danger  alert-dismissible" role="alert">
+  <button type="button" class="close" data-dismiss="alert">
+  <span aria-hidden="true">&times;</span>
+  <span class="sr-only">Close</span>
+  </button>
+  <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+  <span class="sr-only">Error:</span>
+  {{e}}
+</div>
+{% endfor %}
+{% if messages %}
+<div class="alert alert-info  alert-dismissible" role="alert">
+  <button type="button" class="close" data-dismiss="alert">
+    <span aria-hidden="true">&times;</span>
+    <span class="sr-only">Close</span>
+  </button>
+  <span class="sr-only">Error:</span>
+  {{messages}}
+</div>
+{% endif %}
+
+<form method="POST" enctype="multipart/form-data" action="." role="form">
+{% csrf_token %}
+<div class="form-group">
+    <label for="peplabel">Peptide Sequence (single amino acid)</label>
+    <br/>
+    <input type="text" name="pep" size="100" required />
+</div>
+<div class="form-group">
+    <label for="catlabel">Category (optional)</label>
+    <br/>
+    <input type="text" name="category" size="50" />
+</div>
+<div class="form-group">
+    <label for="protlabel">Protein ID</label>
+    <br/>
+    <input type="text" name="protid" size="30" required />
+</div>
+<table>
+<tr><td>
+<div class="form-group">
+    <label for="funclabel">Function (choose from dropdown or type in your own)</label>
+    <br/>
+    <input list="funcs" name="function" required>
+    <datalist id="funcs">
+        <option value="ACE-inhibitory">
+        <option value="Antimicrobial">
+        <option value="DPP-IV Inhibitory">
+        <option value="Antioxidant">
+        <option value="Immunomodulatory">
+        <option value="Anti-inflammatory">
+        <option value="Opioid">
+    </datalist>
+    </input>
+</div>
+</td>
+<td style="padding-left:20px">
+<div class="form-group">
+    <label for="func2label">Secondary Function (optional)</label>
+    <br/>
+    <input type="text" name="secondary_func" size="30" />
+</div>
+</td></tr>
+</table>
+<div class="form-group">
+    <label for="ptmlabel">Post-Translational Modification (optional)</label>
+    <br/>
+    <input type="text" name="ptm" size="50" />
+</div>
+<div class="form-group">
+    <label for="titlelabel">Title</label>
+    <br/>
+    <input type="text" name="title" size="100" required />
+</div>
+<div class="form-group">
+    <label for="titlelabel">Authors</label>
+    <br/>
+    <textarea name="authors" rows="3" cols="100" required></textarea>
+</div>
+<div class="form-group">
+    <label for="abslabel">Abstract (optional)</label>
+    <br/>
+    <textarea name="abstract" rows="10" cols="100"></textarea>
+</div>
+<div class="form-group">
+    <label for="doilabel">DOI / Patent No.</label>
+    <br/>
+    <input type="text" name="doi" size="50" required />
+    <p class="help-block">If there is no DOI/Patent No., put N/A.</p>
+</div>
+<button class="btn btn-default">Add to DB</button>
+</form>
+{% endblock 'content' %}

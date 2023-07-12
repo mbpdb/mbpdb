@@ -1,6 +1,6 @@
 from django.contrib import admin
-from models import PeptideInfo, Submission, Counter, ProteinInfo, ProteinVariant, protein_pid
-from toolbox import pepdb_approve
+from .models import PeptideInfo, Submission, Counter, ProteinInfo, ProteinVariant, protein_pid
+from .toolbox import pepdb_approve
 
 class PeptideInfoAdmin(admin.ModelAdmin):
     list_display = ('peptide','category')
