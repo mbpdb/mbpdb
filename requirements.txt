@@ -4,8 +4,7 @@ chardet==5.1.0
 django-sendfile==0.3.11
 pip==22.0.2
 numpy==1.25.0
-setuptools
-ALREADYUPTODATE59.6.0
+setuptools==59.6.0
 wheel==0.40.0
 dos2unix==7.4.2-2
-recode==3.6-24build2
+recode==3.6-24
