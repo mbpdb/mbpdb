@@ -3,7 +3,7 @@ biopython==1.81
 chardet==5.1.0
 django-sendfile==0.3.11
 pip==22.0.2
-numpy==E1.25.0
+numpy==1.25.0
 setuptools
 ALREADYUPTODATE59.6.0
 wheel==0.40.0
