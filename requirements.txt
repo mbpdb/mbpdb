@@ -10,13 +10,17 @@ dos2unix
 recode
 ncbi-blast+
 epel-release
-
+wget
 #some libraries required yum not pip
 #sudo yum install dos2unix
-#sudo apt-get install ncbi-blast+
 #sudo yum install epel-release
 #sudo yum install recode
-#sudo apt-get install zip
-#chmod of pearl files required:
+#sudo yum install zip
 
-#chmod +x /include/peptide/scripts/*
+#chmod of pearl files required:
+#chmod +x include/peptide/scripts/*
+
+
+# wget ftp://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/ncbi-blast-2.14.0+-x64-linux.tar.gz
+# tar -zxvf ncbi-blast-2.14.0+-x64-linux.tar.gz
+# export PATH=$PATH:`pwd`/ncbi-blast-2.14.0+/bin
