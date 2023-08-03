@@ -23,4 +23,6 @@ wget
 
 # wget ftp://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/ncbi-blast-2.14.0+-x64-linux.tar.gz
 # tar -zxvf ncbi-blast-2.14.0+-x64-linux.tar.gz
-# export PATH=$PATH:`pwd`/ncbi-blast-2.14.0+/bin
+rm -zxvf ncbi-blast-2.14.0+-x64-linux.tar.gz
+# sudo cp /home/azureuser/MBPDB/ncbi-blast-2.14.0+/bin/* /usr/local/bin
+# export PATH=$PATH:/home/azureuser/MBPDB/ncbi-blast-2.14.0+/bin
