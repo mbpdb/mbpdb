@@ -8,3 +8,15 @@ setuptools
 wheel
 dos2unix
 recode
+ncbi-blast+
+epel-release
+
+#some libraries required yum not pip
+#sudo yum install dos2unix
+#sudo apt-get install ncbi-blast+
+#sudo yum install epel-release
+#sudo yum install recode
+#sudo apt-get install zip
+#chmod of pearl files required:
+
+#chmod +x /include/peptide/scripts/*
