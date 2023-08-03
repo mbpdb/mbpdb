@@ -2,7 +2,7 @@ from django.shortcuts import render
 
 import os, re
 from django.conf import settings
-from .toolbox import blast_pipeline, skyline_pipeline, skyline_pipeline_auto, remove_domains, run_pepex, add_proteins, peptide_db_call, pepdb_add_csv,pepdb_search, pepdb_multi_search, pepdb_multi_search2, contact_us, get_latest_peptides
+from .toolbox import blast_pipeline, run_pepex, add_proteins, peptide_db_call, pepdb_add_csv,pepdb_search, pepdb_multi_search, pepdb_multi_search2, contact_us, get_latest_peptides
 from sendfile import sendfile
 from django.http.response import HttpResponse, HttpResponseRedirect
 import subprocess
@@ -30,42 +30,6 @@ def homology_search(request):
             return FileResponse(open(output_path, 'rb'), as_attachment=True)
     return render(request, 'peptide/homology_search.html', {'errors':errors})
 
-def skyline(request):
-    errors = []
-    if request.method == 'POST':
-        if not request.FILES.get('input_tsv',False) or not request.FILES.get('input_xmls',False):
-            errors.append('Both file fields are mandatory.')
-        if len(errors) == 0:
-            output_path = '/tmp/skyline.tsv'
-            try:
-                skyline_pipeline(request.FILES['input_tsv'],request.FILES.getlist('input_xmls'),output_path)
-            except CalledProcessError as e:
-                return render(request, 'peptide/skyline.html', {'errors':[e.output]})
-            return FileResponse(open(output_path, 'rb'), as_attachment=True)
-    return render(request, 'peptide/skyline.html', {'errors':errors})
-
-def skyline_auto(request):
-    errors = []
-    if request.method == 'POST':
-        if not request.FILES.get('input_tsv',False) or not request.FILES.get('input_xmls',False):
-            errors.append('Both file fields are mandatory.')
-        if len(errors) == 0:
-            idotp = request.POST['idotp']
-            reduce_columns = "1" if request.POST.get('reduce_columns') else "0"
-            only_keep_true = "1" if request.POST.get('only_keep_true') else "0"
-            # making absolutely sure that idotp is the correct format
-            try:
-                float(idotp)
-            except ValueError as e:
-                return render(request, 'peptide/skyline_auto.html', {'errors':[e.output]})
-
-            try:
-                output_path = skyline_pipeline_auto(idotp, reduce_columns, only_keep_true, request.FILES['input_tsv'],request.FILES.getlist('input_xmls'))
-            except CalledProcessError as e:
-                return render(request, 'peptide/skyline_auto.html', {'errors':[e.output]})
-            return FileResponse(open(output_path, 'rb'), as_attachment=True)
-    return render(request, 'peptide/skyline_auto.html', {'errors':errors})
-
 def contact(request):
     errors = []
     messages = ''
@@ -80,7 +44,6 @@ def contact(request):
             except CalledProcessError as e:
                 return render(request, 'peptide/contact.html', {'errors':[e.output]})
     return render(request, 'peptide/contact.html', {'errors':errors, 'messages':messages})
-
 
 def peptide_db(request):
     errors = []
@@ -185,22 +148,6 @@ def peptide_search(request):
 
     return render(request, 'peptide/peptide_search.html', {'errors':errors, 'results':results, 'output_path':output_path, 'data':request.POST, 'latest_peptides':q})
 
-
-def remove_domains_tool(request):
-    errors = []
-    if request.method == 'POST':
-        if not request.FILES.get('input_xmls',False):
-            errors.append('File fields are mandatory.')
-        if len(errors) == 0:
-            remove_all_mods = "1" if request.POST.get('remove_all_mods') else "0"
-            try:
-                output_path = remove_domains(request.FILES.getlist('input_xmls'), remove_all_mods)
-            except CalledProcessError as e:
-                return render(request, 'peptide/remove_domains_tool.html', {'errors':[e.output]})
-            return FileResponse(open(output_path, 'rb'), as_attachment=True)
-    return render(request, 'peptide/remove_domains_tool.html', {'errors':errors})
-
-
 def add_proteins_tool(request):
     errors = []
     messages = []
@@ -213,7 +160,6 @@ def add_proteins_tool(request):
             except CalledProcessError as e:
                 return render(request, 'peptide/add_proteins.html', {'errors':[e.output]})
     return render(request, 'peptide/add_proteins.html', {'errors':errors, 'messages':messages})
-
 
 def pepex_tool(request):
     errors = []
@@ -228,7 +174,6 @@ def pepex_tool(request):
                 return render(request, 'peptide/pepex.html',{'errors': e.output.decode('utf-8').rstrip('\n').split('\n')})
             return FileResponse(open(output_path, 'rb'), as_attachment=True)
     return render(request, 'peptide/pepex.html', {'errors':errors})
-
 
 def protein_headers(request):
     ret = subprocess.check_output("grep -h '>' "+settings.FASTA_FILES_DIR+"/* | sort -u", shell=True, stderr=subprocess.STDOUT)

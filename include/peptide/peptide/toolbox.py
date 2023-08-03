@@ -34,49 +34,6 @@ def get_tsv_path(request_file,directory_path=None):
     handle_uploaded_file(request_file,path)
     return path
 
-
-def skyline_pipeline(input_tsv,input_xmls,output_path):
-    work_path = create_work_directory(settings.WORK_DIRECTORY)
-    input_tsv_path = os.path.join(work_path, input_tsv.name).replace(' ','_')
-    handle_uploaded_file(input_tsv,input_tsv_path)
-    input_xml_paths = []
-    for input_xml in input_xmls:
-        path = os.path.join(work_path, input_xml.name).replace(' ','_')
-        handle_uploaded_file(input_xml,path)
-        input_xml_paths.append(path)
-    output = subprocess.check_output([settings.SKYLINE,input_tsv_path,output_path]+input_xml_paths,stderr=subprocess.STDOUT)
-    
-def skyline_pipeline_auto(idotp,reduce_columns,only_keep_true,input_tsv,input_xmls):
-    work_path = create_work_directory(settings.WORK_DIRECTORY)
-    input_tsv_path = os.path.join(work_path, input_tsv.name).replace(' ','_')
-    handle_uploaded_file(input_tsv,input_tsv_path)
-    input_xml_paths = []
-    for input_xml in input_xmls:
-        path = os.path.join(work_path, input_xml.name).replace(' ','_')
-        handle_uploaded_file(input_xml,path)
-        input_xml_paths.append(path)
-    output_path = os.path.join(work_path, "skyline_auto_%s.tsv"%time.strftime('%Y-%m-%d_%H.%M.%S',time.localtime()))
-    filter_output_path = os.path.join(work_path, "filtered.tsv")
-    auto_output_path = os.path.join(work_path, "auto.tsv")
-    edit_output_path = os.path.join(work_path, "edit.tsv")
-
-    # run filter
-    subprocess.check_output([settings.FILTER, input_tsv_path, filter_output_path, idotp, only_keep_true], stderr=subprocess.STDOUT)
-
-    # run skyline auto
-    output = subprocess.check_output([settings.SKYLINE_AUTO,filter_output_path,auto_output_path]+input_xml_paths,stderr=subprocess.STDOUT)
-    # f = open('/tmp/argfile','w')
-    # f.write(settings.FILTER + ' ' + filter_output_path + ' ' + idotp + ' ' + only_keep_true + "\n")
-    # f.write(settings.SKYLINE_EDIT + ' ' + auto_output_path + ' ' + output_path + ' ' + reduce_columns + "\n")
-    # f.close()
-
-    # run combine peptides
-    subprocess.check_output([settings.COMBINE_PEPTIDES, auto_output_path, edit_output_path], stderr=subprocess.STDOUT)
-
-    # run edit columns
-    subprocess.check_output([settings.SKYLINE_EDIT, edit_output_path, output_path, reduce_columns], stderr=subprocess.STDOUT)
-    return output_path
-
 def contact_us(name, email, message):
     suq = User.objects.filter(is_superuser=1)
     email_subject = "MBPDB question/issue from " + name + " <" + email + ">"
@@ -118,7 +75,6 @@ def peptide_db_call(pep, category, protid, function, secondary_func, ptm, title,
     send_mail(email_subject, 'There is 1 new peptide submission for the MBPDB.', 'New Peptides <noreply@nws.oregonstate.edu>',[e.email for e in suq])
 
     return "Entry submitted for approval."
-
 
 def pepdb_add_csv(csv_file, messages):
     csv.register_dialect('pep_dialect', delimiter='\t')
@@ -248,8 +204,6 @@ def pepdb_add_csv(csv_file, messages):
 
     return messages
 
-
-
 def pepdb_approve(queryset):
 
     messages=[]
@@ -316,7 +270,6 @@ def pepdb_approve(queryset):
     messages.append("Added "+str(records)+" submissions to database.")
     return messages
 
-
 def run_blastp(q,peptide,matrix):
     work_path = create_work_directory(settings.WORK_DIRECTORY)
     query_path = os.path.join(work_path, "query.fasta")
@@ -339,8 +292,6 @@ def run_blastp(q,peptide,matrix):
     data = csv.DictReader(output_file, fieldnames=['query','subject','percid','align_len','mismatches','gaps','qstart','qend','sstart','send','evalue','bitscore','ppos','qcov','qlen','slen','numpos'], dialect='blast_dialect')
 
     return data
-
-
 
 def pepdb_search_tsv_line(writer, peptide, peptide_option, seqsim, matrix, extra, pid, function, species, category):
     #(peptide,peptide_option,pid,function,seqsim,matrix,extra,species,category)
@@ -695,7 +646,6 @@ def pepdb_multi_search2(peptidefile,peptide_option,pid,function,seqsim,matrix,ex
 
     return results,output_path
 
-
 def pepdb_multi_search(tsv_file):
     results = ''
     messages = []
@@ -799,7 +749,6 @@ def pepdb_multi_search(tsv_file):
         raise subprocess.CalledProcessError(1, cmd="", output="Error: File needs to use Unicode (UTF-8) encoding. Conversion failed.")
 
     return results,output_path
-
 
 def pepdb_search(peptide,peptide_option,pid,function,seqsim,matrix,extra,species,category):
     results = []
@@ -965,7 +914,6 @@ def pepdb_search(peptide,peptide_option,pid,function,seqsim,matrix,extra,species
         
     return results,output_path
 
-
 def get_latest_peptides(n):
     dictlist = [dict() for x in range(n)]
     q = PeptideInfo.objects.all().order_by('-id')[0:n]
@@ -978,24 +926,6 @@ def get_latest_peptides(n):
         i+=1
 
     return dictlist
-
-def remove_domains(input_xmls,remove_all_mods):
-    zip_dir = 'remove_domains_%s'%time.strftime('%Y-%m-%d_%H.%M.%S',time.localtime())
-    work_path = create_work_directory(settings.WORK_DIRECTORY)
-    zip_path = os.path.join(work_path, zip_dir)
-    os.mkdir(zip_path)
-    input_xml_paths = []
-    for input_xml in input_xmls:
-        path = os.path.join(zip_path, input_xml.name).replace(' ','_')
-        handle_uploaded_file(input_xml,path)
-        input_xml_paths.append(path)
-    subprocess.check_output([settings.REMOVE_DOMAINS, remove_all_mods]+input_xml_paths,stderr=subprocess.STDOUT)
-    os.chdir(work_path)
-    xml_outfiles = glob(zip_dir+"/*.domains_removed.xtan.xml")
-    output_path = zip_path + ".zip"
-    subprocess.check_output(["zip", output_path] + xml_outfiles, stderr=subprocess.STDOUT)
-    return output_path
-
 
 def run_pepex(input_tsv,count_pep):
     work_path = create_work_directory(settings.WORK_DIRECTORY)

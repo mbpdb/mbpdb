@@ -5,9 +5,6 @@ from peptide import views
 urlpatterns = [
     re_path(r'^$', views.peptide_search, name='index'),
     re_path(r'^homology_search/$', views.homology_search, name='homology_search'),
-    re_path(r'^skyline/$', views.skyline, name='skyline'),
-    re_path(r'^skyline_auto/$', views.skyline_auto, name='skyline_auto'),
-    re_path(r'^remove_domains_tool/$', views.remove_domains_tool, name='remove_domains_tool'),
     re_path(r'^pepex/$', views.pepex_tool, name='pepex'),
     re_path(r'^add_proteins/$', views.add_proteins_tool, name='add_proteins'),
     re_path(r'^protein_headers/$', views.protein_headers, name='protein_headers'),
