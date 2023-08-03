@@ -224,14 +224,14 @@ def pepex_tool(request):
             try:
                 output_path = run_pepex (request.FILES['input_tsv'],count_pep)
             except CalledProcessError as e:
-                return render(request, 'peptide/pepex.html', {'errors':e.output.rstrip('\n').split('\n')})
-                #return render(request, 'peptide/pepex.html', {'errors':[e.output]})
+                return render(request, 'peptide/pepex.html',{'errors': e.output.decode('utf-8').rstrip('\n').split('\n')})
             return sendfile(request,output_path,attachment=True)
     return render(request, 'peptide/pepex.html', {'errors':errors})
 
 
 def protein_headers(request):
     ret = subprocess.check_output("grep -h '>' "+settings.FASTA_FILES_DIR+"/* | sort -u", shell=True, stderr=subprocess.STDOUT)
+    ret = ret.decode('utf-8')
     ret = ret.replace('\n', '<br />')
     return HttpResponse(ret)
 

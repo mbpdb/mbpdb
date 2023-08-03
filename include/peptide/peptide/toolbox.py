@@ -22,10 +22,10 @@ def create_work_directory(base_dir):
     os.makedirs(path)
     return path
 
-def handle_uploaded_file(f,path):
-    with open(path, 'w') as destination:
-        for chunk in f.chunks():
-            destination.write(chunk.decode('utf-8'))
+def handle_uploaded_file(request_file, path):
+    with open(path, 'wb') as destination:
+        for chunk in request_file.chunks():
+            destination.write(chunk)
             
 def get_tsv_path(request_file,directory_path=None):
     if directory_path is None:
@@ -160,8 +160,8 @@ def pepdb_add_csv(csv_file, messages):
         with open(input_tsv_path, 'r', encoding='utf-8') as pepfile:
             data = csv.DictReader(pepfile, dialect='pep_dialect')
             headers = list(data.fieldnames)
+            headers = list(filter(None, headers)) # remove empty column headers
             headers.sort()
-            headers = filter(None, headers) # remove empty column headers
 
             # check if headers are correct
             if headers != ['abstract', 'authors', 'category', 'doi', 'function', 'peptide', 'proteinID', 'ptm', 'secondary_function', 'title']:
@@ -733,8 +733,8 @@ def pepdb_multi_search(tsv_file):
         with open(input_tsv_path, 'r', encoding='utf-8') as pepfile:
             data = csv.DictReader(pepfile, dialect='pep_dialect')
             headers = list(data.fieldnames)
+            headers = list(filter(None, headers)) # remove empty column headers
             headers.sort()
-            headers = filter(None, headers) # remove empty column headers
 
             # check if headers are correct
             if headers != ['category', 'extra_output', 'function', 'peptide', 'protein_id', 'scoring_matrix', 'search_type', 'similarity_threshold', 'species']:
@@ -1096,7 +1096,7 @@ def blast_pipeline(peptide_library,peptide_input):
 def xlsx_to_tsv(path):
     (root,ext) = os.path.splitext(path)
     tsv_path = root + '.tsv'
-    print [settings.XLS_TO_TSV,path,tsv_path]
+    print([settings.XLS_TO_TSV,path,tsv_path])
     #This is NOISY!  Ignore output.
     subprocess.call('%s "%s" "%s" 2> /dev/null' % (settings.XLS_TO_TSV,path,tsv_path),shell=True)
     return tsv_path
@@ -1116,7 +1116,7 @@ def create_fasta_input(input_tsv_path):
     return (with_ids_tsv_path,with_ids_fasta_path)
 
 def make_blast_db(library_fasta_path):
-    print ['makeblastdb','-in', library_fasta_path,'-dbtype','prot']
+    print(['makeblastdb','-in', library_fasta_path,'-dbtype','prot'])
     subprocess.check_output(['makeblastdb','-in', library_fasta_path,'-dbtype','prot'],stderr=subprocess.STDOUT)
 
 def blastp(input_fasta_path,library_fasta_path, output_path):
