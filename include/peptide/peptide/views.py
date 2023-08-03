@@ -10,6 +10,7 @@ from subprocess import CalledProcessError
 from django.contrib.auth.decorators import login_required
 from .models import Counter
 from datetime import datetime
+from django.http import FileResponse
 
 
 def index(request):
@@ -26,7 +27,7 @@ def homology_search(request):
                 output_path = blast_pipeline(request.FILES['peptide_library'],request.FILES['peptide_input'])
             except CalledProcessError as e:
                 return render(request, 'peptide/homology_search.html', {'errors':[e.output]})
-            return sendfile(request,output_path,attachment=True)
+            return FileResponse(open(output_path, 'rb'), as_attachment=True)
     return render(request, 'peptide/homology_search.html', {'errors':errors})
 
 def skyline(request):
@@ -40,7 +41,7 @@ def skyline(request):
                 skyline_pipeline(request.FILES['input_tsv'],request.FILES.getlist('input_xmls'),output_path)
             except CalledProcessError as e:
                 return render(request, 'peptide/skyline.html', {'errors':[e.output]})
-            return sendfile(request,output_path,attachment=True)
+            return FileResponse(open(output_path, 'rb'), as_attachment=True)
     return render(request, 'peptide/skyline.html', {'errors':errors})
 
 def skyline_auto(request):
@@ -62,7 +63,7 @@ def skyline_auto(request):
                 output_path = skyline_pipeline_auto(idotp, reduce_columns, only_keep_true, request.FILES['input_tsv'],request.FILES.getlist('input_xmls'))
             except CalledProcessError as e:
                 return render(request, 'peptide/skyline_auto.html', {'errors':[e.output]})
-            return sendfile(request,output_path,attachment=True)
+            return FileResponse(open(output_path, 'rb'), as_attachment=True)
     return render(request, 'peptide/skyline_auto.html', {'errors':errors})
 
 def contact(request):
@@ -134,7 +135,7 @@ def peptide_multi_search(request):
                 return render(request, 'peptide/peptide_multi_search.html', {'errors':[e.output]})
 
             if rt == 1:
-                return sendfile(request,output_path,attachment=True)
+                return FileResponse(open(output_path, 'rb'), as_attachment=True)
 
     return render(request, 'peptide/peptide_multi_search.html', {'errors':errors, 'results':results, 'output_path':output_path})
 
@@ -180,7 +181,7 @@ def peptide_search(request):
                 return render(request, 'peptide/peptide_search.html', {'errors':[e.output], 'data':request.POST})
 
             if rt == 1:
-                return sendfile(request,output_path,attachment=True)
+                return FileResponse(open(output_path, 'rb'), as_attachment=True)
 
     return render(request, 'peptide/peptide_search.html', {'errors':errors, 'results':results, 'output_path':output_path, 'data':request.POST, 'latest_peptides':q})
 
@@ -196,7 +197,7 @@ def remove_domains_tool(request):
                 output_path = remove_domains(request.FILES.getlist('input_xmls'), remove_all_mods)
             except CalledProcessError as e:
                 return render(request, 'peptide/remove_domains_tool.html', {'errors':[e.output]})
-            return sendfile(request,output_path,attachment=True)
+            return FileResponse(open(output_path, 'rb'), as_attachment=True)
     return render(request, 'peptide/remove_domains_tool.html', {'errors':errors})
 
 
@@ -225,7 +226,7 @@ def pepex_tool(request):
                 output_path = run_pepex (request.FILES['input_tsv'],count_pep)
             except CalledProcessError as e:
                 return render(request, 'peptide/pepex.html',{'errors': e.output.decode('utf-8').rstrip('\n').split('\n')})
-            return sendfile(request,output_path,attachment=True)
+            return FileResponse(open(output_path, 'rb'), as_attachment=True)
     return render(request, 'peptide/pepex.html', {'errors':errors})
 
 
