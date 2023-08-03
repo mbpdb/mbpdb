@@ -1,0 +1,437 @@
+PACKAGE_NAME: blast
+PACKAGE_VERSION: 2.14.0
+PACKAGE_SIGNATURE: GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+PACKAGE_CONFIG: Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+
+>>>>>  blastp
+
+blastp: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:52:47
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  blastp
+
+
+
+>>>>>  blastn
+
+blastn: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:52:19
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  blastn
+
+
+
+>>>>>  blastx
+
+blastx: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:52:58
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  blastx
+
+
+
+>>>>>  tblastn
+
+tblastn: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:56:57
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  tblastn
+
+
+
+>>>>>  tblastx
+
+tblastx: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:57:01
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  tblastx
+
+
+
+>>>>>  psiblast
+
+psiblast: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:55:03
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  psiblast
+
+
+
+>>>>>  rpsblast
+
+rpsblast: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:55:57
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  rpsblast
+
+
+
+>>>>>  rpstblastn
+
+rpstblastn: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:56:03
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  rpstblastn
+
+
+
+>>>>>  makembindex
+
+makembindex: 2.14.0
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:54:09
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  makembindex
+
+ NCBI C++ Toolkit: 27.0.665497
+   Build-Date:  Apr  5 2023 12:24:12
+   Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+   Revision:  665497
+   Subversion-Revision:  665497
+   Stable-Components-Version:  27
+   Production-Version:  20230304
+
+
+
+
+>>>>>  segmasker
+
+segmasker: 1.0.0
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:56:17
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  segmasker
+
+
+
+>>>>>  dustmasker
+
+dustmasker: 1.0.0
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:53:13
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  dustmasker
+
+
+
+>>>>>  windowmasker
+
+windowmasker: 1.0.0
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:57:36
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  windowmasker
+
+ window-masker-algorithm:1.0.0
+
+ windowmasker-statistics-algorithm-version:1.0.0
+
+ windowmasker-statistics-format-version:ascii 1.1.0
+
+ windowmasker-statistics-format-version:binary 1.1.0
+
+ windowmasker-statistics-format-version:oascii 1.1.0
+
+ windowmasker-statistics-format-version:obinary 1.1.0
+
+
+
+>>>>>  deltablast
+
+deltablast: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:53:05
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  deltablast
+
+
+
+>>>>>  makeblastdb
+
+makeblastdb: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:54:00
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  makeblastdb
+
+
+
+>>>>>  blastdbcmd
+
+blastdbcmd: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:51:51
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  blastdbcmd
+
+
+
+>>>>>  blastdb_aliastool
+
+blastdb_aliastool: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:58:46
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  blastdb_aliastool
+
+
+
+>>>>>  convert2blastmask
+
+convert2blastmask: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:52:51
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  convert2blastmask
+
+
+
+>>>>>  blastdbcheck
+
+blastdbcheck: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:51:51
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  blastdbcheck
+
+
+
+>>>>>  makeprofiledb
+
+makeprofiledb: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:54:22
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  makeprofiledb
+
+
+
+>>>>>  blast_formatter
+
+blast_formatter: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:58:27
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  blast_formatter
+
+
+
+>>>>>  blastn_vdb
+
+blastn_vdb: 2.14.0+
+ncbi-vdb: 3.0.1
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:52:32
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  blastn_vdb
+
+
+
+>>>>>  tblastn_vdb
+
+tblastn_vdb: 2.14.0+
+ncbi-vdb: 3.0.1
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:57:00
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  tblastn_vdb
+
+
+
+>>>>>  blast_formatter_vdb
+
+blast_formatter_vdb: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:58:27
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  blast_formatter_vdb
+
+
+
+>>>>>  blast_vdb_cmd
+
+blast_vdb_cmd: 2.14.0+
+ Package: blast 2.14.0, build Apr  5 2023 12:25:48
+ Package-Config:  Linux64-Centos : gcc : ./c++/compilers/unix/GCC.sh --with-static --without-dll --with-bin-release --with-strip --without-debug --without-pcre --with-mt --with-openmp --with-flat-makefile --with-experimental=Int8GI --without-gnutls --without-gcrypt --with-vdb=/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/vdb --with-static-vdb --with-build-root-sfx=--Linux64-Centos-gcc --with-flat-makefile --with-ncbi-public --without-ccache --without-caution --without-runpath --without-makefile-auto-update --with-projects=scripts/projects/blast/project.lst --with-internal
+ Build-Signature:  GCC_730-ReleaseMT64--x86_64-unknown-linux3.10.0-gnu2.17-coremake11
+ GI-64bit:  TRUE
+ Build-Date:  Apr  5 2023 12:58:45
+ Build-ID:  0449519f-a14c-4880-9628-327c74b7d6a7
+ Revision:  665497
+ Subversion-Revision:  665497
+ Stable-Components-Version:  27
+ Production-Version:  20230304
+ Built-As:  blast_vdb_cmd
+
+
+
+
