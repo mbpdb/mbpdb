@@ -927,18 +927,23 @@ def get_latest_peptides(n):
 
     return dictlist
 
-def run_pepex(input_tsv,count_pep):
+def run_pepex(input_tsv, count_pep):
     work_path = create_work_directory(settings.WORK_DIRECTORY)
     input_tsv_path = os.path.join(work_path, input_tsv.name).replace(' ','_')
     handle_uploaded_file(input_tsv,input_tsv_path)
     output_path = os.path.join(work_path, "pepex_output_%s.txt"%time.strftime('%Y-%m-%d_%H.%M.%S',time.localtime()))
 
     # run pepex
-    ret = subprocess.check_output([settings.PEPEX, settings.FASTA_FILES_DIR, input_tsv_path, output_path, count_pep], stderr=subprocess.STDOUT)
-    if (ret != ""):
-        raise subprocess.CalledProcessError(1, cmd=settings.PEPEX, output=ret)
+    command = [settings.PEPEX, settings.FASTA_FILES_DIR, input_tsv_path, output_path, count_pep]
+    result = subprocess.run(command, capture_output=True, text=True)
 
+    if result.returncode != 0:
+        # The command failed. Raise an exception with the output and error message.
+        raise subprocess.CalledProcessError(result.returncode, cmd=command, output=result.stdout, stderr=result.stderr)
+
+    # The command succeeded. Return the output path.
     return output_path
+
 
 def add_proteins(input_fasta_files, messages):
     work_path = create_work_directory(settings.WORK_DIRECTORY)

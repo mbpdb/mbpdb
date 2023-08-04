@@ -161,6 +161,7 @@ def add_proteins_tool(request):
                 return render(request, 'peptide/add_proteins.html', {'errors':[e.output]})
     return render(request, 'peptide/add_proteins.html', {'errors':errors, 'messages':messages})
 
+"""
 def pepex_tool(request):
     errors = []
     if request.method == 'POST':
@@ -173,6 +174,24 @@ def pepex_tool(request):
             except CalledProcessError as e:
                 return render(request, 'peptide/pepex.html',{'errors': e.output.decode('utf-8').rstrip('\n').split('\n')})
             return FileResponse(open(output_path, 'rb'), as_attachment=True)
+    return render(request, 'peptide/pepex.html', {'errors':errors})
+
+"""
+def pepex_tool(request):
+    errors = []
+    if request.method == 'POST':
+        if not request.FILES.get('input_tsv',False):
+            errors.append('The file field is mandatory.')
+        if len(errors) == 0:
+            count_pep = "1" if request.POST.get('count_pep') else "0"
+            try:
+                output_path = run_pepex(request.FILES['input_tsv'], count_pep)
+                if not os.path.isfile(output_path):
+                    errors.append('run_pepex did not return a valid file path.')
+            except CalledProcessError as e:
+                return render(request, 'peptide/pepex.html', {'errors': e.output.decode('utf-8').rstrip('\n').split('\n')})
+            if len(errors) == 0:
+                return FileResponse(open(output_path, 'rb'), as_attachment=True)
     return render(request, 'peptide/pepex.html', {'errors':errors})
 
 def protein_headers(request):
