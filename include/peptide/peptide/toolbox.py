@@ -632,10 +632,10 @@ def pepdb_multi_search2(pepfile_path, peptide_option, pid, function, seqsim, mat
         writer.writerow (('search peptide','proteinID','peptide','category','protein description','species','intervals','function','secondary function','ptm','title','authors','abstract','doi'))
         results.append('<tr><th style="padding:10px;">search peptide</th><th style="padding:10px;">proteinID</th><th style="padding:10px;" width="200px">peptide</th><th style="padding:10px;">category</th><th style="padding:10px;">protein description</th><th style="padding:10px;">species</th><th style="padding:10px;">intervals</th><th style="padding:10px;">function</th><th style="padding:10px;">secondary function</th><th style="padding:10px;">ptm</th><th style="padding:10px;">title</th><th style="padding:10px;">authors</th><th style="padding:10px;">abstract</th><th style="padding:10px;">doi</th></tr><tr><td>')
 
-        with open(input_pep_path, 'r') as pepfile:
-            for pep in iter(pepfile):
-                pep = pep.rstrip('\n')
-                results.extend(pepdb_search_tsv_line2(writer, pep, peptide_option, seqsim, matrix, extra, pid, function, species, category))
+    with open(input_pep_path, 'r') as pepfile:
+        for pep in iter(pepfile):
+            pep = pep.rstrip('\n')
+            results.extend(pepdb_search_tsv_line2(writer, pep, peptide_option, seqsim, matrix, extra, pid, function, species, category))
 
     return results,output_path
 
