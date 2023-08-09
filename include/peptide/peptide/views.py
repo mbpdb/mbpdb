@@ -110,30 +110,31 @@ def peptide_search(request):
         counter.save()
 
         peptides = request.POST.get('peptides', '').splitlines()
-        if not peptides:
-            errors.append("Error: You must input at least one peptide or upload a peptide file.")
-
         # Save peptides to a file named pepfile.txt
         pepfile_path = os.path.join(settings.MEDIA_ROOT, "pepfile.txt")
         with open(os.path.join(settings.MEDIA_ROOT, "pepfile.txt"), "w") as pepfile:
-            for peptide in peptides:
-                pepfile.write(peptide + "\n")
+            if len(peptides) == 0:
+                pepfile.write("")
+            else:
+                for peptide in peptides:
+                    pepfile.write(peptide + "\n")
 
-        if len(errors) == 0:
-            peptide_option = request.POST['peptide_option']
-            pid = request.POST['proteinid']
-            function = request.POST['function']
-            seqsim = int(request.POST['seqsim'])
-            matrix = request.POST['matrix']
-            extra = 1 if request.POST.get('extra_output') else 0
-            species = request.POST['species']
-            category = request.POST['category']
+        peptide_option = request.POST['peptide_option']
+        pid = request.POST['proteinid']
+        function = request.POST['function']
+        seqsim = int(request.POST['seqsim'])
+        matrix = request.POST['matrix']
+        extra = 1 if request.POST.get('extra_output') else 0
+        species = request.POST['species']
+        category = request.POST['category']
 
-            try:
-                (results,output_path) = pepdb_multi_search2(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species,category)
-                FileResponse(open(output_path, 'rb'))
-            except CalledProcessError as e:
-                return render(request, 'peptide/peptide_search.html', {'errors':[e.output], 'data':request.POST})
+        if not peptides and pid == "" and function == "" and species == "" and category == "":
+            errors.append("Error: You must input at least one value.")
+        try:
+            (results,output_path) = pepdb_multi_search2(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species,category)
+            FileResponse(open(output_path, 'rb'))
+        except CalledProcessError as e:
+            return render(request, 'peptide/peptide_search.html', {'errors':[e.output], 'data':request.POST})
     return render(request, 'peptide/peptide_search.html', {'errors':errors, 'results':results, 'output_path':output_path, 'data':request.POST, 'latest_peptides':q})
 
 def add_proteins_tool(request):
