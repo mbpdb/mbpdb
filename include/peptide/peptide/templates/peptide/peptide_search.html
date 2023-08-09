@@ -180,11 +180,12 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 </div>
 </div>
 <br/>
-<button class="btn btn-default" id="search-db-btn">Search DB</button>
-
+<button class="btn btn-default" id="search-db-btn">Search DB</button>  <a href=".">Clear all search criteria</a>
 <a name="search_results"></a>
-    <br>
-{% if results %}
+<br/>
+
+<br/>
+{% if results and not errors %}
     <br>
     <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a>
   <table border="1" id="results_table">
@@ -214,5 +215,8 @@ document.querySelector('input[name="inputfile"]').addEventListener('change', fun
         reader.readAsText(file);
     }
 });
+
+
 </script>
+
 {% endblock 'content' %}
