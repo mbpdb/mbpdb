@@ -1,0 +1,55 @@
+{% extends 'peptide/base.html' %}
+{% load static %}
+{% block 'content' %}
+</head>
+    <h1>About Us</h1>
+    <h2>Our Research</h2>
+    <p>
+The Milk Bioactive Peptide Database (MBPDB) is a comprehensive platform dedicated to the exploration and understanding of bioactive peptides derived from milk proteins. As milk proteins undergo processing and digestion, they yield peptides with a spectrum of biological properties, ranging from antimicrobial and antioxidant to opioid and immunomodulatory effects. While numerous reviews have touched upon these attributes, the specifics about each peptide and its function were distributed across myriad research articles. 
+  <br>
+Our website consolidates this scattered information, offering users a centralized resource. Born from an extensive literature review, the MBPDB captures data on bioactive peptides from mammalian milk proteins. Beyond just listing, the platform offers visual mapping of these peptides on their parent protein sequences, spotlighting areas with a high concentration of bioactive peptides. 
+  <br>
+Furthermore, the site serves as a testament to the evolution of research in this field. Our team has delved deep into literature spanning decades, ensuring the MBPDB remains updated and relevant. This platform presents an exhaustive overview of research across various functional categories, from in vitro experiments to animal and clinical studies. By making such knowledge accessible, we aim to propel future research into the myriad benefits of milk peptides.
+</p>
+    
+    <h2>Please Cite:</h2>
+    <ul>
+        <li><a href="http://www.sciencedirect.com/science/article/pii/S0308814617306222" target="_blank">Nielsen, Søren Drud, Robert L. Beverly, Yunyao Qu, and David C. Dallas. 2017. “Milk Bioactive Peptide Database: A Comprehensive Database of Milk Protein-Derived Bioactive Peptides and Novel Visualization.” Food Chemistry 232 (October). Elsevier: 673–82.</a></li>
+        <br>
+        <li><a href="https://www.tandfonline.com/doi/full/10.1080/10408398.2023.2240396" target="_blank">Søren Drud-Heydary Nielsen, Ningjian Liang, Harith Rathish, Bum Jin Kim, Jiraporn Lueangsakulthai, Jeewon Koh, Yunyao Qu, Hans-Jörg Schulz & David C. Dallas. 2023. “Bioactive milk peptides: an updated comprehensive overview and database.” Critical Reviews in Food Science and Nutrition. Taylor & Francis Online.</a></li>
+    </ul>
+    <h2>Contact Us</h2>
+    <ul>
+    <p>For specific inquiries or to add bioactive peptides and new proteins, please reach out to us at:
+    <a href="mailto:Contact_MBPDB@oregonstate.edu">Contact_MBPDB@oregonstate.edu</a>.</p>
+    </ul>
+
+    <h4>Current Protein List </h4>
+    <ul>
+    <a href="{% url 'protein_headers' %}" target="_blank">View current protein fasta headers (IDs)</a>
+    </ul>
+
+    <h4>Data Contributors</h4>
+    <ul>
+        <li>Søren Drud Nielsen</li>
+        <li>Robert L. Beverly</li>
+        <li>Yunyao Qu</li>
+        <li>Ningjian Liang</li>
+        <li>Harith Rathish</li>
+        <li>Bum Jin Kim</li>
+        <li>Jiraporn Lueangsakulthai</li>
+        <li>Jeewon Koh</li>
+        <li>Hans-Jörg Schulz</li>
+        <li>David C. Dallas (<a href="http://www.dallaslab.org" target="_blank">www.dallaslab.org</a>)</li>
+    </ul>
+    
+    <h4>Web Development Team</h4>
+    <ul>
+        <li>Nikhil Joshi</li>
+        <li>Adam Schaal</li>
+        <li>Søren Drud Nielsen</li>
+        <li>Russell Kuhfeld</li>
+    </ul>
+
+
+{% endblock 'content' %}
