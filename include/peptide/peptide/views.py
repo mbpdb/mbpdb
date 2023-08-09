@@ -179,3 +179,6 @@ def tsv_search_results(request):
     if re.match("^" + settings.WORK_DIRECTORY + ".+/MBPDB.+\.tsv$", file_path):
         response = FileResponse(open(file_path, 'rb'))
         return response
+
+def about_us(request):
+    return render(request, 'peptide/about_us.html')
