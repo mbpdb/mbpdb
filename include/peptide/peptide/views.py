@@ -1,17 +1,13 @@
 from django.shortcuts import render
-
 import os, re
-from django.conf import settings
-from .toolbox import blast_pipeline, run_pepex, add_proteins, peptide_db_call, pepdb_add_csv,pepdb_search, pepdb_multi_search, pepdb_multi_search2, contact_us, get_latest_peptides
-from sendfile import sendfile
-from django.http.response import HttpResponse, HttpResponseRedirect
+from .toolbox import blast_pipeline, run_pepex, add_proteins, peptide_db_call, pepdb_add_csv, pepdb_multi_search, pepdb_multi_search2, contact_us, get_latest_peptides
+from django.http.response import HttpResponse
 import subprocess
 from subprocess import CalledProcessError
-from django.contrib.auth.decorators import login_required
 from .models import Counter
 from datetime import datetime
 from django.http import FileResponse
-
+from django.conf import settings
 
 def index(request):
     context = {}
@@ -102,27 +98,26 @@ def peptide_multi_search(request):
 
     return render(request, 'peptide/peptide_multi_search.html', {'errors':errors, 'results':results, 'output_path':output_path})
 
+#Updated rk 8/8/23
 def peptide_search(request):
     errors = []
     results = []
     output_path = ''
-
-    q = get_latest_peptides(3)
+    q = get_latest_peptides(1) #changed to 1 RK 8/4/23
 
     if request.method == 'POST':
         counter = Counter(ip=request.META['REMOTE_ADDR'], access_time=datetime.now(), page='peptide search')
         counter.save()
 
-        peptide = request.POST['peptide']
-        if request.FILES.get('pepfile',False) and peptide!='':
-            errors.append("Error: Please input EITHER a single peptide sequence OR a file with multiple peptides, but not both.")
+        peptides = request.POST.get('peptides', '').splitlines()
+        if not peptides:
+            errors.append("Error: You must input at least one peptide or upload a peptide file.")
 
-        pid = request.POST['proteinid']
-        function = request.POST['function']
-        species = request.POST['species']
-        category = request.POST['category']
-        if peptide == '' and not request.FILES.get('pepfile',False) and pid == '' and function == '' and species == '' and category == '':
-            errors.append("Error: You must input at least one of the following: Single Peptide Sequence, file with multiple peptides, Protein ID, Function, Species, or Category.")
+        # Save peptides to a file named pepfile.txt
+        pepfile_path = os.path.join(settings.MEDIA_ROOT, "pepfile.txt")
+        with open(os.path.join(settings.MEDIA_ROOT, "pepfile.txt"), "w") as pepfile:
+            for peptide in peptides:
+                pepfile.write(peptide + "\n")
 
         if len(errors) == 0:
             peptide_option = request.POST['peptide_option']
@@ -130,22 +125,15 @@ def peptide_search(request):
             function = request.POST['function']
             seqsim = int(request.POST['seqsim'])
             matrix = request.POST['matrix']
-            rt = 1 if request.POST.get('return_tsv') else 0
             extra = 1 if request.POST.get('extra_output') else 0
             species = request.POST['species']
             category = request.POST['category']
 
             try:
-                if request.FILES.get('pepfile',False):
-                    (results,output_path) = pepdb_multi_search2(request.FILES['pepfile'],peptide_option,pid,function,seqsim,matrix,extra,species,category)
-                else:
-                    (results,output_path) = pepdb_search(peptide,peptide_option,pid,function,seqsim,matrix,extra,species,category)
+                (results,output_path) = pepdb_multi_search2(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species,category)
+                FileResponse(open(output_path, 'rb'))
             except CalledProcessError as e:
                 return render(request, 'peptide/peptide_search.html', {'errors':[e.output], 'data':request.POST})
-
-            if rt == 1:
-                return FileResponse(open(output_path, 'rb'), as_attachment=True)
-
     return render(request, 'peptide/peptide_search.html', {'errors':errors, 'results':results, 'output_path':output_path, 'data':request.POST, 'latest_peptides':q})
 
 def add_proteins_tool(request):
@@ -161,22 +149,6 @@ def add_proteins_tool(request):
                 return render(request, 'peptide/add_proteins.html', {'errors':[e.output]})
     return render(request, 'peptide/add_proteins.html', {'errors':errors, 'messages':messages})
 
-"""
-def pepex_tool(request):
-    errors = []
-    if request.method == 'POST':
-        if not request.FILES.get('input_tsv',False):
-            errors.append('The file field is mandatory.')
-        if len(errors) == 0:
-            count_pep = "1" if request.POST.get('count_pep') else "0"
-            try:
-                output_path = run_pepex (request.FILES['input_tsv'],count_pep)
-            except CalledProcessError as e:
-                return render(request, 'peptide/pepex.html',{'errors': e.output.decode('utf-8').rstrip('\n').split('\n')})
-            return FileResponse(open(output_path, 'rb'), as_attachment=True)
-    return render(request, 'peptide/pepex.html', {'errors':errors})
-
-"""
 def pepex_tool(request):
     errors = []
     if request.method == 'POST':
@@ -200,20 +172,9 @@ def protein_headers(request):
     ret = ret.replace('\n', '<br />')
     return HttpResponse(ret)
 
-
+#Updated rk 8/8/23
 def tsv_search_results(request):
-    file_path = request.path.replace("/tsv_search_results","")
-    if re.match("^"+settings.WORK_DIRECTORY+".+/MBPDB.+\.tsv$", file_path):
-        return sendfile(request,file_path,attachment=True)
-
-"""
-from django.core.files.temp import NamedTemporaryFile
-def send_file(request):
-    newfile = NamedTemporaryFile(suffix='.txt')
-    # save your data to newfile.name
-    wrapper = FileWrapper(newfile)
-    response = HttpResponse(wrapper, content_type=mime_type)
-    response['Content-Disposition'] = 'attachment; filename=%s' % os.path.basename(modelfile.name)
-    response['Content-Length'] = os.path.getsize(modelfile.name)
-    return response
-"""
+    file_path = request.path.replace("/tsv_search_results/", "")
+    if re.match("^" + settings.WORK_DIRECTORY + ".+/MBPDB.+\.tsv$", file_path):
+        response = FileResponse(open(file_path, 'rb'))
+        return response
