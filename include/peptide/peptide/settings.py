@@ -9,7 +9,12 @@ https://docs.djangoproject.com/en/1.7/ref/settings/
 """
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
+
 import os
+import ssl
+import certifi
+from django.core.mail import get_connection
+
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 
 
@@ -132,7 +137,26 @@ TEMPLATES = [
     },
 ]
 
-#mail settings
+ssl_context = ssl.create_default_context(cafile=certifi.where())
+"""
+connection = get_connection(
+    'django.core.mail.backends.smtp.EmailBackend',
+    ssl_context=ssl_context
+)
+"""
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.office365.com'
+NOREPLY_EMAIL = 'noreply@mbpdb.nws.oregonstate.edu'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
+EMAIL_HOST_USER = 'kuhfeldr@oregonstate.edu'
+EMAIL_HOST_PASSWORD = ''
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+"""
+#Orginal mail setting:
 EMAIL_HOST = 'smtp.oregonstate.edu'
 EMAIL_PORT = 25
 NOREPLY_EMAIL = 'noreply@mbpdb.nws.oregonstate.edu'
+"""
