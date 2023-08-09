@@ -1,21 +1,11 @@
 {% extends 'peptide/base.html' %}
 {% load static %}
 {% block 'content' %}
-<h1>MBPDB Search</h1>
-<h6>If you are using this database please cite:<br/>
-<a href="http://www.sciencedirect.com/science/article/pii/S0308814617306222" target="_blank">Nielsen, Søren Drud, Robert L. Beverly, Yunyao Qu, and David C. Dallas. 2017. “Milk Bioactive Peptide Database: A Comprehensive Database of Milk Protein-Derived Bioactive Peptides and Novel Visualization.” <i>Food Chemistry 232 (October)</i>. Elsevier: 673–82.</a><h6>
-<a href="https://www.tandfonline.com/doi/full/10.1080/10408398.2023.2240396" target="_blank">Søren Drud-Heydary Nielsen, Ningjian Liang, Harith Rathish, Bum Jin Kim, Jiraporn Lueangsakulthai, Jeewon Koh, Yunyao Qu, Hans-Jörg Schulz & David C. Dallas. 2023. “Bioactive milk peptides: an updated comprehensive overview and database.” <i>Critical Reviews in Food Science and Nutrition</i>. Taylor & Francis Online.</a><h6>
-
-{% if latest_peptides %}
-  <b>Latest Peptides Added to Database</b>
-  <table border="1">
-  <tr><th style="padding:2px; padding-left:5px; padding-right:5px;">Time Approved</th><th style="padding:2px; padding-left:5px; padding-right:5px;">Peptide</th><th style="padding:2px; padding-left:5px; padding-right:5px;">Protein ID</th><th style="padding:2px; padding-left:5px; padding-right:5px;">Functions</th></tr>
-  {% for pep in latest_peptides %}
-    <tr><td style="padding:2px; padding-left:5px; padding-right:5px;">{{pep.time_approved}}</td><td style="padding:2px; padding-left:5px; padding-right:5px;">{{pep.peptide}}</td><td style="padding:2px; padding-left:5px; padding-right:5px;">{{pep.pid}}</td><td style="padding:2px; padding-left:5px; padding-right:5px;">{{pep.functions}}</td></tr>
-  {% endfor %}
-  </table>
-{% endif %}
-
+<style>
+#hiddenFileInput {
+    display: none;
+}
+</style>
 <br/>
 <h4><u>Search Milk Bioactive Peptide database</u></h4>
 {% for e in errors %}
@@ -30,17 +20,22 @@
 </div>
 {% endfor %}
 
+
 <form method="POST" enctype="multipart/form-data" action="." role="form">
 {% csrf_token %}
 <div class="form-group">
-    <label for="peplabel">Single Peptide Sequence</label>
-    <br/>
-    <input type="text" name="peptide" size="100" {% if data.peptide %}value="{{data.peptide}}"{% endif %}/>
-    <br/>
-    <p class="help-block">If sequence is empty (and no file is chosen below), then it will search all sequences and search options will be ignored.</p>
-    <label for="pepfilelabel">OR file with multiple peptides (<a href="{% static 'peptide/example/multiple_peptide_example.txt' %}">Example</a>):</label><br/>
-    <input type="file" name="pepfile" />
-    <p class="help-block">A simple text file with one column of peptides.</p>
+    <textarea name="peptides" rows="10" cols="80" placeholder="YPFPGPIPN" class="tools-form-raw-text-input" data-hj-allow="true">{% if data.peptides %}{{data.peptides}}{% endif %}</textarea><br/>
+    Enter a peptide sequence or multiple sequences (max 10,000), or upload a simple text file of peptide sequences separated by white space, tab, new line or comma, <a href="#" id="loadFileLink">load from a text file</a> | <a href="{% static 'peptide/example/multiple_peptide_example.txt' %}">Example</a>
+    <input type="file" name="inputfile" id="hiddenFileInput" />
+
+    <script>
+
+document.querySelector('#loadFileLink').addEventListener('click', function(event) {
+    event.preventDefault();  // Prevent the default anchor action
+    document.querySelector('#hiddenFileInput').click();
+});
+</script>
+
 Search type:&nbsp;
     <input type="radio" name="peptide_option" value="sequence" {% if not data.peptide_option or data.peptide_option == 'sequence' %}checked{% endif %}>Sequence&nbsp;
     <input type="radio" name="peptide_option" value="truncated" {% if data.peptide_option == 'truncated' %}checked{% endif %}>Truncated&nbsp;
@@ -173,12 +168,11 @@ Search type:&nbsp;
 </td></tr>
 </table>
 
-<div class="form-group">
-    <input type="checkbox" name="return_tsv" {% if data.return_tsv %}checked{% endif %}> Download results (Tab-separated values file)</input>
-</div>
 <button class="btn btn-default">Search DB</button>
 
 <a name="search_results"></a>
+    <br>
+    <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a>
 
 <br/>
 {% if results %}
@@ -192,8 +186,27 @@ Search type:&nbsp;
   {% endfor %}
   </table>
   <br/>
-  <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a>
 {% endif %}
 
-</form>
+<script>
+document.querySelector('input[name="inputfile"]').addEventListener('change', function(event) {
+    var file = event.target.files[0];
+    if (file) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            // Split the content based on whitespace, tab, newline, and comma
+            var peptide = e.target.result.split(/[\s,\t\n]+/);
+            // Join using two newlines and populate the textarea
+            document.querySelector('textarea[name="peptides"]').value = peptide.join('\n');
+            // Clear the file input
+            document.querySelector('input[name="inputfile"]').value = '';
+        };
+        reader.readAsText(file);
+    }
+});
+
+
+
+</script>
+
 {% endblock 'content' %}
