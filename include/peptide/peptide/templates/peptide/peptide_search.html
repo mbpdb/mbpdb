@@ -186,8 +186,10 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 
 <br/>
 {% if results and not errors %}
-    <br>
-    <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a>
+    <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a> | If you are referencing this database: <a href="{% url 'about_us' %}" style="font-size: 20px;"> <b>please cite</b></a>
+
+
+
   <table border="1" id="results_table">
   {{ results|first|safe }}
   {% for r in results|slice:"1:" %}
@@ -197,6 +199,9 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
   {% endfor %}
   </table>
   <br/>
+  {% if latest_peptides %} {% for pep in latest_peptides %}
+  Database updated: {{pep.time_approved}}
+{% endfor %} {% endif %}
 {% endif %}
 
 <script>
