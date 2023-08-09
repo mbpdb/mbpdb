@@ -5,18 +5,8 @@
 #hiddenFileInput {
     display: none;
 }
-textarea.tools-form-raw-text-input {
-    width: 50vw;
-}
-.textarea-container p {
-    width:50vw;
-    word-wrap: break-word;
-}
-.form-group label, .form-group .help-block {
-    text-align: left;
-}
 </style>
-
+<br/>
 <h4><u>Search Milk Bioactive Peptide database</u></h4>
 {% for e in errors %}
 <div class="alert alert-danger  alert-dismissible" role="alert">
@@ -30,30 +20,23 @@ textarea.tools-form-raw-text-input {
 </div>
 {% endfor %}
 
-<div class="textarea-container">
+
 <form method="POST" enctype="multipart/form-data" action="." role="form">
 {% csrf_token %}
 <div class="form-group">
-    <textarea name="peptides" rows="10" placeholder="YPFPGPIPN" class="tools-form-raw-text-input" data-hj-allow="true">{% if data.peptides %}{{data.peptides}}{% endif %}</textarea><br/>
-    <p>Enter a peptide sequence or multiple sequences, or upload a simple text file of peptide sequences separated by white space, tab, new line or commas, <a href="#" id="loadFileLink">load from a text file</a> | <a href="{% static 'peptide/example/multiple_peptide_example.txt' %}" target="_blank">Example</a></p>
+    <textarea name="peptides" rows="10" cols="80" placeholder="YPFPGPIPN" class="tools-form-raw-text-input" data-hj-allow="true">{% if data.peptides %}{{data.peptides}}{% endif %}</textarea><br/>
+    Enter a peptide sequence or multiple sequences (max 10,000), or upload a simple text file of peptide sequences separated by white space, tab, new line or comma, <a href="#" id="loadFileLink">load from a text file</a> | <a href="{% static 'peptide/example/multiple_peptide_example.txt' %}">Example</a>
     <input type="file" name="inputfile" id="hiddenFileInput" />
-</div>
-<script>
+    <br/>
+    <script>
+
 document.querySelector('#loadFileLink').addEventListener('click', function(event) {
     event.preventDefault();  // Prevent the default anchor action
     document.querySelector('#hiddenFileInput').click();
 });
 </script>
-<!-- Advanced Search Toggle Button -->
-<button class="btn btn-default" type="button" data-toggle="collapse" data-target="#advancedSearchOptions" aria-expanded="false" aria-controls="advancedSearchOptions">
-  Advanced Search Options
-</button>
-<!-- Advanced Search Options (Collapsed by default) -->
-<div class="collapse" id="advancedSearchOptions">
-    <table>
-  <div class="form-group">
-    <td style="padding-left:30px">
-        <label>Search type:</label>
+<br/>
+Search type:&nbsp;
     <input type="radio" name="peptide_option" value="sequence" {% if not data.peptide_option or data.peptide_option == 'sequence' %}checked{% endif %}>Sequence&nbsp;
     <input type="radio" name="peptide_option" value="truncated" {% if data.peptide_option == 'truncated' %}checked{% endif %}>Truncated&nbsp;
     <input type="radio" name="peptide_option" value="precursor" {% if data.peptide_option == 'precursor' %}checked{% endif %}>Precursor&nbsp;
@@ -66,9 +49,11 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
       </div>
     </div>
 
-
-    <tr><td style="padding-left:30px">
-    <label>Similarity threshold:</label>
+    <br/>
+    <br/>
+    <table>
+    <tr><td>
+    Similarity threshold:&nbsp;
     <select name="seqsim">
         <option value="10" {% if data.seqsim == "10" %}selected="selected"{% endif %}>10%</option>
         <option value="20" {% if data.seqsim == "20" %}selected="selected"{% endif %}>20%</option>
@@ -93,11 +78,10 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
           Note that for a query that is less than 4 AA, similarity threshold will be 100%. Also, when choosing 100% similarity and the identity matrix, a direct database query will always be used.
        </div>
      </div>
-     </td><tr/>
+     </td>
 
-
-    <tr><td style="padding-left:30px">
-     <label>Scoring matrix:</label>
+    <td style="padding-left:30px">
+    Scoring matrix:&nbsp;
     <select name="matrix">
         <option value="IDENTITY" {% if not data.matrix or data.matrix == "IDENTITY" %}selected="selected"{% endif %}>Identity</option>
         <option value="BLOSUM62" {% if data.matrix == "BLOSUM62" %}selected="selected"{% endif %}>BLOSUM62</option>
@@ -115,30 +99,34 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     </div>
 </div>
 </td></tr>
+</table>
 
-<tr><td style="padding-left:30px">
+<br/>
 <div class="form-group">
-    <input type="checkbox" name="extra_output" {% if data.extra_output %}checked{% endif %}> <label>Get extra output?</label></input>
+    <input type="checkbox" name="extra_output" {% if data.extra_output %}checked{% endif %}> Get extra output?</input>
     <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
         <div class="mytooltiptext" style="width:500px;">
             This option will add the following extra columns to the output: % alignment, query &amp; subject start and end positions, e-value, alignment length, mismatches, gap opens. Note that these extra columns will only have values for results obtained by blastp.
         </div>
     </div>
 </div>
-</td></tr>
 
-<tr><td style="padding-left:30px">
+<br/>
+<table>
+<tr><td>
 <div class="form-group">
     <label for="protlabel">Protein ID</label>
+    <br/>
     <input type="text" name="proteinid" size="30" {% if data.proteinid %}value="{{data.proteinid}}"{% endif %} />
-<!--<p class="help-block">If protein ID is empty, then it will search all protein IDs.</p>-->
+<p class="help-block">If protein ID is empty, then it will search all protein IDs.</p>
 </div>
-</td><tr>
+</td>
 
 <td style="padding-left:30px">
 <div class="form-group">
-    <label for="funclabel">Function</label>
-    <input list="funcs" name="function" size="30"{% if data.function %}value="{{data.function}}"{% endif %} style="text-align:left;">
+    <label for="funclabel">Function (choose from dropdown or type in your own)</label>
+    <br/>
+    <input list="funcs" name="function" {% if data.function %}value="{{data.function}}"{% endif %}>
     <datalist id="funcs">
         <option value="ACE-inhibitory">
         <option value="Antimicrobial">
@@ -149,14 +137,15 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
         <option value="Opioid">
     </datalist>
     </input>
-<!-- <p class="help-block">choose from dropdown or type in your own</p>-->
+<p class="help-block">If function is empty, then it will search all functions.</p>
 </div>
 </td></tr>
 
-<tr><td style="padding-left:30px">
+<tr><td>
 <div class="form-group">
-    <label for="speclabel">Species</label>
-    <input list="specs" name="species" size="30"{% if data.species %}value="{{data.species}}"{% endif %}>
+    <label for="speclabel">Species (choose from dropdown or type in your own)</label>
+    <br/>
+    <input list="specs" name="species" {% if data.species %}value="{{data.species}}"{% endif %}>
     <datalist id="specs">
         <option value="Human">
         <option value="Cow">
@@ -165,28 +154,29 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
         <option value="Pig">
     </datalist>
     </input>
-    <!-- <p class="help-block">choose from dropdown or type in your own</p>-->
+    <p class="help-block">If species is empty, then it will search all species.</p>
 </div>
 </td>
-<br/>
-<tr><td style="padding-left:30px">
+
+<td style="padding-left:30px">
 <div class="form-group">
     <label for="catlabel">Category</label>
-    <input type="text" name="category" size="30" {% if data.category %}value="{{data.category}}"{% endif %} style="text-align:left;"/>
-    <!--<p class="help-block">If category is empty, then it will search all categories.</p>-->
+    <br/>
+    <input type="text" name="category" size="50" {% if data.category %}value="{{data.category}}"{% endif %} />
+    <p class="help-block">If category is empty, then it will search all categories.</p>
 </div>
 </td></tr>
 </table>
-</div>
-</div>
-<br/>
-<button class="btn btn-default" id="search-db-btn">Search DB</button>
+
+<button class="btn btn-default">Search DB</button>
 
 <a name="search_results"></a>
     <br>
-{% if results %}
-    <br>
     <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a>
+
+<br/>
+{% if results %}
+<br/>
   <table border="1" id="results_table">
   {{ results|first|safe }}
   {% for r in results|slice:"1:" %}
@@ -214,5 +204,9 @@ document.querySelector('input[name="inputfile"]').addEventListener('change', fun
         reader.readAsText(file);
     }
 });
+
+
+
 </script>
+
 {% endblock 'content' %}

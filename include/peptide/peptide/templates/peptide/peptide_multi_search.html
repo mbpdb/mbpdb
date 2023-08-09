@@ -19,7 +19,7 @@
 {% csrf_token %}
 <div class="form-group">
      <input type="file" name="tsv_file" />
-     <p class="help-block">Use a correctly formatted TSV (tab-separated values) file with UTF-8 encoding. For format requirements, view the <a href="{% static 'peptide/example/peptide_multi_search_input_example.tsv'%}">example file</a>.</p>
+     <p class="help-block">Use a correctly formatted TSV (tab-separated values) file with UTF-8 encoding. For format requirements, view the <a href="{% static 'peptide/example/peptide_multi_search_input_example.tsv'%}" target="_blank"> example file</a>.</p>
      <p class="help-block">Note that the Peptide Sequence, Protein ID, Function, Species, and Category columns can be empty. Also, if peptide is empty, search_type, similarity_threshold, scoring_matrix, and extra_output will be ignored.</p>
 </div>
 
