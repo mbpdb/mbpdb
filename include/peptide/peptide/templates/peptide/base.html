@@ -89,10 +89,14 @@
                     <a href="{% url 'pepex' %}">PepEx</a>
                 </li>
                 <br/>
-
-Data by:
-Søren Drud Nielsen, 
-Robert L. Beverly, 
+<b>Please cite:</b><br/>
+<a href="http://www.sciencedirect.com/science/article/pii/S0308814617306222" target="_blank">Nielsen, Søren Drud, Robert L. Beverly, Yunyao Qu, and David C. Dallas. 2017. “Milk Bioactive Peptide Database: A Comprehensive Database of Milk Protein-Derived Bioactive Peptides and Novel Visualization.” <i>Food Chemistry 232 (October)</i>. Elsevier: 673–82.</a><br/>
+<br/>
+<a href="https://www.tandfonline.com/doi/full/10.1080/10408398.2023.2240396" target="_blank">Søren Drud-Heydary Nielsen, Ningjian Liang, Harith Rathish, Bum Jin Kim, Jiraporn Lueangsakulthai, Jeewon Koh, Yunyao Qu, Hans-Jörg Schulz & David C. Dallas. 2023. “Bioactive milk peptides: an updated comprehensive overview and database.” <i>Critical Reviews in Food Science and Nutrition</i>. Taylor & Francis Online.</a><br/>
+<br/>
+<u>Data by:</u>
+Søren Drud Nielsen,
+Robert L. Beverly,
 Yunyao Qu,
 Ningjian Liang,
 Harith Rathish,
@@ -103,10 +107,14 @@ Hans-Jörg Schulz
 David C. Dallas (<a href="http://www.dallaslab.org" target="_blank">www.dallaslab.org</a>)
 <br/>
 <br/>
-Web development by: Nikhil Joshi & Adam Schaal (<a href="http://bioinformatics.ucdavis.edu" target="_blank">UC Davis Bioinformatics Core</a>), Søren Drud Nielsen, and Russell Kuhfeld
+<u>Web development by:</u>
+Nikhil Joshi & Adam Schaal, Søren Drud Nielsen, and Russell Kuhfeld
 <br/>
-            <a href="http://mbpdb.nws.oregonstate.edu/admin/" target="_blank">admin</a>
-            </ul>
+<br/>
+
+  {% if latest_peptides %} {% for pep in latest_peptides %}
+  Database updated: {{pep.time_approved}}
+{% endfor %} {% endif %}
         </div>
         <!-- /#sidebar-wrapper -->
 
