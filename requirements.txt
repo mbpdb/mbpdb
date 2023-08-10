@@ -28,7 +28,8 @@ wget
 # sudo cp ncbi-blast-2.14.0+/bin/* /usr/local/bin
 
 ## useful commands
-#start and stop server
+#start and stop connect server
+	# ssh -i ./mbpdb_key.pem azureuser@20.125.149.39
 	# LOCAL WSL - source newenv/bin/activate && cd biodb/include/peptide/ && python3 manage.py run server
 	# AZURE - source env/bin/activate && cd include/peptide/ && python3 manage.py runserver 0.0.0.0:8000
 	# cd && deactivate
