@@ -1,6 +1,11 @@
 # Milk Bioactive Peptide Database  
 ## https://mbpdb.nws.oregonstate.edu/  
-## http://mbpdb.nws.oregonstate.edu/admin/  
+
+## hidden links  
+### http://mbpdb.nws.oregonstate.edu/admin/  
+### http://mbpdb.nws.oregonstate.edu/peptide_db_csv/  
+### http://mbpdb.nws.oregonstate.edu//add_proteins/  
+
 # Software versions of the original application   
 ## Old versions:  
 -SQLite 3.7.17  
@@ -24,13 +29,25 @@
 
 
 
-# Primary Updates to back-end software  
+# Primary Updates to back-end software for **system updates**  
 ## Packages:  
+ - unicodecsv  
+ - biopython  
+ - chardet  
+ - django-sendfile  
+ - pip  
+ - numpy  
+ - setuptools  
+ - wheel  
+ - dos2unix  
+ - recode  
+ - ncbi-blast+  
+ - epel-release  
+ - wget  
+
 
 # Updates to code from transition:  
-## \include\peptide\peptide\models.py  
-## \include\peptide\peptide\admin.py  
-## \include\peptide\peptide\toolbox.py  
+- base.html~  
 ## \newenv\lib\python3.10\site-packages\sendfile\__init__.py  
 ## \include\peptide\peptide\urls.py  
 ## \include\peptide\peptide\views.py  
@@ -51,6 +68,27 @@ updated all HTML files with the folloing
 - index.html  
 - peptide_db_csv.html  
 - remove_domains_tool.html  
+
+# Primary Updates to back-end software for system **redesign**    
+## Removed html:
+- contact.html  
+- peptide_multi_search.html  
+- skyline.html  
+- homology_search.html  
+- peptide_db.html  
+- skyline_auto.html  
+- peptide_db_csv.html  
+- remove_domains_tool.html  
+
+## Updated html & python:
+- about_us.html  
+- homology_search.html  
+- base.html  
+- views.py    
+- toolbox.py    
+- urls.py  
+- settings.py  
+
 
 
 # SQL table information:  
