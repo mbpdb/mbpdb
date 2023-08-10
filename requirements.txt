@@ -29,7 +29,8 @@ wget
 
 ## useful commands
 #start and stop server
-	# source newenv/bin/activate && cd biodb/include/peptide/ && python3 manage.py runserver
+	# LOCAL WSL - source newenv/bin/activate && cd biodb/include/peptide/ && python3 manage.py run server
+	# AZURE - source env/bin/activate && cd include/peptide/ && python3 manage.py runserver 0.0.0.0:8000
 	# cd && deactivate
 #kill applications on port 8000
 	# lsof -i :8000
