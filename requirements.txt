@@ -35,3 +35,10 @@ wget
 #kill applications on port 8000
 	# lsof -i :8000
 	# kill -9 <PID>
+#github clone 
+	#cat ~/.ssh/id_rsa.pub
+	#Copy the entire content of the file.
+	#Go to your GitHub settings.
+	#In the sidebar, click on "SSH and GPG keys".
+	#Click the "New SSH key" button.
+	## git clone https://github.com/Kuhfeldrf/MBPDB
