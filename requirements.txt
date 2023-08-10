@@ -12,6 +12,7 @@ ncbi-blast+
 epel-release
 wget
 net-tools
+certif
 
 #some libraries required yum not pip
 #sudo yum install dos2unix
@@ -27,3 +28,6 @@ net-tools
 # tar -zxvf ncbi-blast-2.14.0+-x64-linux.tar.gz
 rm -zxvf ncbi-blast-2.14.0+-x64-linux.tar.gz
 # sudo cp ncbi-blast-2.14.0+/bin/* /usr/local/bin
+
+## SSL cert
+# export SSL_CERT_FILE=/home/me/newenv/lib/python3.10/site-packages/certifi/cacert.pem
