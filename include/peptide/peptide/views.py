@@ -77,6 +77,9 @@ def peptide_db_csv(request):
     return render(request, 'peptide/peptide_db_csv.html', {'errors':errors, 'messages':messages})
 
 def peptide_multi_search(request):
+    return ("nulls")
+"""
+
     errors = []
     results = ''
     output_path = ''
@@ -84,41 +87,32 @@ def peptide_multi_search(request):
         counter = Counter(ip=request.META['REMOTE_ADDR'], access_time=datetime.now(), page='peptide multi search')
         counter.save()
 
-        if not request.FILES.get('tsv_file',False):
-            errors.append('File fields are mandatory.')
-        if len(errors) == 0:
-            rt = 1 if request.POST.get('return_tsv') else 0
-            try:
-                (results,output_path) = pepdb_multi_search(request.FILES['tsv_file'])
-            except CalledProcessError as e:
-                return render(request, 'peptide/peptide_multi_search.html', {'errors':[e.output]})
+        if not request.FILES.get('tsv_file', False):
+            errors.append("Error: You must input at least one value or upload file.")
+            print("Error: You must input at least one value or upload file.")
+        try:
+            (results,output_path) = pepdb_multi_search(request.FILES['tsv_file'])
+            FileResponse(open(output_path, 'rb'))
+            print("peptide_multi_search(request):")
+        except CalledProcessError as e:
+            return render(request, 'peptide/peptide_search.html', {'errors':[e.output]})
 
-            if rt == 1:
-                return FileResponse(open(output_path, 'rb'), as_attachment=True)
-
-    return render(request, 'peptide/peptide_multi_search.html', {'errors':errors, 'results':results, 'output_path':output_path})
-
+    return render(request, 'peptide/peptide_search.html', {'errors':errors, 'results':results, 'output_path':output_path})
+"""
 #Updated rk 8/8/23
 def peptide_search(request):
     errors = []
     results = []
     output_path = ''
-    q = get_latest_peptides(1) #changed to 1 RK 8/4/23
+    q = get_latest_peptides(1)
+    tsv_submitted = bool(request.FILES.get('tsv_file'))
+
 
     if request.method == 'POST':
         counter = Counter(ip=request.META['REMOTE_ADDR'], access_time=datetime.now(), page='peptide search')
         counter.save()
 
         peptides = request.POST.get('peptides', '').splitlines()
-        # Save peptides to a file named pepfile.txt
-        pepfile_path = os.path.join(settings.MEDIA_ROOT, "pepfile.txt")
-        with open(os.path.join(settings.MEDIA_ROOT, "pepfile.txt"), "w") as pepfile:
-            if len(peptides) == 0:
-                pepfile.write("")
-            else:
-                for peptide in peptides:
-                    pepfile.write(peptide + "\n")
-
         peptide_option = request.POST['peptide_option']
         pid = request.POST['proteinid']
         function = request.POST['function']
@@ -127,15 +121,37 @@ def peptide_search(request):
         extra = 1 if request.POST.get('extra_output') else 0
         species = request.POST['species']
         category = request.POST['category']
+        manual_input_provided = peptides or pid or function or species or category
 
-        if not peptides and pid == "" and function == "" and species == "" and category == "":
-            errors.append("Error: You must input at least one value.")
-        try:
-            (results,output_path) = pepdb_multi_search2(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species,category)
-            FileResponse(open(output_path, 'rb'))
-        except CalledProcessError as e:
-            return render(request, 'peptide/peptide_search.html', {'errors':[e.output], 'data':request.POST})
-    return render(request, 'peptide/peptide_search.html', {'errors':errors, 'results':results, 'output_path':output_path, 'data':request.POST, 'latest_peptides':q})
+        if not request.FILES.get('tsv_file',False):
+
+            # Save peptides to a file named pepfile.txt
+            pepfile_path = os.path.join(settings.MEDIA_ROOT, "pepfile.txt")
+            with open(os.path.join(settings.MEDIA_ROOT, "pepfile.txt"), "w") as pepfile:
+                if len(peptides) == 0:
+                    pepfile.write("")
+                else:
+                    for peptide in peptides:
+                        pepfile.write(peptide + "\n")
+
+            if not peptides and pid == "" and function == "" and species == "" and category == "" and not request.FILES.get('tsv_file', False):
+                errors.append("Error: You must input at least one value or upload file.")
+            try:
+                (results,output_path) = pepdb_multi_search2(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species,category)
+                FileResponse(open(output_path, 'rb'))
+            except CalledProcessError as e:
+                return render(request, 'peptide/peptide_search.html', {'errors':[e.output], 'data':request.POST})
+        else:
+            # If both manual input and tsv file are provided, append an error message
+            if manual_input_provided:
+                print(manual_input_provided)
+                errors.append(f'Error: Please reset search criteria with the "clear all search criteria" link. Either manually select search inputs or upload a file, not both.')
+            try:
+                (results, output_path) = pepdb_multi_search(request.FILES['tsv_file'])
+                FileResponse(open(output_path, 'rb'))
+            except CalledProcessError as e:
+                return render(request, 'peptide/peptide_search.html', {'errors': [e.output]})
+    return render(request, 'peptide/peptide_search.html', {'errors':errors, 'results':results, 'output_path':output_path, 'data':request.POST, 'latest_peptides':q, 'file_submitted': tsv_submitted})
 
 def add_proteins_tool(request):
     errors = []
