@@ -12,17 +12,19 @@ from django.core.mail import send_mail
 from django.contrib.auth.models import User
 from chardet.universaldetector import UniversalDetector
 
-
+#Creates temp folder /include/peptide/peptide/upload/temp for storage related to each unique search request
 def create_work_directory(base_dir):
     path = os.path.join(base_dir,'work_%d'%int(round(time.time() * 1000)))
     os.makedirs(path)
     return path
 
+#Opens and extracts uploaded file, generic function
 def handle_uploaded_file(request_file, path):
     with open(path, 'wb') as destination:
         for chunk in request_file.chunks():
             destination.write(chunk)
-            
+
+#Generic function returns path of uploaded file
 def get_tsv_path(request_file,directory_path=None):
     if directory_path is None:
         directory_path = settings.WORK_DIRECTORY
@@ -30,13 +32,7 @@ def get_tsv_path(request_file,directory_path=None):
     handle_uploaded_file(request_file,path)
     return path
 
-def contact_us(name, email, message):
-    suq = User.objects.filter(is_superuser=1)
-    email_subject = "MBPDB question/issue from " + name + " <" + email + ">"
-    send_mail(email_subject, message + "\n\n" + name + "\n" + email, 'MBPDB contact us <noreply@nws.oregonstate.edu>',[e.email for e in suq])
-
-    return "Message submitted to MBPDB admins. We will get back to you soon."
-
+""" Old code, no need to submit single peptide
 def peptide_db_call(pep, category, protid, function, secondary_func, ptm, title, authors, abstract, doi):
 
     try:
@@ -71,12 +67,17 @@ def peptide_db_call(pep, category, protid, function, secondary_func, ptm, title,
     send_mail(email_subject, 'There is 1 new peptide submission for the MBPDB.', 'New Peptides <noreply@nws.oregonstate.edu>',[e.email for e in suq])
 
     return "Entry submitted for approval."
+"""
 
+#Uploads csv to sqlite3 database
 def pepdb_add_csv(csv_file, messages):
     csv.register_dialect('pep_dialect', delimiter='\t')
 
     work_path = create_work_directory(settings.WORK_DIRECTORY)
-    input_tsv_path = os.path.join(work_path, csv_file.name).replace(' ','_')
+    input_tsv_path = os.path.join(dialect, delimiter='\t')
+
+    work_path = create_work_directory(settings.WORK_DIRECTORY)
+    input_tsv_path = (os.path.jwork_path, csv_file.name).replace(' ','_')
     handle_uploaded_file(csv_file,input_tsv_path)
     records=0
 
@@ -200,6 +201,7 @@ def pepdb_add_csv(csv_file, messages):
 
     return messages
 
+#approved upload of data
 def pepdb_approve(queryset):
 
     messages=[]
@@ -266,6 +268,7 @@ def pepdb_approve(queryset):
     messages.append("Added "+str(records)+" submissions to database.")
     return messages
 
+#Primary function referenced in blast search when extra information is requested
 def run_blastp(q,peptide,matrix):
     work_path = create_work_directory(settings.WORK_DIRECTORY)
     query_path = os.path.join(work_path, "query.fasta")
@@ -289,6 +292,7 @@ def run_blastp(q,peptide,matrix):
 
     return data
 
+#return html styled results from  inputed TSV file (Advanced Search TSV file upload)
 def pepdb_search_tsv_line(writer, peptide, peptide_option, seqsim, matrix, extra, pid, function, species, category):
     #(peptide,peptide_option,pid,function,seqsim,matrix,extra,species,category)
     results = ''
@@ -454,6 +458,7 @@ def pepdb_search_tsv_line(writer, peptide, peptide_option, seqsim, matrix, extra
     writer.writerow(('\n'))
     return results
 
+#returns list of string results form inputed peptide list (manual inputs)
 def pepdb_search_tsv_line2(writer, peptide, peptide_option, seqsim, matrix, extra, pid, function, species, category):
     #(peptide,peptide_option,pid,function,seqsim,matrix,extra,species,category)
     results = []
@@ -610,7 +615,7 @@ def pepdb_search_tsv_line2(writer, peptide, peptide_option, seqsim, matrix, extr
 
     return results
 
-#rk 8/8/23 from pepfile.txt
+#Handles manual data input from peptide_search.html ->  views.py peptide_search, major updates rk 8/8/23 from pepfile.txt
 def pepdb_multi_search2(pepfile_path, peptide_option, pid, function, seqsim, matrix, extra, species, category):
     results = []
     messages = []
@@ -652,6 +657,7 @@ def pepdb_multi_search2(pepfile_path, peptide_option, pid, function, seqsim, mat
                                        category))
     return results,output_path
 
+#handles when tsv from advanced search is uploaded from peptide_search.html -> views.py peptide_search
 def pepdb_multi_search(tsv_file):
     results = ''
     messages = []
@@ -756,6 +762,7 @@ def pepdb_multi_search(tsv_file):
 
     return results,output_path
 
+#returns date of news added peptide, updated on 8/8/23 to only return date
 def get_latest_peptides(n):
     dictlist = [dict() for x in range(n)]
     q = PeptideInfo.objects.all().order_by('-id')[0:n]
@@ -765,11 +772,12 @@ def get_latest_peptides(n):
         f = Function.objects.filter(pep=pep)
         func_str = ', '.join([func.function for func in f])
         date_approved = pep.time_approved.date() if pep.time_approved else None
-        dictlist[i] = {'time_approved': date_approved, 'peptide':pep.peptide, 'pid':pep.protein.pid, 'functions':func_str}
+        dictlist[i] = {'time_approved': date_approved}
         i+=1
 
     return dictlist
 
+#Primary function referenced in blast search when extra information is requested
 def run_pepex(input_tsv, count_pep):
     work_path = create_work_directory(settings.WORK_DIRECTORY)
     input_tsv_path = os.path.join(work_path, input_tsv.name).replace(' ','_')
@@ -787,6 +795,7 @@ def run_pepex(input_tsv, count_pep):
     # The command succeeded. Return the output path.
     return output_path
 
+#adds proteins to database, Only used by site admin not user
 def add_proteins(input_fasta_files, messages):
     work_path = create_work_directory(settings.WORK_DIRECTORY)
     count=0
@@ -856,6 +865,7 @@ def add_proteins(input_fasta_files, messages):
     messages.append(str(count)+" fasta record(s) added to database.")
     return messages
 
+#Primary function referenced in blast search when extra information is requested
 def blast_pipeline(peptide_library,peptide_input):
     work_path = create_work_directory(settings.WORK_DIRECTORY)
     library_tsv_path = get_tsv_path(peptide_library,work_path)
@@ -870,6 +880,7 @@ def blast_pipeline(peptide_library,peptide_input):
     combine(input_ids_tsv_path, library_ids_tsv_path, blast_output_path, output_path)
     return output_path
 
+#Secondary function used in the blast search when extra infor is requested
 def xlsx_to_tsv(path):
     (root,ext) = os.path.splitext(path)
     tsv_path = root + '.tsv'
@@ -878,6 +889,7 @@ def xlsx_to_tsv(path):
     subprocess.call('%s "%s" "%s" 2> /dev/null' % (settings.XLS_TO_TSV,path,tsv_path),shell=True)
     return tsv_path
 
+#Secondary function used in the blast search when extra infor is requested
 def create_fasta_lib(library_tsv_path):
     (root,ext) = os.path.splitext(library_tsv_path)
     with_ids_tsv_path = root + 'with_ids.tsv'
@@ -885,6 +897,7 @@ def create_fasta_lib(library_tsv_path):
     subprocess.check_output([settings.CREATE_FASTA_LIB,library_tsv_path,with_ids_tsv_path,with_ids_fasta_path],stderr=subprocess.STDOUT)
     return (with_ids_tsv_path,with_ids_fasta_path)
 
+#Secondary function used in the blast search when extra infor is requested
 def create_fasta_input(input_tsv_path):
     (root,ext) = os.path.splitext(input_tsv_path)
     with_ids_tsv_path = root + 'with_ids.tsv'
@@ -892,13 +905,16 @@ def create_fasta_input(input_tsv_path):
     subprocess.check_output([settings.CREATE_FASTA_INPUT,input_tsv_path,with_ids_tsv_path,with_ids_fasta_path],stderr=subprocess.STDOUT)
     return (with_ids_tsv_path,with_ids_fasta_path)
 
+#Secondary function used in the blast search when extra infor is requested
 def make_blast_db(library_fasta_path):
     print(['makeblastdb','-in', library_fasta_path,'-dbtype','prot'])
     subprocess.check_output(['makeblastdb','-in', library_fasta_path,'-dbtype','prot'],stderr=subprocess.STDOUT)
 
+#Secondary function used in the blast search when extra infor is requested
 def blastp(input_fasta_path,library_fasta_path, output_path):
     args = ['blastp', '-query', input_fasta_path, '-db', library_fasta_path, '-out', output_path, '-outfmt', '6 std qlen slen gaps', '-evalue', '0.1']
     subprocess.check_output(args,stderr=subprocess.STDOUT)
 
+#Secondary function used in the blast search when extra infor is requested
 def combine(input_ids_tsv_path, library_ids_tsv_path, blast_output_path, output_path):
     subprocess.check_output([settings.COMBINE,input_ids_tsv_path, library_ids_tsv_path, blast_output_path, output_path],stderr=subprocess.STDOUT)
