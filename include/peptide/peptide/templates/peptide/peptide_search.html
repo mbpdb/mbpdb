@@ -16,7 +16,7 @@ textarea.tools-form-raw-text-input {
     text-align: left;
 }
 </style>
-<h4><u>Search Milk Bioactive Peptide database</u></h4>
+<h4><u>Search the Milk Bioactive Peptide Database</u></h4>
 {% for e in errors %}
 <div class="alert alert-danger  alert-dismissible" role="alert">
   <button type="button" class="close" data-dismiss="alert">
@@ -25,7 +25,7 @@ textarea.tools-form-raw-text-input {
   </button>
   <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
   <span class="sr-only">Error:</span>
-  {{e}}
+    {{ e|safe }}
 </div>
 {% endfor %}
 
@@ -155,7 +155,8 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 <tr><td style="padding-left:30px">
 <div class="form-group">
     <label for="speclabel">Species</label>
-    <input list="specs" name="species" size="30"{% if data.species %}value="{{data.species}}"{% endif %}>
+    <input list="specs" name="species"
+="30"{% if data.species %}value="{{data.species}}"{% endif %}>
     <datalist id="specs">
         <option value="Human">
         <option value="Cow">
@@ -176,10 +177,10 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 </div>
 </td></tr>
 <tr><td style="padding-left:30px">
-    <h2>File Upload</h2>
+    <h4>Advanced Search File Upload</h4>
 
 <div class="form-group">
-     <input type="file" name="tsv_file" />
+     <input type="file" name="tsv_file" onchange="clearOtherInputs()"/>
      <p class="help-block">Use a correctly formatted TSV (tab-separated values) file with UTF-8 encoding. For format requirements, view the <a href="{% static 'peptide/example/peptide_multi_search_input_example.tsv'%}" target="_blank"> example file</a>.</p>
      <p class="help-block">Note that the Peptide Sequence, Protein ID, Function, Species, and Category columns can be empty. Also, if peptide is empty, search_type, similarity_threshold, scoring_matrix, and extra_output will be ignored.</p>
 </div>
@@ -233,7 +234,18 @@ document.querySelector('input[name="inputfile"]').addEventListener('change', fun
     }
 });
 
-
+function clearOtherInputs() {
+    var inputs = document.querySelectorAll('input[type="text"], input[type="checkbox"], textarea, input[list]');
+    for (var i = 0; i < inputs.length; i++) {
+        if (inputs[i].name !== 'tsv_file') {
+            if (inputs[i].type === 'text' || inputs[i].type === 'textarea' || inputs[i].hasAttribute('list')) {
+                inputs[i].value = '';
+            } else if (inputs[i].type === 'checkbox') {
+                inputs[i].checked = false;
+            }
+        }
+    }
+}
 </script>
 
 {% endblock 'content' %}
