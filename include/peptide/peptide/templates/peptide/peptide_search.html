@@ -16,7 +16,6 @@ textarea.tools-form-raw-text-input {
     text-align: left;
 }
 </style>
-
 <h4><u>Search Milk Bioactive Peptide database</u></h4>
 {% for e in errors %}
 <div class="alert alert-danger  alert-dismissible" role="alert">
@@ -176,6 +175,15 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     <!--<p class="help-block">If category is empty, then it will search all categories.</p>-->
 </div>
 </td></tr>
+<tr><td style="padding-left:30px">
+    <h2>File Upload</h2>
+
+<div class="form-group">
+     <input type="file" name="tsv_file" />
+     <p class="help-block">Use a correctly formatted TSV (tab-separated values) file with UTF-8 encoding. For format requirements, view the <a href="{% static 'peptide/example/peptide_multi_search_input_example.tsv'%}" target="_blank"> example file</a>.</p>
+     <p class="help-block">Note that the Peptide Sequence, Protein ID, Function, Species, and Category columns can be empty. Also, if peptide is empty, search_type, similarity_threshold, scoring_matrix, and extra_output will be ignored.</p>
+</div>
+</td></tr>
 </table>
 </div>
 </div>
@@ -183,25 +191,29 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 <button class="btn btn-default" id="search-db-btn">Search DB</button>  <a href=".">Clear all search criteria</a>
 <a name="search_results"></a>
 <br/>
-
-<br/>
 {% if results and not errors %}
     <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a> | If you are referencing this database: <a href="{% url 'about_us' %}" style="font-size: 20px;"> <b>please cite</b></a>
+    <br/>
 
+    {% if file_submitted %}
+        {{ results|safe }}
+    {% else %}
+        <table border="1" id="results_table">
+        {{ results|first|safe }}
+        {% for r in results|slice:"1:" %}
+            <tr><td style="padding:10px;">
+            {{r|safe}}
+            </td></tr>
+        {% endfor %}
+        </table>
+    {% endif %}
 
-
-  <table border="1" id="results_table">
-  {{ results|first|safe }}
-  {% for r in results|slice:"1:" %}
-    <tr><td style="padding:10px;">
-    {{r|safe}}
-    </td></tr>
-  {% endfor %}
-  </table>
-  <br/>
-  {% if latest_peptides %} {% for pep in latest_peptides %}
-  Database updated: {{pep.time_approved}}
-{% endfor %} {% endif %}
+    <br/>
+    {% if latest_peptides %}
+        {% for pep in latest_peptides %}
+        Database updated: {{pep.time_approved}}
+        {% endfor %}
+    {% endif %}
 {% endif %}
 
 <script>
