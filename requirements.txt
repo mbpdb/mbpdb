@@ -11,8 +11,6 @@ recode
 ncbi-blast+
 epel-release
 wget
-net-tools
-certif
 
 #some libraries required yum not pip
 #sudo yum install dos2unix
@@ -26,8 +24,13 @@ certif
 ## install blast+
 # wget ftp://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/ncbi-blast-2.14.0+-x64-linux.tar.gz
 # tar -zxvf ncbi-blast-2.14.0+-x64-linux.tar.gz
-rm -zxvf ncbi-blast-2.14.0+-x64-linux.tar.gz
+# rm -zxvf ncbi-blast-2.14.0+-x64-linux.tar.gz
 # sudo cp ncbi-blast-2.14.0+/bin/* /usr/local/bin
 
-## SSL cert
-# export SSL_CERT_FILE=/home/me/newenv/lib/python3.10/site-packages/certifi/cacert.pem
+## useful commands
+#start and stop server
+	# source newenv/bin/activate && cd biodb/include/peptide/ && python3 manage.py runserver
+	# cd && deactivate
+#kill applications on port 8000
+	# lsof -i :8000
+	# kill -9 <PID>
