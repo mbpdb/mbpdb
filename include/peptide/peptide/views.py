@@ -1,6 +1,6 @@
 from django.shortcuts import render
 import os, re
-from .toolbox import blast_pipeline, run_pepex, add_proteins, peptide_db_call, pepdb_add_csv, pepdb_multi_search, pepdb_multi_search2, contact_us, get_latest_peptides
+from .toolbox import run_pepex, add_proteins, pepdb_add_csv, pepdb_multi_search, pepdb_multi_search2, get_latest_peptides #,peptide_db_call, contact_us
 from django.http.response import HttpResponse
 import subprocess
 from subprocess import CalledProcessError
@@ -9,38 +9,13 @@ from datetime import datetime
 from django.http import FileResponse
 from django.conf import settings
 
+#Unmodified
 def index(request):
     context = {}
     return render(request, 'peptide/index.html', context)
 
-def homology_search(request):
-    errors = []
-    if request.method == 'POST':
-        if not request.FILES.get('peptide_library',False) or not request.FILES.get('peptide_input',False):
-            errors.append('Both file fields are mandatory.')
-        if len(errors) == 0:
-            try:
-                output_path = blast_pipeline(request.FILES['peptide_library'],request.FILES['peptide_input'])
-            except CalledProcessError as e:
-                return render(request, 'peptide/homology_search.html', {'errors':[e.output]})
-            return FileResponse(open(output_path, 'rb'), as_attachment=True)
-    return render(request, 'peptide/homology_search.html', {'errors':errors})
-
-def contact(request):
-    errors = []
-    messages = ''
-    if request.method == 'POST':
-        if len(errors) == 0:
-            name = request.POST['name']
-            email = request.POST['email']
-            message = request.POST['message']
-
-            try:
-                messages = contact_us(name, email, message)
-            except CalledProcessError as e:
-                return render(request, 'peptide/contact.html', {'errors':[e.output]})
-    return render(request, 'peptide/contact.html', {'errors':errors, 'messages':messages})
-
+"""  Old code, no need to submit single peptide
+#Unmodified
 def peptide_db(request):
     errors = []
     messages = ''
@@ -62,7 +37,9 @@ def peptide_db(request):
             except CalledProcessError as e:
                 return render(request, 'peptide/peptide_db.html', {'errors':[e.output]})
     return render(request, 'peptide/peptide_db.html', {'errors':errors, 'messages':messages})
+"""
 
+#Unmodified, function is used to add csv file of peptides to sqlite db  needs updating as message function is Deprecated
 def peptide_db_csv(request):
     errors = []
     messages = []
@@ -76,30 +53,8 @@ def peptide_db_csv(request):
                 return render(request, 'peptide/peptide_db_csv.html', {'errors':[e.output]})
     return render(request, 'peptide/peptide_db_csv.html', {'errors':errors, 'messages':messages})
 
-def peptide_multi_search(request):
-    return ("nulls")
-"""
 
-    errors = []
-    results = ''
-    output_path = ''
-    if request.method == 'POST':
-        counter = Counter(ip=request.META['REMOTE_ADDR'], access_time=datetime.now(), page='peptide multi search')
-        counter.save()
-
-        if not request.FILES.get('tsv_file', False):
-            errors.append("Error: You must input at least one value or upload file.")
-            print("Error: You must input at least one value or upload file.")
-        try:
-            (results,output_path) = pepdb_multi_search(request.FILES['tsv_file'])
-            FileResponse(open(output_path, 'rb'))
-            print("peptide_multi_search(request):")
-        except CalledProcessError as e:
-            return render(request, 'peptide/peptide_search.html', {'errors':[e.output]})
-
-    return render(request, 'peptide/peptide_search.html', {'errors':errors, 'results':results, 'output_path':output_path})
-"""
-#Updated rk 8/8/23
+#Updated rk 8/8/23 handles the search from peptide_search.html, handles both tsv upload and manual peptide search
 def peptide_search(request):
     errors = []
     results = []
@@ -135,7 +90,7 @@ def peptide_search(request):
                         pepfile.write(peptide + "\n")
 
             if not peptides and pid == "" and function == "" and species == "" and category == "" and not request.FILES.get('tsv_file', False):
-                errors.append("Error: You must input at least one value or upload file.")
+                errors.append("Error: You must input at least search critera or upload a file under Advanced Search Options.")
             try:
                 (results,output_path) = pepdb_multi_search2(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species,category)
                 FileResponse(open(output_path, 'rb'))
@@ -144,8 +99,8 @@ def peptide_search(request):
         else:
             # If both manual input and tsv file are provided, append an error message
             if manual_input_provided:
-                print(manual_input_provided)
-                errors.append(f'Error: Please reset search criteria with the "clear all search criteria" link. Either manually select search inputs or upload a file, not both.')
+                errors.append(
+                    f'Error: Please <a href=".">reset search criteria</a>.<br/><br/>Either manually enter peptides, search by Function, Protein ID, Species, Catagory or upload a file under Advanced Search Options.<br/><br/>Both manual inputs and advanced search file uploads can\'t be selected when performing a search.')
             try:
                 (results, output_path) = pepdb_multi_search(request.FILES['tsv_file'])
                 FileResponse(open(output_path, 'rb'))
@@ -153,6 +108,7 @@ def peptide_search(request):
                 return render(request, 'peptide/peptide_search.html', {'errors': [e.output]})
     return render(request, 'peptide/peptide_search.html', {'errors':errors, 'results':results, 'output_path':output_path, 'data':request.POST, 'latest_peptides':q, 'file_submitted': tsv_submitted})
 
+#unmodified but needs updating as message function is Deprecated
 def add_proteins_tool(request):
     errors = []
     messages = []
@@ -166,6 +122,7 @@ def add_proteins_tool(request):
                 return render(request, 'peptide/add_proteins.html', {'errors':[e.output]})
     return render(request, 'peptide/add_proteins.html', {'errors':errors, 'messages':messages})
 
+#Unmodified referenced by pepex tool
 def pepex_tool(request):
     errors = []
     if request.method == 'POST':
@@ -183,18 +140,20 @@ def pepex_tool(request):
                 return FileResponse(open(output_path, 'rb'), as_attachment=True)
     return render(request, 'peptide/pepex.html', {'errors':errors})
 
+#Unmodified returns a list of all proteins in protein fasta file
 def protein_headers(request):
     ret = subprocess.check_output("grep -h '>' "+settings.FASTA_FILES_DIR+"/* | sort -u", shell=True, stderr=subprocess.STDOUT)
     ret = ret.decode('utf-8')
     ret = ret.replace('\n', '<br />')
     return HttpResponse(ret)
 
-#Updated rk 8/8/23
+#Updated rk 8/8/23 returns downloadable file to user
 def tsv_search_results(request):
     file_path = request.path.replace("/tsv_search_results/", "")
     if re.match("^" + settings.WORK_DIRECTORY + ".+/MBPDB.+\.tsv$", file_path):
         response = FileResponse(open(file_path, 'rb'))
         return response
 
+#Added RK 8/9/23 returns about us page
 def about_us(request):
     return render(request, 'peptide/about_us.html')
