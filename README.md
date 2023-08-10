@@ -4,7 +4,7 @@
 ## hidden links  
 ### http://mbpdb.nws.oregonstate.edu/admin/  
 ### http://mbpdb.nws.oregonstate.edu/peptide_db_csv/  
-### http://mbpdb.nws.oregonstate.edu//add_proteins/  
+### http://mbpdb.nws.oregonstate.edu/add_proteins/  
 
 # Software versions of the original application   
 ## Old versions:  
@@ -47,13 +47,12 @@
 
 
 # Updates to code from transition:  
-- base.html~  
-## \newenv\lib\python3.10\site-packages\sendfile\__init__.py  
-## \include\peptide\peptide\urls.py  
-## \include\peptide\peptide\views.py  
-## \include\peptide\peptide\settings.py  
-## \include\peptide\peptide\templates\peptide$ 
-updated all HTML files with the folloing  
+\newenv\lib\python3.10\site-packages\sendfile\__init__.py  
+\include\peptide\peptide\urls.py  
+\include\peptide\peptide\views.py  
+\include\peptide\peptide\settings.py  
+\include\peptide\peptide\templates\peptide$ 
+updated all HTML files: 
 - add_proteins.html  
 - contact.html  
 - pepex.html  
@@ -70,7 +69,7 @@ updated all HTML files with the folloing
 - remove_domains_tool.html  
 
 # Primary Updates to back-end software for system **redesign**    
-## Removed html:
+## Removed HTML:
 - contact.html  
 - peptide_multi_search.html  
 - skyline.html  
@@ -80,7 +79,7 @@ updated all HTML files with the folloing
 - peptide_db_csv.html  
 - remove_domains_tool.html  
 
-## Updated html & python:
+## Updated HTML & python:
 - about_us.html  
 - homology_search.html  
 - base.html  
