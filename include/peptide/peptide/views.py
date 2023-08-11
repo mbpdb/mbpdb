@@ -77,7 +77,6 @@ def peptide_search(request):
         species = request.POST['species']
         category = request.POST['category']
         manual_input_provided = peptides or pid or function or species or category
-
         if not request.FILES.get('tsv_file',False):
 
             # Save peptides to a file named pepfile.txt
