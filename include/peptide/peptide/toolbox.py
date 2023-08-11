@@ -69,7 +69,7 @@ def peptide_db_call(pep, category, protid, function, secondary_func, ptm, title,
     return "Entry submitted for approval."
 """
 
-#Uploads csv to sqlite3 database
+#Uploads csv to sqsqlite3 database
 def pepdb_add_csv(csv_file, messages):
     csv.register_dialect('pep_dialect', delimiter='\t')
 
@@ -201,7 +201,7 @@ def pepdb_add_csv(csv_file, messages):
 
     return messages
 
-#approved upload of data
+#Approved upload of data
 def pepdb_approve(queryset):
 
     messages=[]
@@ -292,8 +292,9 @@ def run_blastp(q,peptide,matrix):
 
     return data
 
-#return html styled results from  inputed TSV file (Advanced Search TSV file upload)
-def pepdb_search_tsv_line(writer, peptide, peptide_option, seqsim, matrix, extra, pid, function, species, category):
+#2nd function in toolbox data pipeline, handles the input from the pepdb_multi_search function
+#Return html styled results from  inputed TSV file (Advanced Search TSV file upload) and returns them to pepdb_multi_search
+def pepdb_search_tsv_line(writer, peptide, peptide_option, thershold, matrix, extra, pid, function, species, category):
     #(peptide,peptide_option,pid,function,seqsim,matrix,extra,species,category)
     results = ''
     extra_info = defaultdict(list)
@@ -336,7 +337,7 @@ def pepdb_search_tsv_line(writer, peptide, peptide_option, seqsim, matrix, extra
 
     if peptide != "":
         if peptide_option == "sequence":
-            if (len(peptide) < 4 or (seqsim == 100 and matrix=="IDENTITY")):
+            if (len(peptide) < 4 or (thershold == 100 and matrix=="IDENTITY")):
                 q = q.filter(peptide__iexact=peptide)
             else:
                 data = run_blastp(q,peptide,matrix)
@@ -344,21 +345,21 @@ def pepdb_search_tsv_line(writer, peptide, peptide_option, seqsim, matrix, extra
                 for row in data:
                     tlen = float(row['slen']) if float(row['slen']) > float(row['qlen']) else float(row['qlen'])
                     simcalc = 100 * ((float(row['numpos']) - float(row['gaps'])) / tlen)
-                    if simcalc >= seqsim:
+                    if simcalc >= thershold:
                         search_ids.append(row['subject'])
                         extra_info[row['subject']] = [str(simcalc),row['qstart'],row['qend'],row['sstart'],row['send'],row['evalue'],row['align_len'],row['mismatches'],row['gaps']]
 
                 q = q.filter(id__in=search_ids)
 
         elif peptide_option == "truncated":
-            if (len(peptide) < 4 or (seqsim == 100 and matrix=="IDENTITY")):
+            if (len(peptide) < 4 or (thershold == 100 and matrix=="IDENTITY")):
                 q = q.filter(peptide__icontains=peptide)
             else:
                 data = run_blastp(q,peptide,matrix)
                 search_ids=[]
                 for row in data:
                     simcalc = 100 * ((float(row['numpos']) - float(row['gaps'])) / float(row['qlen']))
-                    if simcalc >= seqsim:
+                    if simcalc >= thershold:
                         search_ids.append(row['subject'])
                         extra_info[row['subject']] = [str(simcalc),row['qstart'],row['qend'],row['sstart'],row['send'],row['evalue'],row['align_len'],row['mismatches'],row['gaps']]
 
@@ -373,7 +374,7 @@ def pepdb_search_tsv_line(writer, peptide, peptide_option, seqsim, matrix, extra
             data = run_blastp(q,peptide,matrix)
             for row in data:
                 simcalc = 100 * ((float(row['numpos']) - float(row['gaps'])) / float(row['qlen']))
-                if (simcalc >= seqsim and int(row['qlen']) > int(row['slen'])):
+                if (simcalc >= thershold and int(row['qlen']) > int(row['slen'])):
                     search_ids.append(row['subject'])
                     extra_info[row['subject']] = [str(simcalc),row['qstart'],row['qend'],row['sstart'],row['send'],row['evalue'],row['align_len'],row['mismatches'],row['gaps']]
 
@@ -458,7 +459,8 @@ def pepdb_search_tsv_line(writer, peptide, peptide_option, seqsim, matrix, extra
     writer.writerow(('\n'))
     return results
 
-#returns list of string results form inputed peptide list (manual inputs)
+#2nd function in toolbox data pipeline, handles the input from the pepdb_multi_search function2
+#Returns list of string results form inputed peptide list (manual inputs)
 def pepdb_search_tsv_line2(writer, peptide, peptide_option, seqsim, matrix, extra, pid, function, species, category):
     #(peptide,peptide_option,pid,function,seqsim,matrix,extra,species,category)
     results = []
@@ -615,7 +617,9 @@ def pepdb_search_tsv_line2(writer, peptide, peptide_option, seqsim, matrix, extr
 
     return results
 
-#Handles manual data input from peptide_search.html ->  views.py peptide_search, major updates rk 8/8/23 from pepfile.txt
+#1st function in toolbox data pipeline when manual data input from peptide_search (views.py, peptide_search.htm)
+#major updates rk 8/8/23 from pepfile.txt and returns them to pepdb_multi_search2
+#creates tsv in uploads/temp folder
 def pepdb_multi_search2(pepfile_path, peptide_option, pid, function, seqsim, matrix, extra, species, category):
     results = []
     messages = []
@@ -657,7 +661,9 @@ def pepdb_multi_search2(pepfile_path, peptide_option, pid, function, seqsim, mat
                                        category))
     return results,output_path
 
-#handles when tsv from advanced search is uploaded from peptide_search.html -> views.py peptide_search
+#1st function in toolbox data pipeline when TSV from peptide_search (views.py peptide_search.html advanced search is uploaded)
+#creates tsv in uploads/temp folder
+#Handles when TSV from advanced search is uploaded from peptide_search.html -> views.py peptide_search
 def pepdb_multi_search(tsv_file):
     results = ''
     messages = []
@@ -688,7 +694,6 @@ def pepdb_multi_search(tsv_file):
     output_path = os.path.join(work_path, "MBPDB_multi_search_%s.tsv"%time.strftime('%Y-%m-%d_%H.%M.%S',time.localtime()))
     out = open(output_path, 'w', encoding='utf-8')
     writer = csv.writer(out, delimiter='\t')
-
     try:
         err=0
         rownum=1
@@ -708,7 +713,6 @@ def pepdb_multi_search(tsv_file):
                 search_type = row['search_type'].lower()
                 matrix = row['scoring_matrix'].upper()
                 extra = row['extra_output'].lower()
-
                 if (row['peptide']!='' and (row['search_type']=='' or row['similarity_threshold']=='' or row['scoring_matrix']=='' or row['extra_output']=='')):
                     messages.append("Error: Line "+str(rownum)+" in file has values that cannot be empty (if peptide has a value, then so must search_type, similarity_threshold, scoring_matrix, and extra_output).")
                     err+=1
@@ -719,12 +723,12 @@ def pepdb_multi_search(tsv_file):
                         err+=1
 
                     try:
-                        threshold = float(row['similarity_threshold'])
+                        seqsim = float(row['similarity_threshold']) #replaced threshold with seqim to be consistent      RK 8/11/23
                     except ValueError:
                         messages.append("Error: Line "+str(rownum)+". Similarity Threshold must be a number.")
                         err+=1
 
-                    if threshold <= 0 or threshold > 100:
+                    if seqsim <= 0 or seqsim > 100:
                         messages.append("Error: Line "+str(rownum)+". Similarity Threshold must be greater than 0 and less than or equal to 100.")
                         err+=1
 
@@ -751,12 +755,11 @@ def pepdb_multi_search(tsv_file):
                         search_type = row['search_type'].lower()
                         matrix = row['scoring_matrix'].upper()
                         extra = row['extra_output'].lower()
-
-                        results += "<br/><h3>Search parameters: peptide: "+row['peptide']+", search_type: "+search_type+", similarity_threshold: "+str(threshold)+", scoring_matrix: "+matrix+", extra_output: "+extra+", protein_id: "+row['protein_id']+", function: "+row['function']+", species: "+row['species']+", category: "+row['category']+"</h3><table border=\"1\">"
-                        writer.writerow(["Search parameters: peptide: "+row['peptide']+", search_type: "+search_type+", similarity_threshold: "+str(threshold)+", scoring_matrix: "+matrix+", extra_output: "+extra+", protein_id: "+row['protein_id']+", function: "+row['function']+", species: "+row['species']+", category: "+row['category']])
-                        results += pepdb_search_tsv_line(writer, row['peptide'], search_type, threshold, matrix, 0 if extra in ["no",""] else 1, row['protein_id'], row['function'], row['species'], row['category'])
+                        #fixed bug where threshold was replaced by float(row['similarity_threshold'])     RK 8/11/23
+                        results += "<br/><h3>Search parameters: peptide: "+row['peptide']+", search_type: "+search_type+", similarity_threshold: "+str(row['similarity_threshold'])+", scoring_matrix: "+matrix+", extra_output: "+extra+", protein_id: "+row['protein_id']+", function: "+row['function']+", species: "+row['species']+", category: "+row['category']+"</h3><table border=\"1\">"
+                        writer.writerow(["Search parameters: peptide: "+row['peptide']+", search_type: "+search_type+", similarity_threshold: "+str(row['similarity_threshold'])+", scoring_matrix: "+matrix+", extra_output: "+extra+", protein_id: "+row['protein_id']+", function: "+row['function']+", species: "+row['species']+", category: "+row['category']])
+                        results += pepdb_search_tsv_line(writer, row['peptide'], search_type, float(row['similarity_threshold']), matrix, 0 if extra in ["no",""] else 1, row['protein_id'], row['function'], row['species'], row['category'])
                         results += "</td></tr></table><br/>\n"
-
     except UnicodeDecodeError:
         raise subprocess.CalledProcessError(1, cmd="", output="Error: File needs to use Unicode (UTF-8) encoding. Conversion failed.")
 
@@ -865,6 +868,8 @@ def add_proteins(input_fasta_files, messages):
     messages.append(str(count)+" fasta record(s) added to database.")
     return messages
 
+#seemingly can be deprecated
+"""
 #Primary function referenced in blast search when extra information is requested
 def blast_pipeline(peptide_library,peptide_input):
     work_path = create_work_directory(settings.WORK_DIRECTORY)
@@ -879,12 +884,11 @@ def blast_pipeline(peptide_library,peptide_input):
     blastp(input_fasta_path,library_fasta_path, blast_output_path)
     combine(input_ids_tsv_path, library_ids_tsv_path, blast_output_path, output_path)
     return output_path
-
+"""
 #Secondary function used in the blast search when extra infor is requested
 def xlsx_to_tsv(path):
     (root,ext) = os.path.splitext(path)
     tsv_path = root + '.tsv'
-    print([settings.XLS_TO_TSV,path,tsv_path])
     #This is NOISY!  Ignore output.
     subprocess.call('%s "%s" "%s" 2> /dev/null' % (settings.XLS_TO_TSV,path,tsv_path),shell=True)
     return tsv_path
@@ -907,7 +911,6 @@ def create_fasta_input(input_tsv_path):
 
 #Secondary function used in the blast search when extra infor is requested
 def make_blast_db(library_fasta_path):
-    print(['makeblastdb','-in', library_fasta_path,'-dbtype','prot'])
     subprocess.check_output(['makeblastdb','-in', library_fasta_path,'-dbtype','prot'],stderr=subprocess.STDOUT)
 
 #Secondary function used in the blast search when extra infor is requested
