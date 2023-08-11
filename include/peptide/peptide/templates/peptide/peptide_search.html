@@ -16,7 +16,6 @@ textarea.tools-form-raw-text-input {
     text-align: left;
 }
 </style>
-<h4><u>Search the Milk Bioactive Peptide Database</u></h4>
 {% for e in errors %}
 <div class="alert alert-danger  alert-dismissible" role="alert">
   <button type="button" class="close" data-dismiss="alert">
@@ -29,6 +28,9 @@ textarea.tools-form-raw-text-input {
 </div>
 {% endfor %}
 
+<h2><u>Search the Milk Bioactive Peptide Database</u></h2>
+<br/>
+    <h4>Simple Peptide Search</h4>
 <div class="textarea-container">
 <form method="POST" enctype="multipart/form-data" action="." role="form">
 {% csrf_token %}
