@@ -1,6 +1,6 @@
 from django.urls import include, re_path
 from django.contrib import admin
-from peptide import views
+from . import views
 
 urlpatterns = [
     re_path(r'^$', views.peptide_search, name='index'),
@@ -16,5 +16,4 @@ urlpatterns = [
     #re_path(r'^contact/$', views.contact, name='contact'),
     re_path(r'^about_us/$', views.about_us, name='about_us'),
     re_path(r'^admin/', admin.site.urls),
-
 ]

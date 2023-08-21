@@ -41,6 +41,7 @@ def peptide_db(request):
 
 #Unmodified, function is used to add csv file of peptides to sqlite db  needs updating as message function is Deprecated
 def peptide_db_csv(request):
+    print("activat")
     errors = []
     messages = []
     if request.method == 'POST':
@@ -156,3 +157,4 @@ def tsv_search_results(request):
 #Added RK 8/9/23 returns about us page
 def about_us(request):
     return render(request, 'peptide/about_us.html')
+

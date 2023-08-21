@@ -8,7 +8,6 @@ import re, sys
 from collections import defaultdict
 from django.db.models import Q
 from datetime import datetime
-from django.core.mail import send_mail
 from django.contrib.auth.models import User
 from chardet.universaldetector import UniversalDetector
 
@@ -74,10 +73,7 @@ def pepdb_add_csv(csv_file, messages):
     csv.register_dialect('pep_dialect', delimiter='\t')
 
     work_path = create_work_directory(settings.WORK_DIRECTORY)
-    input_tsv_path = os.path.join(dialect, delimiter='\t')
-
-    work_path = create_work_directory(settings.WORK_DIRECTORY)
-    input_tsv_path = (os.path.jwork_path, csv_file.name).replace(' ','_')
+    input_tsv_path = os.path.join(work_path, csv_file.name).replace(' ','_')
     handle_uploaded_file(csv_file,input_tsv_path)
     records=0
 
@@ -186,8 +182,8 @@ def pepdb_add_csv(csv_file, messages):
                         count += 1
 
                     suq = User.objects.filter(is_superuser=1)
-                    email_subject = "New Peptide Submission %s" % time.strftime('%Y-%m-%d %H:%M:%S',time.localtime())
-                    send_mail(email_subject, 'There are '+str(count)+' new peptide submissions for the MBPDB.', 'New Peptides <'+settings.NOREPLY_EMAIL+'>',[e.email for e in suq])
+                    #email_subject = "New Peptide Submission %s" % time.strftime('%Y-%m-%d %H:%M:%S',time.localtime())
+                    #send_mail(email_subject, 'There are '+str(count)+' new peptide submissions for the MBPDB.', 'New Peptides <'+settings.NOREPLY_EMAIL+'>',[e.email for e in suq])
 
                     if detector.result['encoding'].lower() != "utf-8":
                         messages.append("Warning: Detected encoding for input file was not UTF-8 (It was detected as "+detector.result['encoding']+"). Recoding was attempted but if this is not the correct original encoding, then non-standard characters may not have been recoded correctly.")
@@ -198,7 +194,6 @@ def pepdb_add_csv(csv_file, messages):
 
     except UnicodeDecodeError:
         raise subprocess.CalledProcessError(1, cmd="", output="Error: File needs to use Unicode (UTF-8) encoding. Conversion failed.")
-
     return messages
 
 #Approved upload of data
@@ -322,7 +317,6 @@ def pepdb_search_tsv_line(writer, peptide, peptide_option, thershold, matrix, ex
             q_obj = Q(species__iexact = spec_list[0])
             for s in spec_list[1:]:
                 q_obj = q_obj | Q(species__iexact = s)
-                #print str(q_obj)
 
             proteins = ProteinInfo.objects.filter(q_obj)
             protein_ids = [proobj.id for proobj in proteins]
@@ -489,7 +483,6 @@ def pepdb_search_tsv_line2(writer, peptide, peptide_option, seqsim, matrix, extr
             q_obj = Q(species__iexact = spec_list[0])
             for s in spec_list[1:]:
                 q_obj = q_obj | Q(species__iexact = s)
-                #print str(q_obj)
 
             proteins = ProteinInfo.objects.filter(q_obj)
             protein_ids = [proobj.id for proobj in proteins]
