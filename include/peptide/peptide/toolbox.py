@@ -31,43 +31,6 @@ def get_tsv_path(request_file,directory_path=None):
     handle_uploaded_file(request_file,path)
     return path
 
-""" Old code, no need to submit single peptide
-def peptide_db_call(pep, category, protid, function, secondary_func, ptm, title, authors, abstract, doi):
-
-    try:
-        idcheck = ProteinInfo.objects.get(pid=protid)
-    except ProteinInfo.DoesNotExist:
-        return "Warning: Protein ID "+protid+" not found in database. Entry not submitted. You can use the 'MBPDB add proteins' tool to add the protein to the database."
-
-    prot = idcheck.seq
-    intervals = ', '.join([str(m.start()+1) + "-" + str(m.start()+len(pep)) for m in re.finditer(pep, prot)])
-    pvid_list=[]
-    interval_list=[]
-
-    if not intervals:
-        gv_check = ProteinVariant.objects.filter(protein=idcheck)
-        for pv in gv_check:
-            intervals = ', '.join([str(m.start()+1) + "-" + str(m.start()+len(pep)) for m in re.finditer(pep, pv.seq)])
-            if intervals:
-                pvid_list.append(pv.pvid)
-                interval_list.append(intervals)
-        if not pvid_list:
-            return "Warning: Peptide "+pep+" not found in protein (or variants). Entry not submitted."
-
-    else:
-        interval_list=[intervals]
-
-    tn = datetime.now()
-    sub = Submission(protein_id=protid, protein_variants=','.join(pvid_list), peptide=pep, category=category, function=function, secondary_function=secondary_func, ptm=ptm, title=title, authors=authors, abstract=abstract, doi=doi, intervals=':'.join(interval_list), length=len(pep), time_submitted=tn)
-    sub.save()
-
-    suq = User.objects.filter(is_superuser=1)
-    email_subject = "New Peptide Submission %s" % time.strftime('%Y-%m-%d %H:%M:%S',time.localtime())
-    send_mail(email_subject, 'There is 1 new peptide submission for the MBPDB.', 'New Peptides <noreply@nws.oregonstate.edu>',[e.email for e in suq])
-
-    return "Entry submitted for approval."
-"""
-
 #Uploads csv to sqsqlite3 database
 def pepdb_add_csv(csv_file, messages):
     csv.register_dialect('pep_dialect', delimiter='\t')
@@ -113,15 +76,15 @@ def pepdb_add_csv(csv_file, messages):
             headers.sort()
 
             # check if headers are correct
-            if headers != ['abstract', 'authors', 'category', 'doi', 'function', 'peptide', 'proteinID', 'ptm', 'secondary_function', 'title']:
-                raise subprocess.CalledProcessError(1, cmd="", output="Error: Input file does not have the correct headers (proteinID, peptide, category, function, secondary_function, ptm, title, authors, abstract, and doi).")
+            if headers != ['abstract', 'authors', 'doi', 'function', 'peptide', 'proteinID', 'ptm', 'secondary_function', 'title']:
+                raise subprocess.CalledProcessError(1, cmd="", output="Error: Input file does not have the correct headers (proteinID, peptide, function, secondary_function, ptm, title, authors, abstract, and doi).")
 
             err=0
             for row in data:
                 rownum = rownum + 1
 
                 if (row['peptide']=='' or row['proteinID']=='' or row['function']=='' or row['title']=='' or row['authors']=='' or row['doi']==''):
-                    messages.append("Error: Line "+str(rownum)+" in file has values that cannot be empty (only abstract, secondary function, ptm, and category can be empty).")
+                    messages.append("Error: Line "+str(rownum)+" in file has values that cannot be empty (only abstract, secondary function, and ptm can be empty).")
                     err+=1
                     continue
 
@@ -177,7 +140,7 @@ def pepdb_add_csv(csv_file, messages):
                         else:
                             interval_list=[intervals]
 
-                        sub = Submission(protein_id=row['proteinID'], peptide=row['peptide'], category=row['category'], function=row['function'], secondary_function=row['secondary_function'], ptm=row['ptm'], title=row['title'], authors=row['authors'], abstract=row['abstract'], doi=row['doi'], intervals=':'.join(interval_list), protein_variants=','.join(pvid_list), length=len(row['peptide']), time_submitted=tn)
+                        sub = Submission(protein_id=row['proteinID'], peptide=row['peptide'], function=row['function'], secondary_function=row['secondary_function'], ptm=row['ptm'], title=row['title'], authors=row['authors'], abstract=row['abstract'], doi=row['doi'], intervals=':'.join(interval_list), protein_variants=','.join(pvid_list), length=len(row['peptide']), time_submitted=tn)
                         sub.save()
                         count += 1
 
@@ -212,7 +175,7 @@ def pepdb_approve(queryset):
             pepcheck = PeptideInfo.objects.get(peptide=e.peptide)
         except PeptideInfo.DoesNotExist:
             tn = datetime.now()
-            pepinfo = PeptideInfo(peptide=e.peptide, protein_variants=e.protein_variants, category=e.category, protein=idcheck, length=e.length, intervals=e.intervals, time_approved=tn)
+            pepinfo = PeptideInfo(peptide=e.peptide, protein_variants=e.protein_variants, protein=idcheck, length=e.length, intervals=e.intervals, time_approved=tn)
             pepinfo.save()
             f = Function(pep=pepinfo, function=e.function)
             f.save()
@@ -289,8 +252,8 @@ def run_blastp(q,peptide,matrix):
 
 #2nd function in toolbox data pipeline, handles the input from the pepdb_multi_search function
 #Return html styled results from  inputed TSV file (Advanced Search TSV file upload) and returns them to pepdb_multi_search
-def pepdb_search_tsv_line(writer, peptide, peptide_option, thershold, matrix, extra, pid, function, species, category):
-    #(peptide,peptide_option,pid,function,seqsim,matrix,extra,species,category)
+def pepdb_search_tsv_line(writer, peptide, peptide_option, thershold, matrix, extra, pid, function, species):
+    #(peptide,peptide_option,pid,function,seqsim,matrix,extra,species)
     results = ''
     extra_info = defaultdict(list)
     q = PeptideInfo.objects.all()
@@ -326,8 +289,6 @@ def pepdb_search_tsv_line(writer, peptide, peptide_option, thershold, matrix, ex
         else:
             q = q.filter(protein__species__icontains=species)
 
-    if category != "":
-        q = q.filter(category__icontains=category)
 
     if peptide != "":
         if peptide_option == "sequence":
@@ -384,11 +345,11 @@ def pepdb_search_tsv_line(writer, peptide, peptide_option, thershold, matrix, ex
         return results
 
     if extra:
-        writer.writerow (('proteinID','peptide','category','protein description','species','intervals','function','secondary function','ptm','title','authors','abstract','doi','% alignment','query start','query end','subject start','subject end','e-value','alignment length','mismatches','gap opens'))
-        results += '<tr><th style="padding:10px;">proteinID</th><th style="padding:10px;" width="200px">peptide</th><th style="padding:10px;">category</th><th style="padding:10px;">protein description</th><th style="padding:10px;">species</th><th style="padding:10px;">intervals</th><th style="padding:10px;">function</th><th style="padding:10px;">secondary function</th><th style="padding:10px;">ptm</th><th style="padding:10px;">title</th><th style="padding:10px;">authors</th><th style="padding:10px;">abstract</th><th style="padding:10px;">doi</th><th>% alignment</th><th style="padding:10px;">query start</th><th style="padding:10px;">query end</th><th style="padding:10px;">subject start</th><th style="padding:10px;">subject end</th><th style="padding:10px;">e-value</th><th style="padding:10px;">alignment length</th><th style="padding:10px;">mismatches</th><th style="padding:10px;">gap opens</th></tr><tr><td>\n'
+        writer.writerow (('proteinID','peptide','protein description','species','intervals','function','secondary function','ptm','title','authors','abstract','doi','% alignment','query start','query end','subject start','subject end','e-value','alignment length','mismatches','gap opens'))
+        results += '<tr><th style="padding:10px;">proteinID</th><th style="padding:10px;" width="200px">peptide</th><th style="padding:10px;">protein description</th><th style="padding:10px;">species</th><th style="padding:10px;">intervals</th><th style="padding:10px;">function</th><th style="padding:10px;">secondary function</th><th style="padding:10px;">ptm</th><th style="padding:10px;">title</th><th style="padding:10px;">authors</th><th style="padding:10px;">abstract</th><th style="padding:10px;">doi</th><th>% alignment</th><th style="padding:10px;">query start</th><th style="padding:10px;">query end</th><th style="padding:10px;">subject start</th><th style="padding:10px;">subject end</th><th style="padding:10px;">e-value</th><th style="padding:10px;">alignment length</th><th style="padding:10px;">mismatches</th><th style="padding:10px;">gap opens</th></tr><tr><td>\n'
     else:
-        writer.writerow (('proteinID','peptide','category','protein description','species','intervals','function','secondary function','ptm','title','authors','abstract','doi'))
-        results += '<tr><th style="padding:10px;">proteinID</th><th style="padding:10px;" width="200px">peptide</th><th style="padding:10px;">category</th><th style="padding:10px;">protein description</th><th style="padding:10px;">species</th><th style="padding:10px;">intervals</th><th style="padding:10px;">function</th><th style="padding:10px;">secondary function</th><th style="padding:10px;">ptm</th><th style="padding:10px;">title</th><th style="padding:10px;">authors</th><th style="padding:10px;">abstract</th><th style="padding:10px;">doi</th></tr><tr><td>\n'
+        writer.writerow (('proteinID','peptide','protein description','species','intervals','function','secondary function','ptm','title','authors','abstract','doi'))
+        results += '<tr><th style="padding:10px;">proteinID</th><th style="padding:10px;" width="200px">peptide</th><th style="padding:10px;">protein description</th><th style="padding:10px;">species</th><th style="padding:10px;">intervals</th><th style="padding:10px;">function</th><th style="padding:10px;">secondary function</th><th style="padding:10px;">ptm</th><th style="padding:10px;">title</th><th style="padding:10px;">authors</th><th style="padding:10px;">abstract</th><th style="padding:10px;">doi</th></tr><tr><td>\n'
 
 
     for info in q:
@@ -406,9 +367,9 @@ def pepdb_search_tsv_line(writer, peptide, peptide_option, thershold, matrix, ex
             if info.protein_variants:
                 pp = pp + " Genetic Variant " + info.protein_variants
                 pd = pd + " Genetic Variant " + info.protein_variants
-            temprow = [pp,info.peptide,info.category,pd,info.protein.species,info.intervals]
+            temprow = [pp,info.peptide,pd,info.protein.species,info.intervals]
             if peptide_option == "truncated":
-                temprow2 = [pp,info.peptide.replace(peptide,"<b>"+peptide+"</b>"),info.category,pd,info.protein.species,info.intervals]
+                temprow2 = [pp,info.peptide.replace(peptide,"<b>"+peptide+"</b>"),pd,info.protein.species,info.intervals]
 
             refs = Reference.objects.filter(func=func)
             titles=[]
@@ -455,8 +416,8 @@ def pepdb_search_tsv_line(writer, peptide, peptide_option, thershold, matrix, ex
 
 #2nd function in toolbox data pipeline, handles the input from the pepdb_multi_search function2
 #Returns list of string results form inputed peptide list (manual inputs)
-def pepdb_search_tsv_line2(writer, peptide, peptide_option, seqsim, matrix, extra, pid, function, species, category):
-    #(peptide,peptide_option,pid,function,seqsim,matrix,extra,species,category)
+def pepdb_search_tsv_line2(writer, peptide, peptide_option, seqsim, matrix, extra, pid, function, species):
+    #(peptide,peptide_option,pid,function,seqsim,matrix,extra,species)
     results = []
     extra_info = defaultdict(list)
     q = PeptideInfo.objects.all()
@@ -492,8 +453,6 @@ def pepdb_search_tsv_line2(writer, peptide, peptide_option, seqsim, matrix, extr
         else:
             q = q.filter(protein__species__icontains=species)
 
-    if category != "":
-        q = q.filter(category__icontains=category)
 
     if peptide != "":
         if peptide_option == "sequence":
@@ -564,9 +523,9 @@ def pepdb_search_tsv_line2(writer, peptide, peptide_option, seqsim, matrix, extr
             if info.protein_variants:
                 pp = pp + " Genetic Variant " + info.protein_variants
                 pd = pd + " Genetic Variant " + info.protein_variants
-            temprow = [peptide,pp,info.peptide,info.category,pd,info.protein.species,info.intervals]
+            temprow = [peptide,pp,info.peptide,pd,info.protein.species,info.intervals]
             if peptide_option == "truncated":
-                temprow2 = [peptide,pp,info.peptide.replace(peptide,"<b>"+peptide+"</b>"),info.category,pd,info.protein.species,info.intervals]
+                temprow2 = [peptide,pp,info.peptide.replace(peptide,"<b>"+peptide+"</b>"),pd,info.protein.species,info.intervals]
 
             refs = Reference.objects.filter(func=func)
             titles=[]
@@ -613,7 +572,7 @@ def pepdb_search_tsv_line2(writer, peptide, peptide_option, seqsim, matrix, extr
 #1st function in toolbox data pipeline when manual data input from peptide_search (views.py, peptide_search.htm)
 #major updates rk 8/8/23 from pepfile.txt and returns them to pepdb_multi_search2
 #creates tsv in uploads/temp folder
-def pepdb_multi_search2(pepfile_path, peptide_option, pid, function, seqsim, matrix, extra, species, category):
+def pepdb_multi_search2(pepfile_path, peptide_option, pid, function, seqsim, matrix, extra, species):
     results = []
     messages = []
 
@@ -628,17 +587,17 @@ def pepdb_multi_search2(pepfile_path, peptide_option, pid, function, seqsim, mat
     writer = csv.writer(out, delimiter='\t')
 
     if extra:
-        writer.writerow(('search peptide', 'proteinID', 'peptide', 'category', 'protein description', 'species',
+        writer.writerow(('search peptide', 'proteinID', 'peptide', 'protein description', 'species',
                          'intervals', 'function', 'secondary function', 'ptm', 'title', 'authors', 'abstract', 'doi',
                          '% alignment', 'query start', 'query end', 'subject start', 'subject end', 'e-value',
                          'alignment length', 'mismatches', 'gap opens'))
         results.append(
-            '<tr><th style="padding:10px;">search peptide</th><th style="padding:10px;">proteinID</th><th style="padding:10px;" width="200px">peptide</th><th style="padding:10px;">category</th><th style="padding:10px;">protein description</th><th style="padding:10px;">species</th><th style="padding:10px;">intervals</th><th style="padding:10px;">function</th><th style="padding:10px;">secondary function</th><th style="padding:10px;">ptm</th><th style="padding:10px;">title</th><th style="padding:10px;">authors</th><th style="padding:10px;">abstract</th><th style="padding:10px;">doi</th><th>% alignment</th><th style="padding:10px;">query start</th><th style="padding:10px;">query end</th><th style="padding:10px;">subject start</th><th style="padding:10px;">subject end</th><th style="padding:10px;">e-value</th><th style="padding:10px;">alignment length</th><th style="padding:10px;">mismatches</th><th style="padding:10px;">gap opens</th></tr><tr><td>')
+            '<tr><th style="padding:10px;">search peptide</th><th style="padding:10px;">proteinID</th><th style="padding:10px;" width="200px">peptide</th><th style="padding:10px;">protein description</th><th style="padding:10px;">species</th><th style="padding:10px;">intervals</th><th style="padding:10px;">function</th><th style="padding:10px;">secondary function</th><th style="padding:10px;">ptm</th><th style="padding:10px;">title</th><th style="padding:10px;">authors</th><th style="padding:10px;">abstract</th><th style="padding:10px;">doi</th><th>% alignment</th><th style="padding:10px;">query start</th><th style="padding:10px;">query end</th><th style="padding:10px;">subject start</th><th style="padding:10px;">subject end</th><th style="padding:10px;">e-value</th><th style="padding:10px;">alignment length</th><th style="padding:10px;">mismatches</th><th style="padding:10px;">gap opens</th></tr><tr><td>')
     else:
-        writer.writerow(('search peptide', 'proteinID', 'peptide', 'category', 'protein description', 'species',
+        writer.writerow(('search peptide', 'proteinID', 'peptide', 'protein description', 'species',
                          'intervals', 'function', 'secondary function', 'ptm', 'title', 'authors', 'abstract', 'doi'))
         results.append(
-            '<tr><th style="padding:10px;">search peptide</th><th style="padding:10px;">proteinID</th><th style="padding:10px;" width="200px">peptide</th><th style="padding:10px;">category</th><th style="padding:10px;">protein description</th><th style="padding:10px;">species</th><th style="padding:10px;">intervals</th><th style="padding:10px;">function</th><th style="padding:10px;">secondary function</th><th style="padding:10px;">ptm</th><th style="padding:10px;">title</th><th style="padding:10px;">authors</th><th style="padding:10px;">abstract</th><th style="padding:10px;">doi</th></tr><tr><td>')
+            '<tr><th style="padding:10px;">search peptide</th><th style="padding:10px;">proteinID</th><th style="padding:10px;" width="200px">peptide</th><th style="padding:10px;">protein description</th><th style="padding:10px;">species</th><th style="padding:10px;">intervals</th><th style="padding:10px;">function</th><th style="padding:10px;">secondary function</th><th style="padding:10px;">ptm</th><th style="padding:10px;">title</th><th style="padding:10px;">authors</th><th style="padding:10px;">abstract</th><th style="padding:10px;">doi</th></tr><tr><td>')
 
     with open(input_pep_path, 'r') as pepfile:
         content = pepfile.read().strip()
@@ -646,12 +605,11 @@ def pepdb_multi_search2(pepfile_path, peptide_option, pid, function, seqsim, mat
     if not content:  # This will be True for both truly empty files and files with just whitespace or ""
 
         results.extend(
-            pepdb_search_tsv_line2(writer, "", peptide_option, seqsim, matrix, extra, pid, function, species, category))
+            pepdb_search_tsv_line2(writer, "", peptide_option, seqsim, matrix, extra, pid, function, species))
     else:
         for pep in content.splitlines():
             results.extend(
-                pepdb_search_tsv_line2(writer, pep, peptide_option, seqsim, matrix, extra, pid, function, species,
-                                       category))
+                pepdb_search_tsv_line2(writer, pep, peptide_option, seqsim, matrix, extra, pid, function, species,))
     return results,output_path
 
 #1st function in toolbox data pipeline when TSV from peptide_search (views.py peptide_search.html advanced search is uploaded)
@@ -697,15 +655,16 @@ def pepdb_multi_search(tsv_file):
             headers.sort()
 
             # check if headers are correct
-            if headers != ['category', 'extra_output', 'function', 'peptide', 'protein_id', 'scoring_matrix', 'search_type', 'similarity_threshold', 'species']:
-                raise subprocess.CalledProcessError(1, cmd="", output="Error: Input file does not have the correct headers (peptide, search_type, similarity_threshold, scoring_matrix, extra_output, protein_id, function, species, and category).")
+            if headers != ['extra_output', 'function', 'peptide', 'protein_id', 'scoring_matrix', 'search_type', 'similarity_threshold', 'species']:
+                raise subprocess.CalledProcessError(1, cmd="", output="Error: Input file does not have the correct headers (peptide, search_type, similarity_threshold, scoring_matrix, extra_output, protein_id, function, species).")
 
             err=0
             for row in data:
+                row = {key: value.strip() for key, value in row.items()}
                 rownum = rownum + 1
-                search_type = row['search_type'].lower()
-                matrix = row['scoring_matrix'].upper()
-                extra = row['extra_output'].lower()
+                search_type = row['search_type'].lower().strip()
+                matrix = row['scoring_matrix'].upper().strip()
+                extra = row['extra_output'].lower().strip()
                 if (row['peptide']!='' and (row['search_type']=='' or row['similarity_threshold']=='' or row['scoring_matrix']=='' or row['extra_output']=='')):
                     messages.append("Error: Line "+str(rownum)+" in file has values that cannot be empty (if peptide has a value, then so must search_type, similarity_threshold, scoring_matrix, and extra_output).")
                     err+=1
@@ -745,13 +704,14 @@ def pepdb_multi_search(tsv_file):
                 with open(input_tsv_path, 'r', encoding='utf-8') as pepfile2:
                     data = csv.DictReader(pepfile2, dialect='pep_dialect')
                     for row in data:
+                        row = {key: value.strip() for key, value in row.items()}
                         search_type = row['search_type'].lower()
                         matrix = row['scoring_matrix'].upper()
                         extra = row['extra_output'].lower()
                         #fixed bug where threshold was replaced by float(row['similarity_threshold'])     RK 8/11/23
-                        results += "<br/><h3>Search parameters: peptide: "+row['peptide']+", search_type: "+search_type+", similarity_threshold: "+str(row['similarity_threshold'])+", scoring_matrix: "+matrix+", extra_output: "+extra+", protein_id: "+row['protein_id']+", function: "+row['function']+", species: "+row['species']+", category: "+row['category']+"</h3><table border=\"1\">"
-                        writer.writerow(["Search parameters: peptide: "+row['peptide']+", search_type: "+search_type+", similarity_threshold: "+str(row['similarity_threshold'])+", scoring_matrix: "+matrix+", extra_output: "+extra+", protein_id: "+row['protein_id']+", function: "+row['function']+", species: "+row['species']+", category: "+row['category']])
-                        results += pepdb_search_tsv_line(writer, row['peptide'], search_type, float(row['similarity_threshold']), matrix, 0 if extra in ["no",""] else 1, row['protein_id'], row['function'], row['species'], row['category'])
+                        results += "<br/><h3>Search parameters: peptide: "+row['peptide']+", search_type: "+search_type+", similarity_threshold: "+str(row['similarity_threshold'])+", scoring_matrix: "+matrix+", extra_output: "+extra+", protein_id: "+row['protein_id']+", function: "+row['function']+", species: "+row['species']+"</h3><table border=\"1\">"
+                        writer.writerow(["Search parameters: peptide: "+row['peptide']+", search_type: "+search_type+", similarity_threshold: "+str(row['similarity_threshold'])+", scoring_matrix: "+matrix+", extra_output: "+extra+", protein_id: "+row['protein_id']+", function: "+row['function']+", species: "+row['species']])
+                        results += pepdb_search_tsv_line(writer, row['peptide'], search_type, float(row['similarity_threshold']) if row['similarity_threshold'].strip() != '' else None, matrix, 0 if extra in ["no", ""] else 1, row['protein_id'], row['function'], row['species'])
                         results += "</td></tr></table><br/>\n"
     except UnicodeDecodeError:
         raise subprocess.CalledProcessError(1, cmd="", output="Error: File needs to use Unicode (UTF-8) encoding. Conversion failed.")

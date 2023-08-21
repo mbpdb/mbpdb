@@ -14,31 +14,6 @@ def index(request):
     context = {}
     return render(request, 'peptide/index.html', context)
 
-"""  Old code, no need to submit single peptide
-#Unmodified
-def peptide_db(request):
-    errors = []
-    messages = ''
-    if request.method == 'POST':
-        if len(errors) == 0:
-            pep = request.POST['pep']
-            category = request.POST['category']
-            protid = request.POST['protid']
-            function = request.POST['function']
-            secondary_func = request.POST['secondary_func']
-            ptm = request.POST['ptm']
-            title = request.POST['title']
-            authors = request.POST['authors']
-            abstract = request.POST['abstract']
-            doi = request.POST['doi']
-            
-            try:
-                messages = peptide_db_call(pep, category, protid, function, secondary_func, ptm, title, authors, abstract, doi)
-            except CalledProcessError as e:
-                return render(request, 'peptide/peptide_db.html', {'errors':[e.output]})
-    return render(request, 'peptide/peptide_db.html', {'errors':errors, 'messages':messages})
-"""
-
 #Unmodified, function is used to add csv file of peptides to sqlite db  needs updating as message function is Deprecated
 def peptide_db_csv(request):
     print("activat")
@@ -76,8 +51,7 @@ def peptide_search(request):
         matrix = request.POST['matrix']
         extra = 1 if request.POST.get('extra_output') else 0
         species = request.POST['species']
-        category = request.POST['category']
-        manual_input_provided = peptides or pid or function or species or category
+        manual_input_provided = peptides or pid or function or species
         if not request.FILES.get('tsv_file',False):
 
             # Save peptides to a file named pepfile.txt
@@ -89,10 +63,10 @@ def peptide_search(request):
                     for peptide in peptides:
                         pepfile.write(peptide + "\n")
 
-            if not peptides and pid == "" and function == "" and species == "" and category == "" and not request.FILES.get('tsv_file', False):
+            if not peptides and pid == "" and function == "" and species == "" and not request.FILES.get('tsv_file', False):
                 errors.append("Error: You must input at least search critera or upload a file under Advanced Search Options.")
             try:
-                (results,output_path) = pepdb_multi_search2(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species,category)
+                (results,output_path) = pepdb_multi_search2(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species)
                 FileResponse(open(output_path, 'rb'))
             except CalledProcessError as e:
                 return render(request, 'peptide/peptide_search.html', {'errors':[e.output], 'data':request.POST})
