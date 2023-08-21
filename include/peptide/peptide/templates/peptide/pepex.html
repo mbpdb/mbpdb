@@ -2,7 +2,8 @@
 {% load static %}
 {% block 'content' %}
 <h1>PepEx</h1>
-<h4>Runs PepEx on skyline auto output file</h4>
+<h4>Runs PepEx visualization tool</h4>
+<h5>The PePEx platform allows visual mapping of these peptides on their parent protein sequences, spotlighting areas with a high concentration of bioactive peptides.</h5>
 {% for e in errors %}
 <div class="alert alert-danger  alert-dismissible" role="alert">
   <button type="button" class="close" data-dismiss="alert">
@@ -19,7 +20,7 @@
 <div class="form-group">
     <label for="inputTSVLabel">Input TSV</label>
     <input type="file" name="input_tsv" style="width: 500px"/>
-    <p class="help-block">Must be TSV output file from auto skyline enhancement</p>
+    <p class="help-block">Must be in TSV format. View the <a href="{% static 'peptide/example/PEPEX_input.tsv'%}" target="_blank"> example file</a>.</p>
 </div>
 <div class="form-group">
     <input type="checkbox" name="count_pep" value="False"> Count number of peptides (rather than sum up total area)</input>
