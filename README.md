@@ -198,10 +198,9 @@ sqlite> PRAGMA table_info(peptide_peptideinfo);
 1|peptide|varchar(300)|1||0  
 2|protein_id|INTEGER|1||0  
 3|length|INTEGER|1||0  
-4|category|varchar(50)|1||0  
-5|intervals|varchar(100)|1||0  
-6|protein_variants|varchar(100)|1||0  
-7|time_approved|datetime|1||0  
+4|intervals|varchar(100)|1||0  
+5|protein_variants|varchar(100)|1||0  
+6|time_approved|datetime|1||0  
 
 
 ### peptide_proteininfo  
@@ -242,21 +241,20 @@ sqlite> SELECT * FROM peptide_submission;
 
 ### peptide_submission  
 sqlite> PRAGMA table_info(peptide_submission);  
-0|id|INTEGER|1||1  
-1|protein_id|varchar(30)|1||0   
-2|peptide|varchar(300)|1||0  
-3|category|varchar(50)|1||0  
-4|function|varchar(400)|1||0  
-5|secondary_function|varchar(400)|1||0  
-6|title|varchar(300)|1||0  
-7|authors|varchar(300)|1||0  
-8|abstract|varchar(1000)|1||0  
-9|doi|varchar(100)|1||0  
-10|time_submitted|datetime|1||0  
-11|length|INTEGER|1||0  
-12|intervals|varchar(100)|1||0  
-13|ptm|varchar(200)|1||0  
-14|protein_variants|varchar(30)|1||0  
+0|id|INTEGER|0||1
+1|protein_id|varchar(30)|1||0
+2|peptide|varchar(300)|1||0
+3|function|varchar(400)|1||0
+4|secondary_function|varchar(400)|1||0
+5|title|varchar(300)|1||0
+6|authors|varchar(300)|1||0
+7|abstract|varchar(1000)|1||0
+8|doi|varchar(100)|1||0
+9|time_submitted|datetime|1||0
+10|length|INTEGER|1||0
+11|intervals|varchar(100)|1||0
+12|ptm|varchar(200)|1||0
+13|protein_variants|varchar(30)|1||0
 
 
 ### peptide_reference
