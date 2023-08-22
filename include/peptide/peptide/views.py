@@ -1,6 +1,6 @@
 from django.shortcuts import render
 import os, re
-from .toolbox import run_pepex, add_proteins, pepdb_add_csv, pepdb_multi_search, pepdb_multi_search2, get_latest_peptides #,peptide_db_call, contact_us
+from .toolbox import run_pepex, add_proteins, pepdb_add_csv, pepdb_multi_search_fileupload, pepdb_multi_search_manual, get_latest_peptides #,peptide_db_call, contact_us
 from django.http.response import HttpResponse
 import subprocess
 from subprocess import CalledProcessError
@@ -42,7 +42,7 @@ def peptide_search(request):
         counter = Counter(ip=request.META['REMOTE_ADDR'], access_time=datetime.now(), page='peptide search')
         counter.save()
 
-        peptides = request.POST.get('peptides', '').splitlines()
+        peptides = [line.strip() for line in request.POST.get('peptides', '').splitlines()]
         peptide_option = request.POST['peptide_option']
         pid = request.POST['proteinid']
         function = request.POST['function']
@@ -50,9 +50,10 @@ def peptide_search(request):
         matrix = request.POST['matrix']
         # if request.POST.get('extra_output') else 0 removed this feature so it returns blast result by defult if a peptide >4 is searched
         for peptide in peptides:
+            if not peptide.isalpha():
+                errors.append("Error: Invalid input. Only text characters are allowed.")
             if len(peptide) >= 4:
                 extra = 1
-                break
         else:
             extra = 0
         species = request.POST['species']
@@ -70,7 +71,7 @@ def peptide_search(request):
             if not peptides and pid == "" and function == "" and species == "" and not request.FILES.get('tsv_file', False):
                 errors.append("Error: You must input at least search critera or upload a file under Advanced Search Options.")
             try:
-                (results,output_path) = pepdb_multi_search2(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species)
+                (results,output_path) = pepdb_multi_search_manual(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species)
                 FileResponse(open(output_path, 'rb'))
             except CalledProcessError as e:
                 return render(request, 'peptide/peptide_search.html', {'errors':[e.output], 'data':request.POST})
@@ -80,7 +81,7 @@ def peptide_search(request):
                 errors.append(
                     f'Error: Please <a href=".">reset search criteria</a>.<br/><br/>Either manually enter peptides, search by Function, Protein ID, Species, Catagory or upload a file under Advanced Search Options.<br/><br/>Both manual inputs and advanced search file uploads can\'t be selected when performing a search.')
             try:
-                (results, output_path) = pepdb_multi_search(request.FILES['tsv_file'])
+                (results, output_path) = pepdb_multi_search_fileupload(request.FILES['tsv_file'])
                 FileResponse(open(output_path, 'rb'))
             except CalledProcessError as e:
                 return render(request, 'peptide/peptide_search.html', {'errors': [e.output]})

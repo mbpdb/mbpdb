@@ -250,9 +250,9 @@ def run_blastp(q,peptide,matrix):
 
     return data
 
-#2nd function in toolbox data pipeline, handles the input from the pepdb_multi_search function
-#Return html styled results from  inputed TSV file (Advanced Search TSV file upload) and returns them to pepdb_multi_search
-def pepdb_search_tsv_line(writer, peptide, peptide_option, thershold, matrix, extra, pid, function, species):
+#2nd function in toolbox data pipeline, handles the input from the pepdb_multi_search_fileupload function
+#Return html styled results from  inputed TSV file (Advanced Search TSV file upload) and returns them to pepdb_multi_search_fileupload
+def pepdb_search_tsv_line_fileupload(writer, peptide, peptide_option, thershold, matrix, extra, pid, function, species):
     #(peptide,peptide_option,pid,function,seqsim,matrix,extra,species)
     results = ''
     extra_info = defaultdict(list)
@@ -414,9 +414,9 @@ def pepdb_search_tsv_line(writer, peptide, peptide_option, thershold, matrix, ex
     writer.writerow(('\n'))
     return results
 
-#2nd function in toolbox data pipeline, handles the input from the pepdb_multi_search function2
+#2nd function in toolbox data pipeline, handles the input from the pepdb_multi_search_manual
 #Returns list of string results form inputed peptide list (manual inputs)
-def pepdb_search_tsv_line2(writer, peptide, peptide_option, seqsim, matrix, extra, pid, function, species):
+def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix, extra, pid, function, species):
     #(peptide,peptide_option,pid,function,seqsim,matrix,extra,species)
     results = []
     extra_info = defaultdict(list)
@@ -570,9 +570,9 @@ def pepdb_search_tsv_line2(writer, peptide, peptide_option, seqsim, matrix, extr
     return results
 
 #1st function in toolbox data pipeline when manual data input from peptide_search (views.py, peptide_search.htm)
-#major updates rk 8/8/23 from pepfile.txt and returns them to pepdb_multi_search2
+#major updates rk 8/8/23 from pepfile.txt and returns them to pepdb_multi_search_manual
 #creates tsv in uploads/temp folder
-def pepdb_multi_search2(pepfile_path, peptide_option, pid, function, seqsim, matrix, extra, species):
+def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsim, matrix, extra, species):
     results = []
     messages = []
     work_path = create_work_directory(settings.WORK_DIRECTORY)
@@ -604,17 +604,17 @@ def pepdb_multi_search2(pepfile_path, peptide_option, pid, function, seqsim, mat
     if not content:  # This will be True for both truly empty files and files with just whitespace or ""
 
         results.extend(
-            pepdb_search_tsv_line2(writer, "", peptide_option, seqsim, matrix, extra, pid, function, species))
+            pepdb_search_tsv_line_manual(writer, "", peptide_option, seqsim, matrix, extra, pid, function, species))
     else:
         for pep in content.splitlines():
             results.extend(
-                pepdb_search_tsv_line2(writer, pep, peptide_option, seqsim, matrix, extra, pid, function, species,))
+                pepdb_search_tsv_line_manual(writer, pep, peptide_option, seqsim, matrix, extra, pid, function, species,))
     return results,output_path
 
 #1st function in toolbox data pipeline when TSV from peptide_search (views.py peptide_search.html advanced search is uploaded)
 #creates tsv in uploads/temp folder
 #Handles when TSV from advanced search is uploaded from peptide_search.html -> views.py peptide_search
-def pepdb_multi_search(tsv_file):
+def pepdb_multi_search_fileupload(tsv_file):
     results = ''
     messages = []
     csv.register_dialect('pep_dialect', delimiter='\t')
@@ -705,10 +705,38 @@ def pepdb_multi_search(tsv_file):
                             extra = 1
                         else:
                             extra = 0
-                        #fixed bug where threshold was replaced by float(row['similarity_threshold'])     RK 8/11/23
-                        results += "<br/><h3>Search parameters: peptide: "+row['peptide']+", search_type: "+search_type+", similarity_threshold: "+str(row['similarity_threshold'])+", scoring_matrix: "+matrix+", protein_id: "+row['protein_id']+", function: "+row['function']+", species: "+row['species']+"</h3><table border=\"1\">"
-                        writer.writerow(["Search parameters: peptide: "+row['peptide']+", search_type: "+search_type+", similarity_threshold: "+str(row['similarity_threshold'])+", scoring_matrix: "+matrix+", protein_id: "+row['protein_id']+", function: "+row['function']+", species: "+row['species']])
-                        results += pepdb_search_tsv_line(writer, row['peptide'], search_type, float(row['similarity_threshold']) if row['similarity_threshold'].strip() != '' else None, matrix, extra, row['protein_id'], row['function'], row['species']) # replace if statement that handled no or yes for extra to simplily 1
+                        # Create a list to hold the individual pieces of the string to write to file or export to website
+                        params_list = []
+
+                        if row['peptide']:
+                            params_list.append(" peptide: " + row['peptide'] + ",")
+                        if search_type:
+                            params_list.append(" search_type: " + search_type + ",")
+                        if row['similarity_threshold'] != '':
+                            params_list.append(" similarity_threshold: " + str(row['similarity_threshold']) + ",")
+                        if matrix:
+                            params_list.append(" scoring_matrix: " + matrix + ",")
+                        if row['protein_id']:
+                            params_list.append(" protein_id: " + row['protein_id'] + ",")
+                        if row['function']:
+                            params_list.append(" function: " + row['function'] + ",")
+                        if row['species']:
+                            params_list.append(" species: " + row['species'])
+
+                        # Concatenate the list into a single string
+                        params_str = "".join(params_list)
+                        # Remove the trailing comma if it exists
+                        if params_str[-1] == ',':
+                            params_str = params_str[:-1]
+
+                        #writes to file export using params_str
+                        writer.writerow([f'Search parameters:\t{params_str}'])
+                        #writer.writerow(["Search parameters: peptide: "+row['peptide']+", search_type: "+search_type+", similarity_threshold: "+str(row['similarity_threshold'])+", scoring_matrix: "+matrix+", protein_id: "+row['protein_id']+", function: "+row['function']+", species: "+row['species']])
+
+                        #writes to website using params_str
+                        results += "<br/><h3>" "Search parameters: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" + params_str + "</h3><table border=\"1\">"
+
+                        results += pepdb_search_tsv_line_fileupload(writer, row['peptide'], search_type, float(row['similarity_threshold']) if row['similarity_threshold'].strip() != '' else None, matrix, extra, row['protein_id'], row['function'], row['species']) # replace if statement that handled no or yes for extra to simplily 1
                         results += "</td></tr></table><br/>\n"
     except UnicodeDecodeError:
         raise subprocess.CalledProcessError(1, cmd="", output="Error: File needs to use Unicode (UTF-8) encoding. Conversion failed.")

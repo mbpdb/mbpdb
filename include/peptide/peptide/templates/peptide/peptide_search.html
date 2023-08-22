@@ -219,15 +219,27 @@ document.querySelector('input[name="inputfile"]').addEventListener('change', fun
         var reader = new FileReader();
         reader.onload = function(e) {
             // Split the content based on whitespace, tab, newline, and comma
-            var peptide = e.target.result.split(/[\s,\t\n]+/);
-            // Join using two newlines and populate the textarea
-            document.querySelector('textarea[name="peptides"]').value = peptide.join('\n');
+            var peptides = e.target.result.split(/[\s,\t\n]+/);
+
+            // Validate each peptide
+            for (const peptide of peptides) {
+                if (!/^[a-zA-Z]*$/.test(peptide)) {
+                    // Show an error message and prevent further actions
+                    alert('Invalid input. Only text characters are allowed.');
+                    return;
+                }
+            }
+
+            // Join using newlines and populate the textarea
+            document.querySelector('textarea[name="peptides"]').value = peptides.join('\n');
+
             // Clear the file input
             document.querySelector('input[name="inputfile"]').value = '';
         };
         reader.readAsText(file);
     }
 });
+
 
 function clearOtherInputs() {
     var inputs = document.querySelectorAll('input[type="text"], input[type="checkbox"], textarea, input[list]');
