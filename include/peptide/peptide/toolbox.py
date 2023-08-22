@@ -460,6 +460,7 @@ def pepdb_search_tsv_line2(writer, peptide, peptide_option, seqsim, matrix, extr
                 q = q.filter(peptide__iexact=peptide)
             else:
                 data = run_blastp(q,peptide,matrix)
+
                 search_ids=[]
                 for row in data:
                     #use longer sequence for similarity calculation
@@ -549,8 +550,7 @@ def pepdb_search_tsv_line2(writer, peptide, peptide_option, seqsim, matrix, extr
             if peptide_option == "truncated":
                 temprow2.extend((func.function,', '.join(sf),', '.join(ptms),', '.join(titles),', '.join(authors),', '.join(abstracts),', '.join(dois)))
                 
-            if extra:
-
+            if extra and seqsim != 100: #or matrix=="IDENTITY" perhaps this should be added given orginal code
                 if str(info.id) in extra_info:
                     temprow.extend(extra_info[str(info.id)])
                     if peptide_option == "truncated":
@@ -575,7 +575,6 @@ def pepdb_search_tsv_line2(writer, peptide, peptide_option, seqsim, matrix, extr
 def pepdb_multi_search2(pepfile_path, peptide_option, pid, function, seqsim, matrix, extra, species):
     results = []
     messages = []
-
     work_path = create_work_directory(settings.WORK_DIRECTORY)
     input_pep_path = pepfile_path
 
@@ -586,7 +585,7 @@ def pepdb_multi_search2(pepfile_path, peptide_option, pid, function, seqsim, mat
     out = open(output_path, 'w', encoding='utf-8')
     writer = csv.writer(out, delimiter='\t')
 
-    if extra:
+    if extra and seqsim != 100:#or matrix=="IDENTITY" perhaps this should be added given orginal code
         writer.writerow(('search peptide', 'proteinID', 'peptide', 'protein description', 'species',
                          'intervals', 'function', 'secondary function', 'ptm', 'title', 'authors', 'abstract', 'doi',
                          '% alignment', 'query start', 'query end', 'subject start', 'subject end', 'e-value',
@@ -653,9 +652,8 @@ def pepdb_multi_search(tsv_file):
             headers = list(data.fieldnames)
             headers = list(filter(None, headers)) # remove empty column headers
             headers.sort()
-
             # check if headers are correct
-            if headers != ['extra_output', 'function', 'peptide', 'protein_id', 'scoring_matrix', 'search_type', 'similarity_threshold', 'species']:
+            if headers != ['function', 'peptide', 'protein_id', 'scoring_matrix', 'search_type', 'similarity_threshold', 'species']:
                 raise subprocess.CalledProcessError(1, cmd="", output="Error: Input file does not have the correct headers (peptide, search_type, similarity_threshold, scoring_matrix, extra_output, protein_id, function, species).")
 
             err=0
@@ -664,9 +662,8 @@ def pepdb_multi_search(tsv_file):
                 rownum = rownum + 1
                 search_type = row['search_type'].lower().strip()
                 matrix = row['scoring_matrix'].upper().strip()
-                extra = row['extra_output'].lower().strip()
-                if (row['peptide']!='' and (row['search_type']=='' or row['similarity_threshold']=='' or row['scoring_matrix']=='' or row['extra_output']=='')):
-                    messages.append("Error: Line "+str(rownum)+" in file has values that cannot be empty (if peptide has a value, then so must search_type, similarity_threshold, scoring_matrix, and extra_output).")
+                if (row['peptide']!='' and (row['search_type']=='' or row['similarity_threshold']=='' or row['scoring_matrix']=='')):
+                    messages.append("Error: Line "+str(rownum)+" in file has values that cannot be empty (if peptide has a value, then so must search_type, similarity_threshold, and scoring_matrix).")
                     err+=1
 
                 if row['peptide']!='':
@@ -688,10 +685,6 @@ def pepdb_multi_search(tsv_file):
                         messages.append("Error: Line "+str(rownum)+". Scoring matrix must be either 'blosum62' or 'identity'.")
                         err+=1
 
-                    if extra not in ['yes','no']:
-                        messages.append("Error: Line "+str(rownum)+". Extra Output must be either 'yes' or 'no'.")
-                        err+=1
-
 
             if err > 0:
                 raise subprocess.CalledProcessError(1, cmd="", output='<br/>'.join(messages))
@@ -707,11 +700,15 @@ def pepdb_multi_search(tsv_file):
                         row = {key: value.strip() for key, value in row.items()}
                         search_type = row['search_type'].lower()
                         matrix = row['scoring_matrix'].upper()
-                        extra = row['extra_output'].lower()
+                        #added 8/22/23 RK to remove extra_info if 100% or '' similarity is searched also if peptide is < 4 AA
+                        if row['similarity_threshold'] != '100' and row['similarity_threshold'] != '' and len(row['peptide']) >= 4:
+                            extra = 1
+                        else:
+                            extra = 0
                         #fixed bug where threshold was replaced by float(row['similarity_threshold'])     RK 8/11/23
-                        results += "<br/><h3>Search parameters: peptide: "+row['peptide']+", search_type: "+search_type+", similarity_threshold: "+str(row['similarity_threshold'])+", scoring_matrix: "+matrix+", extra_output: "+extra+", protein_id: "+row['protein_id']+", function: "+row['function']+", species: "+row['species']+"</h3><table border=\"1\">"
-                        writer.writerow(["Search parameters: peptide: "+row['peptide']+", search_type: "+search_type+", similarity_threshold: "+str(row['similarity_threshold'])+", scoring_matrix: "+matrix+", extra_output: "+extra+", protein_id: "+row['protein_id']+", function: "+row['function']+", species: "+row['species']])
-                        results += pepdb_search_tsv_line(writer, row['peptide'], search_type, float(row['similarity_threshold']) if row['similarity_threshold'].strip() != '' else None, matrix, 0 if extra in ["no", ""] else 1, row['protein_id'], row['function'], row['species'])
+                        results += "<br/><h3>Search parameters: peptide: "+row['peptide']+", search_type: "+search_type+", similarity_threshold: "+str(row['similarity_threshold'])+", scoring_matrix: "+matrix+", protein_id: "+row['protein_id']+", function: "+row['function']+", species: "+row['species']+"</h3><table border=\"1\">"
+                        writer.writerow(["Search parameters: peptide: "+row['peptide']+", search_type: "+search_type+", similarity_threshold: "+str(row['similarity_threshold'])+", scoring_matrix: "+matrix+", protein_id: "+row['protein_id']+", function: "+row['function']+", species: "+row['species']])
+                        results += pepdb_search_tsv_line(writer, row['peptide'], search_type, float(row['similarity_threshold']) if row['similarity_threshold'].strip() != '' else None, matrix, extra, row['protein_id'], row['function'], row['species']) # replace if statement that handled no or yes for extra to simplily 1
                         results += "</td></tr></table><br/>\n"
     except UnicodeDecodeError:
         raise subprocess.CalledProcessError(1, cmd="", output="Error: File needs to use Unicode (UTF-8) encoding. Conversion failed.")

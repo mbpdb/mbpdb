@@ -16,7 +16,6 @@ def index(request):
 
 #Unmodified, function is used to add csv file of peptides to sqlite db  needs updating as message function is Deprecated
 def peptide_db_csv(request):
-    print("activat")
     errors = []
     messages = []
     if request.method == 'POST':
@@ -49,11 +48,16 @@ def peptide_search(request):
         function = request.POST['function']
         seqsim = int(request.POST['seqsim'])
         matrix = request.POST['matrix']
-        extra = 1 if request.POST.get('extra_output') else 0
+        # if request.POST.get('extra_output') else 0 removed this feature so it returns blast result by defult if a peptide >4 is searched
+        for peptide in peptides:
+            if len(peptide) >= 4:
+                extra = 1
+                break
+        else:
+            extra = 0
         species = request.POST['species']
         manual_input_provided = peptides or pid or function or species
         if not request.FILES.get('tsv_file',False):
-
             # Save peptides to a file named pepfile.txt
             pepfile_path = os.path.join(settings.MEDIA_ROOT, "pepfile.txt")
             with open(os.path.join(settings.MEDIA_ROOT, "pepfile.txt"), "w") as pepfile:
