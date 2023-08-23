@@ -129,11 +129,23 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     </div>
 </div>
 </td></tr>
--->
 <tr><td style="padding-left:30px">
 <div class="form-group">
     <label for="protlabel">Protein ID</label>
     <input type="text" name="proteinid" size="30" {% if data.proteinid %}value="{{data.proteinid}}"{% endif %} />
+</div>
+</td><tr>
+-->
+
+
+<tr><td style="padding-left:30px">
+<div class="form-group">
+    <label for="protlabel">Protein ID</label>
+    <input list="proteinList" name="proteinid" size="30" style="text-align:left;">
+    <datalist id="proteinList">
+    <!-- Populated by JavaScript -->
+    </datalist>
+
 <!--<p class="help-block">If protein ID is empty, then it will search all protein IDs.</p>-->
 </div>
 </td><tr>
@@ -141,17 +153,10 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 <td style="padding-left:30px">
 <div class="form-group">
     <label for="funclabel">Function</label>
-    <input list="funcs" name="function" size="30"{% if data.function %}value="{{data.function}}"{% endif %} style="text-align:left;">
-    <datalist id="funcs">
-        <option value="ACE-inhibitory">
-        <option value="Antimicrobial">
-        <option value="DPP-IV Inhibitory">
-        <option value="Antioxidant">
-        <option value="Immunomodulatory">
-        <option value="Anti-inflammatory">
-        <option value="Opioid">
+    <input list="functionList" name="function" size="30" style="text-align:left;">
+    <datalist id="functionList">
+    <!-- Populated by JavaScript -->
     </datalist>
-    </input>
 <!-- <p class="help-block">choose from dropdown or type in your own</p>-->
 </div>
 </td></tr>
@@ -216,26 +221,71 @@ document.addEventListener("DOMContentLoaded", function() {
     .then(data => {
         console.log(data); // Log the fetched data to the console
 
-        const translateList = data.translate_list; // This now directly contains common names
-        const speciesDropdown = document.getElementById("speciesList");
-        speciesDropdown.innerHTML = ""; // Clear existing options
+        // Store the common name to scientific name mapping
+        const commonToSciList = data.common_to_sci_list;
+        const speciesDatalist = document.getElementById("speciesList");
+        speciesDatalist.innerHTML = ""; // Clear existing options
 
-        if (translateList.length > 0) {
+        for (let commonName in commonToSciList) {
+            // For each common name, create an option with value as scientific name and label as common name
+            commonToSciList[commonName].forEach(sciName => {
+                let option = document.createElement('option');
+                option.value = commonName;
+                option.label = sciName;
+                speciesDatalist.appendChild(option);
+            });
+        }
+    });
+});
+
+
+document.addEventListener("DOMContentLoaded", function() {
+    // Make AJAX request to fetch data from func_list view
+    fetch("/func_list/")
+    .then(response => response.json())
+    .then(data => {
+        console.log(data); // Log the fetched data to the console
+
+        const functionList = data.functions; // This now directly contains unique functions
+        const functionDropdown = document.getElementById("functionList");
+        functionDropdown.innerHTML = ""; // Clear existing options
+
+        if (functionList.length > 0) {
             // Populate dropdown options with fetched data
-            translateList.forEach(commonName => {
+            functionList.forEach(funcName => {
                 const option = document.createElement("option");
-                option.value = commonName;  // Directly use the common name
-                speciesDropdown.appendChild(option);
+                option.value = funcName;  // Directly use the function name
+                functionDropdown.appendChild(option);
             });
         } else {
             // If data is empty, display a default option
             const option = document.createElement("option");
             option.value = "List is empty";
-            speciesDropdown.appendChild(option);
+            functionDropdown.appendChild(option);
         }
     });
+});
 
-    // Other script code
+document.addEventListener("DOMContentLoaded", function() {
+    // Make AJAX request to fetch data from pro_list view
+    fetch("/pro_list/")
+    .then(response => response.json())
+    .then(data => {
+        console.log(data); // Log the fetched data to the console
+
+        // Store the description to PID mapping
+        const descriptionToPidList = data.description_to_pid_list;
+        const proteinDatalist = document.getElementById("proteinList");
+        proteinDatalist.innerHTML = ""; // Clear existing options
+
+        for (let description in descriptionToPidList) {
+            // For each description, create an option with value as PID and label as description
+            let option = document.createElement('option');
+            option.value = descriptionToPidList[description]; // PID
+            option.label = description; // Description
+            proteinDatalist.appendChild(option);
+        }
+    });
 });
 
 document.querySelector('input[name="inputfile"]').addEventListener('change', function(event) {
