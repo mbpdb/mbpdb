@@ -10,7 +10,7 @@ https://docs.djangoproject.com/en/1.7/ref/settings/
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 
-import os
+import os, re
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 
@@ -105,16 +105,17 @@ FIX_WEIRD_CHARS = os.path.join(BASE_DIR, 'scripts/fix_weird_chars.pl')
 
 #for search translation
 TRANSLATE_LIST = [
-    ['cow','bos taurus','bovine'],
-    ['sheep','ovis aries','ovine'],
-    ['goat','capra hircus','caprine'],
-    ['pig','sus scrofa','porcine'],
-    ['yak','bos mutus'],
-    ['rabbit','oryctolagus cuniculus'],
-    ['donkey','equus asinus'],
-    ['human','homo sapiens']
+    ['human', 'homo sapiens'],
+    ['cow', 'bos taurus'],
+    ['sheep', 'ovis aries'],
+    ['goat', 'capra hircus'],
+    ['pig', 'sus scrofa'],
+    ['yak', 'bos mutus'],
+    ['rabbit', 'oryctolagus cuniculus'],
+    ['donkey', 'equus asinus'],
+    ['camel', 'camelus dromedarius'],
+    ['buffalo', 'bubalus bubalis']
 ]
-
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',

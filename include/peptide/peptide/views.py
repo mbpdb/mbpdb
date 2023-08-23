@@ -4,10 +4,11 @@ from .toolbox import run_pepex, add_proteins, pepdb_add_csv, pepdb_multi_search_
 from django.http.response import HttpResponse
 import subprocess
 from subprocess import CalledProcessError
-from .models import Counter
+from .models import Counter, PeptideInfo, ProteinInfo
 from datetime import datetime
 from django.http import FileResponse
 from django.conf import settings
+from django.http import JsonResponse
 
 #Unmodified
 def index(request):
@@ -137,3 +138,22 @@ def tsv_search_results(request):
 def about_us(request):
     return render(request, 'peptide/about_us.html')
 
+#Added RK 8/22/23 returns dynamic list of species to the html page
+def spec_list(request):
+    # Your existing code
+    common_names = [entry[0] for entry in settings.TRANSLATE_LIST]
+
+    spec_list = {
+        'translate_list': common_names,
+        # other spec_list variables
+    }
+    unique_species = (
+        PeptideInfo.objects
+        .select_related('protein_id')  # Assuming 'protein_id' is the ForeignKey field linking to ProteinInfo
+        .values_list('protein_id__species', flat=True)  # Double underscore syntax to access joined model fields
+        .distinct()
+    )
+    print(unique_species)
+    print(spec_list)
+
+    return JsonResponse(spec_list)

@@ -47,7 +47,9 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 </script>
 <!-- Advanced Search Toggle Button -->
 <button class="btn btn-default" type="button" data-toggle="collapse" data-target="#advancedSearchOptions" aria-expanded="false" aria-controls="advancedSearchOptions">
-  Advanced Search Options
+
+
+    Advanced Search Options
 </button>
 <!-- Advanced Search Options (Collapsed by default) -->
 <div class="collapse" id="advancedSearchOptions">
@@ -156,20 +158,14 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 
 <tr><td style="padding-left:30px">
 <div class="form-group">
-    <label for="speclabel">Species</label>
-    <input list="specs" name="species"
-="30"{% if data.species %}value="{{data.species}}"{% endif %}>
-    <datalist id="specs">
-        <option value="Human">
-        <option value="Cow">
-        <option value="Goat">
-        <option value="Sheep">
-        <option value="Pig">
-    </datalist>
-    </input>
-    <!-- <p class="help-block">choose from dropdown or type in your own</p>-->
+  <label for="speciesInput">Species</label>  <!-- 'for' attribute matches 'id' of input -->
+  <input id="speciesInput" list="speciesList" name="species" size="30" style="text-align:left;">
+  <datalist id="speciesList">
+    <!-- Populated by JavaScript -->
+  </datalist>
 </div>
-</td>
+</td></tr>
+    <!-- <p class="help-block">choose from dropdown or type in your own</p>-->
 <br/>
 <tr><td style="padding-left:30px">
     <h4>Advanced Search File Upload</h4>
@@ -213,6 +209,35 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 {% endif %}
 
 <script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Make AJAX request to fetch data from spec_list view
+    fetch("/spec_list/")
+    .then(response => response.json())
+    .then(data => {
+        console.log(data); // Log the fetched data to the console
+
+        const translateList = data.translate_list; // This now directly contains common names
+        const speciesDropdown = document.getElementById("speciesList");
+        speciesDropdown.innerHTML = ""; // Clear existing options
+
+        if (translateList.length > 0) {
+            // Populate dropdown options with fetched data
+            translateList.forEach(commonName => {
+                const option = document.createElement("option");
+                option.value = commonName;  // Directly use the common name
+                speciesDropdown.appendChild(option);
+            });
+        } else {
+            // If data is empty, display a default option
+            const option = document.createElement("option");
+            option.value = "List is empty";
+            speciesDropdown.appendChild(option);
+        }
+    });
+
+    // Other script code
+});
+
 document.querySelector('input[name="inputfile"]').addEventListener('change', function(event) {
     var file = event.target.files[0];
     if (file) {
