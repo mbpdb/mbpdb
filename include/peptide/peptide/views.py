@@ -4,12 +4,12 @@ from .toolbox import run_pepex, add_proteins, pepdb_add_csv, pepdb_multi_search_
 from django.http.response import HttpResponse
 import subprocess
 from subprocess import CalledProcessError
-from .models import Counter, PeptideInfo, ProteinInfo
+from .models import Counter, PeptideInfo, ProteinInfo, Function
 from datetime import datetime
 from django.http import FileResponse
 from django.conf import settings
 from django.http import JsonResponse
-
+from django.db.models import Count
 #Unmodified
 def index(request):
     context = {}
@@ -45,7 +45,7 @@ def peptide_search(request):
 
         peptides = [line.strip() for line in request.POST.get('peptides', '').splitlines()]
         peptide_option = request.POST['peptide_option']
-        pid = request.POST['proteinid']
+        pid = request.POST.get('proteinid', '').strip().split(',') if request.POST.get('proteinid', '').strip() else []
         function = request.POST['function']
         seqsim = int(request.POST['seqsim'])
         matrix = request.POST['matrix']
@@ -69,7 +69,7 @@ def peptide_search(request):
                     for peptide in peptides:
                         pepfile.write(peptide + "\n")
 
-            if not peptides and pid == "" and function == "" and species == "" and not request.FILES.get('tsv_file', False):
+            if not peptides and not pid and function == "" and species == "" and not request.FILES.get('tsv_file', False):
                 errors.append("Error: You must input at least search critera or upload a file under Advanced Search Options.")
             try:
                 (results,output_path) = pepdb_multi_search_manual(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species)
@@ -78,7 +78,7 @@ def peptide_search(request):
                 return render(request, 'peptide/peptide_search.html', {'errors':[e.output], 'data':request.POST})
         else:
             # If both manual input and tsv file are provided, append an error message
-            if manual_input_provided:
+            if peptides or pid or function or species:
                 errors.append(
                     f'Error: Please <a href=".">reset search criteria</a>.<br/><br/>Either manually enter peptides, search by Function, Protein ID, Species, Catagory or upload a file under Advanced Search Options.<br/><br/>Both manual inputs and advanced search file uploads can\'t be selected when performing a search.')
             try:
@@ -140,20 +140,49 @@ def about_us(request):
 
 #Added RK 8/22/23 returns dynamic list of species to the html page
 def spec_list(request):
-    # Your existing code
-    common_names = [entry[0] for entry in settings.TRANSLATE_LIST]
+    # Using Python to group by 'common name' and aggregate scientific names
+    common_to_sci = {}
+    for entry in settings.TRANSLATE_LIST:
+        common_name, sci_name = entry
+        if common_name in common_to_sci:
+            common_to_sci[common_name].append(sci_name)
+        else:
+            common_to_sci[common_name] = [sci_name]
 
-    spec_list = {
-        'translate_list': common_names,
-        # other spec_list variables
-    }
-    unique_species = (
-        PeptideInfo.objects
-        .select_related('protein_id')  # Assuming 'protein_id' is the ForeignKey field linking to ProteinInfo
-        .values_list('protein_id__species', flat=True)  # Double underscore syntax to access joined model fields
-        .distinct()
-    )
-    print(unique_species)
-    print(spec_list)
+    return JsonResponse({'common_to_sci_list': common_to_sci})
+#This querry will pulls unique species from the database
+#    unique_species = (
+#        PeptideInfo.objects
+#        .select_related('protein_id')  # Assuming 'protein_id' is the ForeignKey field linking to ProteinInfo
+#        .values_list('protein_id__species', flat=True)  # Double underscore syntax to access joined model fields
+#        .distinct()
+#    )
 
     return JsonResponse(spec_list)
+
+
+
+def pro_list(request):
+    # Fetching protein IDs that are referenced in PeptideInfo
+    protein_ids_linked_to_peptides = PeptideInfo.objects.values_list('protein_id', flat=True).distinct()
+
+    # Fetching protein descriptions and PIDs for the proteins linked to peptides
+    proteins = ProteinInfo.objects.filter(id__in=protein_ids_linked_to_peptides).values('desc', 'pid')
+
+    # Using Python to group by 'desc' and aggregate PIDs
+    description_to_pid = {}
+    for protein in proteins:
+        if protein['desc'] in description_to_pid:
+            description_to_pid[protein['desc']].append(protein['pid'])
+        else:
+            description_to_pid[protein['desc']] = [protein['pid']]
+
+    return JsonResponse({'description_to_pid_list': description_to_pid})
+
+def func_list(request):
+    # Aggregating and ordering the functions based on their occurrence
+    functions = Function.objects.values('function').annotate(count=Count('function')).order_by('-count')
+
+    # Extracting only the unique functions in descending order of their occurrence
+    unique_func = [func['function'] for func in functions]
+    return JsonResponse({'functions': unique_func})
