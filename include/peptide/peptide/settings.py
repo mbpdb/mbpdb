@@ -115,6 +115,14 @@ TRANSLATE_LIST = [
     ['donkey', 'equus asinus'],
     ['camel', 'camelus dromedarius'],
     ['buffalo', 'bubalus bubalis']
+    #['horse', 'Equus caballus'], no records in db
+    #['rat', 'Rattus norvegicus'], no records in db
+    #['fallow deer', 'dama dama'], no records in db
+    #['red deer', 'cervus elaphus'], no records in db
+    #['reindeer', 'rangifer tarandus'], no records in db
+    #['american bison', 'bison bison'], no records in db
+    #['elephant', 'elephas maximus'], no records in db
+    #['mouse', 'mus musculus'], no records in db
 ]
 TEMPLATES = [
     {
