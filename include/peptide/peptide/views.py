@@ -105,6 +105,7 @@ def add_proteins_tool(request):
 #Unmodified referenced by pepex tool
 def pepex_tool(request):
     errors = []
+    q = get_latest_peptides(1)
     if request.method == 'POST':
         if not request.FILES.get('input_tsv',False):
             errors.append('The file field is mandatory.')
@@ -118,7 +119,7 @@ def pepex_tool(request):
                 return render(request, 'peptide/pepex.html', {'errors': e.output.decode('utf-8').rstrip('\n').split('\n')})
             if len(errors) == 0:
                 return FileResponse(open(output_path, 'rb'), as_attachment=True)
-    return render(request, 'peptide/pepex.html', {'errors':errors})
+    return render(request, 'peptide/pepex.html', {'errors':errors,'latest_peptides': q})
 
 #Unmodified returns a list of all proteins in protein fasta file
 def protein_headers(request):
@@ -136,7 +137,8 @@ def tsv_search_results(request):
 
 #Added RK 8/9/23 returns about us page
 def about_us(request):
-    return render(request, 'peptide/about_us.html')
+    q = get_latest_peptides(1)
+    return render(request, 'peptide/about_us.html', {'latest_peptides': q})
 
 #Added RK 8/22/23 returns dynamic list of species to the html page
 def spec_list(request):
@@ -159,8 +161,6 @@ def spec_list(request):
 #    )
 
     return JsonResponse(spec_list)
-
-
 
 def pro_list(request):
     # Fetching protein IDs that are referenced in PeptideInfo
