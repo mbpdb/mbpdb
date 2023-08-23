@@ -53,9 +53,13 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 </button>
 <!-- Advanced Search Options (Collapsed by default) -->
 <div class="collapse" id="advancedSearchOptions">
+    <p class="help-block">Note that the Peptide Sequence, Protein ID, Function, and Species, inputs can be empty. <br/> If no peptide sequence is provided, homology search results can't be provided.</p>
     <table>
   <div class="form-group">
-    <td style="padding-left:30px">
+    <td style="padding-left:15px">
+        <h5><u>Homology Search Options:</u></h5>
+        </td></tr>
+        <tr><td style="padding-left:30px">
         <label>Search type:</label>
     <input type="radio" name="peptide_option" value="sequence" {% if not data.peptide_option or data.peptide_option == 'sequence' %}checked{% endif %}>Sequence&nbsp;
     <input type="radio" name="peptide_option" value="truncated" {% if data.peptide_option == 'truncated' %}checked{% endif %}>Truncated&nbsp;
@@ -118,26 +122,9 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     </div>
 </div>
 </td></tr>
-<!--
-<tr><td style="padding-left:30px">
-<div class="form-group">
-    <input type="checkbox" name="extra_output" {% if data.extra_output %}checked{% endif %}> <label>Get extra output?</label></input>
-    <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
-        <div class="mytooltiptext" style="width:500px;">
-            This option will add the following extra columns to the output: % alignment, query &amp; subject start and end positions, e-value, alignment length, mismatches, gap opens. Note that these extra columns will only have values for results obtained by blastp.
-        </div>
-    </div>
-</div>
+<tr><td style="padding-left:15px">
+    <h5><u>Catagorical Search Options:</u></h5>
 </td></tr>
-<tr><td style="padding-left:30px">
-<div class="form-group">
-    <label for="protlabel">Protein ID</label>
-    <input type="text" name="proteinid" size="30" {% if data.proteinid %}value="{{data.proteinid}}"{% endif %} />
-</div>
-</td><tr>
--->
-
-
 <tr><td style="padding-left:30px">
 <div class="form-group">
     <label for="protlabel">Protein ID</label>
@@ -172,13 +159,14 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 </td></tr>
     <!-- <p class="help-block">choose from dropdown or type in your own</p>-->
 <br/>
+<tr><td style="padding-left:15px">
+    <h5><u>File Upload:</u></h5>
+</td></tr>
 <tr><td style="padding-left:30px">
-    <h4>Advanced Search File Upload</h4>
-
 <div class="form-group">
      <input type="file" name="tsv_file" onchange="clearOtherInputs()"/>
      <p class="help-block">Use a correctly formatted TSV (tab-separated values) file with UTF-8 encoding. For format requirements, view the <a href="{% static 'peptide/example/peptide_multi_search_input_example.tsv'%}" target="_blank"> example file</a>.</p>
-     <p class="help-block">Note that the Peptide Sequence, Protein ID, Function, Species, and Category columns can be empty. Also, if peptide is empty, search_type, similarity_threshold, scoring_matrix, and extra_output will be ignored.</p>
+
 </div>
 </td></tr>
 </table>
@@ -206,11 +194,6 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     {% endif %}
 
     <br/>
-    {% if latest_peptides %}
-        {% for pep in latest_peptides %}
-        Database updated: {{pep.time_approved}}
-        {% endfor %}
-    {% endif %}
 {% endif %}
 
 <script>
