@@ -422,15 +422,28 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
     extra_info = defaultdict(list)
     q = PeptideInfo.objects.all()
 
-    if pid != "":
+    if pid:
         try:
-            protid_check = ProteinInfo.objects.get(pid__iexact=pid)
-        except ProteinInfo.DoesNotExist:
-            writer.writerow(["Protein ID "+pid+" does not exist in database."])
-            results.append(peptide+"</td><td><h4>Protein ID "+pid+" does not exist in database.</h4>")
-            return results
+            # Fetch ProteinInfo objects that match any of the provided PIDs
+            protid_check = ProteinInfo.objects.filter(pid__in=pid)
 
-        q = PeptideInfo.objects.filter(protein=protid_check)
+            # If none found, write an error
+            if not protid_check.exists():
+                writer.writerow(["Protein ID " + ', '.join(pid) + " does not exist in database."])
+                results.append(
+                    peptide + "</td><td><h4>Protein ID " + ', '.join(pid) + " does not exist in database.</h4>")
+                return results
+
+            # Fetch primary keys of these ProteinInfo objects
+            protein_ids = protid_check.values_list('id', flat=True)
+
+            # Filter PeptideInfo objects based on these protein IDs
+            q = PeptideInfo.objects.filter(protein__id__in=protein_ids)
+
+        except Exception as e:  # General exception handler for unexpected issues
+            writer.writerow([str(e)])
+            results.append(peptide + "</td><td><h4>Error: " + str(e) + "</h4>")
+            return results
 
     if species != "":
         # if species is "cow" or "pig" etc., then also search for scientific names
