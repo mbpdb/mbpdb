@@ -1,23 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
-<style>
-footer {
-    width: 100%;
-    padding: 10px;
-    position: absolute;
-    bottom: 0;
-    background-color: #f1f1f1;
-    font-size: 12pt;
-    text-align: right;
-}
-
-.footer-section {
-    display: inline-block;
-    margin: 0 20px;
-}
-</style>
-
+<html lang="en" xmlns="http://www.w3.org/1999/html">
 <link rel="shortcut icon" href="{% static 'peptide/favicon.ico' %}"/>
 
 <head>
@@ -90,7 +73,16 @@ footer {
                 <li>
                     <a href="{% url 'pepex' %}">PepEx</a>
                 </li>
+            </br></br></br></br>
+                <div class="sidebar-bottom-content">
+        <span>
+            If you are referencing this database: <a href="{% url 'about_us' %}" style="font-size: 20px;"><b>please cite</b></a></br>
+            {% for pep in latest_peptides %}
+                Database updated: {{pep.time_approved}}
+            {% endfor %}
+        </span>
         </div>
+    </div>
         <!-- /#sidebar-wrapper -->
 
         <!-- Page Content -->
@@ -112,7 +104,7 @@ footer {
 
     </div>
     <!-- /#wrapper -->
-
+</body>
     <!-- jQuery -->
     <script src="{% static 'peptide/theme/js/jquery.js' %}"></script>
 
@@ -120,17 +112,6 @@ footer {
     <script src="{% static 'peptide/theme/js/bootstrap.min.js' %}"></script>
 
     <!-- Menu Toggle Script -->
-<footer>
-    <span class="footer-section">
-        If you are referencing this database: <a href="{% url 'about_us' %}" style="font-size: 20px;"><b>please cite</b></a>
-    </span>
-    <span class="footer-section">
-        {% for pep in latest_peptides %}
-            Database updated: {{pep.time_approved}}
-        {% endfor %}
-    </span>
-</footer>
-
     <script>
     $("#menu-toggle").click(function(e) {
         e.preventDefault();
@@ -139,6 +120,5 @@ footer {
     </script>
 {% block 'scripts' %}
 {% endblock 'scripts' %}
-</body>
 
 </html>
