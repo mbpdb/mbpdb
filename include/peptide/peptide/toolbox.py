@@ -2,7 +2,7 @@ import subprocess, os
 from django.conf import settings
 import time
 import csv
-from Bio import SeqIO
+#from Bio import SeqIO
 from .models import PeptideInfo, Reference, Function, ProteinInfo, Submission, ProteinVariant
 import re, sys
 from collections import defaultdict
@@ -10,6 +10,7 @@ from django.db.models import Q
 from datetime import datetime
 from django.contrib.auth.models import User
 from chardet.universaldetector import UniversalDetector
+from django.db.models import Count
 
 #Creates temp folder /include/peptide/peptide/upload/temp for storage related to each unique search request
 def create_work_directory(base_dir):
@@ -445,26 +446,37 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
             results.append(peptide + "</td><td><h4>Error: " + str(e) + "</h4>")
             return results
 
-    if species != "":
-        # if species is "cow" or "pig" etc., then also search for scientific names
+    if species:
+        # Initialize the final list of search IDs
+        final_search_ids = []
 
-        spec_list=[]
-        for l in settings.TRANSLATE_LIST:
-            if species.lower() in l:
-                spec_list = list(l)
+        # Loop through each species in the list
+        for spec in species:
+            spec_list = []
+            for l in settings.TRANSLATE_LIST:
+                if spec.lower() in l:
+                    spec_list = list(l)
+                    break  # break once the species is found
 
-        if spec_list:
-            q_obj = Q(species__iexact = spec_list[0])
-            for s in spec_list[1:]:
-                q_obj = q_obj | Q(species__iexact = s)
+            search_ids = []
+            if spec_list:
+                q_obj = Q(species__iexact=spec_list[0])
+                for s in spec_list[1:]:
+                    q_obj = q_obj | Q(species__iexact=s)
 
-            proteins = ProteinInfo.objects.filter(q_obj)
-            protein_ids = [proobj.id for proobj in proteins]
-            tempids = PeptideInfo.objects.filter(protein__in=protein_ids)
-            search_ids = [pepobj.id for pepobj in tempids]
-            q = q.filter(id__in=search_ids)
-        else:
-            q = q.filter(protein__species__icontains=species)
+                proteins = ProteinInfo.objects.filter(q_obj)
+                protein_ids = [proobj.id for proobj in proteins]
+                tempids = PeptideInfo.objects.filter(protein__in=protein_ids)
+                search_ids = [pepobj.id for pepobj in tempids]
+            else:
+                q = q.filter(protein__species__in=spec)
+                search_ids = [pepobj.id for pepobj in q]
+
+            # Append the search IDs from this iteration to the final list
+            final_search_ids.extend(search_ids)
+
+        # Filter the query using the final list of search IDs
+        q = q.filter(id__in=final_search_ids)
 
 
     if peptide != "":
@@ -515,17 +527,16 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
             q = q.filter(id__in=search_ids)
 
 
-    if function != "":
-        q = q.filter(functions__function__icontains=function)
-
+    if function:
+        q = q.filter(functions__function__in=function)
     if (q.count() == 0):
         writer.writerow([peptide,"No records found for this peptide."])
         results.append(peptide+"</td><td><h4>No records found for search.</h4>")
         return results
 
     for info in q:
-        if function != "":
-            fcheck = Function.objects.filter(pep=info, function__icontains=function)
+        if function:
+            fcheck = Function.objects.filter(pep=info, function__in=function)
         else:
             fcheck = Function.objects.filter(pep=info)
 
@@ -590,14 +601,12 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     messages = []
     work_path = create_work_directory(settings.WORK_DIRECTORY)
     input_pep_path = pepfile_path
-
     subprocess.check_output(['dos2unix', '-q', input_pep_path], stderr=subprocess.STDOUT)
 
     csv.register_dialect('tsv', delimiter='\t', quoting=csv.QUOTE_NONE, escapechar=' ')
     output_path = os.path.join(work_path, "MBPDB_search_%s.tsv" % time.strftime('%Y-%m-%d_%H.%M.%S', time.localtime()))
     out = open(output_path, 'w', encoding='utf-8')
     writer = csv.writer(out, delimiter='\t')
-
     if extra and seqsim != 100:#or matrix=="IDENTITY" perhaps this should be added given orginal code
         writer.writerow(('search peptide', 'proteinID', 'peptide', 'protein description', 'species',
                          'intervals', 'function', 'secondary function', 'ptm', 'title', 'authors', 'abstract', 'doi',
@@ -756,7 +765,7 @@ def pepdb_multi_search_fileupload(tsv_file):
 
     return results,output_path
 
-#returns date of news added peptide, updated on 8/8/23 to only return date
+#returns date of most recently added peptide, updated on 8/8/23 to only return date
 def get_latest_peptides(n):
     dictlist = [dict() for x in range(n)]
     q = PeptideInfo.objects.all().order_by('-id')[0:n]
@@ -859,23 +868,6 @@ def add_proteins(input_fasta_files, messages):
     messages.append(str(count)+" fasta record(s) added to database.")
     return messages
 
-#seemingly can be deprecated
-"""
-#Primary function referenced in blast search when extra information is requested
-def blast_pipeline(peptide_library,peptide_input):
-    work_path = create_work_directory(settings.WORK_DIRECTORY)
-    library_tsv_path = get_tsv_path(peptide_library,work_path)
-    library_tsv_path = xlsx_to_tsv(library_tsv_path)
-    input_tsv_path = get_tsv_path(peptide_input,work_path)
-    output_path = os.path.join(work_path, 'homology_output_%s.tsv'%time.strftime('%Y-%m-%d_%H.%M.%S',time.localtime())).replace(' ','_')
-    (library_ids_tsv_path,library_fasta_path) = create_fasta_lib(library_tsv_path)
-    (input_ids_tsv_path,input_fasta_path) = create_fasta_input(input_tsv_path)
-    make_blast_db(library_fasta_path)
-    blast_output_path = os.path.join(work_path, 'pep_to_func.tsv')
-    blastp(input_fasta_path,library_fasta_path, blast_output_path)
-    combine(input_ids_tsv_path, library_ids_tsv_path, blast_output_path, output_path)
-    return output_path
-"""
 #Secondary function used in the blast search when extra infor is requested
 def xlsx_to_tsv(path):
     (root,ext) = os.path.splitext(path)
@@ -912,3 +904,41 @@ def blastp(input_fasta_path,library_fasta_path, output_path):
 #Secondary function used in the blast search when extra infor is requested
 def combine(input_ids_tsv_path, library_ids_tsv_path, blast_output_path, output_path):
     subprocess.check_output([settings.COMBINE,input_ids_tsv_path, library_ids_tsv_path, blast_output_path, output_path],stderr=subprocess.STDOUT)
+
+#pulls a list of pids and descriptors from the database to popluate the search dropdown list
+def pro_list(request):
+    # Fetching protein IDs that are referenced in PeptideInfo
+    protein_ids_linked_to_peptides = PeptideInfo.objects.values_list('protein_id', flat=True).distinct()
+
+    # Fetching protein descriptions and PIDs for the proteins linked to peptides
+    proteins = ProteinInfo.objects.filter(id__in=protein_ids_linked_to_peptides).values('desc', 'pid')
+
+    # Using Python to group by 'desc' and aggregate PIDs
+    description_to_pid = {}
+    for protein in proteins:
+        if protein['desc'] in description_to_pid:
+            description_to_pid[protein['desc']].append(protein['pid'])
+        else:
+            description_to_pid[protein['desc']] = [protein['pid']]
+    return description_to_pid
+
+#pulls a list of functions from the database to popluate the search dropdown list
+def func_list(request):
+    # Aggregating and ordering the functions based on their occurrence
+    functions = Function.objects.values('function').annotate(count=Count('function')).order_by('-count')
+
+    # Extracting only the unique functions in descending order of their occurrence
+    unique_func = [func['function'] for func in functions]
+    return unique_func
+
+#Added RK 8/22/23 returns list of species to the html page from settings.translatelist
+def spec_list(request):
+    common_to_sci = {}
+    for entry in settings.TRANSLATE_LIST:
+        common_name, sci_name = entry
+        if common_name in common_to_sci:
+            common_to_sci[common_name].append(sci_name)
+        else:
+            common_to_sci[common_name] = [sci_name]
+
+    return common_to_sci

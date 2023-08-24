@@ -1,15 +1,14 @@
 from django.shortcuts import render
 import os, re
-from .toolbox import run_pepex, add_proteins, pepdb_add_csv, pepdb_multi_search_fileupload, pepdb_multi_search_manual, get_latest_peptides #,peptide_db_call, contact_us
+from .toolbox import func_list, spec_list, pro_list, run_pepex, add_proteins, pepdb_add_csv, pepdb_multi_search_fileupload, pepdb_multi_search_manual, get_latest_peptides
 from django.http.response import HttpResponse
 import subprocess
 from subprocess import CalledProcessError
-from .models import Counter, PeptideInfo, ProteinInfo, Function
+from .models import Counter
 from datetime import datetime
 from django.http import FileResponse
 from django.conf import settings
-from django.http import JsonResponse
-from django.db.models import Count
+
 #Unmodified
 def index(request):
     context = {}
@@ -36,8 +35,10 @@ def peptide_search(request):
     results = []
     output_path = ''
     q = get_latest_peptides(1)
+    description_to_pid = pro_list(request)
+    unique_func = func_list(request)
+    common_to_sci = spec_list(request)
     tsv_submitted = bool(request.FILES.get('tsv_file'))
-
 
     if request.method == 'POST':
         counter = Counter(ip=request.META['REMOTE_ADDR'], access_time=datetime.now(), page='peptide search')
@@ -45,20 +46,25 @@ def peptide_search(request):
 
         peptides = [line.strip() for line in request.POST.get('peptides', '').splitlines()]
         peptide_option = request.POST['peptide_option']
-        pid = request.POST.get('proteinid', '').strip().split(',') if request.POST.get('proteinid', '').strip() else []
-        function = request.POST['function']
+        pid = [x.strip() for x in request.POST.get('proteinid', '').split(',')] if request.POST.get('proteinid','').strip() else []
+        function = [x.strip() for x in request.POST.get('function', '').split(',')] if request.POST.get('function','').strip() else []
+        species = [x.strip() for x in request.POST.get('species', '').split(',')] if request.POST.get('species','').strip() else []
+        print(species)
+        #function = request.POST['function']
+        #species = request.POST['species']
+        # if request.POST.get('extra_output') else 0 removed this feature so it returns blast result by defult if a peptide >4 is searched
         seqsim = int(request.POST['seqsim'])
         matrix = request.POST['matrix']
-        # if request.POST.get('extra_output') else 0 removed this feature so it returns blast result by defult if a peptide >4 is searched
+
         for peptide in peptides:
             if not peptide.isalpha():
                 errors.append("Error: Invalid input. Only text characters are allowed.")
             if len(peptide) >= 4:
                 extra = 1
-        else:
-            extra = 0
-        species = request.POST['species']
-        manual_input_provided = peptides or pid or function or species
+            else:
+                extra = 0
+        if not peptides:
+               extra = 0
         if not request.FILES.get('tsv_file',False):
             # Save peptides to a file named pepfile.txt
             pepfile_path = os.path.join(settings.MEDIA_ROOT, "pepfile.txt")
@@ -69,7 +75,7 @@ def peptide_search(request):
                     for peptide in peptides:
                         pepfile.write(peptide + "\n")
 
-            if not peptides and not pid and function == "" and species == "" and not request.FILES.get('tsv_file', False):
+            if not peptides and not pid and not function  and species == "" and not request.FILES.get('tsv_file', False):
                 errors.append("Error: You must input at least search critera or upload a file under Advanced Search Options.")
             try:
                 (results,output_path) = pepdb_multi_search_manual(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species)
@@ -86,7 +92,7 @@ def peptide_search(request):
                 FileResponse(open(output_path, 'rb'))
             except CalledProcessError as e:
                 return render(request, 'peptide/peptide_search.html', {'errors': [e.output]})
-    return render(request, 'peptide/peptide_search.html', {'errors':errors, 'results':results, 'output_path':output_path, 'data':request.POST, 'latest_peptides':q, 'file_submitted': tsv_submitted})
+    return render(request, 'peptide/peptide_search.html', {'errors':errors, 'results':results, 'output_path':output_path, 'data':request.POST, 'latest_peptides':q, 'description_to_pid': description_to_pid, 'functions': unique_func, 'common_to_sci_list': common_to_sci, 'file_submitted': tsv_submitted})
 
 #unmodified but needs updating as message function is Deprecated
 def add_proteins_tool(request):
@@ -139,50 +145,3 @@ def tsv_search_results(request):
 def about_us(request):
     q = get_latest_peptides(1)
     return render(request, 'peptide/about_us.html', {'latest_peptides': q})
-
-#Added RK 8/22/23 returns dynamic list of species to the html page
-def spec_list(request):
-    # Using Python to group by 'common name' and aggregate scientific names
-    common_to_sci = {}
-    for entry in settings.TRANSLATE_LIST:
-        common_name, sci_name = entry
-        if common_name in common_to_sci:
-            common_to_sci[common_name].append(sci_name)
-        else:
-            common_to_sci[common_name] = [sci_name]
-
-    return JsonResponse({'common_to_sci_list': common_to_sci})
-#This querry will pulls unique species from the database
-#    unique_species = (
-#        PeptideInfo.objects
-#        .select_related('protein_id')  # Assuming 'protein_id' is the ForeignKey field linking to ProteinInfo
-#        .values_list('protein_id__species', flat=True)  # Double underscore syntax to access joined model fields
-#        .distinct()
-#    )
-
-    return JsonResponse(spec_list)
-
-def pro_list(request):
-    # Fetching protein IDs that are referenced in PeptideInfo
-    protein_ids_linked_to_peptides = PeptideInfo.objects.values_list('protein_id', flat=True).distinct()
-
-    # Fetching protein descriptions and PIDs for the proteins linked to peptides
-    proteins = ProteinInfo.objects.filter(id__in=protein_ids_linked_to_peptides).values('desc', 'pid')
-
-    # Using Python to group by 'desc' and aggregate PIDs
-    description_to_pid = {}
-    for protein in proteins:
-        if protein['desc'] in description_to_pid:
-            description_to_pid[protein['desc']].append(protein['pid'])
-        else:
-            description_to_pid[protein['desc']] = [protein['pid']]
-
-    return JsonResponse({'description_to_pid_list': description_to_pid})
-
-def func_list(request):
-    # Aggregating and ordering the functions based on their occurrence
-    functions = Function.objects.values('function').annotate(count=Count('function')).order_by('-count')
-
-    # Extracting only the unique functions in descending order of their occurrence
-    unique_func = [func['function'] for func in functions]
-    return JsonResponse({'functions': unique_func})
