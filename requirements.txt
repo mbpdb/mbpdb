@@ -11,6 +11,7 @@ recode
 ncbi-blast+
 epel-release
 wget
+git-lfs
 
 #some libraries required yum not pip
 #sudo yum install dos2unix
