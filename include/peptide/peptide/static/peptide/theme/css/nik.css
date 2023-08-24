@@ -5,7 +5,9 @@
 .sidebar-nav {
         color: #ffffff;
 }
-
+.help-block {
+    margin-bottom: 0;
+}
 /* Tooltip container */
 .mytooltip {
     position: relative;
