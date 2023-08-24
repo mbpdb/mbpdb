@@ -128,36 +128,72 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 <tr><td style="padding-left:30px">
 <div class="form-group">
     <label for="protlabel">Protein ID</label>
-    <input list="proteinList" name="proteinid" size="30" style="text-align:left;">
+    <input list="proteinList" name="proteinid" size="30" style="text-align:left;" value="{% if data.proteinid %}{{ data.proteinid }}{% endif %}">
     <datalist id="proteinList">
-    <!-- Populated by JavaScript -->
+    {% for desc, pids in description_to_pid.items %}
+        <option value="{{ pids|join:", " }}">{{ desc }}</option>
+    {% endfor %}
     </datalist>
-
-<!--<p class="help-block">If protein ID is empty, then it will search all protein IDs.</p>-->
+     <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+       <div class="mytooltiptext" style="width:550px;">
+          Search the database for UniProt accession numbers (protien IDs):
+          <ul>
+          <li>Reference the dropdown list for the cataloged protien IDs and descriptions in the database.</li>
+          <li>When searching multiple protien IDs a separating comma is required.</li>
+          </ul>
+          Note that protein ID can be left empty.
+       </div>
+     </div>
 </div>
 </td><tr>
 
 <td style="padding-left:30px">
 <div class="form-group">
     <label for="funclabel">Function</label>
-    <input list="functionList" name="function" size="30" style="text-align:left;">
+    <input list="functionList" name="function" size="30" style="text-align:left;" value="{% if data.function %}{{ data.function }}{% endif %}">
     <datalist id="functionList">
-    <!-- Populated by JavaScript -->
+    {% for function in functions %}
+        <option value= "{{function}}" </option>
+    {% endfor %}
     </datalist>
-<!-- <p class="help-block">choose from dropdown or type in your own</p>-->
+     <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+       <div class="mytooltiptext" style="width:550px;">
+         Search the database for the bioactivity function of peptides:
+         <ul>
+         <li>Reference the dropdown list for the cataloged bioactivity functions in the database.</li>
+         <li>When searching multiple bioactivity functions a separating comma is required.</li>
+         </ul>
+         Note that function can be left blank.
+
+       </div>
+     </div>
 </div>
 </td></tr>
 
 <tr><td style="padding-left:30px">
 <div class="form-group">
   <label for="speciesInput">Species</label>  <!-- 'for' attribute matches 'id' of input -->
-  <input id="speciesInput" list="speciesList" name="species" size="30" style="text-align:left;">
+  <input id="speciesInput" list="speciesList" name="species" size="30" style="text-align:left;" value="{% if data.species %}{{ data.species }}{% endif %}">
   <datalist id="speciesList">
-    <!-- Populated by JavaScript -->
-  </datalist>
+    {% for common_name, sci_name in common_to_sci_list.items %}
+        {% for sn in sci_name %}
+            <option value="{{ sn }}">{{ common_name }}</option>
+        {% endfor %}
+    {% endfor %}
+    </datalist>
+
+     <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+       <div class="mytooltiptext" style="width:550px;">
+         Search the database for the specie’s of origin for each peptide:
+         <ul>
+         <li>Reference the dropdown list for the cataloged species in the database.</li>
+         <li>When searching multiple species a separating comma is required.</li>
+         </ul>
+         Note that species can be left blank.
+       </div>
+     </div>
 </div>
 </td></tr>
-    <!-- <p class="help-block">choose from dropdown or type in your own</p>-->
 <br/>
 <tr><td style="padding-left:15px">
     <h5><u>File Upload:</u></h5>
@@ -197,79 +233,6 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 {% endif %}
 
 <script>
-document.addEventListener("DOMContentLoaded", function() {
-    // Make AJAX request to fetch data from spec_list view
-    fetch("/spec_list/")
-    .then(response => response.json())
-    .then(data => {
-        console.log(data); // Log the fetched data to the console
-
-        // Store the common name to scientific name mapping
-        const commonToSciList = data.common_to_sci_list;
-        const speciesDatalist = document.getElementById("speciesList");
-        speciesDatalist.innerHTML = ""; // Clear existing options
-
-        for (let commonName in commonToSciList) {
-            // For each common name, create an option with value as scientific name and label as common name
-            commonToSciList[commonName].forEach(sciName => {
-                let option = document.createElement('option');
-                option.value = commonName;
-                option.label = sciName;
-                speciesDatalist.appendChild(option);
-            });
-        }
-    });
-});
-
-
-document.addEventListener("DOMContentLoaded", function() {
-    // Make AJAX request to fetch data from func_list view
-    fetch("/func_list/")
-    .then(response => response.json())
-    .then(data => {
-        console.log(data); // Log the fetched data to the console
-
-        const functionList = data.functions; // This now directly contains unique functions
-        const functionDropdown = document.getElementById("functionList");
-        functionDropdown.innerHTML = ""; // Clear existing options
-
-        if (functionList.length > 0) {
-            // Populate dropdown options with fetched data
-            functionList.forEach(funcName => {
-                const option = document.createElement("option");
-                option.value = funcName;  // Directly use the function name
-                functionDropdown.appendChild(option);
-            });
-        } else {
-            // If data is empty, display a default option
-            const option = document.createElement("option");
-            option.value = "List is empty";
-            functionDropdown.appendChild(option);
-        }
-    });
-});
-
-document.addEventListener("DOMContentLoaded", function() {
-    // Make AJAX request to fetch data from pro_list view
-    fetch("/pro_list/")
-    .then(response => response.json())
-    .then(data => {
-        console.log(data); // Log the fetched data to the console
-
-        // Store the description to PID mapping
-        const descriptionToPidList = data.description_to_pid_list;
-        const proteinDatalist = document.getElementById("proteinList");
-        proteinDatalist.innerHTML = ""; // Clear existing options
-
-        for (let description in descriptionToPidList) {
-            // For each description, create an option with value as PID and label as description
-            let option = document.createElement('option');
-            option.value = descriptionToPidList[description]; // PID
-            option.label = description; // Description
-            proteinDatalist.appendChild(option);
-        }
-    });
-});
 
 document.querySelector('input[name="inputfile"]').addEventListener('change', function(event) {
     var file = event.target.files[0];
@@ -312,5 +275,4 @@ function clearOtherInputs() {
     }
 }
 </script>
-
 {% endblock 'content' %}
