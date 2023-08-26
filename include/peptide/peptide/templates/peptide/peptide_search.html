@@ -220,17 +220,16 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     {% if file_submitted %}
         {{ results|safe }}
     {% else %}
+        {{ results_header|safe }}
         <table border="1" id="results_table">
         {{ results|first|safe }}
         {% for r in results|slice:"1:" %}
             <tr><td style="padding:10px;">
-            {{r|safe}}
+            {{ r|safe}}
             </td></tr>
         {% endfor %}
         </table>
     {% endif %}
-
-    <br/>
 {% endif %}
 
 <script>
