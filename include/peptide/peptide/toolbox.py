@@ -581,38 +581,45 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
                 if ref.authors != '': authors.append(ref.authors)
                 if ref.abstract != '': abstracts.append(ref.abstract)
                 dois.append(ref.doi)
-            if "truncated" in peptide_option:
-                initial_peptide = info.peptide.replace(peptide, "<b>" + peptide + "</b>")
-            else:
-                initial_peptide = info.peptide
+            # Determine the initial_peptide string based on whether "truncated" is in peptide_option
+            web_initial_peptide = info.peptide.replace(peptide,
+                                                       "<b>" + peptide + "</b>") if "truncated" in peptide_option else info.peptide
+            file_initial_peptide = info.peptide
 
-            # Initialize temprow based on the value of no_pep and whether "truncated" is in peptide_option
-            initial_peptide = info.peptide.replace(peptide,
-                                                   "<b>" + peptide + "</b>") if "truncated" in peptide_option else info.peptide
-            temprow = ([peptide] if not no_pep else []) + [pp, initial_peptide, pd, info.protein.species,
-                                                           info.intervals]
+            # Create two different rows for web display and file writing
+            web_temprow = ([peptide] if not no_pep else []) + [pp, web_initial_peptide, pd, info.protein.species,
+                                                               info.intervals]
+            file_temprow = ([peptide] if not no_pep else []) + [pp, file_initial_peptide, pd, info.protein.species,
+                                                                info.intervals]
 
-            # Extend temprow with common fields
-            common_fields = [func.function, ', '.join(sf), ', '.join(ptms), ', '.join(titles), ', '.join(authors),', '.join(abstracts), ', '.join(dois)]
-            temprow.extend(common_fields)
+            # Common fields that will be extended to both rows
+            common_fields = [func.function, ', '.join(sf), ', '.join(ptms), ', '.join(titles), ', '.join(authors),
+                             ', '.join(abstracts), ', '.join(dois)]
 
-            # Add peptide_option to temprow if no_pep is False
+            # Extend both web_temprow and file_temprow with common fields
+            web_temprow.extend(common_fields)
+            file_temprow.extend(common_fields)
+
+            # Add peptide_option to both web_temprow and file_temprow if no_pep is False
             if not no_pep:
-                temprow.append(peptide_option)
+                web_temprow.append(peptide_option)
+                file_temprow.append(peptide_option)
 
-            # Extend temprow with extra_info if conditions are met
-            if extra and seqsim != 100:  # or matrix=="IDENTITY" perhaps this should be added given orginal code
+            # Extend both web_temprow and file_temprow with extra_info if conditions are met
+            if extra and seqsim != 100:  # or matrix == "IDENTITY" perhaps this should be added given original code
                 if str(info.id) in extra_info:
-                    temprow.extend(extra_info[str(info.id)])
+                    web_temprow.extend(extra_info[str(info.id)])
+                    file_temprow.extend(extra_info[str(info.id)])
                 else:
-                    temprow.extend([u'\t'] * 9)  # Add nine tab characters
+                    web_temprow.extend([u'\t'] * 9)  # Add nine tab characters
+                    file_temprow.extend([u'\t'] * 9)  # Add nine tab characters
 
-            # Write the row to CSV
-            writer.writerow(temprow)
+            # Write the row to the file (using the version without HTML tags)
+            writer.writerow(file_temprow)
 
-            # Append the results
-            results.append(
-                '</td><td style="padding:10px; max-width:300px; word-wrap:break-word;">'.join(str(v) for v in temprow))
+            # Append the results for web display (using the version with HTML tags)
+            results.append('</td><td style="padding:10px; max-width:300px; word-wrap:break-word;">'.join(
+                str(v) for v in web_temprow))
     return results
 
 #1st function in toolbox data pipeline when manual data input from peptide_search (views.py, peptide_search.htm)
@@ -649,6 +656,55 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     # Create a variable for extra HTML table headers related to BLAST output
     blast_output_table_headers = ('<th style="padding:10px;">{}</th>'.format(header) for header in blast_output_headers)
     blast_output_table_headers_str = ''.join(blast_output_table_headers)
+    pep_list = []
+    peptide_option_list = []
+    with open(input_pep_path, 'r') as pepfile:
+        content = pepfile.read().strip()
+    if no_pep:
+        params_list = []
+        if pid:
+            params_list.append(f"protein_id: {pid},")
+        if function:
+            params_list.append(f"function: {function},")
+        if species:
+            params_list.append(f"species: {species}\t")
+    else:
+        params_list = []
+        for cont in content.splitlines():
+            # Split the cont string into pep and peptide_option
+            pep, peptide_option = cont.split(' ', 1)
+            pep_list.append(pep)
+            peptide_option_list.append((peptide_option))
+        pep_list=list(set(pep_list))
+        peptide_option_list=list(set(peptide_option_list))
+        if pep_list:
+            params_list.append(f"peptide: {pep_list},")
+        if peptide_option:
+            params_list.append(f"search_type: {peptide_option_list},")
+        if seqsim != '':
+            params_list.append(f"similarity_threshold: {seqsim},")
+        if matrix:
+            params_list.append(f"scoring_matrix: {matrix},")
+        if pid:
+            params_list.append(f"protein_id: {pid},")
+        if function:
+            params_list.append(f"function: {function},")
+        if species:
+            params_list.append(f"species: {species}")
+    if params_list:
+        last_item = params_list[-1]
+        if last_item.endswith(','):
+            params_list[-1] = last_item[:-1]
+    # Join the list with a tab character between each item
+    params_str_tab = "\t".join(params_list)
+    # Write to file export using params_str_tab
+    writer.writerow([f'#Search parameters:\t{params_str_tab}'])
+    # Remove the trailing comma if it exists
+
+    # Join the list with HTML space entities between each item
+    params_str_web = "</br>".join(params_list)
+    results_header = ("<h3><b><u>Search parameters:</b></u> </br></h3><h4>"+params_str_web+"</h4>")
+
 
     # Use the variables in your main code
     if extra and seqsim != 100:
@@ -657,9 +713,6 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     else:
         writer.writerow(common_csv_headers)
         results.append('<tr>{}</tr><tr><td>'.format(common_table_headers_str))
-
-    with open(input_pep_path, 'r') as pepfile:
-        content = pepfile.read().strip()
 
     if not content:  # This will be True for both truly empty files and files with just whitespace or ""
         results.extend(
@@ -670,7 +723,8 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
             pep, peptide_option = cont.split(' ', 1)
             results.extend(
                 pepdb_search_tsv_line_manual(writer, pep, peptide_option, seqsim, matrix, extra, pid, function, species,no_pep))
-    return results,output_path
+    # Remove elements that are empty or just whitespace
+    return results,results_header,output_path
 
 #1st function in toolbox data pipeline when TSV from peptide_search (views.py peptide_search.html advanced search is uploaded)
 #creates tsv in uploads/temp folder
@@ -787,11 +841,11 @@ def pepdb_multi_search_fileupload(tsv_file):
                         # Concatenate the list into a single string
                         params_str = "".join(params_list)
                         # Remove the trailing comma if it exists
-                        if params_str[-1] == ',':
+                        if params_str and params_str[-1] == ',':
                             params_str = params_str[:-1]
 
                         #writes to file export using params_str
-                        writer.writerow([f'Search parameters:\t{params_str}'])
+                        writer.writerow([f'#Search parameters:\t{params_str}'])
                         #writer.writerow(["Search parameters: peptide: "+row['peptide']+", search_type: "+search_type+", similarity_threshold: "+str(row['similarity_threshold'])+", scoring_matrix: "+matrix+", protein_id: "+row['protein_id']+", function: "+row['function']+", species: "+row['species']])
 
                         #writes to website using params_str
