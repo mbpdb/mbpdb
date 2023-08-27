@@ -11,6 +11,7 @@ from django.contrib.auth.models import User
 from chardet.universaldetector import UniversalDetector
 from django.db.models import Count
 from django.http import HttpResponse
+import shutil
 
 #Creates temp folder /include/peptide/peptide/upload/temp for storage related to each unique search request
 def create_work_directory(base_dir):
@@ -253,12 +254,11 @@ def run_blastp(q,peptide,matrix):
 
 #2nd function in toolbox data pipeline, handles the input from the pepdb_multi_search_fileupload function
 #Return html styled results from  inputed TSV file (Advanced Search TSV file upload) and returns them to pepdb_multi_search_fileupload
-def pepdb_search_tsv_line_fileupload(writer, peptide, peptide_option, thershold, matrix, extra, pid, function, species):
+def pepdb_search_tsv_line_fileupload(writer, peptide, peptide_option, thershold, matrix, extra, pid, function, species,):
     #(peptide,peptide_option,pid,function,seqsim,matrix,extra,species)
     results = ''
     extra_info = defaultdict(list)
     q = PeptideInfo.objects.all()
-
     if pid != "":
         try:
             protid_check = ProteinInfo.objects.get(pid__iexact=pid)
@@ -273,7 +273,7 @@ def pepdb_search_tsv_line_fileupload(writer, peptide, peptide_option, thershold,
         # if species is "cow" or "pig" etc., then also search for scientific names
 
         spec_list=[]
-        for l in settings.TRANSLATE_LIST:
+        for l in settings.SPEC_TRANSLATE_LIST:
             if species.lower() in l:
                 spec_list = list(l)
 
@@ -438,43 +438,66 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
     results = []
     extra_info = defaultdict(list)
     q = PeptideInfo.objects.all()
+    final_search_ids = []
+    invalid_pids = []  # List to keep track of invalid Protein IDs
+    invalid_species = []  # List to keep track of invalid species
+    invalid_functions = []  # List to keep track of invalid functions
+
     if pid:
-        try:
+        for protein in pid:
+            prot_list = []
+            for l in settings.PRO_TRANSLATE_LIST:  # Assuming PRO_TRANSLATE_LIST is accessible
+                if protein.lower() in l[0].lower():
+                    prot_list = l[1].split(", ")
+                    break  # break once the protein is found
+            search_ids = []
+
             # Fetch ProteinInfo objects that match any of the provided PIDs
-            protid_check = ProteinInfo.objects.filter(pid__in=pid)
+            if prot_list:
+                protid_check = ProteinInfo.objects.filter(pid__in=prot_list)
+            else:
+                protid_check = ProteinInfo.objects.filter(pid__in=[protein])
 
-            # If none found, write an error
+            # If none found, add to the list of invalid PIDs
             if not protid_check.exists():
-                writer.writerow(["Protein ID " + ', '.join(pid) + " does not exist in database."])
-                results.append(
-                    peptide + "</td><td><h4>Protein ID " + ', '.join(pid) + " does not exist in database.</h4>")
-                return results
+                invalid_pids.append(protein)
+            else:
+                # Fetch primary keys of these ProteinInfo objects
+                protein_ids = protid_check.values_list('id', flat=True)
 
-            # Fetch primary keys of these ProteinInfo objects
-            protein_ids = protid_check.values_list('id', flat=True)
+                # Fetch PeptideInfo objects based on these protein IDs
+                tempids = PeptideInfo.objects.filter(protein__id__in=protein_ids)
+                search_ids = [pepobj.id for pepobj in tempids]
 
-            # Filter PeptideInfo objects based on these protein IDs
-            q = PeptideInfo.objects.filter(protein__id__in=protein_ids)
+                # Append the search IDs from this iteration to the final list
+                final_search_ids.extend(search_ids)
 
-        except Exception as e:  # General exception handler for unexpected issues
-            writer.writerow([str(e)])
-            results.append(peptide + "</td><td><h4>Error: " + str(e) + "</h4>")
+        # Filter PeptideInfo objects based on the final list of search IDs
+        if final_search_ids:
+            q = PeptideInfo.objects.filter(id__in=final_search_ids)
+        else:
             return results
 
     if species:
         # Initialize the final list of search IDs
         final_search_ids = []
+        valid_species = []  # List to keep track of valid species
 
         # Loop through each species in the list
         for spec in species:
             spec_list = []
-            for l in settings.TRANSLATE_LIST:
+            spec_exists_in_translate_list = False  # A flag to check if species exists in SPEC_TRANSLATE_LIST
+
+            for l in settings.SPEC_TRANSLATE_LIST:
                 if spec.lower() in l:
                     spec_list = list(l)
+                    spec_exists_in_translate_list = True  # Update the flag
                     break  # break once the species is found
 
             search_ids = []
-            if spec_list:
+
+            if spec_exists_in_translate_list:
+                valid_species.append(spec)
                 q_obj = Q(species__iexact=spec_list[0])
                 for s in spec_list[1:]:
                     q_obj = q_obj | Q(species__iexact=s)
@@ -484,14 +507,19 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
                 tempids = PeptideInfo.objects.filter(protein__in=protein_ids)
                 search_ids = [pepobj.id for pepobj in tempids]
             else:
-                q = q.filter(protein__species__in=spec)
-                search_ids = [pepobj.id for pepobj in q]
+                # If species not found in SPEC_TRANSLATE_LIST, add to invalid species
+                invalid_species.append(spec)
 
             # Append the search IDs from this iteration to the final list
             final_search_ids.extend(search_ids)
 
-        # Filter the query using the final list of search IDs
-        q = q.filter(id__in=final_search_ids)
+        # Filter the query using the final list of search IDs only if valid species exist
+        if valid_species:
+            q = q.filter(id__in=final_search_ids)
+        elif not valid_species:  # If no valid species exist, return immediately with the warning.
+            results.append("No valid species found for the search.")
+            return results
+
     if peptide != "":
         if "sequence" in peptide_option:
             if (len(peptide) < 4 or (seqsim == 100 and matrix=="IDENTITY")):
@@ -543,13 +571,18 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
     if function:
         q = q.filter(functions__function__in=function)
     if (q.count() == 0):
-        writer.writerow([peptide,"No records found for this peptide."])
+        writer.writerow([peptide,"No records found for this Search."])
         results.append(peptide+"</td><td><h4>No records found for search.</h4>")
         return results
 
+    verified_functions = set()
     for info in q:
         if function:
+            # Check if the provided functions actually exist in the database
             fcheck = Function.objects.filter(pep=info, function__in=function)
+            # Update the verified_functions set with functions that do exist for this peptide
+            for func in fcheck:
+                verified_functions.add(func.function)
         else:
             fcheck = Function.objects.filter(pep=info)
 
@@ -612,12 +645,51 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
                     web_temprow.extend([u'\t'] * 9)  # Add nine tab characters
                     file_temprow.extend([u'\t'] * 9)  # Add nine tab characters
 
+
             # Write the row to the file (using the version without HTML tags)
             writer.writerow(file_temprow)
 
             # Append the results for web display (using the version with HTML tags)
             results.append('</td><td style="padding:10px; max-width:300px; word-wrap:break-word;">'.join(
                 str(v) for v in web_temprow))
+
+    invalid_functions = [fun for fun in function if fun not in verified_functions]
+    invalid_species = list(set(invalid_species))
+    invalid_pids = list(set(invalid_pids))
+
+    all_rows = []  # For CSV
+    web_warning_msg = []  # For web display
+
+    if invalid_pids or invalid_species or invalid_functions:
+        warning_msg = []
+
+        if invalid_pids:
+            msg = "Warning: Protein ID(s) " + ', '.join(invalid_pids) + " do not exist in database."
+            warning_msg.append(msg)
+            web_warning_msg.append("<td colspan='25'><h4>" + msg + "</h4></td>")
+
+        if invalid_species:
+            msg = "Warning: Species " + ', '.join(invalid_species) + " do not exist in database."
+            warning_msg.append(msg)
+            web_warning_msg.append("<td colspan='25'><h4>" + msg + "</h4></td>")
+
+        if invalid_functions:
+            msg = "Warning: Function(s) " + ', '.join(invalid_functions) + " do not exist in database."
+            warning_msg.append(msg)
+            web_warning_msg.append("<td colspan='25'><h4>" + msg + "</h4></td>")
+
+        # Prepare the warning messages for CSV
+        for msg in warning_msg:
+            all_rows.append([msg])
+
+    # Write everything to the CSV
+    for row in all_rows:
+        writer.writerow(row)
+
+    # Insert the warning messages at the beginning for web display
+    for web_msg in reversed(web_warning_msg):
+        results.insert(0, web_msg)
+
     return results
 
 #1st function in toolbox data pipeline when manual data input from peptide_search (views.py, peptide_search.htm)
@@ -636,15 +708,15 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     writer = csv.writer(out, delimiter='\t')
 
     # Create a variable for common CSV headers
-    common_csv_headers = ('search peptide','proteinID', 'peptide', 'protein description', 'species',
-                          'intervals', 'function', 'secondary function', 'ptm', 'title', 'authors', 'abstract', 'doi', 'search type', 'scoring matrix')
+    common_csv_headers = ('Search peptide','Protein ID', 'Peptide', 'Protein description', 'Species',
+                          'Intervals', 'Function', 'Secondary function', 'PTM', 'Title', 'Authors', 'Abstract', 'DOI', 'Search type', 'Scoring matrix')
 
     # Create a variable for extra CSV headers related to BLAST output
-    blast_output_headers = ('% alignment', 'query start', 'query end', 'subject start', 'subject end', 'e-value',
-                            'alignment length', 'mismatches', 'gap opens')
+    blast_output_headers = ('% Alignment', 'Query start', 'Query end', 'Subject start', 'Subject end', 'e-value',
+                            'Alignment length', 'Mismatches', 'Gap opens')
     if no_pep:
 
-        common_csv_headers = tuple(header for header in common_csv_headers if header not in {'search peptide', 'search type', 'scoring matrix'})
+        common_csv_headers = tuple(header for header in common_csv_headers if header not in {'Search peptide', 'Search type', 'Scoring matrix'})
         common_table_headers = ('<th style="padding:10px;">{}</th>'.format(header) for header in common_csv_headers)
         common_table_headers_str = ''.join(common_table_headers)
     else:
@@ -662,11 +734,11 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     if no_pep:
         params_list = []
         if pid:
-            params_list.append(f"protein_id: {pid},")
+            params_list.append(f"<b>Protein ID:</b> {pid},")
         if function:
-            params_list.append(f"function: {function},")
+            params_list.append(f"<b>Function:</b> {function},")
         if species:
-            params_list.append(f"species: {species}")
+            params_list.append(f"<b>Species:</b> {species}")
     else:
         params_list = []
         for cont in content.splitlines():
@@ -680,19 +752,19 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
         matrix_list=list(set(matrix_list))
 
         if pep_list:
-            params_list.append(f"peptide: {pep_list},")
+            params_list.append(f"<b>Peptide:</b> {pep_list},")
         if peptide_option:
-            params_list.append(f"search_type: {peptide_option_list},")
+            params_list.append(f"<b>Search type:</b> {peptide_option_list},")
         if seqsim != '':
-            params_list.append(f"similarity_threshold: {seqsim},")
+            params_list.append(f"<b>Similarity threshold:</b> {seqsim}%,")
         if matrix:
-            params_list.append(f"scoring_matrix: {matrix_list},")
+            params_list.append(f"<b>Scoring matrix:</b> {matrix_list},")
         if pid:
-            params_list.append(f"protein_id: {pid},")
+            params_list.append(f"<b>Protein ID:</b> {pid},")
         if function:
-            params_list.append(f"function: {function},")
+            params_list.append(f"<b>Function:</b> {function},")
         if species:
-            params_list.append(f"species: {species}")
+            params_list.append(f"<b>Species:</b> {species}")
     if params_list:
         last_item = params_list[-1]
         if last_item.endswith(','):
@@ -705,7 +777,7 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
 
     # Join the list with HTML space entities between each item
     params_str_web = "</br>".join(params_list)
-    results_header = ("<h3><b><u>Search parameters:</b></u> </br></h3><h4>"+params_str_web+"</h4>")
+    results_header = ("<h2><u>Search parameters:</u> </br></h2><h4>"+params_str_web+"</h4>")
 
 
     # Use the variables in your main code
@@ -826,19 +898,19 @@ def pepdb_multi_search_fileupload(tsv_file):
                         params_list = []
 
                         if row['peptide']:
-                            params_list.append(" peptide: " + row['peptide'] + ",")
+                            params_list.append(" Peptide: " + row['peptide'] + ",")
                         if search_type:
-                            params_list.append(" search_type: " + search_type + ",")
+                            params_list.append(" Search type: " + search_type + ",")
                         if row['similarity_threshold'] != '':
-                            params_list.append(" similarity_threshold: " + str(row['similarity_threshold']) + ",")
+                            params_list.append(" Similarity threshold: " + str(row['similarity_threshold']) + ",")
                         if matrix:
-                            params_list.append(" scoring_matrix: " + matrix + ",")
+                            params_list.append(" Scoring_matrix: " + matrix + ",")
                         if row['protein_id']:
-                            params_list.append(" protein_id: " + row['protein_id'] + ",")
+                            params_list.append(" Protein ID: " + row['protein_id'] + ",")
                         if row['function']:
-                            params_list.append(" function: " + row['function'] + ",")
+                            params_list.append(" Function: " + row['function'] + ",")
                         if row['species']:
-                            params_list.append(" species: " + row['species'])
+                            params_list.append(" Species: " + row['species'])
 
                         # Concatenate the list into a single string
                         params_str = "".join(params_list)
@@ -1029,7 +1101,7 @@ def func_list(request):
 #Added RK 8/22/23 returns list of species to the html page from settings.translatelist
 def spec_list(request):
     common_to_sci = {}
-    for entry in settings.TRANSLATE_LIST:
+    for entry in settings.SPEC_TRANSLATE_LIST:
         common_name, sci_name = entry
         if common_name in common_to_sci:
             common_to_sci[common_name].append(sci_name)
@@ -1038,6 +1110,7 @@ def spec_list(request):
 
     return common_to_sci
 
+#function that exports the entire database for download by user
 def export_database(request):
 
     full_db_export = (
@@ -1085,3 +1158,15 @@ def export_database(request):
         ])
 
     return response
+
+
+def clear_temp_directory(directory_path):
+    for filename in os.listdir(directory_path):
+        file_path = os.path.join(directory_path, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print(f'Failed to delete {file_path}. Reason: {e}')
