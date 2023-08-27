@@ -2,7 +2,6 @@ import subprocess, os
 from django.conf import settings
 import time
 import csv
-#from Bio import SeqIO
 from .models import PeptideInfo, Reference, Function, ProteinInfo, Submission, ProteinVariant
 import re, sys
 from collections import defaultdict
@@ -11,6 +10,7 @@ from datetime import datetime
 from django.contrib.auth.models import User
 from chardet.universaldetector import UniversalDetector
 from django.db.models import Count
+from django.http import HttpResponse
 
 #Creates temp folder /include/peptide/peptide/upload/temp for storage related to each unique search request
 def create_work_directory(base_dir):
@@ -435,11 +435,9 @@ def pepdb_search_tsv_line_fileupload(writer, peptide, peptide_option, thershold,
 #2nd function in toolbox data pipeline, handles the input from the pepdb_multi_search_manual
 #Returns list of string results form inputed peptide list (manual inputs)
 def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix, extra, pid, function, species, no_pep):
-    #(peptide,peptide_option,pid,function,seqsim,matrix,extra,species)
     results = []
     extra_info = defaultdict(list)
     q = PeptideInfo.objects.all()
-
     if pid:
         try:
             # Fetch ProteinInfo objects that match any of the provided PIDs
@@ -494,8 +492,6 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
 
         # Filter the query using the final list of search IDs
         q = q.filter(id__in=final_search_ids)
-
-
     if peptide != "":
         if "sequence" in peptide_option:
             if (len(peptide) < 4 or (seqsim == 100 and matrix=="IDENTITY")):
@@ -511,7 +507,7 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
                     if simcalc >= seqsim:
                         search_ids.append(row['subject'])
                         extra_info[row['subject']] = ["{:.2f}".format(simcalc),row['qstart'],row['qend'],row['sstart'],row['send'],row['evalue'],row['align_len'],row['mismatches'],row['gaps']]
-                
+
                 q = q.filter(id__in=search_ids)
 
         elif "truncated" in peptide_option:
@@ -603,7 +599,9 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
             # Add peptide_option to both web_temprow and file_temprow if no_pep is False
             if not no_pep:
                 web_temprow.append(peptide_option)
+                web_temprow.append(matrix)
                 file_temprow.append(peptide_option)
+                file_temprow.append(matrix)
 
             # Extend both web_temprow and file_temprow with extra_info if conditions are met
             if extra and seqsim != 100:  # or matrix == "IDENTITY" perhaps this should be added given original code
@@ -639,14 +637,14 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
 
     # Create a variable for common CSV headers
     common_csv_headers = ('search peptide','proteinID', 'peptide', 'protein description', 'species',
-                          'intervals', 'function', 'secondary function', 'ptm', 'title', 'authors', 'abstract', 'doi', 'search type')
+                          'intervals', 'function', 'secondary function', 'ptm', 'title', 'authors', 'abstract', 'doi', 'search type', 'scoring matrix')
 
     # Create a variable for extra CSV headers related to BLAST output
     blast_output_headers = ('% alignment', 'query start', 'query end', 'subject start', 'subject end', 'e-value',
                             'alignment length', 'mismatches', 'gap opens')
     if no_pep:
 
-        common_csv_headers = tuple(header for header in common_csv_headers if header not in {'search peptide', 'search type'})
+        common_csv_headers = tuple(header for header in common_csv_headers if header not in {'search peptide', 'search type', 'scoring matrix'})
         common_table_headers = ('<th style="padding:10px;">{}</th>'.format(header) for header in common_csv_headers)
         common_table_headers_str = ''.join(common_table_headers)
     else:
@@ -658,6 +656,7 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     blast_output_table_headers_str = ''.join(blast_output_table_headers)
     pep_list = []
     peptide_option_list = []
+    matrix_list = []
     with open(input_pep_path, 'r') as pepfile:
         content = pepfile.read().strip()
     if no_pep:
@@ -667,16 +666,19 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
         if function:
             params_list.append(f"function: {function},")
         if species:
-            params_list.append(f"species: {species}\t")
+            params_list.append(f"species: {species}")
     else:
         params_list = []
         for cont in content.splitlines():
             # Split the cont string into pep and peptide_option
-            pep, peptide_option = cont.split(' ', 1)
+            pep, peptide_option, matrix = cont.split(' ', 2)
             pep_list.append(pep)
             peptide_option_list.append((peptide_option))
+            matrix_list.append(matrix)
         pep_list=list(set(pep_list))
         peptide_option_list=list(set(peptide_option_list))
+        matrix_list=list(set(matrix_list))
+
         if pep_list:
             params_list.append(f"peptide: {pep_list},")
         if peptide_option:
@@ -684,7 +686,7 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
         if seqsim != '':
             params_list.append(f"similarity_threshold: {seqsim},")
         if matrix:
-            params_list.append(f"scoring_matrix: {matrix},")
+            params_list.append(f"scoring_matrix: {matrix_list},")
         if pid:
             params_list.append(f"protein_id: {pid},")
         if function:
@@ -720,7 +722,7 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     else:
         for cont in content.splitlines():
             # Split the cont string into pep and peptide_option
-            pep, peptide_option = cont.split(' ', 1)
+            pep, peptide_option, matrix = cont.split(' ', 2)
             results.extend(
                 pepdb_search_tsv_line_manual(writer, pep, peptide_option, seqsim, matrix, extra, pid, function, species,no_pep))
     # Remove elements that are empty or just whitespace
@@ -1035,3 +1037,51 @@ def spec_list(request):
             common_to_sci[common_name] = [sci_name]
 
     return common_to_sci
+
+def export_database(request):
+
+    full_db_export = (
+        PeptideInfo.objects
+        .select_related('protein')  # JOIN with ProteinInfo
+        .prefetch_related('functions', 'functions__references')  # LEFT JOIN with Function and Reference
+        .values(
+            'peptide', 'protein_id', 'protein__desc', 'protein__species', 'intervals',
+            'functions__function', 'functions__references__secondary_func',
+            'functions__references__ptm', 'functions__references__title',
+            'functions__references__authors', 'functions__references__abstract',
+            'functions__references__doi'
+        )
+        .order_by('protein__desc')  # Order by 'protein__desc' in ascending alphabetical order
+    )
+    # Create a mapping from protein_id to pid
+    protein_id_to_pid = {protein.id: protein.pid for protein in ProteinInfo.objects.all()}
+
+    # Create an HttpResponse object with appropriate CSV headers.
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="database.tsv"'
+
+    writer = csv.writer(response, delimiter='\t')  # Use tab delimiter for TSV
+    # Write header
+    writer.writerow([
+        'peptide', 'protein_pid', 'protein_desc', 'protein_species', 'intervals',
+        'function', 'secondary_func', 'ptm', 'title', 'authors', 'abstract', 'doi'
+    ])
+
+    # Write actual rows
+    for row in full_db_export:
+        writer.writerow([
+            row.get('peptide', ''),
+            protein_id_to_pid.get(row.get('protein_id', ''), ''),  # Convert protein_id to pid
+            row.get('protein__desc', ''),
+            row.get('protein__species', ''),
+            row.get('intervals', ''),
+            row.get('functions__function', ''),
+            row.get('functions__references__secondary_func', ''),
+            row.get('functions__references__ptm', ''),
+            row.get('functions__references__title', ''),
+            row.get('functions__references__authors', ''),
+            row.get('functions__references__abstract', ''),
+            row.get('functions__references__doi', '')
+        ])
+
+    return response

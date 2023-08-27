@@ -1,6 +1,6 @@
 from django.shortcuts import render
 import os, re
-from .toolbox import func_list, spec_list, pro_list, run_pepex, add_proteins, pepdb_add_csv, pepdb_multi_search_fileupload, pepdb_multi_search_manual, get_latest_peptides
+from .toolbox import func_list, export_database, spec_list, pro_list, run_pepex, add_proteins, pepdb_add_csv, pepdb_multi_search_fileupload, pepdb_multi_search_manual, get_latest_peptides
 from django.http.response import HttpResponse
 import subprocess
 from subprocess import CalledProcessError
@@ -35,12 +35,13 @@ def peptide_search(request):
     results_header=[]
     results = []
     peptide_option = []
-    multi_peptide_option = []
+    matrix = []
     output_path = ''
     q = get_latest_peptides(1)
     description_to_pid = pro_list(request)
     unique_func = func_list(request)
     common_to_sci = spec_list(request)
+    full_db_export = export_database(request)
     tsv_submitted = bool(request.FILES.get('tsv_file'))
 
     if request.method == 'POST':
@@ -53,8 +54,7 @@ def peptide_search(request):
         function = [x.strip() for x in request.POST.get('function', '').split(',')] if request.POST.get('function','').strip() else []
         species = [x.strip() for x in request.POST.get('species', '').split(',')] if request.POST.get('species','').strip() else []
         seqsim = int(request.POST['seqsim'])
-        matrix = request.POST['matrix']
-        multi_peptide_option = len(peptide_option) > 1
+        matrix = request.POST.getlist('matrix')
         for peptide in peptides:
             if not peptide.isalpha():
                 errors.append("Error: Invalid input. Only text characters are allowed. Ensure there are no emtpy lines.")
@@ -74,23 +74,26 @@ def peptide_search(request):
                 else:
                     for peptide in peptides:
                         for po in peptide_option:
-                            # Check if both peptide and po are not empty
-                            if peptide.strip() and po.strip():
-                                pepfile.write(peptide + ' ' + po + "\n")
-                            else:
-                                # Handle the error case here if needed, for example:
-                                errors.append("Error: Both peptide and peptide option must be non-empty.")
+                            for m in matrix:
+                                # Check if both peptide and po are not empty
+                                if peptide.strip() and po.strip() and m.strip():
+                                    pepfile.write(peptide + ' ' + po + ' ' + m + "\n")
+                                else:
+                                    # Handle the error case here if needed, for example:
+                                    errors.append("Error: Peptide, search type and scoring matrix must be non-empty.")
                     no_pep = 0
 
             if not peptide_option and peptides:
-                errors.append("Error: You select a search type (Sequence, Truncated, or precursor) and input at least one peptide.")
+                errors.append("Error: You select a search type (sequence, truncated, or precursor) and input at least one peptide.")
+            if not matrix and peptides:
+                errors.append("Error: You select a scoring matrix (identity or BLOSUM62) and input at least one peptide.")
             if not (peptides or pid or function or species or tsv_submitted or peptide_option):
                 errors.append("Error: You must input at least search critera or upload a file under Advanced Search Options.")
             if not (peptides or pid or function or species or tsv_submitted):
                 errors.append("Error: You must input at least search critera or upload a file under Advanced Search Options.")
             if no_pep:
                 peptide_option =[]
-                matrix == ""
+                matrix == []
                 seqsim == ""
             errors = set(errors)
             try:
@@ -108,7 +111,10 @@ def peptide_search(request):
                 FileResponse(open(output_path, 'rb'))
             except CalledProcessError as e:
                  return render(request, 'peptide/peptide_search.html', {'errors': [e.output], 'data':request.POST})
-    return render(request, 'peptide/peptide_search.html', {'errors':errors, 'results':results, 'output_path':output_path, 'data':request.POST, 'peptide_option': peptide_option, 'latest_peptides':q, 'description_to_pid': description_to_pid, 'functions': unique_func, 'common_to_sci_list': common_to_sci, 'file_submitted': tsv_submitted, 'multi_peptide_option': multi_peptide_option, 'results_header':results_header})
+        if 'download_db' in request.POST:
+            return export_database(request)  # This should trigger the download
+
+    return render(request, 'peptide/peptide_search.html', {'errors':errors, 'results':results, 'output_path':output_path, 'data':request.POST, 'peptide_option': peptide_option, 'matrix':matrix, 'latest_peptides':q, 'description_to_pid': description_to_pid, 'functions': unique_func, 'common_to_sci_list': common_to_sci, 'file_submitted': tsv_submitted, 'results_header':results_header, })
 
 #unmodified but needs updating as message function is Deprecated
 def add_proteins_tool(request):
@@ -161,3 +167,5 @@ def tsv_search_results(request):
 def about_us(request):
     q = get_latest_peptides(1)
     return render(request, 'peptide/about_us.html', {'latest_peptides': q})
+
+
