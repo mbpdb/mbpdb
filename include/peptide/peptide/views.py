@@ -1,6 +1,6 @@
 from django.shortcuts import render
 import os, re
-from .toolbox import func_list, export_database, spec_list, pro_list, run_pepex, add_proteins, pepdb_add_csv, pepdb_multi_search_fileupload, pepdb_multi_search_manual, get_latest_peptides
+from .toolbox import func_list, clear_temp_directory, export_database, spec_list, pro_list, run_pepex, add_proteins, pepdb_add_csv, pepdb_multi_search_fileupload, pepdb_multi_search_manual, get_latest_peptides
 from django.http.response import HttpResponse
 import subprocess
 from subprocess import CalledProcessError
@@ -31,6 +31,10 @@ def peptide_db_csv(request):
 
 #Updated rk 8/8/23 handles the search from peptide_search.html, handles both tsv upload and manual peptide search
 def peptide_search(request):
+    # Clear the temp directory first
+    WORK_DIRECTORY = os.path.join(settings.BASE_DIR, 'uploads/temp')
+    clear_temp_directory(WORK_DIRECTORY)
+
     errors = []
     results_header=[]
     results = []
@@ -43,7 +47,6 @@ def peptide_search(request):
     common_to_sci = spec_list(request)
     full_db_export = export_database(request)
     tsv_submitted = bool(request.FILES.get('tsv_file'))
-
     if request.method == 'POST':
         counter = Counter(ip=request.META['REMOTE_ADDR'], access_time=timezone.now(), page='peptide search')
         counter.save()
@@ -84,9 +87,9 @@ def peptide_search(request):
                     no_pep = 0
 
             if not peptide_option and peptides:
-                errors.append("Error: You select a search type (sequence, truncated, or precursor) and input at least one peptide.")
+                errors.append("Error: You must select a search type (sequence, truncated, or precursor) and input at least one peptide.")
             if not matrix and peptides:
-                errors.append("Error: You select a scoring matrix (identity or BLOSUM62) and input at least one peptide.")
+                errors.append("Error: You must select a scoring matrix (identity or BLOSUM62) and input at least one peptide.")
             if not (peptides or pid or function or species or tsv_submitted or peptide_option):
                 errors.append("Error: You must input at least search critera or upload a file under Advanced Search Options.")
             if not (peptides or pid or function or species or tsv_submitted):
