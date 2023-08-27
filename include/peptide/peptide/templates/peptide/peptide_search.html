@@ -106,10 +106,9 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 
     <tr><td style="padding-left:30px">
      <label>Scoring matrix:</label>
-    <select name="matrix">
-        <option value="IDENTITY" {% if not data.matrix or data.matrix == "IDENTITY" %}selected="selected"{% endif %}>Identity</option>
-        <option value="BLOSUM62" {% if data.matrix == "BLOSUM62" %}selected="selected"{% endif %}>BLOSUM62</option>
-    </select>
+        <input type="checkbox" name="matrix" value="IDENTITY" {% if not matrix or "IDENTITY" in matrix %}checked{% endif %}>Identity
+        <input type="checkbox" name="matrix" value="BLOSUM62" {% if matrix or "BLOSUM62" in matrix %}checked{% endif %}>BLOSUM62
+
 
     <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
         <div class="mytooltiptext" style="width:500px;">
@@ -203,8 +202,16 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 <div class="form-group">
      <input type="file" name="tsv_file" onchange="clearOtherInputs()"/>
      <p class="help-block">Use a correctly formatted TSV (tab-separated values) file with UTF-8 encoding. For format requirements, view the <a href="{% static 'peptide/example/peptide_multi_search_input_example.tsv'%}" target="_blank"> example file</a>.</p>
-
 </div>
+<tr><td style="padding-left:15px">
+    <h5><u>Full Database Download:</u></h5>
+</td></tr>
+<tr><td style="padding-left:30px">
+    <form method="post" action="{% url 'peptide_search' %}">
+        {% csrf_token %}
+        <button type="submit" name="download_db" value="true" id="hiddenButton" style="display:none;"></button>
+        <p class="help-block">This <a href="#" id="downloadLink">hyperlink</a> will download the database in its entirety.</p>  <!-- Changed "link" to "hyperlink" -->
+    </form>
 </td></tr>
 </table>
 </div>
@@ -218,11 +225,13 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     <br/>
 
     {% if file_submitted %}
+    <table style="table-layout: fixed; width: 100%;">
         {{ results|safe }}
+    </table>
     {% else %}
         {{ results_header|safe }}
         <table border="1" id="results_table">
-        {{ results|first|safe }}
+            {{ results|first|safe }}
         {% for r in results|slice:"1:" %}
             <tr><td style="padding:10px;">
             {{ r|safe}}
@@ -274,5 +283,9 @@ function clearOtherInputs() {
         }
     }
 }
+
+document.getElementById('downloadLink').addEventListener('click', function() {
+    document.getElementById('hiddenButton').click();
+});
 </script>
 {% endblock 'content' %}
