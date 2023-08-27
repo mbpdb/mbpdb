@@ -32,7 +32,7 @@ textarea.tools-form-raw-text-input {
 <br/>
     <h4>Simple Peptide Search</h4>
 <div class="textarea-container">
-<form method="POST" enctype="multipart/form-data" action="." role="form">
+<form method="POST" enctype="multipart/form-data" action="." role="form" onsubmit="return validateFields();">
 {% csrf_token %}
 <div class="form-group">
     <textarea name="peptides" rows="10" placeholder="YPFPGPIPN" class="tools-form-raw-text-input" data-hj-allow="true">{% if data.peptides %}{{data.peptides}}{% endif %}</textarea><br/>
@@ -107,7 +107,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     <tr><td style="padding-left:30px">
      <label>Scoring matrix:</label>
         <input type="checkbox" name="matrix" value="IDENTITY" {% if not matrix or "IDENTITY" in matrix %}checked{% endif %}>Identity
-        <input type="checkbox" name="matrix" value="BLOSUM62" {% if matrix or "BLOSUM62" in matrix %}checked{% endif %}>BLOSUM62
+        <input type="checkbox" name="matrix" value="BLOSUM62" {% if "BLOSUM62" in matrix %}checked{% endif %}>BLOSUM62
 
 
     <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
@@ -208,10 +208,8 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 </td></tr>
 <tr><td style="padding-left:30px">
     <form method="post" action="{% url 'peptide_search' %}">
-        {% csrf_token %}
         <button type="submit" name="download_db" value="true" id="hiddenButton" style="display:none;"></button>
         <p class="help-block">This <a href="#" id="downloadLink">hyperlink</a> will download the database in its entirety.</p>  <!-- Changed "link" to "hyperlink" -->
-    </form>
 </td></tr>
 </table>
 </div>
@@ -219,6 +217,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 <br/>
 <button class="btn btn-default" id="search-db-btn">Search DB</button>  <a href=".">Clear all search criteria</a>
 <a name="search_results"></a>
+    </form>
 <br/>
 {% if results and not errors %}
     <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a> | If you are referencing this database: <a href="{% url 'about_us' %}" style="font-size: 20px;"> <b>please cite</b></a>
@@ -255,7 +254,7 @@ document.querySelector('input[name="inputfile"]').addEventListener('change', fun
             for (const peptide of peptides) {
                 if (!/^[a-zA-Z]*$/.test(peptide)) {
                     // Show an error message and prevent further actions
-                    alert('Invalid input. Only text characters are allowed.');
+                    alert('Your input has some invalid characters. Please use only letters.');
                     return;
                 }
             }
@@ -287,5 +286,23 @@ function clearOtherInputs() {
 document.getElementById('downloadLink').addEventListener('click', function() {
     document.getElementById('hiddenButton').click();
 });
+
+// This function checks if the input string has only allowed characters
+function isValidInput(str) {
+    return /^[A-Za-z0-9, \-]*$/.test(str);
+}
+
+// Call this function when you want to validate the fields
+function validateFields() {
+    const functionInput = document.querySelector("input[name='function']").value;
+    const proteinIdInput = document.querySelector("input[name='proteinid']").value;
+    const speciesInput = document.querySelector("input[name='species']").value;
+
+    if (!isValidInput(functionInput) || !isValidInput(proteinIdInput) || !isValidInput(speciesInput)) {
+        alert('Invalid input. Your input has some invalid characters. Please use only letters, numbers, commas, spaces, or dashes.');
+        return false; // Prevent the form from being submitted
+    }
+    return true; // Proceed with form submission
+}
 </script>
 {% endblock 'content' %}
