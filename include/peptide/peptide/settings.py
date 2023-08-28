@@ -25,7 +25,7 @@ DEBUG = True
 
 TEMPLATE_DEBUG = True
 
-ALLOWED_HOSTS = ['128.193.11.196', '127.0.0.1', 'localhost', '20.125.149.39']
+ALLOWED_HOSTS = ['128.193.11.196', '127.0.0.1', 'localhost', '192.84.190.235']
 
 
 # Application definition
@@ -52,14 +52,14 @@ ROOT_URLCONF = 'peptide.urls'
 
 WSGI_APPLICATION = 'peptide.wsgi.application'
 
-
-# Database
-# https://docs.djangoproject.com/en/1.7/ref/settings/#databases
-
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'mbpdb_osu',
+        'USER': 'admin_mbpdb_osu',
+        'PASSWORD': 'Milk001!@#',
+        'HOST': 'localhost',
+        'PORT': '',
     }
 }
 
