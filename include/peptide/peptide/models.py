@@ -8,17 +8,17 @@ def protein_pid(obj):
 class ProteinInfo(models.Model):
     header = models.CharField(max_length=1000)
     pid = models.CharField(max_length=30)
-    seq = models.CharField(max_length=5000)
+    seq = models.CharField(max_length=10000)
     desc = models.CharField(max_length=500)
-    species = models.CharField(max_length=70)
+    species = models.CharField(max_length=150)
 
 class ProteinVariant(models.Model):
-    seq = models.CharField(max_length=5000)
+    seq = models.CharField(max_length=10000)
     pvid = models.CharField(max_length=30)
     protein = models.ForeignKey(ProteinInfo, on_delete=models.CASCADE, related_name="orig_proteins")
 
 class PeptideInfo(models.Model):
-    peptide = models.CharField(max_length=300)
+    peptide = models.CharField(max_length=500)
     protein = models.ForeignKey(ProteinInfo, on_delete=models.CASCADE, related_name="proteins")
     protein_variants = models.CharField(max_length=100,default='')
     intervals = models.CharField(max_length=100)
