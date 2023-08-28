@@ -15,6 +15,15 @@ textarea.tools-form-raw-text-input {
 .form-group label, .form-group .help-block {
     text-align: left;
 }
+.full-width {
+    flex: 1;
+    width: 100%;
+}
+.warning {
+    //background-color: #FFF0F0;  /* Light red background */
+    width: 100%;
+    text-align: left;
+}
 </style>
 {% for e in errors %}
 <div class="alert alert-danger  alert-dismissible" role="alert">
@@ -219,25 +228,41 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 <a name="search_results"></a>
     </form>
 <br/>
-{% if results and not errors %}
+{% if first_result and not errors %}
     <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a> | If you are referencing this database: <a href="{% url 'about_us' %}" style="font-size: 20px;"> <b>please cite</b></a>
     <br/>
 
-    {% if file_submitted %}
+{% if file_submitted %}
     <table style="table-layout: fixed; width: 100%;">
         {{ results|safe }}
     </table>
-    {% else %}
-        {{ results_header|safe }}
-        <table border="1" id="results_table">
-            {{ results|first|safe }}
-        {% for r in results|slice:"1:" %}
-            <tr><td style="padding:10px;">
-            {{ r|safe}}
-            </td></tr>
+{% else %}
+    {{ results_header|safe }}
+    <table border="1" id="results_table">
+        {{ first_result|safe }}
+
+        <!-- Display warnings -->
+        {% for w in warnings %}
+        <tr>
+          <td colspan=25>
+              <div class="warning">
+              <!-- Warning content -->
+              {{ w|safe }}
+            </div>
+          </td>
+        </tr>
         {% endfor %}
-        </table>
-    {% endif %}
+
+        <!-- Display regular results -->
+        {% for r in sliced_results %}
+            <tr>
+                <td style="padding:10px;">
+                    {{ r|safe }}
+                </td>
+            </tr>
+        {% endfor %}
+    </table>
+{% endif %}
 {% endif %}
 
 <script>
