@@ -72,6 +72,7 @@ def peptide_search(request):
             with open(os.path.join(settings.MEDIA_ROOT, "pepfile.txt"), "w") as pepfile:
                 if len(peptides) == 0:
                     no_pep = 1
+                    pepfile.write("")
                 else:
                     for peptide in peptides:
                         for po in peptide_option:

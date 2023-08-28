@@ -443,8 +443,6 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
     invalid_pids = []  # List to keep track of invalid Protein IDs
     invalid_species = []  # List to keep track of invalid species
     invalid_functions = []  # List to keep track of invalid functions
-    all_rows = []
-
     if pid:
         for protein in pid:
             prot_list = []
@@ -523,8 +521,6 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
             return results
 
     if peptide != "":
-        peptide_db_list = list(PeptideInfo.objects.values_list('peptide', flat=True))
-
         if "sequence" in peptide_option:
             if (len(peptide) < 4 or (seqsim == 100 and matrix=="IDENTITY")):
                 q = q.filter(peptide__iexact=peptide)
@@ -573,12 +569,11 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
     if function:
         q = q.filter(functions__function__in=function)
     if (q.count() == 0):
+        peptide_db_list = list(PeptideInfo.objects.values_list('peptide', flat=True))
         if peptide in peptide_db_list:
-            writer.writerow(["WARNING: Peptide: " + ''.join(peptide) + " does not meet other search critera."])
             results.append("<h4>WARNING: Peptide: " + ''.join(peptide) + " does not meet other search critera.</h4>")
             return results
         else:
-            writer.writerow(["WARNING: Peptide: " + ''.join(peptide) + " does not exist in database "])
             results.append("<h4>WARNING: Peptide: " + ''.join(peptide) + " does not exist in database.</h4>")
             return results
 
@@ -663,6 +658,7 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
     invalid_species = list(set(invalid_species))
     invalid_pids = list(set(invalid_pids))
 
+    all_rows = []
     if invalid_pids or invalid_species or invalid_functions:
         warning_msg = []
 
@@ -688,6 +684,7 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
     # Write everything to the CSV
     for row in all_rows:
         writer.writerow(row)
+
 
     return results
 
@@ -772,7 +769,9 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     # Join the list with a tab character between each item
     params_str_tab = "\t".join(params_list)
     # Write to file export using params_str_tab
-    writer.writerow([f'#Search parameters:\t{params_str_tab}'])
+    # Replace it with the following to remove HTML tags
+    cleaned_params_str_tab = re.sub('<.*?>', '', params_str_tab)
+    writer.writerow([f'#Search parameters:\t{cleaned_params_str_tab}'])
     # Remove the trailing comma if it exists
 
     # Join the list with HTML space entities between each item
@@ -797,7 +796,16 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
             pep, peptide_option, matrix = cont.split(' ', 2)
             results.extend(
                 pepdb_search_tsv_line_manual(writer, pep, peptide_option, seqsim, matrix, extra, pid, function, species,no_pep))
-    # Remove elements that are empty or just whitespace
+    # Extract and clean warning results
+    warning_results = list(set(r for r in results if "WARNING:" in r))
+    cleaned_warning_results = [re.sub('<.*?>', '', warning) for warning in warning_results]
+    print(cleaned_warning_results)
+
+    # Writing the cleaned_warning_results to a TSV (for demonstration, writing to a list)
+
+    for cleaned_warning in cleaned_warning_results:
+        writer.writerow([cleaned_warning])
+
     return results,results_header,output_path
 
 #1st function in toolbox data pipeline when TSV from peptide_search (views.py peptide_search.html advanced search is uploaded)
@@ -1159,7 +1167,7 @@ def export_database(request):
 
     return response
 
-
+#Function clears the temp directory at the onset of peptide_search in views.py
 def clear_temp_directory(directory_path):
     for filename in os.listdir(directory_path):
         file_path = os.path.join(directory_path, filename)
