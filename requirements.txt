@@ -12,6 +12,11 @@ ncbi-blast+
 epel-release
 wget
 git-lfs
+Django psycopg2
+python3-dev
+libpq-dev
+postgresql
+postgresql-contrib
 
 #some libraries required yum not pip
 #sudo yum install dos2unix
