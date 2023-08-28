@@ -45,7 +45,6 @@ def peptide_search(request):
     description_to_pid = pro_list(request)
     unique_func = func_list(request)
     common_to_sci = spec_list(request)
-    full_db_export = export_database(request)
     tsv_submitted = bool(request.FILES.get('tsv_file'))
     if request.method == 'POST':
         counter = Counter(ip=request.META['REMOTE_ADDR'], access_time=timezone.now(), page='peptide search')
@@ -72,7 +71,6 @@ def peptide_search(request):
             pepfile_path = os.path.join(settings.MEDIA_ROOT, "pepfile.txt")
             with open(os.path.join(settings.MEDIA_ROOT, "pepfile.txt"), "w") as pepfile:
                 if len(peptides) == 0:
-                    pepfile.write("")
                     no_pep = 1
                 else:
                     for peptide in peptides:
@@ -116,9 +114,31 @@ def peptide_search(request):
                  return render(request, 'peptide/peptide_search.html', {'errors': [e.output], 'data':request.POST})
         if 'download_db' in request.POST:
             return export_database(request)  # This should trigger the download
+    # Separate warnings and results
+    warning_results = [r for r in results if "WARNING:" in r]
+    regular_results = [r for r in results if "WARNING:" not in r]
+    warning_results = list(set(warning_results))
+    # If you want to get the first result separately
+    first_result = regular_results[0] if regular_results else None
 
-    return render(request, 'peptide/peptide_search.html', {'errors':errors, 'results':results, 'output_path':output_path, 'data':request.POST, 'peptide_option': peptide_option, 'matrix':matrix, 'latest_peptides':q, 'description_to_pid': description_to_pid, 'functions': unique_func, 'common_to_sci_list': common_to_sci, 'file_submitted': tsv_submitted, 'results_header':results_header, })
-
+    # Apply slicing to regular results
+    sliced_results = regular_results[1:]
+    return render(request, 'peptide/peptide_search.html', {
+        'errors': errors,
+        'warnings': warning_results,
+        'first_result': first_result,
+        'sliced_results': sliced_results,
+        'output_path': output_path,
+        'data': request.POST,
+        'peptide_option': peptide_option,
+        'matrix': matrix,
+        'latest_peptides': q,
+        'description_to_pid': description_to_pid,
+        'functions': unique_func,
+        'common_to_sci_list': common_to_sci,
+        'file_submitted': tsv_submitted,
+        'results_header': results_header,
+    })
 #unmodified but needs updating as message function is Deprecated
 def add_proteins_tool(request):
     errors = []

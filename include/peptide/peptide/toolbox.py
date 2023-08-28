@@ -259,12 +259,13 @@ def pepdb_search_tsv_line_fileupload(writer, peptide, peptide_option, thershold,
     results = ''
     extra_info = defaultdict(list)
     q = PeptideInfo.objects.all()
+    all_rows = []  # For CSV
     if pid != "":
         try:
             protid_check = ProteinInfo.objects.get(pid__iexact=pid)
         except ProteinInfo.DoesNotExist:
-            writer.writerow(["Protein ID "+pid+" does not exist in database."])
-            results += "<h3>Protein ID "+pid+" does not exist in database.</h3>"
+            writer.writerow(["WARNING: Protein ID "+pid+" does not exist in database."])
+            results += "<h3>WARNING: Protein ID "+pid+" does not exist in database.</h3>"
             return results
 
         q = PeptideInfo.objects.filter(protein=protid_check)
@@ -341,8 +342,8 @@ def pepdb_search_tsv_line_fileupload(writer, peptide, peptide_option, thershold,
         q = q.filter(functions__function__icontains=function)
 
     if (q.count() == 0):
-        writer.writerow(["No records found for search."])
-        results += "<h3>No records found for search.</h3>"
+        writer.writerow(["WARNING: No records found for search."])
+        results += "<h3>WARNING: No records found for search.</h3>"
         return results
 
     # Define common and extra headers for CSV and HTML table
@@ -442,6 +443,7 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
     invalid_pids = []  # List to keep track of invalid Protein IDs
     invalid_species = []  # List to keep track of invalid species
     invalid_functions = []  # List to keep track of invalid functions
+    all_rows = []
 
     if pid:
         for protein in pid:
@@ -517,10 +519,12 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
         if valid_species:
             q = q.filter(id__in=final_search_ids)
         elif not valid_species:  # If no valid species exist, return immediately with the warning.
-            results.append("No valid species found for the search.")
+            results.append("<h4>WARNING: No valid species found for the search.<h4>")
             return results
 
     if peptide != "":
+        peptide_db_list = list(PeptideInfo.objects.values_list('peptide', flat=True))
+
         if "sequence" in peptide_option:
             if (len(peptide) < 4 or (seqsim == 100 and matrix=="IDENTITY")):
                 q = q.filter(peptide__iexact=peptide)
@@ -566,14 +570,17 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
                     extra_info[row['subject']] = ["{:.2f}".format(simcalc),row['qstart'],row['qend'],row['sstart'],row['send'],row['evalue'],row['align_len'],row['mismatches'],row['gaps']]
 
             q = q.filter(id__in=search_ids)
-
-
     if function:
         q = q.filter(functions__function__in=function)
     if (q.count() == 0):
-        writer.writerow([peptide,"No records found for this Search."])
-        results.append(peptide+"</td><td><h4>No records found for search.</h4>")
-        return results
+        if peptide in peptide_db_list:
+            writer.writerow(["WARNING: Peptide: " + ''.join(peptide) + " does not meet other search critera."])
+            results.append("<h4>WARNING: Peptide: " + ''.join(peptide) + " does not meet other search critera.</h4>")
+            return results
+        else:
+            writer.writerow(["WARNING: Peptide: " + ''.join(peptide) + " does not exist in database "])
+            results.append("<h4>WARNING: Peptide: " + ''.join(peptide) + " does not exist in database.</h4>")
+            return results
 
     verified_functions = set()
     for info in q:
@@ -611,8 +618,7 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
                 if ref.abstract != '': abstracts.append(ref.abstract)
                 dois.append(ref.doi)
             # Determine the initial_peptide string based on whether "truncated" is in peptide_option
-            web_initial_peptide = info.peptide.replace(peptide,
-                                                       "<b>" + peptide + "</b>") if "truncated" in peptide_option else info.peptide
+            web_initial_peptide = info.peptide.replace(peptide,"<b>" + peptide + "</b>") if "truncated" in peptide_option else info.peptide
             file_initial_peptide = info.peptide
 
             # Create two different rows for web display and file writing
@@ -657,26 +663,23 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
     invalid_species = list(set(invalid_species))
     invalid_pids = list(set(invalid_pids))
 
-    all_rows = []  # For CSV
-    web_warning_msg = []  # For web display
-
     if invalid_pids or invalid_species or invalid_functions:
         warning_msg = []
 
         if invalid_pids:
-            msg = "Warning: Protein ID(s) " + ', '.join(invalid_pids) + " do not exist in database."
+            msg = "WARNING: Protein ID(s) " + ', '.join(invalid_pids) + " does not exist in database."
             warning_msg.append(msg)
-            web_warning_msg.append("<td colspan='25'><h4>" + msg + "</h4></td>")
+            results.append("<h4>" + msg + "</h4>")
 
         if invalid_species:
-            msg = "Warning: Species " + ', '.join(invalid_species) + " do not exist in database."
+            msg = "WARNING: Specie(s) " + ', '.join(invalid_species) + " does not exist in database."
             warning_msg.append(msg)
-            web_warning_msg.append("<td colspan='25'><h4>" + msg + "</h4></td>")
+            results.append("<h4>" + msg + "</h4>")
 
         if invalid_functions:
-            msg = "Warning: Function(s) " + ', '.join(invalid_functions) + " do not exist in database."
+            msg = "WARNING: Function(s) " + ', '.join(invalid_functions) + " does not exist in database."
             warning_msg.append(msg)
-            web_warning_msg.append("<td colspan='25'><h4>" + msg + "</h4></td>")
+            results.append("<h4>" + msg + "</h4>")
 
         # Prepare the warning messages for CSV
         for msg in warning_msg:
@@ -686,11 +689,8 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
     for row in all_rows:
         writer.writerow(row)
 
-    # Insert the warning messages at the beginning for web display
-    for web_msg in reversed(web_warning_msg):
-        results.insert(0, web_msg)
-
     return results
+
 
 #1st function in toolbox data pipeline when manual data input from peptide_search (views.py, peptide_search.htm)
 #major updates rk 8/8/23 from pepfile.txt and returns them to pepdb_multi_search_manual
