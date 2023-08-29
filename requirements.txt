@@ -1,3 +1,4 @@
+install --upgrade pip
 unicodecsv
 biopython
 chardet
@@ -8,7 +9,7 @@ setuptools
 wheel
 dos2unix
 recode
-ncbi-blast+
+#ncbi-blast+
 epel-release
 wget
 git-lfs
@@ -17,7 +18,10 @@ python3-dev
 libpq-dev
 postgresql
 postgresql-contrib
-
+dos2unix
+epel-release
+recode
+zip
 #some libraries required yum not pip
 #sudo yum install dos2unix
 #sudo yum install epel-release
