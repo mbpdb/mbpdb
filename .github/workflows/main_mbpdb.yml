@@ -60,4 +60,4 @@ jobs:
         with:
           app-name: 'mbpdb'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_F2E2BC573B3B4D179231C88648182798 }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_4633331C5F08433B86A02EBEBE6E8DFC }}
