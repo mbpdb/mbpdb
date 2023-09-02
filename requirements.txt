@@ -1,55 +1,15 @@
-install --upgrade pip
+#apt-get update
+#apt-get install -y python3-dev libpq-dev postgresql postgresql-contrib
+#pip install --upgrade pip
+
 unicodecsv
-biopython
 chardet
 django-sendfile
-pip
 numpy
 setuptools
 wheel
 dos2unix
 recode
-#ncbi-blast+
-epel-release
-wget
-git-lfs
 Django psycopg2
-python3-dev
-libpq-dev
-postgresql
-postgresql-contrib
-dos2unix
-epel-release
-recode
-zip
-#some libraries required yum not pip
-#sudo yum install dos2unix
-#sudo yum install epel-release
-#sudo yum install recode
-#sudo yum install zip
 
-## chmod of pearl files required:
-# chmod +x include/peptide/scripts/*
-
-## install blast+
-# wget ftp://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/ncbi-blast-2.14.0+-x64-linux.tar.gz
-# tar -zxvf ncbi-blast-2.14.0+-x64-linux.tar.gz
-# rm -zxvf ncbi-blast-2.14.0+-x64-linux.tar.gz
-# sudo cp ncbi-blast-2.14.0+/bin/* /usr/local/bin
-
-## useful commands
-#start and stop connect server
-	# ssh -i ./mbpdb_key.pem azureuser@20.125.149.39
-	# LOCAL WSL - source newenv/bin/activate && cd biodb/include/peptide/ && python3 manage.py run server
-	# AZURE - source env/bin/activate && cd include/peptide/ && python3 manage.py runserver 0.0.0.0:8000
-	# cd && deactivate
-#kill applications on port 8000
-	# lsof -i :8000
-	# kill -9 <PID>
-#github clone 
-	#cat ~/.ssh/id_rsa.pub
-	#Copy the entire content of the file.
-	#Go to your GitHub settings.
-	#In the sidebar, click on "SSH and GPG keys".
-	#Click the "New SSH key" button.
-	## git clone https://github.com/Kuhfeldrf/MBPDB
+#service postgresql start
