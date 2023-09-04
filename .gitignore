@@ -1,2 +1,4 @@
-
-
+*.pyc
+static_files/admin/js/vendor/select2/
+static_files/admin/css/vendor/select2/
+.idea/
