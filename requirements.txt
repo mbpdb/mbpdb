@@ -1,5 +1,5 @@
 gunicorn
-unicodecsv
+Unicodecsv
 chardet
 django-sendfile
 numpy
