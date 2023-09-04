@@ -27,3 +27,8 @@ os.environ["DJANGO_SETTINGS_MODULE"] = module
 from django.core.wsgi import get_wsgi_application
 application = get_wsgi_application()
 
+from whitenoise import WhiteNoise
+application = get_wsgi_application()
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+application = WhiteNoise(application, root="os.path.join(BASE_DIR, 'static_files')")
+application.add_files("os.path.join(BASE_DIR, 'static_files')", prefix="peptide-files/")

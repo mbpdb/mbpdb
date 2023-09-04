@@ -24,6 +24,11 @@ textarea.tools-form-raw-text-input {
     width: 100%;
     text-align: left;
 }
+.collapsible-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.5s ease-in-out;
+}
 </style>
 {% for e in errors %}
 <div class="alert alert-danger  alert-dismissible" role="alert">
@@ -55,13 +60,10 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 });
 </script>
 <!-- Advanced Search Toggle Button -->
-<button class="btn btn-default" type="button" data-toggle="collapse" data-target="#advancedSearchOptions" aria-expanded="false" aria-controls="advancedSearchOptions">
-
-
-    Advanced Search Options
+<button class="btn btn-default" type="button" id="toggleAdvancedOptions">Advanced Search Options</button>
 </button>
 <!-- Advanced Search Options (Collapsed by default) -->
-<div class="collapse" id="advancedSearchOptions">
+<div class="collapsible-content" id="advancedSearchOptions">
     <p class="help-block">Note that the Peptide Sequence, Protein ID, Function, and Species, inputs can be empty. <br/> If no peptide sequence is provided, homology search results can't be provided.</p>
     <table>
   <div class="form-group">
@@ -137,7 +139,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 <tr><td style="padding-left:30px">
 <div class="form-group">
     <label for="protlabel">Protein ID</label>
-    <input list="proteinList" name="proteinid" size="30" style="text-align:left;" value="{% if data.proteinid %}{{ data.proteinid }}{% endif %}">
+    <input list="proteinList" id=protlabel name="proteinid" size="30" style="text-align:left;" value="{% if data.proteinid %}{{ data.proteinid }}{% endif %}">
     <datalist id="proteinList">
     {% for desc, pids in description_to_pid.items %}
         <option value="{{ pids|join:", " }}">{{ desc }}</option>
@@ -159,7 +161,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 <td style="padding-left:30px">
 <div class="form-group">
     <label for="funclabel">Function</label>
-    <input list="functionList" name="function" size="30" style="text-align:left;" value="{% if data.function %}{{ data.function }}{% endif %}">
+    <input list="functionList" id="funclabel" name="function" size="30" style="text-align:left;" value="{% if data.function %}{{ data.function }}{% endif %}">
     <datalist id="functionList">
     {% for function in functions %}
         <option value= "{{function}}" </option>
@@ -266,6 +268,18 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 {% endif %}
 
 <script>
+// Additional JavaScript for collapsible
+document.addEventListener('DOMContentLoaded', function() {
+    const toggleBtn = document.getElementById('toggleAdvancedOptions');
+    const collapsibleDiv = document.getElementById('advancedSearchOptions');
+    toggleBtn.addEventListener('click', function() {
+        if (collapsibleDiv.style.maxHeight) {
+            collapsibleDiv.style.maxHeight = null;
+        } else {
+            collapsibleDiv.style.maxHeight = collapsibleDiv.scrollHeight + "px";
+        }
+    });
+});
 
 document.querySelector('input[name="inputfile"]').addEventListener('change', function(event) {
     var file = event.target.files[0];

@@ -1,12 +1,11 @@
 from django.shortcuts import render
 import os, re
 from .toolbox import func_list, clear_temp_directory, export_database, spec_list, pro_list, run_pepex, add_proteins, pepdb_add_csv, pepdb_multi_search_fileupload, pepdb_multi_search_manual, get_latest_peptides
-from django.http.response import HttpResponse
 import subprocess
 from subprocess import CalledProcessError
 from .models import Counter
 from django.utils import timezone
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse
 from django.conf import settings
 
 #Unmodified
@@ -129,6 +128,7 @@ def peptide_search(request):
         'warnings': warning_results,
         'first_result': first_result,
         'sliced_results': sliced_results,
+        'results': results,
         'output_path': output_path,
         'data': request.POST,
         'peptide_option': peptide_option,
@@ -181,11 +181,46 @@ def protein_headers(request):
     return HttpResponse(ret)
 
 #Updated rk 8/8/23 returns downloadable file to user
+"""
 def tsv_search_results(request):
     file_path = request.path.replace("/tsv_search_results/", "")
     if re.match("^" + settings.WORK_DIRECTORY + ".+/MBPDB.+\.tsv$", file_path):
         response = FileResponse(open(file_path, 'rb'))
         return response
+
+
+"""
+
+def tsv_search_results(request):
+    debug_info = []  # List to collect debug information
+    try:
+        file_path = request.path.replace("/tsv_search_results/", "").lstrip('/')
+        debug_info.append(f"File path from request: {file_path}")
+
+        escaped_work_directory = re.escape(settings.WORK_DIRECTORY).lstrip('/')
+        debug_info.append(f"Escaped work directory from settings: {escaped_work_directory}")
+
+        regex_pattern = "^" + escaped_work_directory + "/work_.+/MBPDB.+\.tsv$"  # Updated regex
+        debug_info.append(f"Regex pattern: {regex_pattern}")
+
+        if re.match(regex_pattern, file_path):
+            if file_path.startswith('/'):
+                absolute_file_path = file_path  # It's already an absolute path
+            else:
+                # It's already an absolute path relative to the application directory, no need to append again.
+                absolute_file_path = '/' + file_path
+
+            debug_info.append(f"Absolute file path: {absolute_file_path}")
+
+            if os.path.exists(absolute_file_path):
+                response = FileResponse(open(absolute_file_path, 'rb'))
+                return response
+            else:
+                debug_info.append("File not found")
+                return HttpResponse("\n".join(debug_info), status=404)
+    except Exception as e:
+        debug_info.append(f"An error occurred: {str(e)}")
+        return HttpResponse("\n".join(debug_info), status=500)
 
 #Added RK 8/9/23 returns about us page
 def about_us(request):

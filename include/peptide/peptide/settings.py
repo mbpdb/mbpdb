@@ -25,7 +25,7 @@ DEBUG = True
 
 TEMPLATE_DEBUG = True
 
-ALLOWED_HOSTS = ['128.193.11.196', '127.0.0.1', 'localhost', '192.84.190.235']
+ALLOWED_HOSTS = ['128.193.11.196', '127.0.0.1', 'localhost', '192.84.190.235', 'mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io']
 
 
 # Application definition
@@ -46,20 +46,21 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "whitenoise.middleware.WhiteNoiseMiddleware",
 ]
+
+CSRF_TRUSTED_ORIGINS = ['https://mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io']
+
 
 ROOT_URLCONF = 'peptide.urls'
 
 WSGI_APPLICATION = 'peptide.wsgi.application'
 
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'mbpdb_osu',
-        'USER': 'admin_mbpdb_osu',
-        'PASSWORD': 'Milk001!@#',
-        'HOST': 'localhost',
-        'PORT': '',
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
     }
 }
 
@@ -89,6 +90,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static_files')
 
 STATIC_URL = '/static/'
+
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 SENDFILE_BACKEND = 'sendfile.backends.simple'
 

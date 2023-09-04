@@ -695,6 +695,8 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
 def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsim, matrix, extra, species, no_pep):
     results = []
     messages = []
+    # Check if WORK_DIRECTORY exists and is writable
+
     work_path = create_work_directory(settings.WORK_DIRECTORY)
     input_pep_path = pepfile_path
     subprocess.check_output(['dos2unix', '-q', input_pep_path], stderr=subprocess.STDOUT)
@@ -799,7 +801,6 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     # Extract and clean warning results
     warning_results = list(set(r for r in results if "WARNING:" in r))
     cleaned_warning_results = [re.sub('<.*?>', '', warning) for warning in warning_results]
-    print(cleaned_warning_results)
 
     # Writing the cleaned_warning_results to a TSV (for demonstration, writing to a list)
 
@@ -1168,6 +1169,7 @@ def export_database(request):
     return response
 
 #Function clears the temp directory at the onset of peptide_search in views.py
+
 def clear_temp_directory(directory_path):
     for filename in os.listdir(directory_path):
         file_path = os.path.join(directory_path, filename)
@@ -1178,3 +1180,28 @@ def clear_temp_directory(directory_path):
                 shutil.rmtree(file_path)
         except Exception as e:
             print(f'Failed to delete {file_path}. Reason: {e}')
+"""
+def clear_temp_directory(directory_path):
+    # List only directories in the directory_path
+    subdirs = [os.path.join(directory_path, d) for d in os.listdir(directory_path) if
+               os.path.isdir(os.path.join(directory_path, d))]
+
+    # Sort them by last modification time
+    subdirs.sort(key=lambda x: os.path.getmtime(x))
+
+    # Delete all but the most recently modified directory
+    for i in range(len(subdirs) - 1):  # Exclude the last item, which is the most recent
+        try:
+            shutil.rmtree(subdirs[i])
+        except Exception as e:
+            print(f'Failed to delete {subdirs[i]}. Reason: {e}')
+
+    # Clear files and links as before
+    for filename in os.listdir(directory_path):
+        file_path = os.path.join(directory_path, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+        except Exception as e:
+            print(f'Failed to delete {file_path}. Reason: {e}')
+"""

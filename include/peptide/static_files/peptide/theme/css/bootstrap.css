@@ -181,6 +181,8 @@ optgroup {
   font-weight: bold;
 }
 table {
+  margin-top: 0;
+  padding-top: 0;
   border-spacing: 0;
   border-collapse: collapse;
 }
@@ -2690,7 +2692,7 @@ select[multiple].form-group-lg .form-control {
 .help-block {
   display: block;
   margin-top: 5px;
-  margin-bottom: 10px;
+  margin-bottom: 0px;
   color: #737373;
 }
 @media (min-width: 768px) {
@@ -5154,8 +5156,13 @@ a.list-group-item-danger.active:focus {
 }
 .panel > .table,
 .panel > .table-responsive > .table,
-.panel > .panel-collapse > .table {
-  margin-bottom: 0;
+.panel > .panel-collapse >
+
+table {
+  margin-top: 0;
+  padding-top: 0;
+  border-spacing: 0;
+  border-collapse: collapse;
 }
 .panel > .table caption,
 .panel > .table-responsive > .table caption,

@@ -19,7 +19,7 @@
 {% csrf_token %}
 <div class="form-group">
     <label for="inputTSVLabel">Input TSV</label>
-    <input type="file" name="input_tsv" style="width: 500px"/>
+    <input type="file" id=inputTSVLabel name="input_tsv" style="width: 500px"/>
     <p class="help-block">Must be in TSV format. View the <a href="{% static 'peptide/example/PEPEX_input.tsv'%}" target="_blank"> example file</a>.</p>
 </div>
 <div class="form-group">
