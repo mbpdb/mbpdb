@@ -1,6 +1,6 @@
 from django.shortcuts import render
 import os, re
-from .toolbox import func_list, clear_temp_directory, export_database, spec_list, pro_list, run_pepex, add_proteins, pepdb_add_csv, pepdb_multi_search_fileupload, pepdb_multi_search_manual, get_latest_peptides
+from .toolbox import func_list, clear_temp_directory, spec_list, pro_list, run_pepex, add_proteins, pepdb_add_csv, pepdb_multi_search_manual, get_latest_peptides
 import subprocess
 from subprocess import CalledProcessError
 from .models import Counter
@@ -28,7 +28,7 @@ def peptide_db_csv(request):
     return render(request, 'peptide/peptide_db_csv.html', {'errors':errors, 'messages':messages})
 
 
-#Updated rk 8/8/23 handles the search from peptide_search.html, handles both tsv upload and manual peptide search
+#Updated handles the search from peptide_search.html, handles both tsv upload and manual peptide search
 def peptide_search(request):
     # Clear the temp directory first
     WORK_DIRECTORY = os.path.join(settings.BASE_DIR, 'uploads/temp')
@@ -65,55 +65,38 @@ def peptide_search(request):
                 extra = 0
         if not peptides:
                extra = 0
-        if not request.FILES.get('tsv_file',False):
-            # Save peptides to a file named pepfile.txt
-            pepfile_path = os.path.join(settings.MEDIA_ROOT, "pepfile.txt")
-            with open(os.path.join(settings.MEDIA_ROOT, "pepfile.txt"), "w") as pepfile:
-                if len(peptides) == 0:
-                    no_pep = 1
-                    pepfile.write("")
-                else:
-                    for peptide in peptides:
-                        for po in peptide_option:
-                            for m in matrix:
-                                # Check if both peptide and po are not empty
-                                if peptide.strip() and po.strip() and m.strip():
-                                    pepfile.write(peptide + ' ' + po + ' ' + m + "\n")
-                                else:
-                                    # Handle the error case here if needed, for example:
-                                    errors.append("Error: Peptide, search type and scoring matrix must be non-empty.")
-                    no_pep = 0
+        # Save peptides to a file named pepfile.txt
+        pepfile_path = os.path.join(settings.MEDIA_ROOT, "pepfile.txt")
+        with open(os.path.join(settings.MEDIA_ROOT, "pepfile.txt"), "w") as pepfile:
+            if len(peptides) == 0:
+                no_pep = 1
+                pepfile.write("")
+            else:
+                for peptide in peptides:
+                    for po in peptide_option:
+                        for m in matrix:
+                            # Check if both peptide and po are not empty
+                            if peptide.strip() and po.strip() and m.strip():
+                                pepfile.write(peptide + ' ' + po + ' ' + m + "\n")
+                            else:
+                                # Handle the error case here if needed, for example:
+                                errors.append("Error: Peptide, search type and scoring matrix must be non-empty.")
+                no_pep = 0
 
-            if not peptide_option and peptides:
-                errors.append("Error: You must select a search type (sequence, truncated, or precursor) and input at least one peptide.")
-            if not matrix and peptides:
-                errors.append("Error: You must select a scoring matrix (identity or BLOSUM62) and input at least one peptide.")
-            if not (peptides or pid or function or species or tsv_submitted or peptide_option):
-                errors.append("Error: You must input at least search critera or upload a file under Advanced Search Options.")
-            if not (peptides or pid or function or species or tsv_submitted):
-                errors.append("Error: You must input at least search critera or upload a file under Advanced Search Options.")
-            if no_pep:
-                peptide_option =[]
-                matrix == []
-                seqsim == ""
-            errors = set(errors)
-            try:
-                (results, results_header,output_path) = pepdb_multi_search_manual(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species,no_pep)
-                FileResponse(open(output_path, 'rb'))
-            except CalledProcessError as e:
-                return render(request, 'peptide/peptide_search.html', {'errors': [e.output], 'data':request.POST})
-        else:
-            # If both manual input and tsv file are provided, append an error message
-            if peptides or pid or function or species:
-                errors.append(
-                    f'Error: Please <a href=".">reset search criteria</a>.<br/><br/>Either manually enter peptides, search by Function, Protein ID, Species, Catagory or upload a file under Advanced Search Options.<br/><br/>Both manual inputs and advanced search file uploads can\'t be selected when performing a search.')
-            try:
-                (results, output_path) = pepdb_multi_search_fileupload(request.FILES['tsv_file'])
-                FileResponse(open(output_path, 'rb'))
-            except CalledProcessError as e:
-                 return render(request, 'peptide/peptide_search.html', {'errors': [e.output], 'data':request.POST})
-        if 'download_db' in request.POST:
-            return export_database(request)  # This should trigger the download
+        if not peptides or pid or function or species:
+            errors.append(
+                f'Error: Please enter peptides into the Peptide Search box, or select a Function, Protein ID, or Species from the Catagorical Search Option.')
+        if not (seqsim and matrix and peptide_option):
+            print("s", seqsim, "m", matrix, "p", peptide_option)
+
+            errors.append(
+                f'Error: Please select the Search Type, Similarity Threshold and Scoring Matrix form the Homology Search Options')
+        try:
+            (results, results_header,output_path) = pepdb_multi_search_manual(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species,no_pep)
+            FileResponse(open(output_path, 'rb'))
+        except CalledProcessError as e:
+            return render(request, 'peptide/peptide_search.html', {'errors': [e.output], 'data':request.POST})
+
     # Separate warnings and results
     warning_results = [r for r in results if "WARNING:" in r]
     regular_results = [r for r in results if "WARNING:" not in r]
@@ -137,7 +120,6 @@ def peptide_search(request):
         'description_to_pid': description_to_pid,
         'functions': unique_func,
         'common_to_sci_list': common_to_sci,
-        'file_submitted': tsv_submitted,
         'results_header': results_header,
     })
 #unmodified but needs updating as message function is Deprecated
@@ -180,17 +162,7 @@ def protein_headers(request):
     ret = ret.replace('\n', '<br />')
     return HttpResponse(ret)
 
-#Updated rk 8/8/23 returns downloadable file to user
-"""
-def tsv_search_results(request):
-    file_path = request.path.replace("/tsv_search_results/", "")
-    if re.match("^" + settings.WORK_DIRECTORY + ".+/MBPDB.+\.tsv$", file_path):
-        response = FileResponse(open(file_path, 'rb'))
-        return response
-
-
-"""
-
+#Updated returns downloadable file to user
 def tsv_search_results(request):
     debug_info = []  # List to collect debug information
     try:
@@ -222,7 +194,7 @@ def tsv_search_results(request):
         debug_info.append(f"An error occurred: {str(e)}")
         return HttpResponse("\n".join(debug_info), status=500)
 
-#Added RK 8/9/23 returns about us page
+#Added  returns about us page
 def about_us(request):
     q = get_latest_peptides(1)
     return render(request, 'peptide/about_us.html', {'latest_peptides': q})
