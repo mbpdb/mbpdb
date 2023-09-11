@@ -1,11 +1,25 @@
 from django.contrib import admin
 from .models import PeptideInfo, Submission, Counter, ProteinInfo, ProteinVariant, protein_pid
-from .toolbox import pepdb_approve
+from .toolbox import pepdb_approve, export_database
 from django.urls import reverse
 from django.utils.html import format_html
 
 class PeptideInfoAdmin(admin.ModelAdmin):
     list_display = ('peptide','time_approved')
+
+    actions = ['export_selected_to_tsv']
+
+    def export_selected_to_tsv(self, request, queryset):
+        # Generate TSV file
+        response = export_database(request)
+
+        # Modify the HttpResponse to indicate a TSV file download
+        response['Content-Type'] = 'text/tsv'
+        response['Content-Disposition'] = 'attachment; filename="exported_data.tsv"'
+
+        return response
+
+    export_selected_to_tsv.short_description = "Export selected to TSV"
 
 admin.site.register(PeptideInfo, PeptideInfoAdmin)
 
@@ -40,14 +54,3 @@ class CounterAdmin(admin.ModelAdmin):
     list_display = ('ip','access_time', 'page')
 
 admin.site.register(Counter, CounterAdmin)
-
-"""    list_display = ('peptide', 'time_approved')
-    add_form_template =  'peptide/peptide_db_csv.html'
-
-    def save_model(self, request, obj, form, change):
-        file = request.FILES.get('csv_file', False)
-        print(file)
-        if file:
-            handle_uploaded_file(file)
-        super().save_model(request, obj, form, change)
-"""
