@@ -39,7 +39,7 @@ jobs:
           registryPassword: ${{ secrets.MBPDBCONTAINER_REGISTRY_PASSWORD }}
           containerAppName: mbpdbcontainer
           resourceGroup: mbpdb
-          imageToBuild: ghcr.io/kuhfeldrf//mbpdbcontainer:${{ github.sha }}
+          imageToBuild: ghcr.io/kuhfeldrf/mbpdbcontainer:${{ github.sha }}
           dockerfilePath: Dockerfile
 
 
