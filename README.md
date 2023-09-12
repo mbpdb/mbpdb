@@ -1,97 +1,13 @@
 # Milk Bioactive Peptide Database  
-## https://mbpdb.nws.oregonstate.edu/  
+## Current live version
+### https://mbpdb.nws.oregonstate.edu/  
 
-## hidden links  
-### http://mbpdb.nws.oregonstate.edu/admin/  
-### http://mbpdb.nws.oregonstate.edu/peptide_db_csv/  
-### http://mbpdb.nws.oregonstate.edu/add_proteins/  
-
-# Software versions of the original application   
-## Old versions:  
--SQLite 3.7.17  
--CentOS 7.1.1503 server.  
--Python 2.7.5   
--Django 1.9.7   
--Apache 2.4.6.   
--Blast+ 2.5.0.  
-
-## Package    Version  
----------- -------  
--biopython  1.70  
--chardet    4.0.0  
--Django     1.9.7  
--django-sendfile 0.3.11  
--numpy      1.16.6  
--pip        20.3.4  
--setuptools 44.1.1  
--unicodecsv 0.14.1  
--wheel      0.37.1  
-
-
-
-# Primary Updates to back-end software for **system updates**  
-## Packages:  
- - unicodecsv  
- - biopython  
- - chardet  
- - django-sendfile  
- - pip  
- - numpy  
- - setuptools  
- - wheel  
- - dos2unix  
- - recode  
- - ncbi-blast+  
- - epel-release  
- - wget  
-
-
-# Updates to code from transition:  
-\newenv\lib\python3.10\site-packages\sendfile\__init__.py  
-\include\peptide\peptide\urls.py  
-\include\peptide\peptide\views.py  
-\include\peptide\peptide\settings.py  
-\include\peptide\peptide\templates\peptide$ 
-updated all HTML files: 
-- add_proteins.html  
-- contact.html  
-- pepex.html  
-- peptide_multi_search.html  
-- skyline.html  
-- base.html  
-- homology_search.html  
-- peptide_db.html  
-- peptide_search.html  
-- skyline_auto.html  
-- base.html~  
-- index.html  
-- peptide_db_csv.html  
-- remove_domains_tool.html  
-
-# Primary Updates to back-end software for system **redesign**    
-## Removed HTML:
-- contact.html  
-- peptide_multi_search.html  
-- skyline.html  
-- homology_search.html  
-- peptide_db.html  
-- skyline_auto.html  
-- peptide_db_csv.html  
-- remove_domains_tool.html  
-
-## Updated HTML & python:
-- about_us.html  
-- homology_search.html  
-- base.html  
-- views.py    
-- toolbox.py    
-- urls.py  
-- settings.py  
-
-
+## Updated demo version 
+### https://mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io/
 
 # SQL table information:  
 /include/peptide/db.sqlite3  
+
 ## Tables  
 sqlite> .tables   
 - auth_group                      
@@ -106,33 +22,36 @@ sqlite> .tables
 - django_session   
 - peptide_counter  
 - peptide_function  
-- peptide_peptideinfo  
+- peptide_peptideinfo
+- peptide_proteininfo  
 - peptide_proteinvariant  
 - peptide_reference  
 - peptide_submission  
 
 ### auth_user  
+sqlite> PRAGMA table_info(auth_user);  
+0|id|INTEGER|1||1  
+1|password|varchar(128)|1||0  
+2|last_login|datetime|0||0  
+3|is_superuser|bool|1||0  
+4|username|varchar(150)|1||0  
+5|last_name|varchar(150)|1||0  
+6|email|varchar(254)|1||0  
+7|is_staff|bool|1||0  
+8|is_active|bool|1||0  
+9|date_joined|datetime|1||0  
+10|first_name|varchar(150)|1||0  
+
 sqlite> SELECT * FROM auth_user LIMIT 10;  
-1|pbkdf2_sha256$12000$c2EfcHud3ME5$3T+ADB5kMAos8BNleYv1DlN9JLXkicpH8q7z+R/eFCA=|2014-11-24 22:46:53|0|||amschaal@ucdavis.edu|1|1|2014-11-24 22:46:53|adam  
-2|pbkdf2_sha256$24000$ucEO0EwNCHhW$RHdVVDYxTzCy94P8bjcIoIo6Ro89vHegl4IfJKgvKmI=|2018-03-01 09:30:25.321274|1|||najoshi@ucdavis.edu|1|1|2017-03-27 22:54:51|joshi  
-3|pbkdf2_sha256$24000$8JaUoEua9cFF$ogn4yB+MZn4zwwrykQnoui38/M/DlDRZQlRBJjJPWxA=|2022-02-25 21:54:37.819441|1|Soeren|Nielsen|sdrudn2@gmail.com|1|1|2017-04-20 10:04:29|nielsen  
-4|pbkdf2_sha256$24000$baK95dAwK1bD$nl+Be0pjPUSHdjZXrHYQbrGjFjkocEPDqVoMBeqnXD4=|2020-02-19 20:28:45.716484|0|||Dave.Dallas@oregonstate.edu|1|1|2020-02-19 20:26:09|David  
+1|pbkdf2_sha256$12000$c2EfcHud3ME5$3T+ADB5kMAos8BNleYv1DlN9JLXkicpH8q7z+R/eFCA=|2014-11-24 22:46:53|0|adam||amschaal@ucdavis.edu|1|1|2014-11-24 22:46:53|  
+2|pbkdf2_sha256$24000$ucEO0EwNCHhW$RHdVVDYxTzCy94P8bjcIoIo6Ro89vHegl4IfJKgvKmI=|2018-03-01 09:30:25.321274|1|joshi||najoshi@ucdavis.edu|1|1|2017-03-27 22:54:51|  
+3|pbkdf2_sha256$24000$8JaUoEua9cFF$ogn4yB+MZn4zwwrykQnoui38/M/DlDRZQlRBJjJPWxA=|2023-07-19 21:10:13.939510|1|nielsen|Nielsen|sdrudn2@gmail.com|1|1|2017-04-20 10:04:29|Soeren  
+4|pbkdf2_sha256$24000$baK95dAwK1bD$nl+Be0pjPUSHdjZXrHYQbrGjFjkocEPDqVoMBeqnXD4=|2020-02-19 20:28:45.716484|0|David||Dave.Dallas@oregonstate.edu|1|1|2020-02-19 20:26:09|  
+5|pbkdf2_sha256$24000$p0U0rsXf9dQS$PC7h+l6SBejXO38C+TkSvMc4Sa8Rs1N8z4rCTJUoCQ4=||1|nielsen2|||1|1|2023-01-12 10:40:29|  
+6|pbkdf2_sha256$600000$7aUDkfk6hGY0XwSW6UwAJH$S1eWyWkUcmAohPBh9a9cFlx8w75EAarcNNpY6TsM97M=|2023-09-05 18:18:42.459196|1|rusty||kuhfeldr@oregonstate.edu|1|1|2023-08-21 17:07:01.992304|  
  
 
-### peptide_peptideinfo  
-sqlite> SELECT * FROM peptide_peptideinfo LIMIT 10;  
-2976|VA|28020|2|Dairy|96-97, 114-115, 168-169, 225-226, 275-276, 357-358, 457-458, 561-562, 687-688||2018-03-01 09:26:29.411842  
-2977|FL|28020|2|Dairy|5-6, 10-11, 154-155, 707-708||2018-03-01 09:26:29.411842  
-2978|AL|28020|2|Dairy|13-14, 401-402, 524-525, 591-592||2018-03-01 09:26:29.411842  
- 
 ### auth_user_user_permissions  
-sqlite> SELECT * FROM auth_user_user_permissions;  
-1|4|1  
-2|4|2  
-3|4|3  
-.....  
-38|4|38  
- 
 sqlite> PRAGMA table_info(auth_user_user_permissions);  
 0|id|INTEGER|1||1  
 1|user_id|INTEGER|1||0  
@@ -140,23 +59,25 @@ sqlite> PRAGMA table_info(auth_user_user_permissions);
 
 
 ### django_admin_log  
-sqlite> SELECT * FROM django_admin_log LIMIT 3;  
-1|2|joshi|2|Changed username.|4|2|2017-04-07 23:12:15.902193  
-2|7426|Submission object|3||11|2|2017-04-15 05:28:44.488750  
-3|1|adam|2|Changed is_superuser.|4|2|2017-04-20 00:32:26.633660  
+sqlite> PRAGMA table_info(django_admin_log);  
+0|id|INTEGER|1||1  
+1|object_id|TEXT|0||0  
+2|object_repr|varchar(200)|1||0  
+3|action_flag|smallint unsigned|1||0  
+4|change_message|TEXT|1||0  
+5|content_type_id|INTEGER|0||0  
+6|user_id|INTEGER|1||0  
+7|action_time|datetime|1||0  
 
 
 ### django_migrations   
-sqlite> SELECT * FROM django_migrations LIMIT 3;  
+sqlite> PRAGMA table_info(django_migrations);  
 1|contenttypes|0001_initial|2014-11-24 22:46:12.044994  
 2|auth|0001_initial|2014-11-24 22:46:12.370643  
 3|admin|0001_initial|2014-11-24 22:46:12.638026  
 
 
 ### django_session
-sqlite> SELECT * FROM django_session LIMIT 3;  
-cqp08z0z7ae5k83wxrdzipp0t55qej30|NDU4ZGRkZDFmNzM3NDI3NTFmZjgxOTljMTNkMWRhYzA3Njc4Zjk2ZDp7fQ==|2014-12-08 22:46:58.039742  
-
 sqlite> PRAGMA table_info(django_session);  
 0|session_key|varchar(40)|1||1  
 1|session_data|TEXT|1||0  
@@ -164,16 +85,10 @@ sqlite> PRAGMA table_info(django_session);
 
 
 ### peptide_counter  
-sqlite> SELECT * FROM peptide_counter LIMIT 3;  
-1|128.120.143.72|2017-05-11 22:58:04.658556|peptide search  
-2|138.194.36.16|2017-05-12 01:51:29.390784|peptide search  
-3|138.194.36.16|2017-05-12 01:52:01.931930|peptide search  
-
 sqlite> SELECT COUNT(*) FROM peptide_counter;  
 68414 -> 2022  
 232186 -> 2023  
-sqlite> SELECT * FROM peptide_counter WHERE id = 68414;  
-68414|152.57.240.17|2022-03-24 15:37:15.364333|peptide search  
+
 
 sqlite> PRAGMA table_info(peptide_counter);  
 0|id|INTEGER|1||1  
@@ -182,10 +97,13 @@ sqlite> PRAGMA table_info(peptide_counter);
 3|page|varchar(40)|1||0  
 
 ### peptide_function  
+sqlite> SELECT COUNT(*) FROM peptide_function;  
+916  
 sqlite> SELECT * FROM peptide_function LIMIT 3;  
 1|DPP-IV Inhibitory|2976  
 2|DPP-IV Inhibitory|2977  
 3|DPP-IV Inhibitory|2978  
+
 sqlite> PRAGMA table_info(peptide_function);  
 0|id|INTEGER|1||1  
 1|function|varchar(400)|1||0  
@@ -193,6 +111,9 @@ sqlite> PRAGMA table_info(peptide_function);
 
 
 ### peptide_peptideinfo  
+sqlite> SELECT COUNT(*) FROM peptide_peptideinfo;  
+712  
+
 sqlite> PRAGMA table_info(peptide_peptideinfo);  
 0|id|INTEGER|1||1  
 1|peptide|varchar(300)|1||0  
@@ -224,6 +145,8 @@ sqlite> PRAGMA table_info(peptide_proteininfo);
 
 
 ### peptide_reference  
+sqlite> SELECT COUNT(*) FROM peptide_reference;  
+1087  
 sqlite> PRAGMA table_info(peptide_reference);  
 0|id|INTEGER|1||1  
 1|authors|varchar(300)|1||0   
@@ -236,91 +159,18 @@ sqlite> PRAGMA table_info(peptide_reference);
 
 
 ### peptide_submission  
-sqlite> SELECT * FROM peptide_submission;  
-
-
-### peptide_submission  
 sqlite> PRAGMA table_info(peptide_submission);  
-0|id|INTEGER|0||1
-1|protein_id|varchar(30)|1||0
-2|peptide|varchar(300)|1||0
-3|function|varchar(400)|1||0
-4|secondary_function|varchar(400)|1||0
-5|title|varchar(300)|1||0
-6|authors|varchar(300)|1||0
-7|abstract|varchar(1000)|1||0
-8|doi|varchar(100)|1||0
-9|time_submitted|datetime|1||0
-10|length|INTEGER|1||0
-11|intervals|varchar(100)|1||0
-12|ptm|varchar(200)|1||0
-13|protein_variants|varchar(30)|1||0
-
-
-### peptide_reference
-sqlite> PRAGMA table_info(peptide_reference);  
-0|id|INTEGER|1||1  
-1|authors|varchar(300)|1||0   
-2|abstract|varchar(1000)|1||0  
-3|func_id|INTEGER|1||0  
-4|doi|varchar(100)|1||0  
-5|title|varchar(300)|1||0   
-6|secondary_func|varchar(400)|1||0   
-7|ptm|varchar(200)|1||0  
-
-  
-# old requirements.txt with helpful notesinstall --upgrade pip
-unicodecsv
-biopython
-chardet
-django-sendfile
-pip
-numpy
-setuptools
-wheel
-dos2unix
-recode
-#ncbi-blast+
-epel-release
-wget
-git-lfs
-Django psycopg2
-python3-dev
-libpq-dev
-postgresql
-postgresql-contrib
-dos2unix
-epel-release
-recode
-zip
-#some libraries required yum not pip
-#sudo yum install dos2unix
-#sudo yum install epel-release
-#sudo yum install recode
-#sudo yum install zip
-
-## chmod of pearl files required:
-# chmod +x include/peptide/scripts/*
-
-## install blast+
-# wget ftp://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/ncbi-blast-2.14.0+-x64-linux.tar.gz
-# tar -zxvf ncbi-blast-2.14.0+-x64-linux.tar.gz
-# rm -zxvf ncbi-blast-2.14.0+-x64-linux.tar.gz
-# sudo cp ncbi-blast-2.14.0+/bin/* /usr/local/bin
-
-## useful commands
-#start and stop connect server
-	# ssh -i ./mbpdb_key.pem azureuser@20.125.149.39
-	# LOCAL WSL - source newenv/bin/activate && cd biodb/include/peptide/ && python3 manage.py run server
-	# AZURE - source env/bin/activate && cd include/peptide/ && python3 manage.py runserver 0.0.0.0:8000
-	# cd && deactivate
-#kill applications on port 8000
-	# lsof -i :8000
-	# kill -9 <PID>
-#github clone 
-	#cat ~/.ssh/id_rsa.pub
-	#Copy the entire content of the file.
-	#Go to your GitHub settings.
-	#In the sidebar, click on "SSH and GPG keys".
-	#Click the "New SSH key" button.
-	## git clone https://github.com/Kuhfeldrf/MBPDB
+0|id|INTEGER|0||1  
+1|protein_id|varchar(30)|1||0  
+2|peptide|varchar(300)|1||0  
+3|function|varchar(400)|1||0  
+4|secondary_function|varchar(400)|1||0  
+5|title|varchar(300)|1||0  
+6|authors|varchar(300)|1||0  
+7|abstract|varchar(1000)|1||0  
+8|doi|varchar(100)|1||0  
+9|time_submitted|datetime|1||0  
+10|length|INTEGER|1||0  
+11|intervals|varchar(100)|1||0  
+12|ptm|varchar(200)|1||0  
+13|protein_variants|varchar(30)|1||0  
