@@ -12,6 +12,7 @@ from chardet.universaldetector import UniversalDetector
 from django.db.models import Count
 from django.http import HttpResponse
 import shutil
+from Bio import SeqIO
 
 #Creates temp folder /include/peptide/peptide/upload/temp for storage related to each unique search request
 def create_work_directory(base_dir):

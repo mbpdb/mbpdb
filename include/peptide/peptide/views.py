@@ -83,12 +83,10 @@ def peptide_search(request):
                                 errors.append("Error: Peptide, search type and scoring matrix must be non-empty.")
                 no_pep = 0
 
-        if not peptides or pid or function or species:
+        if not (peptides or pid or function or species):
             errors.append(
                 f'Error: Please enter peptides into the Peptide Search box, or select a Function, Protein ID, or Species from the Catagorical Search Option.')
         if not (seqsim and matrix and peptide_option):
-            print("s", seqsim, "m", matrix, "p", peptide_option)
-
             errors.append(
                 f'Error: Please select the Search Type, Similarity Threshold and Scoring Matrix form the Homology Search Options')
         try:

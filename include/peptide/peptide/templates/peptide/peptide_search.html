@@ -29,6 +29,7 @@ textarea.tools-form-raw-text-input {
     overflow: hidden;
     transition: max-height 0.5s ease-in-out;
 }
+
 </style>
 {% for e in errors %}
 <div class="alert alert-danger  alert-dismissible" role="alert">
@@ -204,27 +205,16 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
        </div>
      </div>
 </div>
+    <br>
+    <br>
+    <br>
+    <br>
 </td></tr>
-<br/>
-<tr><td style="padding-left:15px">
-    <h5><u>File Upload:</u></h5>
-</td></tr>
-<tr><td style="padding-left:30px">
-<div class="form-group">
-     <input type="file" name="tsv_file" onchange="clearOtherInputs()"/>
-     <p class="help-block">Use a correctly formatted TSV (tab-separated values) file with UTF-8 encoding. For format requirements, view the <a href="{% static 'peptide/example/peptide_multi_search_input_example.tsv'%}" target="_blank"> example file</a>.</p>
+
 </div>
-<tr><td style="padding-left:15px">
-    <h5><u>Full Database Download:</u></h5>
-</td></tr>
-<tr><td style="padding-left:30px">
-    <form method="post" action="{% url 'peptide_search' %}">
-        <button type="submit" name="download_db" value="true" id="hiddenButton" style="display:none;"></button>
-        <p class="help-block">This <a href="#" id="downloadLink">hyperlink</a> will download the database in its entirety.</p>  <!-- Changed "link" to "hyperlink" -->
-</td></tr>
 </table>
 </div>
-</div>
+<br/>
 <br/>
 <button class="btn btn-default" id="search-db-btn">Search DB</button>  <a href=".">Clear all search criteria</a>
 <a name="search_results"></a>
@@ -234,11 +224,6 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a> | If you are referencing this database: <a href="{% url 'about_us' %}" style="font-size: 20px;"> <b>please cite</b></a>
     <br/>
 
-{% if file_submitted %}
-    <table style="table-layout: fixed; width: 100%;">
-        {{ results|safe }}
-    </table>
-{% else %}
     {{ results_header|safe }}
     <table border="1" id="results_table">
         {{ first_result|safe }}
@@ -264,7 +249,6 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
             </tr>
         {% endfor %}
     </table>
-{% endif %}
 {% endif %}
 
 <script>
@@ -308,19 +292,6 @@ document.querySelector('input[name="inputfile"]').addEventListener('change', fun
     }
 });
 
-
-function clearOtherInputs() {
-    var inputs = document.querySelectorAll('input[type="text"], input[type="checkbox"], textarea, input[list]');
-    for (var i = 0; i < inputs.length; i++) {
-        if (inputs[i].name !== 'tsv_file') {
-            if (inputs[i].type === 'text' || inputs[i].type === 'textarea' || inputs[i].hasAttribute('list')) {
-                inputs[i].value = '';
-            } else if (inputs[i].type === 'checkbox') {
-                inputs[i].checked = false;
-            }
-        }
-    }
-}
 
 document.getElementById('downloadLink').addEventListener('click', function() {
     document.getElementById('hiddenButton').click();
