@@ -14,10 +14,10 @@ jobs:
 
     steps:
       - name: Checkout to the branch
-        uses: actions/checkout@main  # Using the latest code from the main branch
+        uses: actions/checkout@v2  # Using the latest stable version
 
       - name: Azure Login
-        uses: azure/login@main  # Using the latest code from the main branch
+        uses: azure/login@v1  # Using the latest stable version
         with:
           client-id: ${{ secrets.MBPDBCONTAINER_AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.MBPDBCONTAINER_AZURE_TENANT_ID }}
