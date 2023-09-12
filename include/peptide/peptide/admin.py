@@ -28,7 +28,18 @@ class ProteinVariantAdmin(admin.ModelAdmin):
 admin.site.register(ProteinVariant, ProteinVariantAdmin)
 
 class ProteinInfoAdmin(admin.ModelAdmin):
-    list_display = ('header','pid')
+    list_display = ('header', 'pid')
+
+    # Add readonly_fields to include the new link field
+    readonly_fields = ('add_protein_link',)
+
+    # Define the function that returns the formatted HTML link
+    def add_protein_link(self, obj=None):
+        return format_html('<a href="{}">Add Proteins</a>', reverse('add_proteins'))
+
+    # Add a short description for this field
+    add_protein_link.short_description = 'Add Proteins'
+
 admin.site.register(ProteinInfo, ProteinInfoAdmin)
 
 class SubmissionAdmin(admin.ModelAdmin):
