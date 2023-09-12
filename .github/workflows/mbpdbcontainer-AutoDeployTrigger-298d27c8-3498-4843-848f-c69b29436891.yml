@@ -1,23 +1,17 @@
 name: Trigger auto deployment for mbpdbcontainer
 
-# When this action will be executed
 on:
-  # Automatically trigger it when detected changes in repo
   push:
-    branches: 
-      [ main ]
+    branches:
+      - main
     paths:
-    - '//**'
-    - '.github/workflows/mbpdbcontainer-AutoDeployTrigger-298d27c8-3498-4843-848f-c69b29436891.yml'
-
-  # Allow manual trigger 
-  workflow_dispatch:      
+      - '**/*'
+      - '.github/workflows/mbpdbcontainer-AutoDeployTrigger-298d27c8-3498-4843-848f-c69b29436891.yml'
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    permissions: 
-      id-token: write #This is required for requesting the OIDC JWT Token
 
     steps:
       - name: Checkout to the branch
@@ -26,14 +20,14 @@ jobs:
       - name: Azure Login
         uses: azure/login@v1
         with:
-          client-id: ${{ secrets.MBPDBCONTAINER_AZURE_CLIENT_ID }}
+          creds: ${{ secrets.MY_PERSONAL_ACCESS_TOKEN }}
           tenant-id: ${{ secrets.MBPDBCONTAINER_AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.MBPDBCONTAINER_AZURE_SUBSCRIPTION_ID }}
 
       - name: Build and push container image to registry
         uses: azure/container-apps-deploy-action@v1
         with:
-          appSourcePath: ${{ github.workspace }} 
+          appSourcePath: ${{ github.workspace }}
           registryUrl: ghcr.io/kuhfeldrf/
           registryUsername: ${{ secrets.MBPDBCONTAINER_REGISTRY_USERNAME }}
           registryPassword: ${{ secrets.MBPDBCONTAINER_REGISTRY_PASSWORD }}
@@ -41,8 +35,3 @@ jobs:
           resourceGroup: mbpdb
           imageToBuild: ghcr.io/kuhfeldrf/mbpdbcontainer:${{ github.sha }}
           dockerfilePath: Dockerfile
-
-
-
-
-
