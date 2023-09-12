@@ -1,6 +1,0 @@
-peptide	search_type	similarity_threshold	scoring_matrix	protein_id	function	species
-VYPFPGPIP	sequence	100	identity			
-SKVKEA	truncated	50	identity			
-				P02662	ACE-inhibitory	
-AY	precursor	100	blosum62		ACE-inhibitory	Cow
-				P0898989		
