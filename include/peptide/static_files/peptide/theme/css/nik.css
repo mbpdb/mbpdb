@@ -24,7 +24,7 @@
     border-radius: 6px;
  
     /* Position the tooltip text - see examples below! */
-    position: absolute;
+    position: relative;
     z-index: 1;
 }
 
@@ -33,6 +33,10 @@
     visibility: visible;
     -webkit-animation: fadeIn 0.3s ease-in-out;
     animation: fadeIn 0.3s ease-in-out;
+
+    /* Position the tooltip text - see examples below! */
+    position: relative;
+    z-index: 1;
 
 }
 
