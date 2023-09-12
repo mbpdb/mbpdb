@@ -20,7 +20,7 @@ jobs:
       - name: Azure Login
         uses: azure/login@v1
         with:
-          creds: ${{ secrets.GITHUB_TOKEN }}
+          creds: ${{ secrets.MY_PERSONAL_ACCESS_TOKEN }}
           tenant-id: ${{ secrets.MBPDBCONTAINER_AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.MBPDBCONTAINER_AZURE_SUBSCRIPTION_ID }}
 
