@@ -30,7 +30,7 @@ jobs:
         uses: azure/container-apps-deploy-action@v1
         with:
           appSourcePath: ${{ github.workspace }}/dockerfile 
-          registryUrl: https://hub.docker.com/repository/docker/kuhfeldrf/peptide_sqlite3/general
+          registryUrl: https://hub.docker.com/repository/docker/kuhfeldrf/peptide_sqlite3
           registryUsername: ${{ secrets.MBPDBCONTAINER_REGISTRY_USERNAME }}
           registryPassword: ${{ secrets.MBPDBCONTAINER_REGISTRY_PASSWORD }}
           containerAppName: mbpdbcontainer
