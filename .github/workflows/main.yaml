@@ -17,12 +17,17 @@ jobs:
       - name: Checkout to the branch
         uses: actions/checkout@v2
 
+      - name: Check Azure CLI Version
+        run: az --version
+
       - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CLIENT_SECRET }}
           tenant-id: ${{ secrets.MBPDBCONTAINER_AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.MBPDBCONTAINER_AZURE_SUBSCRIPTION_ID }}
+        env:
+          AZURE_HTTP_USER_AGENT: 'GITHUB_ACTIONS'
 
       - name: Build and push container image to registry
         uses: azure/container-apps-deploy-action@v1
@@ -35,3 +40,11 @@ jobs:
           resourceGroup: mbpdb
           imageToBuild: ghcr.io/kuhfeldrf/mbpdbcontainer:${{ github.sha }}
           dockerfilePath: Dockerfile
+
+      # Capture additional diagnostic logs if Azure login fails
+      - name: Azure Diagnostic Logs
+        if: ${{ failure() }}
+        run: |
+          az account list
+          az group list
+          az role assignment list --all
