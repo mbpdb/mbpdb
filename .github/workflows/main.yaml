@@ -1,0 +1,37 @@
+name: Trigger auto deployment for mbpdbcontainer
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*'
+      - '.github/workflows/mbpdbcontainer-AutoDeployTrigger-298d27c8-3498-4843-848f-c69b29436891.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout to the branch
+        uses: actions/checkout@v2
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CLIENT_SECRET }}
+          tenant-id: ${{ secrets.MBPDBCONTAINER_AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.MBPDBCONTAINER_AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push container image to registry
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          appSourcePath: ${{ github.workspace }}
+          registryUrl: ghcr.io/kuhfeldrf/
+          registryUsername: ${{ secrets.MBPDBCONTAINER_REGISTRY_USERNAME }}
+          registryPassword: ${{ secrets.MBPDBCONTAINER_REGISTRY_PASSWORD }}
+          containerAppName: mbpdbcontainer
+          resourceGroup: mbpdb
+          imageToBuild: ghcr.io/kuhfeldrf/mbpdbcontainer:${{ github.sha }}
+          dockerfilePath: Dockerfile
