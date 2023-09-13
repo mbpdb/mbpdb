@@ -1,2 +1,2 @@
-- name: Azure Manual Login
-  run: az login --service-principal -u ${{ secrets.MBPDBCONTAINER_AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.MBPDBCONTAINER_AZURE_TENANT_ID }}
+name: Azure Manual Login
+run: az login --service-principal -u ${{ secrets.MBPDBCONTAINER_AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.MBPDBCONTAINER_AZURE_TENANT_ID }}
