@@ -37,3 +37,4 @@ jobs:
           resourceGroup: mbpdb
           imageToBuild: https://hub.docker.com/repository/docker/kuhfeldrf/peptide_sqlite3/general/mbpdbcontainer:${{ github.sha }}
           dockerfilePath: Dockerfile
+#
