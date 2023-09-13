@@ -1,14 +1,18 @@
 name: Trigger auto deployment for mbpdbcontainer
 
+# When this action will be executed
 on:
+  # Automatically trigger it when detected changes in repo
   push:
-    branches:
-      - main
+    branches: 
+      [ main ]
     paths:
-      - '**/*'
-      - '.github/workflows/mbpdbcontainer-AutoDeployTrigger-298d27c8-3498-4843-848f-c69b29436891.yml'
-  workflow_dispatch:
+    - 'dockerfile/**'
+    - '.github/workflows/mbpdbcontainer-AutoDeployTrigger-61dd0fa8-0273-4290-9035-02fe5b1c02ff.yml'
 
+  # Allow manual trigger 
+  workflow_dispatch:
+      
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -17,34 +21,19 @@ jobs:
       - name: Checkout to the branch
         uses: actions/checkout@v2
 
-      - name: Check Azure CLI Version
-        run: az --version
-
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_CLIENT_SECRET }}
-          tenant-id: ${{ secrets.MBPDBCONTAINER_AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.MBPDBCONTAINER_AZURE_SUBSCRIPTION_ID }}
-        env:
-          AZURE_HTTP_USER_AGENT: 'GITHUB_ACTIONS'
+          creds: ${{ secrets.MBPDBCONTAINER_AZURE_CREDENTIALS }}
 
       - name: Build and push container image to registry
         uses: azure/container-apps-deploy-action@v1
         with:
-          appSourcePath: ${{ github.workspace }}
-          registryUrl: ghcr.io/kuhfeldrf/
+          appSourcePath: ${{ github.workspace }}/dockerfile 
+          registryUrl: https://hub.docker.com/repository/docker/kuhfeldrf/peptide_sqlite3/general
           registryUsername: ${{ secrets.MBPDBCONTAINER_REGISTRY_USERNAME }}
           registryPassword: ${{ secrets.MBPDBCONTAINER_REGISTRY_PASSWORD }}
           containerAppName: mbpdbcontainer
           resourceGroup: mbpdb
-          imageToBuild: ghcr.io/kuhfeldrf/mbpdbcontainer:${{ github.sha }}
+          imageToBuild: https://hub.docker.com/repository/docker/kuhfeldrf/peptide_sqlite3/general/mbpdbcontainer:${{ github.sha }}
           dockerfilePath: Dockerfile
-
-      # Capture additional diagnostic logs if Azure login fails
-      - name: Azure Diagnostic Logs
-        if: ${{ failure() }}
-        run: |
-          az account list
-          az group list
-          az role assignment list --all
