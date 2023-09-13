@@ -7,17 +7,15 @@ on:
     branches: 
       [ main ]
     paths:
-    - '//**'
-    - '.github/workflows/mbpdbcontainer-AutoDeployTrigger-298d27c8-3498-4843-848f-c69b29436891.yml'
+    - 'dockerfile/**'
+    - '.github/workflows/mbpdbcontainer-AutoDeployTrigger-61dd0fa8-0273-4290-9035-02fe5b1c02ff.yml'
 
   # Allow manual trigger 
-  workflow_dispatch:      
-
+  workflow_dispatch:
+      
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    permissions: 
-      id-token: write #This is required for requesting the OIDC JWT Token
 
     steps:
       - name: Checkout to the branch
@@ -26,20 +24,19 @@ jobs:
       - name: Azure Login
         uses: azure/login@v1
         with:
-          client-id: ${{ secrets.MBPDBCONTAINER_AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.MBPDBCONTAINER_AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.MBPDBCONTAINER_AZURE_SUBSCRIPTION_ID }}
+          creds: ${{ secrets.MBPDBCONTAINER_AZURE_CREDENTIALS }}
 
       - name: Build and push container image to registry
         uses: azure/container-apps-deploy-action@v1
         with:
-          appSourcePath: ${{ github.workspace }} 
-          registryUrl: ghcr.io/kuhfeldrf/
+          appSourcePath: ${{ github.workspace }}/dockerfile 
+          registryUrl: https://hub.docker.com/repository/docker/kuhfeldrf/peptide_sqlite3/general
           registryUsername: ${{ secrets.MBPDBCONTAINER_REGISTRY_USERNAME }}
           registryPassword: ${{ secrets.MBPDBCONTAINER_REGISTRY_PASSWORD }}
           containerAppName: mbpdbcontainer
           resourceGroup: mbpdb
-          imageToBuild: ghcr.io/kuhfeldrf//mbpdbcontainer:${{ github.sha }}
+          imageToBuild: https://hub.docker.com/repository/docker/kuhfeldrf/peptide_sqlite3/general/mbpdbcontainer:${{ github.sha }}
           dockerfilePath: Dockerfile
 
+     
 
