@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - main
-    #paths:
-    #  - 'Dockerfile'
-    #  - '.github/workflows/mbpdbcontainer-AutoDeployTrigger-61dd0fa8-0273-4290-9035-02fe5b1c02ff.yml'
   workflow_dispatch:
 
 jobs:
@@ -16,12 +13,13 @@ jobs:
     steps:
     - name: Checkout to the branch
       uses: actions/checkout@v2
+
     - name: Azure Login
       uses: azure/login@v1
       with:
           creds: ${{ secrets.MBPDBCONTAINER_AZURE_CREDENTIALS }}
 
-    - name: Build and push container image to registry  # Fixed indentation here
+    - name: Build and push container image to registry
       uses: azure/container-apps-deploy-action@v1
       with:
           appSourcePath: .
@@ -33,4 +31,6 @@ jobs:
           imageToBuild: kuhfeldrf/peptide_sqlite3:latest
           dockerfilePath: Dockerfile
 
-
+    - name: Update Azure Container App
+      run: |
+        az containerapp update --resource-group mbpdb --name mbpdbcontainer --image kuhfeldrf/peptide_sqlite3:latest
