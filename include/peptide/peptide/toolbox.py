@@ -99,9 +99,8 @@ def pepdb_add_csv(csv_file, messages):
                     messages.append("Error: Protein ID "+protid+" not found in database (Line "+str(rownum)+"). Skipping. You can use the Add Fasta Files tool to add the protein to the database.")
                     err+=1
                     continue
-
+                """
                 prot = idcheck.seq
-    
                 # calculate start and stop intervals
                 intervals = ', '.join([str(m.start()+1) + "-" + str(m.start()+len(row['peptide'])) for m in re.finditer(row['peptide'], prot)])
 
@@ -117,7 +116,7 @@ def pepdb_add_csv(csv_file, messages):
                         messages.append("Error: Peptide "+row['peptide']+" not found in protein or variants (ID "+protid+", Line "+str(rownum)+").")
                         err+=1
                         continue
-
+                """
 
             if err == 0:
                 with open(input_tsv_path, 'r') as pepfile2:
