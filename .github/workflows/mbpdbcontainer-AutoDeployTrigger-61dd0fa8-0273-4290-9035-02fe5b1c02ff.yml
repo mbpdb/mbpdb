@@ -15,19 +15,11 @@ jobs:
 
     steps:
     - name: Checkout to the branch
-      uses: actions/checkout@v2
-
-    - name: Azure CLI action
-      uses: azure/CLI@v1
+      uses: actions/checkout@v2         
+    - name: Azure Login
+      uses: azure/login@v1
       with:
-        inlineScript: |
-          az login --service-principal -u ${{ secrets.CLIENT_ID }} -p ${{ secrets.CLIENT_SECRET }} --tenant ${{ secrets.TENANT_ID }}
-          # Your other Azure CLI commands here
-          
-      #- name: Azure Login
-      #  uses: azure/login@v1
-      #  with:
-      #    creds: ${{ secrets.MBPDBCONTAINER_AZURE_CREDENTIALS }}
+          creds: ${{ secrets.MBPDBCONTAINER_AZURE_CREDENTIALS }}
 
     - name: Build and push container image to registry  # Fixed indentation here
       uses: azure/container-apps-deploy-action@v1
