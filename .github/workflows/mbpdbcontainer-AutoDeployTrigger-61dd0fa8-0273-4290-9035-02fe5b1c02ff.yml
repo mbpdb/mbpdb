@@ -36,8 +36,8 @@ jobs:
     # Use GitHub PAT for Git operations (optional)
     - name: Git Operations
       run: |
-        git config --global user.email "you@example.com"
-        git config --global user.name "Your Name"
+        git config --global user.email "kuhfeldrf@gmail.com"
+        git config --global user.name "Rusty"
         git remote add origin https://${{ secrets.GITHUB_PAT }}@github.com/username/repository.git
         git push origin main
       env:
