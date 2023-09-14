@@ -38,7 +38,7 @@ jobs:
       run: |
         git config --global user.email "kuhfeldrf@gmail.com"
         git config --global user.name "Rusty"
-        git remote add origin https://${{ secrets.GITHUB_PAT }}@github.com/kuhfeldrf/MBPDB.git
+        git remote | grep origin || https://${{ secrets.GITHUB_PAT }}@github.com/kuhfeldrf/MBPDB.git
         git push origin main
       env:
         GITHUB_PAT: ${{ secrets.GITHUB_PAT }}
