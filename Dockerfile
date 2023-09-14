@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     dos2unix \
     nano \
     recode \
+    sqlite3 \
     ncbi-blast+
 
 
