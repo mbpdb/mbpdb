@@ -7,7 +7,7 @@ on:
     branches: 
       - main
     paths:
-      - 'dockerfile/**'
+      - 'Dockerfile'
       - '.github/workflows/mbpdbcontainer-AutoDeployTrigger-61dd0fa8-0273-4290-9035-02fe5b1c02ff.yml'
 
   # Allow manual trigger 
