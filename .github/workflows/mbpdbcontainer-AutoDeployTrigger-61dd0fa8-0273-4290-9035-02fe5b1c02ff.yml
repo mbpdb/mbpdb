@@ -1,14 +1,14 @@
 name: Trigger auto deployment for mbpdbcontainer
-#
+
 # When this action will be executed
 on:
   # Automatically trigger it when detected changes in repo
   push:
     branches: 
-      [ main ]
+      - main
     paths:
-    - 'dockerfile/**'
-    - '.github/workflows/mbpdbcontainer-AutoDeployTrigger-61dd0fa8-0273-4290-9035-02fe5b1c02ff.yml'
+      - 'dockerfile/**'
+      - '.github/workflows/mbpdbcontainer-AutoDeployTrigger-61dd0fa8-0273-4290-9035-02fe5b1c02ff.yml'
 
   # Allow manual trigger 
   workflow_dispatch:
@@ -26,17 +26,14 @@ jobs:
         with:
           creds: ${{ secrets.MBPDBCONTAINER_AZURE_CREDENTIALS }}
 
-      - name: Build and push container image to registry
+      - name: Build and push container image to registry  # Fixed indentation here
         uses: azure/container-apps-deploy-action@v1
         with:
           appSourcePath: ${{ github.workspace }}/dockerfile 
-          registryUrl: https://hub.docker.com/repository/docker/kuhfeldrf/peptide_sqlite3
+          registryUrl: docker.io
           registryUsername: ${{ secrets.MBPDBCONTAINER_REGISTRY_USERNAME }}
           registryPassword: ${{ secrets.MBPDBCONTAINER_REGISTRY_PASSWORD }}
           containerAppName: mbpdbcontainer
           resourceGroup: mbpdb
-          imageToBuild: https://hub.docker.com/repository/docker/kuhfeldrf/peptide_sqlite3/general/mbpdbcontainer:${{ github.sha }}
+          imageToBuild: kuhfeldrf/peptide_sqlite3:mbpdbcontainer-${{ github.sha }}
           dockerfilePath: Dockerfile
-
-     
-
