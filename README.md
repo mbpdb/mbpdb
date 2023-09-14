@@ -186,3 +186,4 @@ sqlite> PRAGMA table_info(peptide_submission);
 11|intervals|varchar(100)|1||0  
 12|ptm|varchar(200)|1||0  
 13|protein_variants|varchar(30)|1||0  
+
