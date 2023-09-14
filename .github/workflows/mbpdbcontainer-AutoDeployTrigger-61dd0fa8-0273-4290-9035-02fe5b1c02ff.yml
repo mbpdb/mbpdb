@@ -14,6 +14,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Checkout to the branch
+      uses: actions/checkout@v2
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+          creds: ${{ secrets.MBPDBCONTAINER_AZURE_CREDENTIALS }}
+
     - name: Build and push container image to registry  # Fixed indentation here
       uses: azure/container-apps-deploy-action@v1
       with:
@@ -25,17 +32,3 @@ jobs:
           resourceGroup: mbpdb
           imageToBuild: kuhfeldrf/peptide_sqlite3:latest
           dockerfilePath: Dockerfile
-
-    - name: Checkout to the branch
-      uses: actions/checkout@v2         
-    - name: Azure Login
-      uses: azure/login@v1
-      with:
-          creds: ${{ secrets.MBPDBCONTAINER_AZURE_CREDENTIALS }}
-    - name: Update Container Instance
-      run: |
-        az container create --resource-group mbpdb \
-                            --name mbpdbcontainer \
-                            --image kuhfeldrf/peptide_sqlite3:latest \
-                            --cpu 0.5 \
-                            --memory 1Gi
