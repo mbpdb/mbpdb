@@ -26,15 +26,14 @@ jobs:
         with:
           creds: ${{ secrets.MBPDBCONTAINER_AZURE_CREDENTIALS }}
 
-      - name: Build and push container image to registry
+     - name: Build and push container image to registry
         uses: azure/container-apps-deploy-action@v1
         with:
           appSourcePath: ${{ github.workspace }}/dockerfile 
-          registryUrl: https://hub.docker.com/repository/docker/kuhfeldrf/peptide_sqlite3
+          registryUrl: docker.io  # Updated
           registryUsername: ${{ secrets.MBPDBCONTAINER_REGISTRY_USERNAME }}
           registryPassword: ${{ secrets.MBPDBCONTAINER_REGISTRY_PASSWORD }}
           containerAppName: mbpdbcontainer
           resourceGroup: mbpdb
-          imageToBuild: https://hub.docker.com/repository/docker/kuhfeldrf/peptide_sqlite3/general/mbpdbcontainer:${{ github.sha }}
+          imageToBuild: kuhfeldrf/peptide_sqlite3:mbpdbcontainer-${{ github.sha }}  # Updated
           dockerfilePath: Dockerfile
-#
