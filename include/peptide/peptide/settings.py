@@ -25,7 +25,7 @@ DEBUG = True
 
 TEMPLATE_DEBUG = True
 
-ALLOWED_HOSTS = ['128.193.11.196', '127.0.0.1', 'localhost', '192.84.190.235', 'mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io']
+ALLOWED_HOSTS = ['128.193.11.196', '127.0.0.1', 'localhost', '192.84.190.235', 'mbpdbcontainer--5qcnx68.lemonisland-71b15397.westus3.azurecontainerapps.io', 'mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io']
 
 
 # Application definition
@@ -49,7 +49,7 @@ MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",
 ]
 
-CSRF_TRUSTED_ORIGINS = ['https://mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io']
+CSRF_TRUSTED_ORIGINS = ['https://mbpdbcontainer--5qcnx68.lemonisland-71b15397.westus3.azurecontainerapps.io', 'https://mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io']
 
 
 ROOT_URLCONF = 'peptide.urls'
