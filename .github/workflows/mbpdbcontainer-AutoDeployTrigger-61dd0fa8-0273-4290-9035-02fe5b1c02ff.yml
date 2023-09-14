@@ -1,12 +1,12 @@
-mbname: Trigger auto deployment for mbpdbcontainer
+name: Trigger auto deployment for mbpdbcontainer
 
 on:
   push:
     branches:
       - main
-    paths:
-      - 'Dockerfile'
-      - '.github/workflows/mbpdbcontainer-AutoDeployTrigger-61dd0fa8-0273-4290-9035-02fe5b1c02ff.yml'
+    #paths:
+    #  - 'Dockerfile'
+    #  - '.github/workflows/mbpdbcontainer-AutoDeployTrigger-61dd0fa8-0273-4290-9035-02fe5b1c02ff.yml'
   workflow_dispatch:
 
 jobs:
