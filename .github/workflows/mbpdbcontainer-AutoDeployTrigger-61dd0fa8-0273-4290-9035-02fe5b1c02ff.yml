@@ -1,4 +1,4 @@
-mbname: Trigger auto deployment for mbpdbcontainer
+name: Trigger auto deployment for mbpdbcontainer
 
 on:
   push:
