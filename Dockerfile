@@ -10,7 +10,8 @@ RUN apt-get update && apt-get install -y \
     nano \
     recode \
     sqlite3 \
-    ncbi-blast+
+    ncbi-blast+ \
+    git
 
 
 # Set the working directory in the container
