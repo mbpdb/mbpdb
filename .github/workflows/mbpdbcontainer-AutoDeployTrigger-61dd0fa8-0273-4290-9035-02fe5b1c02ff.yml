@@ -1,4 +1,4 @@
-name: Trigger auto deployment for mbpdbcontainer
+mbname: Trigger auto deployment for mbpdbcontainer
 
 on:
   push:
@@ -32,3 +32,5 @@ jobs:
           resourceGroup: mbpdb
           imageToBuild: kuhfeldrf/peptide_sqlite3:latest
           dockerfilePath: Dockerfile
+
+
