@@ -9,6 +9,8 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_PAT }} # Set for all steps in this job
 
     steps:
     - name: Checkout to the branch
@@ -31,18 +33,18 @@ jobs:
           resourceGroup: mbpdb
           imageToBuild: kuhfeldrf/peptide_sqlite3:latest
           dockerfilePath: Dockerfile
-          buildArgs: GITHUB_PERSONAL_ACCESS_TOKEN=${{ secrets.GITHUB_PAT }}  # Assuming GITHUB_PAT is your GitHub secret
 
     # Use GitHub PAT for Git operations (optional)
     - name: Git Operations
       run: |
+        #git init
+        #git remote add origin https://${{ secrets.GITHUB_PAT }}@github.com/kuhfeldrf/repo.git
         git config --global user.email "kuhfeldrf@gmail.com"
         git config --global user.name "Rusty"
-        git remote | grep origin || https://${{ secrets.GITHUB_PAT }}@github.com/kuhfeldrf/MBPDB.git
-        git push origin main
+        
       env:
         GITHUB_PAT: ${{ secrets.GITHUB_PAT }}
 
     - name: Update Azure Container App
       run: |
-        az containerapp update --resource-group mbpdb --name mbpdbcontainer --image kuhfeldrf/peptide_sqlite3:latest
+        az containerapp update --resource-group mbpdb --name mbpdbcontainer --image index.docker.io/kuhfeldrf/peptide_sqlite3:latest
