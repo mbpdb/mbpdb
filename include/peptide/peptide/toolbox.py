@@ -883,6 +883,7 @@ def git_update(modeladmin, request, queryset):
             return
         subprocess.run(["git", "init"], check=True)
         subprocess.run(["git", "remote", "add", "origin", f"https://{github_pat}@github.com/kuhfeldrf/MBPDB.git"], check=True)
+        subprocess.run(["git", "checkout", "-b", "main"], check=True)
         subprocess.run(["git", "add", "include/peptide/db.sqlite3"], check=True)
         subprocess.run(["git", "commit", "-m", "updated db"], check=True)
         subprocess.run(["git", "push", "--set-upstream", "origin", "main"], check=True)
