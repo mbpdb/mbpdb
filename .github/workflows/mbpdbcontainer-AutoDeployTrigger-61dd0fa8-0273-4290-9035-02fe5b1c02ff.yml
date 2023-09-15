@@ -35,7 +35,7 @@ jobs:
           dockerfilePath: Dockerfile
 
     # Use GitHub PAT for Git operations (optional)
-    - name: Git Operations
+     #name: Git Operations
       #run: |
         #git init
         #git remote add origin https://${{ secrets.GITHUB_PAT }}@github.com/kuhfeldrf/repo.git
