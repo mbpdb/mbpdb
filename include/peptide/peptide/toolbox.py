@@ -887,7 +887,7 @@ def git_update(modeladmin, request, queryset):
         subprocess.run(["git", "remote", "add", "origin", f"https://{github_pat}@github.com/kuhfeldrf/MBPDB.git"], check=True, cwd=repo_root_dir)
         subprocess.run(["git", "checkout", "-b", "main"], check=True)
         subprocess.run(["git", "add", "include/peptide/db.sqlite3"], check=True)
-        subprocess.run(["git", "commit", "-m", "include/peptide/db.sqlite3", "updated db"], check=True)
+        subprocess.run(["git", "commit", "include/peptide/db.sqlite3", "-m", "updated db"], check=True)
         subprocess.run(["git", "push", "--set-upstream", "origin", "main"], check=True)
 
         modeladmin.message_user(request, "Git update was successful.")
