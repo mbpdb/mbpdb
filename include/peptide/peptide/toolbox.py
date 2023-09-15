@@ -869,6 +869,8 @@ def clear_temp_directory(directory_path):
 #pushes db to git repo
 def git_update(modeladmin, request, queryset):
     try:
+        # Define the repository root directory
+        repo_root_dir = '/app'
         # Fetch GITHUB_PAT from environment variables
         github_pat = os.environ.get("GITHUB_PAT")
         # Step 1: Clear local repos if .git directory exists
@@ -882,10 +884,10 @@ def git_update(modeladmin, request, queryset):
             modeladmin.message_user(request, "GITHUB_PAT environment variable is not set.")
             return
         subprocess.run(["git", "init"], check=True)
-        subprocess.run(["git", "remote", "add", "origin", f"https://{github_pat}@github.com/kuhfeldrf/MBPDB.git"], check=True)
+        subprocess.run(["git", "remote", "add", "origin", f"https://{github_pat}@github.com/kuhfeldrf/MBPDB.git"], check=True, cwd=repo_root_dir)
         subprocess.run(["git", "checkout", "-b", "main"], check=True)
         subprocess.run(["git", "add", "include/peptide/db.sqlite3"], check=True)
-        subprocess.run(["git", "commit", "-m", "updated db"], check=True)
+        subprocess.run(["git", "commit", "-m", "include/peptide/db.sqlite3", "updated db"], check=True)
         subprocess.run(["git", "push", "--set-upstream", "origin", "main"], check=True)
 
         modeladmin.message_user(request, "Git update was successful.")
