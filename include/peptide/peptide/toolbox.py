@@ -868,28 +868,30 @@ def clear_temp_directory(directory_path):
 
 #pushes db to git repo
 def git_update(modeladmin, request, queryset):
-    try:
-        # Define the repository root directory
-        repo_root_dir = '/app'
-        # Fetch GITHUB_PAT from environment variables
-        github_pat = os.environ.get("GITHUB_PAT")
-        # Step 1: Clear local repos if .git directory exists
-        if os.path.exists(".git"):
-            shutil.rmtree(".git")
-        # Step 2: Set Global User Email and Name
-        subprocess.run(["git", "config", "--global", "user.email", "kuhfeldrf@gmail.com"])
-        subprocess.run(["git", "config", "--global", "user.name", "Rusty"])
-
-        if github_pat is None:
-            modeladmin.message_user(request, "GITHUB_PAT environment variable is not set.")
-            return
-        subprocess.run(["git", "init"], check=True)
-        subprocess.run(["git", "remote", "add", "origin", f"https://{github_pat}@github.com/kuhfeldrf/MBPDB.git"], check=True, cwd=repo_root_dir)
-        subprocess.run(["git", "checkout", "-b", "main"], check=True)
-        subprocess.run(["git", "add", "include/peptide/db.sqlite3"], check=True)
-        subprocess.run(["git", "commit", "include/peptide/db.sqlite3", "-m", "updated db"], check=True)
-        subprocess.run(["git", "push", "--set-upstream", "origin", "main"], check=True)
-
+        try:
+        # Initialize Git if it's not already initialized
+        subprocess.run(["git", "init"], check=True, cwd=repo_root_dir)
+        
+        # Configure Git user
+        subprocess.run(["git", "config", "--global", "user.email", "kuhfeldrf@gmail.com"], check=True)
+        subprocess.run(["git", "config", "--global", "user.name", "Rusty"], check=True)
+        
+        # Add remote origin (if not added)
+        subprocess.run(["git", "remote", "add", "origin", f"https://{github_pat}@github.com/Kuhfeldrf/MBPDB.git"], check=True, cwd=repo_root_dir)
+        
+        # Fetch latest changes from remote 'main' branch
+        subprocess.run(["git", "fetch", "origin", "main"], check=True, cwd=repo_root_dir)
+        
+        # Merge fetched changes into local 'main' branch
+        subprocess.run(["git", "merge", "origin/main"], check=True, cwd=repo_root_dir)
+        
+        # Add the file and commit
+        subprocess.run(["git", "add", "include/peptide/db.sqlite3"], check=True, cwd=repo_root_dir)
+        subprocess.run(["git", "commit", "-m", "updated db"], check=True, cwd=repo_root_dir)
+        
+        # Push changes to remote 'main' branch
+        subprocess.run(["git", "push", "origin", "main"], check=True, cwd=repo_root_dir)
+ 
         modeladmin.message_user(request, "Git update was successful.")
 
     except Exception as e:
