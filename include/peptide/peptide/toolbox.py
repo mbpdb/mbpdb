@@ -871,16 +871,21 @@ def git_update(modeladmin, request, queryset):
     try:
         # Fetch GITHUB_PAT from environment variables
         github_pat = os.environ.get("GITHUB_PAT")
+        # Step 1: Clear local repos if .git directory exists
+        if os.path.exists(".git"):
+            shutil.rmtree(".git")
+        # Step 2: Set Global User Email and Name
+        subprocess.run(["git", "config", "--global", "user.email", "kuhfeldrf@gmail.com"])
+        subprocess.run(["git", "config", "--global", "user.name", "Rusty"])
 
         if github_pat is None:
             modeladmin.message_user(request, "GITHUB_PAT environment variable is not set.")
             return
-
-        subprocess.run(["git", "init"])
-        subprocess.run(["git", "remote", "add", "origin", f"https://{github_pat}@github.com/kuhfeldrf/repo.git"])
-        subprocess.run(["git", "add", "include/peptide/db.sqlite3"])
-        subprocess.run(["git", "commit", "-m", "updated db"])
-        subprocess.run(["git", "push", "origin", "master"])
+        subprocess.run(["git", "init"], check=True)
+        subprocess.run(["git", "remote", "add", "origin", f"https://{github_pat}@github.com/kuhfeldrf/MBPDB.git"], check=True)
+        subprocess.run(["git", "add", "include/peptide/db.sqlite3"], check=True)
+        subprocess.run(["git", "commit", "-m", "updated db"], check=True)
+        subprocess.run(["git", "push", "--set-upstream", "origin", "main"], check=True)
 
         modeladmin.message_user(request, "Git update was successful.")
 
