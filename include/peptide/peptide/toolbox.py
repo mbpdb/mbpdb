@@ -871,14 +871,15 @@ def clear_temp_directory(directory_path):
 def git_update(modeladmin, request, queryset):
 
     repo_root_dir = '/app'
+    new_branch_name = "updated-db"  
 
     # Fetch GITHUB_PAT from environment variables
     github_pat = os.environ.get("GITHUB_PAT")
 
     try:
         # Step 1: Clear local repos if .git directory exists
-        if os.path.exists(".git"):
-            shutil.rmtree(".git")
+        if os.path.exists(os.path.join(repo_root_dir, ".git")):
+            shutil.rmtree(os.path.join(repo_root_dir, ".git"))
 
         # Initialize Git if it's not already initialized
         subprocess.run(["git", "init"], check=True, cwd=repo_root_dir)
@@ -891,20 +892,18 @@ def git_update(modeladmin, request, queryset):
         subprocess.run(["git", "remote", "add", "origin", f"https://{github_pat}@github.com/Kuhfeldrf/MBPDB.git"],
                        check=True, cwd=repo_root_dir)
 
-        # Fetch latest changes from remote 'main' branch
-        subprocess.run(["git", "fetch", "origin", "main"], check=True, cwd=repo_root_dir)
+        # Create and switch to new branch
+        subprocess.run(["git", "checkout", "-b", new_branch_name], check=True, cwd=repo_root_dir)
 
-        # Merge fetched changes into local 'main' branch
-        subprocess.run(["git", "merge", "origin/main"], check=True, cwd=repo_root_dir)
-
-        # Add the file and commit
+        # Add only the database file and commit
         subprocess.run(["git", "add", "include/peptide/db.sqlite3"], check=True, cwd=repo_root_dir)
-        subprocess.run(["git", "commit", "-m", "updated db"], check=True, cwd=repo_root_dir)
+        subprocess.run(["git", "commit", "-m", "Updated db"], check=True, cwd=repo_root_dir)
 
-        # Push changes to remote 'main' branch
-        subprocess.run(["git", "push", "origin", "main"], check=True, cwd=repo_root_dir)
+        # Push changes to remote new branch
+        subprocess.run(["git", "push", "-u", "origin", new_branch_name], check=True, cwd=repo_root_dir)
 
         modeladmin.message_user(request, "Git update was successful.")
 
     except Exception as e:
         modeladmin.message_user(request, f"Git update failed: {e}")
+
