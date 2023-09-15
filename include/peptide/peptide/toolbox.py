@@ -855,7 +855,6 @@ def export_database(request):
     return response
 
 #Function clears the temp directory at the onset of peptide_search in views.py
-
 def clear_temp_directory(directory_path):
     for filename in os.listdir(directory_path):
         file_path = os.path.join(directory_path, filename)
@@ -866,3 +865,24 @@ def clear_temp_directory(directory_path):
                 shutil.rmtree(file_path)
         except Exception as e:
             print(f'Failed to delete {file_path}. Reason: {e}')
+
+#pushes db to git repo
+def git_update(modeladmin, request, queryset):
+    try:
+        # Fetch GITHUB_PAT from environment variables
+        github_pat = os.environ.get("GITHUB_PAT")
+
+        if github_pat is None:
+            modeladmin.message_user(request, "GITHUB_PAT environment variable is not set.")
+            return
+
+        subprocess.run(["git", "init"])
+        subprocess.run(["git", "remote", "add", "origin", f"https://{github_pat}@github.com/kuhfeldrf/repo.git"])
+        subprocess.run(["git", "add", "include/peptide/db.sqlite3"])
+        subprocess.run(["git", "commit", "-m", "updated db"])
+        subprocess.run(["git", "push", "origin", "master"])
+
+        modeladmin.message_user(request, "Git update was successful.")
+
+    except Exception as e:
+        modeladmin.message_user(request, f"Git update failed: {e}")
