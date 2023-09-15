@@ -869,6 +869,13 @@ def clear_temp_directory(directory_path):
 #pushes db to git repo
 def git_update(modeladmin, request, queryset):
         try:
+        # Fetch GITHUB_PAT from environment variables
+        github_pat = os.environ.get("GITHUB_PAT")
+
+        # Step 1: Clear local repos if .git directory exists
+        if os.path.exists(".git"):
+        shutil.rmtree(".git")
+            
         # Initialize Git if it's not already initialized
         subprocess.run(["git", "init"], check=True, cwd=repo_root_dir)
         
@@ -894,5 +901,5 @@ def git_update(modeladmin, request, queryset):
  
         modeladmin.message_user(request, "Git update was successful.")
 
-    except Exception as e:
-        modeladmin.message_user(request, f"Git update failed: {e}")
+        except Exception as e:
+            modeladmin.message_user(request, f"Git update failed: {e}")
