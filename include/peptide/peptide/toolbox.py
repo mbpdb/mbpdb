@@ -897,11 +897,13 @@ def git_update(modeladmin, request, queryset):
 
         # Add only the database file and commit
         subprocess.run(["git", "fetch", "origin", new_branch_name], check=True, cwd=repo_root_dir)
+        subprocess.run(["git", "rebase", f"origin/{new_branch_name}"], check=True, cwd=repo_root_dir)
+
         subprocess.run(["git", "add", "include/peptide/db.sqlite3"], check=True, cwd=repo_root_dir)
         subprocess.run(["git", "commit", "-m", "Updated db"], check=True, cwd=repo_root_dir)
 
         # Push changes to remote new branch
-        subprocess.run(["git", "push", "-u", "origin", new_branch_name], check=True, cwd=repo_root_dir)
+        subprocess.run(["git", "push", "-f", "-u", "origin", new_branch_name], check=True, cwd=repo_root_dir)
 
         modeladmin.message_user(request, "Git update was successful.")
 
