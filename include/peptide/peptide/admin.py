@@ -8,7 +8,7 @@ class PeptideInfoAdmin(admin.ModelAdmin):
     list_display = ('peptide','time_approved')
 
     actions = ['export_selected_to_tsv', git_init, git_push]
-    #actions = [git_update]
+
     def export_selected_to_tsv(self, request, queryset):
         # Generate TSV file
         response = export_database(request)

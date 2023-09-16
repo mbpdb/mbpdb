@@ -867,7 +867,7 @@ def clear_temp_directory(directory_path):
             print(f'Failed to delete {file_path}. Reason: {e}')
 
 # init db to git repo
-def git_init(modeladmin, request):
+def git_init(modeladmin, request, queryset):
 
     repo_root_dir = '/app'
 
@@ -906,7 +906,7 @@ def git_init(modeladmin, request):
         modeladmin.message_user(request, f"Git update failed: {e}")
 
 # pushes db to git repo
-def git_push(modeladmin, request):
+def git_push(modeladmin, request, queryset):
 
     repo_root_dir = '/app'
 
