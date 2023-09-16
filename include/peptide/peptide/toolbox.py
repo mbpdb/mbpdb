@@ -893,15 +893,6 @@ def git_init(modeladmin, request, queryset):
         subprocess.run(["git", "clean", "-f", "-d"], check=True, cwd=repo_root_dir)
         subprocess.run(["git", "checkout", "main"], check=True, cwd=repo_root_dir)
 
-        # Adds and commits db change
-        subprocess.run(["git", "add", "include/peptide/db.sqlite3"], check=True, cwd=repo_root_dir)
-        subprocess.run(["git", "commit", "-m", "Updated db"], check=True, cwd=repo_root_dir)
-
-        # Push changes to remote new branch
-        subprocess.run(["git", "push", "origin", "main"], check=True, cwd=repo_root_dir)
-
-        modeladmin.message_user(request, "Git update was successful.")
-
     except Exception as e:
         modeladmin.message_user(request, f"Git update failed: {e}")
 
