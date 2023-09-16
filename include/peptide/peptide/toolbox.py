@@ -896,6 +896,7 @@ def git_update(modeladmin, request, queryset):
         subprocess.run(["git", "checkout", "-b", new_branch_name], check=True, cwd=repo_root_dir)
 
         # Add only the database file and commit
+        subprocess.run(["git", "fetch", "origin", new_branch_name], check=True, cwd=repo_root_dir)
         subprocess.run(["git", "add", "include/peptide/db.sqlite3"], check=True, cwd=repo_root_dir)
         subprocess.run(["git", "commit", "-m", "Updated db"], check=True, cwd=repo_root_dir)
 
