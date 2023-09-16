@@ -1,18 +1,13 @@
 from django.contrib import admin
 from .models import PeptideInfo, Submission, Counter, ProteinInfo, ProteinVariant, protein_pid
-from .toolbox import pepdb_approve, export_database, git_update
+from .toolbox import pepdb_approve, export_database, git_init, git_push
 from django.urls import reverse
 from django.utils.html import format_html
-
-
-class MyModelAdmin(admin.ModelAdmin):
-    actions = [git_update]
-    # your other configurations here
 
 class PeptideInfoAdmin(admin.ModelAdmin):
     list_display = ('peptide','time_approved')
 
-    actions = ['export_selected_to_tsv', git_update]
+    actions = ['export_selected_to_tsv', git_init, git_push]
     #actions = [git_update]
     def export_selected_to_tsv(self, request, queryset):
         # Generate TSV file

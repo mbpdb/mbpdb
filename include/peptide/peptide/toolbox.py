@@ -866,20 +866,15 @@ def clear_temp_directory(directory_path):
         except Exception as e:
             print(f'Failed to delete {file_path}. Reason: {e}')
 
-
-# pushes db to git repo
-def git_update(modeladmin, request, queryset):
+# init db to git repo
+def git_init(modeladmin, request):
 
     repo_root_dir = '/app'
-    new_branch_name = "updated-db"  
 
     # Fetch GITHUB_PAT from environment variables
     github_pat = os.environ.get("GITHUB_PAT")
 
     try:
-        # Step 1: Clear local repos if .git directory exists
-        if os.path.exists(os.path.join(repo_root_dir, ".git")):
-            shutil.rmtree(os.path.join(repo_root_dir, ".git"))
 
         # Initialize Git if it's not already initialized
         subprocess.run(["git", "init"], check=True, cwd=repo_root_dir)
@@ -891,19 +886,40 @@ def git_update(modeladmin, request, queryset):
         # Add remote origin (if not added)
         subprocess.run(["git", "remote", "add", "origin", f"https://{github_pat}@github.com/Kuhfeldrf/MBPDB.git"],
                        check=True, cwd=repo_root_dir)
+        # Fetchs origin
+        subprocess.run(["git", "fetch", "origin"], check=True, cwd=repo_root_dir)
 
-        # Create and switch to new branch
-        subprocess.run(["git", "checkout", "-b", new_branch_name], check=True, cwd=repo_root_dir)
+        # switch to main branch
+        subprocess.run(["git", "clean", "-f", "-d"], check=True, cwd=repo_root_dir)
+        subprocess.run(["git", "checkout", "main"], check=True, cwd=repo_root_dir)
 
-        # Add only the database file and commit
-        subprocess.run(["git", "fetch", "origin", new_branch_name], check=True, cwd=repo_root_dir)
-        subprocess.run(["git", "rebase", f"origin/{new_branch_name}"], check=True, cwd=repo_root_dir)
-
+        # Adds and commits db change
         subprocess.run(["git", "add", "include/peptide/db.sqlite3"], check=True, cwd=repo_root_dir)
         subprocess.run(["git", "commit", "-m", "Updated db"], check=True, cwd=repo_root_dir)
 
         # Push changes to remote new branch
-        subprocess.run(["git", "push", "-f", "-u", "origin", new_branch_name], check=True, cwd=repo_root_dir)
+        subprocess.run(["git", "push", "origin", "main"], check=True, cwd=repo_root_dir)
+
+        modeladmin.message_user(request, "Git update was successful.")
+
+    except Exception as e:
+        modeladmin.message_user(request, f"Git update failed: {e}")
+
+# pushes db to git repo
+def git_push(modeladmin, request):
+
+    repo_root_dir = '/app'
+
+    # Fetch GITHUB_PAT from environment variables
+    github_pat = os.environ.get("GITHUB_PAT")
+
+    try:
+        # Adds and commits db change
+        subprocess.run(["git", "add", "include/peptide/db.sqlite3"], check=True, cwd=repo_root_dir)
+        subprocess.run(["git", "commit", "-m", "Updated db"], check=True, cwd=repo_root_dir)
+
+        # Push changes to remote new branch
+        subprocess.run(["git", "push", "origin", "main"], check=True, cwd=repo_root_dir)
 
         modeladmin.message_user(request, "Git update was successful.")
 
