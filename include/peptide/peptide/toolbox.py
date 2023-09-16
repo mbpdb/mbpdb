@@ -913,7 +913,7 @@ def git_push(modeladmin, request, queryset):
         # Push changes to remote new branch
         subprocess.run(["git", "push", "origin", "main"], check=True, cwd=repo_root_dir)
 
-        modeladmin.message_user(request, "Git init was successful.")
+        modeladmin.message_user(request, "Git push was successful.")
 
     except Exception as e:
         modeladmin.message_user(request, f"Git init failed: {e}")
