@@ -868,16 +868,13 @@ def clear_temp_directory(directory_path):
 
 # init db to git repo
 def git_init(modeladmin, request, queryset):
-
-    repo_root_dir = '/app'
-
     # Fetch GITHUB_PAT from environment variables
     github_pat = os.environ.get("GITHUB_PAT")
 
     try:
 
         # Initialize Git if it's not already initialized
-        subprocess.run(["git", "init"], check=True, cwd=repo_root_dir)
+        subprocess.run(["git", "init"], check=True)
 
         # Configure Git user
         subprocess.run(["git", "config", "--global", "user.email", "kuhfeldrf@gmail.com"], check=True)
@@ -885,13 +882,13 @@ def git_init(modeladmin, request, queryset):
 
         # Add remote origin (if not added)
         subprocess.run(["git", "remote", "add", "origin", f"https://{github_pat}@github.com/Kuhfeldrf/MBPDB.git"],
-                       check=True, cwd=repo_root_dir)
+                       check=True)
         # Fetchs origin
-        subprocess.run(["git", "fetch", "origin"], check=True, cwd=repo_root_dir)
+        subprocess.run(["git", "fetch", "origin"], check=True)
 
         # switch to main branch
-        subprocess.run(["git", "clean", "-f", "-d"], check=True, cwd=repo_root_dir)
-        subprocess.run(["git", "checkout", "main"], check=True, cwd=repo_root_dir)
+        subprocess.run(["git", "clean", "-f", "-d"], check=True)
+        subprocess.run(["git", "checkout", "main"], check=True)
         modeladmin.message_user(request, "Git init was successful.")
         
     except Exception as e:
@@ -899,19 +896,13 @@ def git_init(modeladmin, request, queryset):
 
 # pushes db to git repo
 def git_push(modeladmin, request, queryset):
-
-    repo_root_dir = '/app'
-
-    # Fetch GITHUB_PAT from environment variables
-    github_pat = os.environ.get("GITHUB_PAT")
-
     try:
         # Adds and commits db change
-        subprocess.run(["git", "add", "include/peptide/db.sqlite3"], check=True, cwd=repo_root_dir)
-        subprocess.run(["git", "commit", "include/peptide/db.sqlite3", "-m", "Updated db"], check=True, cwd=repo_root_dir)
+        subprocess.run(["git", "add", "include/peptide/db.sqlite3"], check=True)
+        subprocess.run(["git", "commit", "include/peptide/db.sqlite3", "-m", "Updated db"], check=True)
 
         # Push changes to remote new branch
-        subprocess.run(["git", "push", "origin", "main"], check=True, cwd=repo_root_dir)
+        subprocess.run(["git", "push", "origin", "main"], check=True)
 
         modeladmin.message_user(request, "Git push was successful.")
 
