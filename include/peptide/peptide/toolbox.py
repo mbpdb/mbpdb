@@ -868,17 +868,8 @@ def clear_temp_directory(directory_path):
 
 # init db to git repo
 def git_init(modeladmin, request, queryset):
-
-    # Retrieve a secret
-    github_pat = os.environ.get("github-pat")
-
-    # Check if the variable was found
-    if github_pat:
-        # Mask the token for security reasons before printing
-        masked_token = github_pat[:4] + "*" * (len(github_pat) - 8) + github_pat[-4:]
-        print(f"Successfully fetched GitHub PAT: {masked_token}")
-    else:
-        print("Failed to fetch GitHub PAT.")
+    # Fetch GITHUB_PAT from environment variables
+    github_pat = os.environ.get("GITHUB_PAT")
 
     try:
 
