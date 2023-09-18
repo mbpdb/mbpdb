@@ -868,8 +868,11 @@ def clear_temp_directory(directory_path):
 
 # init db to git repo
 def git_init(modeladmin, request, queryset):
-    # Fetch GITHUB_PAT from environment variables
-    github_pat = os.environ.get("GITHUB_PAT")
+
+    # Retrieve a secret
+    github_pat = os.environ.get("github-pat")
+
+
 
     try:
 
@@ -877,11 +880,11 @@ def git_init(modeladmin, request, queryset):
         subprocess.run(["git", "init"], check=True)
 
         # Configure Git user
-        subprocess.run(["git", "config", "--global", "user.email", "kuhfeldrf@gmail.com"], check=True)
+        subprocess.run(["git", "config", "--global", "user.email", "contact-mbpdb@oregonstate.edu"], check=True)
         subprocess.run(["git", "config", "--global", "user.name", "Rusty"], check=True)
 
         # Add remote origin (if not added)
-        subprocess.run(["git", "remote", "add", "origin", f"https://{github_pat}@github.com/Kuhfeldrf/MBPDB.git"],
+        subprocess.run(["git", "remote", "add", "origin", f"https://{github_pat}@github.com/mbpdb/mbpdb.git"],
                        check=True)
         # Fetchs origin
         subprocess.run(["git", "fetch", "origin"], check=True)
