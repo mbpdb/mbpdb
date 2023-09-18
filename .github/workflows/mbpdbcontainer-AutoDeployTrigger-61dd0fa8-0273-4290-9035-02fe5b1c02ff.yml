@@ -31,20 +31,12 @@ jobs:
           registryPassword: ${{ secrets.MBPDBCONTAINER_REGISTRY_PASSWORD }}
           containerAppName: mbpdbcontainer
           resourceGroup: mbpdb
-          imageToBuild: kuhfeldrf/peptide_sqlite3:latest
+          imageToBuild: mbpdb/mbpdb:latest
           dockerfilePath: Dockerfile
 
-    # Use GitHub PAT for Git operations (optional)
-     #name: Git Operations
-      #run: |
-        #git init
-        #git remote add origin https://${{ secrets.GITHUB_PAT }}@github.com/kuhfeldrf/repo.git
-        #git config --global user.email "kuhfeldrf@gmail.com"
-        #git config --global user.name "Rusty"
-        
       env:
         GITHUB_PAT: ${{ secrets.GITHUB_PAT }}
 
     - name: Update Azure Container App
       run: |
-        az containerapp update --resource-group mbpdb --name mbpdbcontainer --image index.docker.io/kuhfeldrf/peptide_sqlite3:latest
+        az containerapp update --resource-group mbpdb --name mbpdbcontainer --image index.docker.io/mbpdb/mbpdb:latest
