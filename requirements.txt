@@ -1,3 +1,4 @@
+azure-keyvault-secrets
 gunicorn
 Unicodecsv
 chardet
