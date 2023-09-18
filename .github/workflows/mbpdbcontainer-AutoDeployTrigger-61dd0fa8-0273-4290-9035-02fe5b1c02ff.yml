@@ -34,14 +34,6 @@ jobs:
           imageToBuild: mbpdb/mbpdb:latest
           dockerfilePath: Dockerfile
 
-    # Use GitHub PAT for Git operations (optional)
-     #name: Git Operations
-      #run: |
-        #git init
-        #git remote add origin https://${{ secrets.GITHUB_PAT }}@github.com/mbpdb/repo.git
-        #git config --global user.email "contat-mbpdb@oregonstate.edu"
-        #git config --global user.name "Rusty"
-        
       env:
         GITHUB_PAT: ${{ secrets.GITHUB_PAT }}
 
