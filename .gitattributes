@@ -1,2 +1,0 @@
-# include/peptide/*.sqlite3 filter=lfs diff=lfs merge=lfs -text
-# include/peptide/whole.json filter=lfs diff=lfs merge=lfs -text
