@@ -43,7 +43,7 @@ class ProteinInfoAdmin(admin.ModelAdmin):
 admin.site.register(ProteinInfo, ProteinInfoAdmin)
 
 class SubmissionAdmin(admin.ModelAdmin):
-    list_display = ('protein_id', 'peptide', 'function', 'secondary_function', 'title', 'authors', 'abstract', 'doi', 'intervals', 'length', 'time_submitted')
+    list_display = ('protein_id', 'peptide', 'function', 'additional_details', 'ic50' , 'inhibition_type','inhibited_microorganisms', 'title', 'authors', 'abstract', 'doi', 'intervals', 'length', 'time_submitted')
 
     def approve_submission(self, request, queryset):
         messages = pepdb_approve(queryset)
