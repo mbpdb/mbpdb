@@ -37,8 +37,11 @@ class Reference(models.Model):
     authors = models.CharField(max_length=300)
     abstract = models.CharField(max_length=1000)
     doi = models.CharField(max_length=100)
-    secondary_func = models.CharField(max_length=400, default='')
+    additional_details = models.CharField(max_length=400, default='')
     ptm = models.CharField(max_length=200, default='')
+    ic50 = models.FloatField(null=True, blank=True)
+    inhibition_type = models.TextField(null=True, blank=True)
+    inhibited_microorganisms = models.TextField(null=True, blank=True)
 
 class Submission(models.Model):
     #proteinID, peptide, function, secondary_function, title, authors, abstract, and doi
@@ -46,7 +49,7 @@ class Submission(models.Model):
     protein_variants = models.CharField(max_length=30,default='')
     peptide = models.CharField(max_length=300)
     function = models.CharField(max_length=400)
-    secondary_function = models.CharField(max_length=400, default='')
+    additional_details = models.CharField(max_length=400, default='')
     ptm = models.CharField(max_length=200, default='')
     title = models.CharField(max_length=300)
     authors = models.CharField(max_length=300)
@@ -55,7 +58,9 @@ class Submission(models.Model):
     intervals = models.CharField(max_length=100)
     length = models.IntegerField()
     time_submitted = models.DateTimeField()
-
+    ic50 = models.FloatField(null=True, blank=True)
+    inhibition_type = models.TextField(null=True, blank=True)
+    inhibited_microorganisms = models.TextField(null=True, blank=True)
 
 class Counter(models.Model):
     ip = models.CharField(max_length=40)
