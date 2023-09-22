@@ -35,7 +35,8 @@ def peptide_search(request):
     clear_temp_directory(WORK_DIRECTORY)
 
     errors = []
-    results_header=[]
+    results_headers = []
+    formated_header = []
     results = []
     peptide_option = []
     matrix = []
@@ -44,7 +45,6 @@ def peptide_search(request):
     description_to_pid = pro_list(request)
     unique_func = func_list(request)
     common_to_sci = spec_list(request)
-    tsv_submitted = bool(request.FILES.get('tsv_file'))
     if request.method == 'POST':
         counter = Counter(ip=request.META['REMOTE_ADDR'], access_time=timezone.now(), page='peptide search')
         counter.save()
@@ -90,25 +90,40 @@ def peptide_search(request):
             errors.append(
                 f'Error: Please select the Search Type, Similarity Threshold and Scoring Matrix form the Homology Search Options')
         try:
-            (results, results_header,output_path) = pepdb_multi_search_manual(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species,no_pep)
+            (results, formated_header,output_path,results_headers) = pepdb_multi_search_manual(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species,no_pep)
             FileResponse(open(output_path, 'rb'))
         except CalledProcessError as e:
             return render(request, 'peptide/peptide_search.html', {'errors': [e.output], 'data':request.POST})
 
+    # Given columns to check
+    columns_to_check = [
+        'Additional&nbspdetails',
+        'IC50&nbsp(μM)&nbsp&nbsp&nbsp&nbsp',
+        'Inhibition&nbsptype',
+        'Inhibited&nbspmicroorganisms',
+        'PTM'
+    ]
+
+    # Check for each column
+    for column in columns_to_check:
+        if all([result.get(column, '').strip() == '' for result in results]):
+            # Remove column from each dictionary in results
+            for result in results:
+                if column in result:
+                    del result[column]
+
+            # Remove column from headers
+            if column in results_headers:
+                results_headers.remove(column)
     # Separate warnings and results
     warning_results = [r for r in results if "WARNING:" in r]
-    regular_results = [r for r in results if "WARNING:" not in r]
     warning_results = list(set(warning_results))
-    # If you want to get the first result separately
-    first_result = regular_results[0] if regular_results else None
 
-    # Apply slicing to regular results
-    sliced_results = regular_results[1:]
+
+
     return render(request, 'peptide/peptide_search.html', {
         'errors': errors,
         'warnings': warning_results,
-        'first_result': first_result,
-        'sliced_results': sliced_results,
         'results': results,
         'output_path': output_path,
         'data': request.POST,
@@ -118,7 +133,8 @@ def peptide_search(request):
         'description_to_pid': description_to_pid,
         'functions': unique_func,
         'common_to_sci_list': common_to_sci,
-        'results_header': results_header,
+        'formated_header': formated_header,
+        'table_headers': results_headers,
     })
 #unmodified but needs updating as message function is Deprecated
 def add_proteins_tool(request):
