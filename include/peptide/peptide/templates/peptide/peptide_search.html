@@ -1,6 +1,8 @@
 {% extends 'peptide/base.html' %}
 {% load static %}
 {% block 'content' %}
+{% load custom_filters %}
+
 <style>
 #hiddenFileInput {
     display: none;
@@ -28,6 +30,15 @@ textarea.tools-form-raw-text-input {
     max-height: 0;
     overflow: hidden;
     transition: max-height 0.5s ease-in-out;
+}
+
+.toggle-content {
+    background-color: #ffffff;
+    border: none;
+    color: #0000FF; /* Hyperlink blue */
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 </style>
@@ -218,40 +229,79 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 <br/>
 <button class="btn btn-default" id="search-db-btn">Search DB</button>  <a href=".">Clear all search criteria</a>
 <a name="search_results"></a>
-    </form>
+</form>
 <br/>
-{% if first_result and not errors %}
+{% if results and not errors %}
     <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a> | If you are referencing this database: <a href="{% url 'about_us' %}" style="font-size: 20px;"> <b>please cite</b></a>
     <br/>
 
-    {{ results_header|safe }}
-    <table border="1" id="results_table">
-        {{ first_result|safe }}
+{{ formated_header|safe }}
+
+<table border="1" id="results_table">
+    <thead>
+        <tr>
+            {% for header in table_headers %}
+                <th style="padding:10px;" >
+                    {{ header | safe }}
+                </th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
 
         <!-- Display warnings -->
         {% for w in warnings %}
-        <tr>
-          <td colspan=25>
-              <div class="warning">
-              <!-- Warning content -->
-              {{ w|safe }}
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-
-        <!-- Display regular results -->
-        {% for r in sliced_results %}
             <tr>
-                <td style="padding:10px;">
-                    {{ r|safe }}
+                <td  colspan={{ table_headers|length }} style="padding:10px;" >
+                    <div class="warning">
+                        <!-- Warning content -->
+                        {{ w|safe }}
+                    </div>
                 </td>
             </tr>
         {% endfor %}
-    </table>
+
+        <!-- Display regular results -->
+        {% for row in results %}
+            <tr>
+                {% for key, value in row.items %}
+                        <td style="padding:10px; max-width:125px; word-wrap:break-word;">
+                        {% if key == "Abstract&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp"%}
+                            <!-- Make this column collapsible -->
+                            <button class="toggle-content">Show Abstract</button>
+                            <div class="collapsible-content">
+                                {{ value|safe }}
+                            </div>
+                        {% else %}
+                            {{ value|safe }}
+                        {% endif %}
+                    </td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
 {% endif %}
 
 <script>
+// This part handles the "Show More" and "Show Less" buttons
+document.addEventListener("DOMContentLoaded", function() {
+    const toggleButtons = document.querySelectorAll(".toggle-content");
+    toggleButtons.forEach(function(btn) {
+        btn.addEventListener("click", function() {
+            const content = this.nextElementSibling;
+            if (content.style.maxHeight) {
+                content.style.maxHeight = null;
+                this.innerText = "Show Abstract";
+            } else {
+                content.style.maxHeight = content.scrollHeight + "px";
+                this.innerText = "Hide Text";
+            }
+        });
+    });
+});
+
+
 // Additional JavaScript for collapsible
 document.addEventListener('DOMContentLoaded', function() {
     const toggleBtn = document.getElementById('toggleAdvancedOptions');
