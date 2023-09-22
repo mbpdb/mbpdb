@@ -49,16 +49,6 @@ def pepdb_add_csv(csv_file, messages):
     subprocess.check_output([settings.FIX_WEIRD_CHARS,input_tsv_path,temp_file], stderr=subprocess.STDOUT)
     subprocess.check_output(['mv',temp_file,input_tsv_path], stderr=subprocess.STDOUT)
 
-    '''
-    f1 = open(input_tsv_path,'r')
-    filedata = f1.read()
-    f1.close()
-    f2 = codecs.open(input_tsv_path,'w',encoding='utf-8')
-    dammit = UnicodeDammit(filedata,['latin-1'])
-    f2.write(dammit.unicode_markup)
-    f2.close()
-    '''
-
     # detecting file encoding
     detector = UniversalDetector()
     for line in open(input_tsv_path, 'rb'):
@@ -79,22 +69,22 @@ def pepdb_add_csv(csv_file, messages):
             headers.sort()
 
             # check if headers are correct
-            if headers != ['abstract', 'authors', 'doi', 'function', 'peptide', 'proteinID', 'ptm', 'secondary_function', 'title']:
-                raise subprocess.CalledProcessError(1, cmd="", output="Error: Input file does not have the correct headers (proteinID, peptide, function, secondary_function, ptm, title, authors, abstract, and doi).")
+            if headers != ['abstract', 'additional_details', 'authors', 'doi','function', 'ic50', 'inhibited_microorganisms', 'inhibition_type', 'peptide', 'proteinID', 'ptm', 'title']:
+                raise subprocess.CalledProcessError(1, cmd="", output="Error: Input file does not have the correct headers (proteinID, peptide, function, 'additional_details', 'ic50' , 'inhibition_type','inhibited_microorganisms', ptm, title, authors, abstract, and doi).")
 
             err=0
             for row in data:
                 rownum = rownum + 1
 
                 if (row['peptide']=='' or row['proteinID']=='' or row['function']=='' or row['title']=='' or row['authors']=='' or row['doi']==''):
-                    messages.append("Error: Line "+str(rownum)+" in file has values that cannot be empty (only abstract, secondary function, and ptm can be empty).")
+                    messages.append("Error: Line "+str(rownum)+" in file has values that cannot be empty (only abstract, additional_details, ic50 , inhibition_type, inhibited_microorganisms, and ptm can be empty).")
                     err+=1
                     continue
 
                 protid = row['proteinID']
 
                 try:
-                    idcheck = ProteinInfo.objects.get(pid=protid)
+                    idcheck = ProteinInfo.objects.filter(pid=protid)
                 except ProteinInfo.DoesNotExist:
                     messages.append("Error: Protein ID "+protid+" not found in database (Line "+str(rownum)+"). Skipping. You can use the Add Fasta Files tool to add the protein to the database.")
                     err+=1
@@ -133,7 +123,7 @@ def pepdb_add_csv(csv_file, messages):
                         interval_list=[]
 
                         if not intervals:
-                            gv_check = ProteinVariant.objects.filter(protein=idcheck)
+                            gv_check = ProteinVariant.objects.get(protein=idcheck)
                             for pv in gv_check:
                                 intervals = ', '.join([str(m.start()+1) + "-" + str(m.start()+len(row['peptide'])) for m in re.finditer(row['peptide'], pv.seq)])
                                 if intervals:
@@ -142,7 +132,17 @@ def pepdb_add_csv(csv_file, messages):
                         else:
                             interval_list=[intervals]
 
-                        sub = Submission(protein_id=row['proteinID'], peptide=row['peptide'], function=row['function'], secondary_function=row['secondary_function'], ptm=row['ptm'], title=row['title'], authors=row['authors'], abstract=row['abstract'], doi=row['doi'], intervals=':'.join(interval_list), protein_variants=','.join(pvid_list), length=len(row['peptide']), time_submitted=tn)
+                        # Check and handle the ic50 value
+                        if not row['ic50'].strip():  # if ic50 is empty or just whitespace
+                            row['ic50'] = ""
+                        else:
+                            try:
+                                row['ic50'] = float(row['ic50'])  # Attempt to convert ic50 to float
+                            except ValueError:
+                                messages.append(
+                                    f"Error: Line {rownum} has an invalid value for 'ic50'. Expected a number but got {row['ic50']}.")
+                                continue  # Skip this row and move to the next
+                        sub = Submission(protein_id=row['proteinID'], peptide=row['peptide'], function=row['function'], additional_details=row['additional_details'], ic50=row['ic50'], inhibition_type=row['inhibition_type'],inhibited_microorganisms=row['inhibited_microorganisms'], ptm=row['ptm'], title=row['title'], authors=row['authors'], abstract=row['abstract'], doi=row['doi'], intervals=':'.join(interval_list), protein_variants=','.join(pvid_list), length=len(row['peptide']), time_submitted=tn)
                         sub.save()
                         count += 1
 
@@ -161,6 +161,61 @@ def pepdb_add_csv(csv_file, messages):
         raise subprocess.CalledProcessError(1, cmd="", output="Error: File needs to use Unicode (UTF-8) encoding. Conversion failed.")
     return messages
 
+
+def pepdb_approve(queryset):
+    messages = []
+    records = 0
+
+    for e in queryset:
+        try:
+            idcheck = ProteinInfo.objects.get(pid=e.protein_id)
+        except ProteinInfo.DoesNotExist:
+            messages.append(
+                f"Error: Protein ID {e.protein_id} not found in database for peptide {e.peptide}. Skipping. You can use the Add Fasta Files tool to add the protein to the database.")
+            continue
+
+        # Check if the peptide exists
+        pepcheck = PeptideInfo.objects.filter(peptide=e.peptide).first()
+
+        # If the peptide does not exist, create a new peptide entry
+        if not pepcheck:
+            tn = datetime.now()
+            pepinfo = PeptideInfo(peptide=e.peptide, protein_variants=e.protein_variants, protein=idcheck,
+                                  length=e.length, intervals=e.intervals, time_approved=tn)
+            pepinfo.save()
+        else:
+            pepinfo = pepcheck
+
+        # Check if a function for that peptide with the given function description exists
+        fcheck = Function.objects.filter(pep=pepinfo, function=e.function).first()
+
+        # If the function does not exist, create a new function entry
+        if not fcheck:
+            fcheck = Function(pep=pepinfo, function=e.function)
+            fcheck.save()
+
+        # Check if a reference for that function with the given DOI exists
+        doi_check = Reference.objects.filter(func=fcheck, doi=e.doi).first()
+
+        # If the reference does not exist, create a new reference entry
+        if not doi_check:
+            r = Reference(func=fcheck, title=e.title, authors=e.authors, abstract=e.abstract, doi=e.doi,
+                          additional_details=e.additional_details, ic50=e.ic50, inhibition_type=e.inhibition_type,
+                          inhibited_microorganisms=e.inhibited_microorganisms, ptm=e.ptm)
+            r.save()
+            records += 1
+        else:
+            messages.append(
+                f"Warning: Peptide {e.peptide} with Function '{e.function}' and DOI '{e.doi}' already exists in DB.")
+
+        # Delete the submission
+        e.delete()
+
+    messages.append(f"Added {records} submissions to database.")
+    return messages
+
+
+"""
 #Approved upload of data
 def pepdb_approve(queryset):
 
@@ -181,41 +236,43 @@ def pepdb_approve(queryset):
             pepinfo.save()
             f = Function(pep=pepinfo, function=e.function)
             f.save()
-            r = Reference(func=f, title=e.title, authors=e.authors, abstract=e.abstract, doi=e.doi, secondary_func=e.secondary_function, ptm=e.ptm)
+            r = Reference(func=f, title=e.title, authors=e.authors, abstract=e.abstract, doi=e.doi, additional_details=e.additional_details, ic50=e.ic50, inhibition_type=e.inhibition_type, inhibited_microorganisms=e.inhibited_microorganisms, ptm=e.ptm)
             r.save()
             records = records + 1
             e.delete()
             continue
 
         try:
-            fcheck = Function.objects.get(pep=pepcheck, function=e.function)
+            fcheck = Function.objects.get(function=e.function)
+            print(pepcheck)
         except Function.DoesNotExist:
             f = Function(pep=pepcheck, function=e.function)
             f.save()
-            r = Reference(func=f, title=e.title, authors=e.authors, abstract=e.abstract, doi=e.doi, secondary_func=e.secondary_function, ptm=e.ptm)
+            r = Reference(func=f, title=e.title, authors=e.authors, abstract=e.abstract, doi=e.doi, additional_details=e.additional_details, ic50=e.ic50, inhibition_type=e.inhibition_type, inhibited_microorganisms=e.inhibited_microorganisms, ptm=e.ptm)
             r.save()
             records = records + 1
             e.delete()
             continue
 
         try:
-            doi_check = Reference.objects.get(func=fcheck, doi=e.doi)
-            if (doi_check.secondary_func != '' and e.secondary_function != '') or (doi_check.ptm != '' and e.ptm != ''):
-                if doi_check.secondary_func != '' and e.secondary_function != '':
-                    doi_check.secondary_func = e.secondary_function
-                    doi_check.save()
-                    messages.append("Peptide "+e.peptide+" with Function '"+e.function+"' and DOI '"+e.doi+"' found. Updated secondary function to '"+e.secondary_function+"'.")
+            doi_checks = Reference.objects.filter(func=fcheck, doi=e.doi)
+            for doi_check in doi_checks:
+                if (doi_check.additional_details != '' and e.additional_details != '') or (doi_check.ptm != '' and e.ptm != ''):
+                    if doi_check.additional_details != '' and e.additional_details != '':
+                        doi_check.additional_details = e.additional_details
+                        doi_check.save()
+                        messages.append("Peptide "+e.peptide+" with Function '"+e.function+"' and DOI '"+e.doi+"' found. Updated additional_details to '"+e.additional_details+"'.")
 
-                if doi_check.ptm != '' and e.ptm != '':
-                    doi_check.ptm = e.ptm
-                    doi_check.save()
-                    messages.append("Peptide "+e.peptide+" with Function '"+e.function+"' and DOI '"+e.doi+"' found. Updated PTM to '"+e.ptm+"'.")
+                    if doi_check.ptm != '' and e.ptm != '':
+                        doi_check.ptm = e.ptm
+                        doi_check.save()
+                        messages.append("Peptide "+e.peptide+" with Function '"+e.function+"' and DOI '"+e.doi+"' found. Updated PTM to '"+e.ptm+"'.")
 
-                e.delete()
-                records = records + 1
-                continue
+                    e.delete()
+                    records = records + 1
+                    continue
         except Reference.DoesNotExist:
-            r = Reference(func=fcheck, title=e.title, authors=e.authors, abstract=e.abstract, doi=e.doi, secondary_func=e.secondary_function, ptm=e.ptm)
+            r = Reference(func=fcheck, title=e.title, authors=e.authors, abstract=e.abstract, doi=e.doi, additional_details=e.additional_details, ic50=e.ic50, inhibition_type=e.inhibition_type, inhibited_microorganisms=e.inhibited_microorganisms, ptm=e.ptm)
             r.save()
             records = records + 1
             e.delete()
@@ -227,7 +284,7 @@ def pepdb_approve(queryset):
 
     messages.append("Added "+str(records)+" submissions to database.")
     return messages
-
+"""
 #Primary function referenced in blast search when extra information is requested
 def run_blastp(q,peptide,matrix):
     work_path = create_work_directory(settings.WORK_DIRECTORY)
@@ -252,9 +309,18 @@ def run_blastp(q,peptide,matrix):
 
     return data
 
+# This function appends the data to the list, prepending it with a title number if there is more than one entry.
+def append_with_titnum(data_list, data, titnum):
+    if len(data_list) > 0:
+        data_list.append(f"<b>{titnum})</b> {data}")
+        if not data_list[0].startswith('<b>1)</b>'):
+            data_list[0] = f"<b>1)</b> {data_list[0]}"
+    else:
+        data_list.append(data)
+
 #2nd function in toolbox data pipeline, handles the input from the pepdb_multi_search_manual
 #Returns list of string results form inputed peptide list (manual inputs)
-def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix, extra, pid, function, species, no_pep):
+def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix, extra, pid, function, species, no_pep, results_headers):
     results = []
     extra_info = defaultdict(list)
     q = PeptideInfo.objects.all()
@@ -419,59 +485,82 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
             authors=[]
             abstracts=[]
             dois=[]
-            sf=[]
+            ad=[]
+            ic=[]
+            it=[]
+            im=[]
             ptms=[]
             titnum=1
 
             for ref in refs:
-                if ref.title != '': titles.append("("+str(titnum)+") "+ref.title+". ")
-                if ref.secondary_func != '': sf.append("("+str(titnum)+") "+ref.secondary_func+". ")
-                if ref.ptm != '': ptms.append("("+str(titnum)+") "+ref.ptm+". ")
-                titnum+=1
-                if ref.authors != '': authors.append(ref.authors)
-                if ref.abstract != '': abstracts.append(ref.abstract)
-                dois.append(ref.doi)
+                if ref.title != '':
+                    append_with_titnum(titles, ref.title, titnum)
+                if ref.additional_details != '':
+                    append_with_titnum(ad, ref.additional_details, titnum)
+                if ref.ic50 != '':
+                    append_with_titnum(ic, str(ref.ic50), titnum)
+                if ref.inhibition_type != '':
+                    append_with_titnum(it, ref.inhibition_type, titnum)
+                if ref.inhibited_microorganisms != '':
+                    append_with_titnum(im, ref.inhibited_microorganisms, titnum)
+                if ref.ptm != '':
+                    append_with_titnum(ptms, ref.ptm, titnum)
+                if ref.authors != '':
+                    append_with_titnum(authors, ref.authors, titnum)
+                if ref.abstract != '':
+                    append_with_titnum(abstracts, ref.abstract, titnum)
+                if ref.doi != '':
+                    append_with_titnum(dois, ref.doi, titnum)
+                titnum += 1
+                #if ref.authors != '': authors.append(ref.authors)
+                #if ref.abstract != '': abstracts.append(ref.abstract)
+                #dois.append(ref.doi)
             # Determine the initial_peptide string based on whether "truncated" is in peptide_option
-            web_initial_peptide = info.peptide.replace(peptide,"<b>" + peptide + "</b>") if "truncated" in peptide_option else info.peptide
-            file_initial_peptide = info.peptide
+            initial_peptide = info.peptide.replace(peptide,"<b>" + peptide + "</b>") if "truncated" in peptide_option else info.peptide
 
             # Create two different rows for web display and file writing
-            web_temprow = ([peptide] if not no_pep else []) + [pp, web_initial_peptide, pd, info.protein.species,
+            temprow = ([peptide] if not no_pep else []) + [pp, initial_peptide, pd, info.protein.species,
                                                                info.intervals]
-            file_temprow = ([peptide] if not no_pep else []) + [pp, file_initial_peptide, pd, info.protein.species,
-                                                                info.intervals]
 
             # Common fields that will be extended to both rows
-            common_fields = [func.function, ', '.join(sf), ', '.join(ptms), ', '.join(titles), ', '.join(authors),
-                             ', '.join(abstracts), ', '.join(dois)]
+            common_fields = [
+                func.function,
+                ',<br>'.join(ad),
+                ',<br>'.join(ic),
+                ',<br>'.join(it),
+                ',<br>'.join(im),
+                ',<br>'.join(ptms),
+                ',<br>'.join(titles),
+                ',<br>'.join(authors),
+                ',<br>'.join(abstracts),
+                ',<br>'.join(dois)
+            ]
 
-            # Extend both web_temprow and file_temprow with common fields
-            web_temprow.extend(common_fields)
-            file_temprow.extend(common_fields)
+            # Extend temprow with common_fields
+            temprow.extend(common_fields)
 
-            # Add peptide_option to both web_temprow and file_temprow if no_pep is False
+              # Add peptide_option to temprowif no_pep is False
             if not no_pep:
-                web_temprow.append(peptide_option)
-                web_temprow.append(matrix)
-                file_temprow.append(peptide_option)
-                file_temprow.append(matrix)
+                temprow.append(peptide_option)
+                temprow.append(matrix)
 
-            # Extend both web_temprow and file_temprow with extra_info if conditions are met
+            # Extend temprowwith extra_info if conditions are met
             if extra and seqsim != 100:  # or matrix == "IDENTITY" perhaps this should be added given original code
                 if str(info.id) in extra_info:
-                    web_temprow.extend(extra_info[str(info.id)])
-                    file_temprow.extend(extra_info[str(info.id)])
+                    temprow.extend(extra_info[str(info.id)])
                 else:
-                    web_temprow.extend([u'\t'] * 9)  # Add nine tab characters
-                    file_temprow.extend([u'\t'] * 9)  # Add nine tab characters
+                    temprow.extend([u'\t'] * 9)  # Add nine tab characters
 
-
+            # Iterate through common_fields to replace <br> with \n for file_temprow
+            file_temprow = []
+            for field in temprow:
+                clean_field = field.replace('<br>', '\n').replace('<b>', '').replace('</b>', '')
+                file_temprow.append(clean_field)
             # Write the row to the file (using the version without HTML tags)
             writer.writerow(file_temprow)
+            # Append the results for web display using a dictionary
+            results.append(dict(zip(results_headers, temprow)))
 
-            # Append the results for web display (using the version with HTML tags)
-            results.append('</td><td style="padding:10px; max-width:300px; word-wrap:break-word;">'.join(
-                str(v) for v in web_temprow))
 
     invalid_functions = [fun for fun in function if fun not in verified_functions]
     invalid_species = list(set(invalid_species))
@@ -513,6 +602,8 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
 def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsim, matrix, extra, species, no_pep):
     results = []
     messages = []
+    results_headers = []
+    common_csv_headers_file = []
     # Check if WORK_DIRECTORY exists and is writable
 
     work_path = create_work_directory(settings.WORK_DIRECTORY)
@@ -525,24 +616,31 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     writer = csv.writer(out, delimiter='\t')
 
     # Create a variable for common CSV headers
-    common_csv_headers = ('Search peptide','Protein ID', 'Peptide', 'Protein description', 'Species',
-                          'Intervals', 'Function', 'Secondary function', 'PTM', 'Title', 'Authors', 'Abstract', 'DOI', 'Search type', 'Scoring matrix')
+    common_csv_headers = ('Search&nbsppeptide',
+                          'Protein&nbspID',
+                          'Peptide&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp',
+                          'Protein&nbspdescription',
+                          'Species&nbsp&nbsp&nbsp&nbsp',
+                          'Intervals',
+                          'Function',
+                          'Additional&nbspdetails',
+                          'IC50&nbsp(μM)&nbsp&nbsp&nbsp&nbsp',
+                          'Inhibition&nbsptype',
+                          'Inhibited&nbspmicroorganisms',
+                          'PTM',
+                          "Title&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp",#107 whiteshapce characters
+                          "Authors&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp", #35 characters
+                          "Abstract&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp", #107 whiteshapce characters
+                          'DOI&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp',
+                          'Search type',
+                          'Scoring matrix')
 
     # Create a variable for extra CSV headers related to BLAST output
     blast_output_headers = ('% Alignment', 'Query start', 'Query end', 'Subject start', 'Subject end', 'e-value',
                             'Alignment length', 'Mismatches', 'Gap opens')
     if no_pep:
+        common_csv_headers = tuple(header for header in common_csv_headers if header not in {'Search&nbsppeptide', 'Search type', 'Scoring matrix'})
 
-        common_csv_headers = tuple(header for header in common_csv_headers if header not in {'Search peptide', 'Search type', 'Scoring matrix'})
-        common_table_headers = ('<th style="padding:10px;">{}</th>'.format(header) for header in common_csv_headers)
-        common_table_headers_str = ''.join(common_table_headers)
-    else:
-        # Create a variable for common HTML table headers
-        common_table_headers = ('<th style="padding:10px;">{}</th>'.format(header) for header in common_csv_headers)
-        common_table_headers_str = ''.join(common_table_headers)
-    # Create a variable for extra HTML table headers related to BLAST output
-    blast_output_table_headers = ('<th style="padding:10px;">{}</th>'.format(header) for header in blast_output_headers)
-    blast_output_table_headers_str = ''.join(blast_output_table_headers)
     pep_list = []
     peptide_option_list = []
     matrix_list = []
@@ -592,30 +690,33 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     # Replace it with the following to remove HTML tags
     cleaned_params_str_tab = re.sub('<.*?>', '', params_str_tab)
     writer.writerow([f'#Search parameters:\t{cleaned_params_str_tab}'])
-    # Remove the trailing comma if it exists
 
-    # Join the list with HTML space entities between each item
+
+    for header in common_csv_headers:
+        cleaned_header = re.sub('&nbsp', '', header)
+        common_csv_headers_file.append(cleaned_header)
     params_str_web = "</br>".join(params_list)
-    results_header = ("<h2><u>Search parameters:</u> </br></h2><h4>"+params_str_web+"</h4>")
+    formated_header = ("<h2><u>Search parameters:</u> </br></h2><h4>"+params_str_web+"</h4>")
 
 
     # Use the variables in your main code
     if extra and seqsim != 100:
-        writer.writerow(common_csv_headers + blast_output_headers)
-        results.append('<tr>{}{}</tr><tr><td>'.format(common_table_headers_str, blast_output_table_headers_str))
+        writer.writerow(list(common_csv_headers_file) + list(blast_output_headers))
+        #results.append('<tr>{}{}</tr><tr><td>'.format(common_table_headers_str, blast_output_table_headers_str))
+        results_headers.extend(list(common_csv_headers) + list(blast_output_headers))
+        #results.append(common_csv_headers, blast_output_headers)
     else:
-        writer.writerow(common_csv_headers)
-        results.append('<tr>{}</tr><tr><td>'.format(common_table_headers_str))
-
+        writer.writerow(common_csv_headers_file)
+        #results.append(common_csv_headers)
+        results_headers.extend(common_csv_headers)
     if not content:  # This will be True for both truly empty files and files with just whitespace or ""
         results.extend(
-            pepdb_search_tsv_line_manual(writer, "", peptide_option, seqsim, matrix, extra, pid, function, species, no_pep))
+            pepdb_search_tsv_line_manual(writer, "", peptide_option, seqsim, matrix, extra, pid, function, species, no_pep, results_headers))
     else:
         for cont in content.splitlines():
             # Split the cont string into pep and peptide_option
             pep, peptide_option, matrix = cont.split(' ', 2)
-            results.extend(
-                pepdb_search_tsv_line_manual(writer, pep, peptide_option, seqsim, matrix, extra, pid, function, species,no_pep))
+            results.extend(pepdb_search_tsv_line_manual(writer, pep, peptide_option, seqsim, matrix, extra, pid, function, species,no_pep, results_headers))
     # Extract and clean warning results
     warning_results = list(set(r for r in results if "WARNING:" in r))
     cleaned_warning_results = [re.sub('<.*?>', '', warning) for warning in warning_results]
@@ -625,7 +726,7 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     for cleaned_warning in cleaned_warning_results:
         writer.writerow([cleaned_warning])
 
-    return results,results_header,output_path
+    return results,formated_header,output_path,results_headers
 
 #returns date of most recently added peptide, updated on 8/8/23 to only return date
 def get_latest_peptides(n):
@@ -685,7 +786,7 @@ def add_proteins(input_fasta_files, messages):
                     gvid = gv.group(1)
 
                 try:
-                    idcheck = ProteinInfo.objects.get(pid=protid)
+                    idcheck = ProteinInfo.objects.filter(pid=protid)
                 except ProteinInfo.DoesNotExist:
                     if not gvid:
                         protinfo = ProteinInfo(header=seq_record.description, pid=protid, seq=seq_record.seq, desc=prot_desc, species=prot_species)
@@ -755,6 +856,7 @@ def create_fasta_input(input_tsv_path):
     return (with_ids_tsv_path,with_ids_fasta_path)
 
 #Secondary function used in the blast search when extra infor is requested
+#Secondary function used in the blast search when extra infor is requested
 def make_blast_db(library_fasta_path):
     subprocess.check_output(['makeblastdb','-in', library_fasta_path,'-dbtype','prot'],stderr=subprocess.STDOUT)
 
@@ -814,7 +916,9 @@ def export_database(request):
         .prefetch_related('functions', 'functions__references')  # LEFT JOIN with Function and Reference
         .values(
             'peptide', 'protein_id', 'protein__desc', 'protein__species', 'intervals',
-            'functions__function', 'functions__references__secondary_func',
+            'functions__function', 'functions__references__additional_details',
+            'functions__references__ic50','functions__references__inhibition_type',
+            'functions__references__inhibited_microorganisms',
             'functions__references__ptm', 'functions__references__title',
             'functions__references__authors', 'functions__references__abstract',
             'functions__references__doi'
@@ -832,7 +936,7 @@ def export_database(request):
     # Write header
     writer.writerow([
         'peptide', 'protein_pid', 'protein_desc', 'protein_species', 'intervals',
-        'function', 'secondary_func', 'ptm', 'title', 'authors', 'abstract', 'doi'
+        'function', 'additional_details', 'ic50', 'inhibition_type', 'inhibited_microorganisms','ptm', 'title', 'authors', 'abstract', 'doi'
     ])
 
     # Write actual rows
@@ -844,7 +948,10 @@ def export_database(request):
             row.get('protein__species', ''),
             row.get('intervals', ''),
             row.get('functions__function', ''),
-            row.get('functions__references__secondary_func', ''),
+            row.get('functions__references__additional_details', ''),
+            row.get('functions__references__ic50', ''),
+            row.get('functions__references__inhibition_type', ''),
+            row.get('functions__references__inhibited_microorganisms', ''),
             row.get('functions__references__ptm', ''),
             row.get('functions__references__title', ''),
             row.get('functions__references__authors', ''),
