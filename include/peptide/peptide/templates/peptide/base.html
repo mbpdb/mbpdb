@@ -16,11 +16,8 @@
     <!-- Bootstrap Core CSS -->
     <link href="{% static 'peptide/theme/css/bootstrap.min.css' %}" rel="stylesheet">
 
-    <!-- Custom CSS -->
-    <link href="{% static 'peptide/theme/css/simple-sidebar.css' %}" rel="stylesheet">
-
-    <!-- Nik's custom CSS -->
-    <link href="{% static 'peptide/theme/css/nik.css' %}" rel="stylesheet">
+    <!-- Nik's + Rusty's custom CSS -->
+    <link href="{% static 'peptide/theme/css/custom.css' %}" rel="stylesheet">
 
     <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
     <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
@@ -47,54 +44,33 @@
 
 <body>
 
-    <div id="wrapper">
+<div id="menubar-wrapper">
+    <ul class="menubar-nav">
+        <li><a href="{% url 'peptide_search' %}">Search the MBPDB</a></li>
+        <li><a href="{% static 'peptide/MBPDB_Help.pdf' %}" target="_blank">MBPDB help</a></li>
+        <li><a href="{% url 'about_us' %}">Contact / About Us</a></li>
 
-        <!-- Sidebar -->
-        <div id="sidebar-wrapper">
-            <ul class="sidebar-nav">
-                 <li><u><b>
-                    <a href="{% url 'index' %}">
-                        Milk Bioactive Peptide Database
-                    </a></u>
-                     </b>
-                 </li>
-                <li>
-                    <a href="{% url 'peptide_search' %}">MBPDB Search</a>
-                </li>
-                <li>
-                    <a href="{% static 'peptide/MBPDB_Help.pdf' %}" target="_blank">MBPDB help</a>
-                </li>
-                <li>
-                   <a href="{% url 'about_us' %}">Contact / About Us</a>
-                </li>
-                <li><u><b>
-                         Dallas Lab Peptide Tools
-                    </u></b>
-                <li>
-                    <a href="{% url 'pepex' %}">PepEx</a>
-                </li>
-            </br></br></br></br>
-                <div class="sidebar-bottom-content">
-        <span>
-            If you are referencing this database: <a href="{% url 'about_us' %}" style="font-size: 20px;"><b>please cite</b></a></br>
-            {% for pep in latest_peptides %}
-                Database updated: {{pep.time_approved}}
-            {% endfor %}
-        </span>
-        </div>
-    </div>
-        <!-- /#sidebar-wrapper -->
+        <li class="dropdown">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Dallas Lab Peptide Tools <span class="caret"></span></a>
+            <ul class="dropdown-menu">
+                <li><a href="{% url 'pepex' %}">PepEx</a></li>
+                <!-- Add more dropdown items here if necessary -->
+            </ul>
+        </li>
+    </ul>
+</div>
+        <!-- /#menubar-wrapper -->
 
         <!-- Page Content -->
         <div id="page-content-wrapper">
             <div class="container-fluid">
                 <div class="row">
                     <div class="col-lg-12">
+
 {% block 'content' %}
 						<h1>Simple Sidebar</h1>
                         <p>This template has a responsive menu toggling system. The menu will appear collapsed on smaller screens, and will appear non-collapsed on larger screens. When toggled using the button below, the menu will appear/disappear. On small screens, the page content will be pushed off canvas.</p>
                         <p>Make sure to keep all page content within the <code>#page-content-wrapper</code>.</p>
-                        <a href="#menu-toggle" class="btn btn-default" id="menu-toggle">Toggle Menu</a>
 {% endblock 'content' %}
                     </div>
                 </div>
@@ -105,18 +81,20 @@
     </div>
     <!-- /#wrapper -->
 </body>
+   <footer>
+    <div class="footer-content">
+        If you are referencing this database: <a href="{% url 'about_us' %}"><b>please cite</b></a><br>
+        {% for pep in latest_peptides %}
+            Database updated: {{pep.time_approved}}
+        {% endfor %}
+    </div>
+    </footer>
     <!-- jQuery -->
     <script src="{% static 'peptide/theme/js/jquery.js' %}"></script>
 
     <!-- Bootstrap Core JavaScript -->
     <script src="{% static 'peptide/theme/js/bootstrap.min.js' %}"></script>
 
-    <!-- Menu Toggle Script -->
-    <script>
-    $("#menu-toggle").click(function(e) {
-        e.preventDefault();
-        $("#wrapper").toggleClass("toggled");
-    });
     </script>
 {% block 'scripts' %}
 {% endblock 'scripts' %}
