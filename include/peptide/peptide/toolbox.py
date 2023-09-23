@@ -161,7 +161,6 @@ def pepdb_add_csv(csv_file, messages):
         raise subprocess.CalledProcessError(1, cmd="", output="Error: File needs to use Unicode (UTF-8) encoding. Conversion failed.")
     return messages
 
-
 def pepdb_approve(queryset):
     messages = []
     records = 0
@@ -214,77 +213,6 @@ def pepdb_approve(queryset):
     messages.append(f"Added {records} submissions to database.")
     return messages
 
-
-"""
-#Approved upload of data
-def pepdb_approve(queryset):
-
-    messages=[]
-    records=0
-    for e in queryset:
-        try:
-            idcheck = ProteinInfo.objects.get(pid=e.protein_id)
-        except ProteinInfo.DoesNotExist:
-            messages.append("Error: Protein ID "+e.protein_id+" not found in database for peptide "+e.peptide+". Skipping. You can use the Add Fasta Files tool to add the protein to the database.")
-            continue
-
-        try:
-            pepcheck = PeptideInfo.objects.get(peptide=e.peptide)
-        except PeptideInfo.DoesNotExist:
-            tn = datetime.now()
-            pepinfo = PeptideInfo(peptide=e.peptide, protein_variants=e.protein_variants, protein=idcheck, length=e.length, intervals=e.intervals, time_approved=tn)
-            pepinfo.save()
-            f = Function(pep=pepinfo, function=e.function)
-            f.save()
-            r = Reference(func=f, title=e.title, authors=e.authors, abstract=e.abstract, doi=e.doi, additional_details=e.additional_details, ic50=e.ic50, inhibition_type=e.inhibition_type, inhibited_microorganisms=e.inhibited_microorganisms, ptm=e.ptm)
-            r.save()
-            records = records + 1
-            e.delete()
-            continue
-
-        try:
-            fcheck = Function.objects.get(function=e.function)
-            print(pepcheck)
-        except Function.DoesNotExist:
-            f = Function(pep=pepcheck, function=e.function)
-            f.save()
-            r = Reference(func=f, title=e.title, authors=e.authors, abstract=e.abstract, doi=e.doi, additional_details=e.additional_details, ic50=e.ic50, inhibition_type=e.inhibition_type, inhibited_microorganisms=e.inhibited_microorganisms, ptm=e.ptm)
-            r.save()
-            records = records + 1
-            e.delete()
-            continue
-
-        try:
-            doi_checks = Reference.objects.filter(func=fcheck, doi=e.doi)
-            for doi_check in doi_checks:
-                if (doi_check.additional_details != '' and e.additional_details != '') or (doi_check.ptm != '' and e.ptm != ''):
-                    if doi_check.additional_details != '' and e.additional_details != '':
-                        doi_check.additional_details = e.additional_details
-                        doi_check.save()
-                        messages.append("Peptide "+e.peptide+" with Function '"+e.function+"' and DOI '"+e.doi+"' found. Updated additional_details to '"+e.additional_details+"'.")
-
-                    if doi_check.ptm != '' and e.ptm != '':
-                        doi_check.ptm = e.ptm
-                        doi_check.save()
-                        messages.append("Peptide "+e.peptide+" with Function '"+e.function+"' and DOI '"+e.doi+"' found. Updated PTM to '"+e.ptm+"'.")
-
-                    e.delete()
-                    records = records + 1
-                    continue
-        except Reference.DoesNotExist:
-            r = Reference(func=fcheck, title=e.title, authors=e.authors, abstract=e.abstract, doi=e.doi, additional_details=e.additional_details, ic50=e.ic50, inhibition_type=e.inhibition_type, inhibited_microorganisms=e.inhibited_microorganisms, ptm=e.ptm)
-            r.save()
-            records = records + 1
-            e.delete()
-            continue
-
-        messages.append("Warning: Peptide "+e.peptide+" with Function '"+e.function+"' and DOI '"+e.doi+"' already exists in DB.")
-        e.delete()
-        continue
-
-    messages.append("Added "+str(records)+" submissions to database.")
-    return messages
-"""
 #Primary function referenced in blast search when extra information is requested
 def run_blastp(q,peptide,matrix):
     work_path = create_work_directory(settings.WORK_DIRECTORY)
@@ -554,7 +482,14 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
             # Iterate through common_fields to replace <br> with \n for file_temprow
             file_temprow = []
             for field in temprow:
-                clean_field = field.replace('<br>', '\n').replace('<b>', '').replace('</b>', '')
+                if isinstance(field, str):
+                    clean_field = field.replace('<br>', '\n').replace('<b>', '').replace('</b>', '')
+                elif isinstance(field, list):
+                    # Convert list to string (e.g., by joining its elements with a space)
+                    clean_field = ' '.join(field).replace('<br>', '\n').replace('<b>', '').replace('</b>', '')
+                else:
+                    # For other types, you can decide how you want to handle them
+                    clean_field = str(field)
                 file_temprow.append(clean_field)
             # Write the row to the file (using the version without HTML tags)
             writer.writerow(file_temprow)

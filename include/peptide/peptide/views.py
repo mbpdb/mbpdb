@@ -49,11 +49,11 @@ def peptide_search(request):
         counter = Counter(ip=request.META['REMOTE_ADDR'], access_time=timezone.now(), page='peptide search')
         counter.save()
 
-        peptides = [line.strip() for line in request.POST.get('peptides', '').splitlines()]
-        peptide_option = request.POST.getlist('peptide_option')
-        pid = [x.strip() for x in request.POST.get('proteinid', '').split(',')] if request.POST.get('proteinid','').strip() else []
-        function = [x.strip() for x in request.POST.get('function', '').split(',')] if request.POST.get('function','').strip() else []
-        species = [x.strip() for x in request.POST.get('species', '').split(',')] if request.POST.get('species','').strip() else []
+        peptides = list(set([line.strip() for line in request.POST.get('peptides', '').splitlines()]))
+        peptide_option = list(set(request.POST.getlist('peptide_option')))
+        pid = list(set([x.strip() for x in request.POST.get('proteinid', '').split(',')])) if request.POST.get('proteinid', '').strip() else []
+        function = list(set([x.strip() for x in request.POST.get('function', '').split(',')])) if request.POST.get('function', '').strip() else []
+        species = list(set([x.strip() for x in request.POST.get('species', '').split(',')])) if request.POST.get('species', '').strip() else []
         seqsim = int(request.POST['seqsim'])
         matrix = request.POST.getlist('matrix')
         for peptide in peptides:
@@ -103,6 +103,15 @@ def peptide_search(request):
         'Inhibited&nbspmicroorganisms',
         'PTM'
     ]
+    # Separate warnings and results
+    warning_results = [r for r in results if isinstance(r, str) and "WARNING:" in r]
+    results = [r for r in results if not (isinstance(r, str) and "WARNING:" in r)]
+
+    # Check if any items in results are strings
+    if any(isinstance(result, str) for result in results):
+        print("Found strings in results:", [result for result in results if isinstance(result, str)])
+        # Handle them as necessary, e.g., filter them out
+        results = [result for result in results if isinstance(result, dict)]
 
     # Check for each column
     for column in columns_to_check:
@@ -115,11 +124,6 @@ def peptide_search(request):
             # Remove column from headers
             if column in results_headers:
                 results_headers.remove(column)
-    # Separate warnings and results
-    warning_results = [r for r in results if "WARNING:" in r]
-    warning_results = list(set(warning_results))
-
-
 
     return render(request, 'peptide/peptide_search.html', {
         'errors': errors,
