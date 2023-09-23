@@ -24,6 +24,7 @@
     <!--[if lt IE 9]>
         <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
         <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+
     <![endif]-->
     <script src="{% static 'peptide/vendor/angular-file-upload/angular-file-upload-shim.min.js' %}"></script>
     <script src="{% static 'peptide/vendor/angular.min.js' %}"></script>
@@ -46,12 +47,12 @@
 
 <div id="menubar-wrapper">
     <ul class="menubar-nav">
-        <li><a href="{% url 'peptide_search' %}">Search the MBPDB</a></li>
-        <li><a href="{% static 'peptide/MBPDB_Help.pdf' %}" target="_blank">MBPDB help</a></li>
-        <li><a href="{% url 'about_us' %}">Contact / About Us</a></li>
-
+        <li><a href="{% url 'peptide_search' %}">Search</a></li>
+        <li><a href="{% url 'about_us' %}">About</a></li>
+        <li><a href="{% static 'peptide/MBPDB_Help.pdf' %}" target="_blank">Help</a></li>
+        <li><a href="{% url 'about_us' %}">Contact</a></li>
         <li class="dropdown">
-            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Dallas Lab Peptide Tools <span class="caret"></span></a>
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Tools <span class="caret"></span></a>
             <ul class="dropdown-menu">
                 <li><a href="{% url 'pepex' %}">PepEx</a></li>
                 <!-- Add more dropdown items here if necessary -->
