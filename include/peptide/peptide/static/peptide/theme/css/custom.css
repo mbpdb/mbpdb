@@ -135,7 +135,7 @@
     }
 
     #menubar-wrapper {
-        height: 30px;
+        height: 40px;
     }
 
     #wrapper.toggled #menubar-wrapper {
@@ -226,3 +226,5 @@ textarea.tools-form-raw-text-input {
     font-size: 18px;
     width: 100%;
 }
+
+
