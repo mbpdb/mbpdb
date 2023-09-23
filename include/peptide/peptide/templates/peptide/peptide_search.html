@@ -231,7 +231,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 <a name="search_results"></a>
 </form>
 <br/>
-{% if results and not errors %}
+{% if not errors and results or warnings %}
     <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a> | If you are referencing this database: <a href="{% url 'about_us' %}" style="font-size: 20px;"> <b>please cite</b></a>
     <br/>
 
