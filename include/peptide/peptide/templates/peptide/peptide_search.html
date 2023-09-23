@@ -2,47 +2,8 @@
 {% load static %}
 {% block 'content' %}
 {% load custom_filters %}
-
-<style>
-#hiddenFileInput {
-    display: none;
-}
-textarea.tools-form-raw-text-input {
-    width: 50vw;
-}
-.textarea-container p {
-    width:50vw;
-    word-wrap: break-word;
-}
-.form-group label, .form-group .help-block {
-    text-align: left;
-}
-.full-width {
-    flex: 1;
-    width: 100%;
-}
-.warning {
-    //background-color: #FFF0F0;  /* Light red background */
-    width: 100%;
-    text-align: left;
-}
-.collapsible-content {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.5s ease-in-out;
-}
-
-.toggle-content {
-    background-color: #ffffff;
-    border: none;
-    color: #0000FF; /* Hyperlink blue */
-    display: block;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-</style>
 {% for e in errors %}
+
 <div class="alert alert-danger  alert-dismissible" role="alert">
   <button type="button" class="close" data-dismiss="alert">
   <span aria-hidden="true">&times;</span>
@@ -282,7 +243,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     </tbody>
 </table>
 {% endif %}
-
+<br/><br/><br/><br/>
 <script>
 // This part handles the "Show More" and "Show Less" buttons
 document.addEventListener("DOMContentLoaded", function() {
