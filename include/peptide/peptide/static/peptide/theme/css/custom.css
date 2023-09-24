@@ -13,6 +13,7 @@
 .mytooltip {
     position: relative;
     display: inline-block;
+    z-index: 1000;
 }
 
 /* Tooltip text */
@@ -211,8 +212,11 @@ textarea.tools-form-raw-text-input {
     text-align: left;
 }
 .collapsible-content {
+    //width: 500px;
     max-height: 0;
-    overflow: hidden;
+    height: 525px;
+    overflow-y: auto;
+    overflow-x: hidden;
     transition: max-height 0.5s ease-in-out;
 }
 
@@ -226,5 +230,19 @@ textarea.tools-form-raw-text-input {
     font-size: 18px;
     width: 100%;
 }
+.isolated-section {
+   overflow: auto;
+}
+.select2-container--open .select2-dropdown {
+    max-height: none !important;
+}
 
-
+.select2-container--open .select2-selection__rendered {
+    max-height: none !important;
+    overflow-y: auto;
+}
+.fixed-width-col {
+    width: 275px;
+    overflow-y: auto;
+    max-height: 300px;
+}

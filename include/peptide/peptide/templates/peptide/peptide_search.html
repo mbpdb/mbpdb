@@ -39,29 +39,41 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 <div class="collapsible-content" id="advancedSearchOptions">
     <p class="help-block">Note that the Peptide Sequence, Protein ID, Function, and Species, inputs can be empty. <br/> If no peptide sequence is provided, homology search results can't be provided.</p>
     <table>
-  <div class="form-group">
     <td style="padding-left:15px">
         <h5><u>Homology Search Options:</u></h5>
         </td></tr>
-        <tr><td style="padding-left:30px">
-        <label>Search type:</label>
 
-<input type="checkbox" name="peptide_option" value="sequence" {% if not peptide_option or 'sequence' in peptide_option %}checked{% endif %}>Sequence
-<input type="checkbox" name="peptide_option" value="truncated" {% if 'truncated' in peptide_option %}checked{% endif %}>Truncated
-<input type="checkbox" name="peptide_option" value="precursor" {% if 'precursor' in peptide_option %}checked{% endif %}>Precursor&nbsp;
+<tr></tr><td style="padding-left:25px">
+<div class="form-group row">
+    <!-- Label -->
+    <label class="col-sm-4 col-form-label">Search&nbsptype:</label>
 
-    <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
-      <div class="mytooltiptext" style="width:580px;">
-      Sequence: Searches for peptides with a match to the above peptide sequence.<br/>
-      Truncated: Searches for peptides that contain the above peptide sequence.<br/>
-      Precursor: Searches for peptides that are contained within the above peptide sequence.<br/>
-      </div>
+    <!-- Checkboxes -->
+    <div class="col-sm-4">
+        <input type="checkbox" name="peptide_option" value="sequence" {% if not peptide_option or 'sequence' in peptide_option %}checked{% endif %}>Sequence<br/>
+        <input type="checkbox" name="peptide_option" value="truncated" {% if 'truncated' in peptide_option %}checked{% endif %}>Truncated<br/>
+        <input type="checkbox" name="peptide_option" value="precursor" {% if 'precursor' in peptide_option %}checked{% endif %}>Precursor<br/>
     </div>
 
+    <!-- Tooltip -->
+    <div class="col-sm-1">
+        <div class="mytooltip">
+            <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+            <div class="mytooltiptext" style="width:580px;">
+                Sequence: Searches for peptides with a match to the above peptide sequence.<br/>
+                Truncated: Searches for peptides that contain the above peptide sequence.<br/>
+                Precursor: Searches for peptides that are contained within the above peptide sequence.<br/><br/>
+            </div>
+        </div>
+    </div>
+</div>
+    </td></tr>
 
-    <tr><td style="padding-left:30px">
-    <label>Similarity threshold:</label>
-    <select name="seqsim">
+    <tr><td style="padding-left:25px">
+    <div class="form-group row">
+    <label class="col-sm-4 col-form-label">Similarity&nbspthreshold:</label>
+    <div class="col-sm-4">
+    <select name="seqsim" >
         <option value="10" {% if data.seqsim == "10" %}selected="selected"{% endif %}>10%</option>
         <option value="20" {% if data.seqsim == "20" %}selected="selected"{% endif %}>20%</option>
         <option value="30" {% if data.seqsim == "30" %}selected="selected"{% endif %}>30%</option>
@@ -73,120 +85,163 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
         <option value="90" {% if data.seqsim == "90" %}selected="selected"{% endif %}>90%</option>
         <option value="100" {% if not data.seqsim or data.seqsim == "100" %}selected="selected"{% endif %}>100%</option>
      </select>
-
-     <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
-       <div class="mytooltiptext" style="width:550px;">
-          The similarity threshold is used with the search type in the following ways:
-          <ul>
-          <li>Sequence: Percent match of query peptide against database peptides.</li>
-          <li>Truncated: Percent match of query peptide against full length of query peptide.</li>
-          <li>Precursor: Percent match of database peptides against query peptide.</li>
-          </ul>
-          Note that for a query that is less than 4 AA, similarity threshold will be 100%. Also, when choosing 100% similarity and the identity matrix, a direct database query will always be used.
-       </div>
      </div>
-     </td><tr/>
+
+                <div class="col-sm-1">
+                <div class="mytooltip">
+                    <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+                    <div class="mytooltiptext" style="width:550px;">
+                        The similarity threshold is used with the search type in the following ways:
+                        <ul>
+                            <li>Sequence: Percent match of query peptide against database peptides.</li>
+                            <li>Truncated: Percent match of query peptide against full length of query peptide.</li>
+                            <li>Precursor: Percent match of database peptides against query peptide.</li>
+                        </ul>
+                        Note that for a query that is less than 4 AA, similarity threshold will be 100%. Also, when choosing 100% similarity and the identity matrix, a direct database query will always be used.
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </td>
+</tr>
 
 
-    <tr><td style="padding-left:30px">
-     <label>Scoring matrix:</label>
-        <input type="checkbox" name="matrix" value="IDENTITY" {% if not matrix or "IDENTITY" in matrix %}checked{% endif %}>Identity
-        <input type="checkbox" name="matrix" value="BLOSUM62" {% if "BLOSUM62" in matrix %}checked{% endif %}>BLOSUM62
+<tr>
+    <td style="padding-left:25px">
+            <div class="form-group row">
+            <!-- Label -->
+            <label class="col-sm-4 col-form-label">Scoring&nbspmatrix:</label>
+
+            <!-- Checkboxes -->
+            <div class="col-sm-4">
+                <input type="checkbox" name="matrix" value="IDENTITY" {% if not matrix or "IDENTITY" in matrix %}checked{% endif %}>Identity<br/>
+                <input type="checkbox" name="matrix" value="BLOSUM62" {% if "BLOSUM62" in matrix %}checked{% endif %}>BLOSUM62<br/>
+            </div>
+
+            <!-- Tooltip -->
+            <div class="col-sm-1">
+                <div class="mytooltip">
+                    <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+                    <div class="mytooltiptext" style="width:500px;">
+                        The scoring matrix determines how the matches will occur:
+                        <ul>
+                            <li>Identity: Matches each amino acid exactly.</li>
+                            <li>BLOSUM62: Matches each amino acid using blastp and a protein alignment substitution matrix.</li>
+                        </ul>
+                        Note that for a query that is less than 4 AA, a direct database query will be used. Also, when choosing 100% similarity and the identity matrix, a direct database query will always be used.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </td>
+</tr>
+
+<tr><td style="padding-left:15px">
+    <h5><u>Catagorical Search Options:</u></h5>
+</td></tr>
+
+<td style="padding-left:25px">
+    <div class="form-group row">
+        <label for="protlabel" class="col-form-label col-sm-2">Protein:</label>
+
+        <!-- Select2 dropdown column -->
+        <div class="col-sm-7 fixed-width-col">
+            <select multiple placeholder="Choose Protein ID(s)" data-allow-clear="1" id="protlabel" name="proteinid[]" style="width:100%;">
+                <option value=""></option> <!-- This is for the placeholder -->
+                {% for desc, pids in description_to_pid.items %}
+                    {% for pid in pids %}
+                        <option value="{{ pid }}">{{ desc }} ({{ pid }})</option>
+                    {% endfor %}
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Tooltip column -->
+        <div class="col-sm-1">
+            <div class="mytooltip">
+                <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+                <div class="mytooltiptext" style="width:550px;">
+                    Search the database for UniProt accession numbers (protein IDs):
+                    <ul>
+                        <li>Reference the dropdown list for the cataloged protein IDs and descriptions in the database.</li>
+                    </ul>
+                    Note that protein ID can be left empty.
+                </div>
+            </div>
+        </div>
+    </div>
+</td></tr>
 
 
-    <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
-        <div class="mytooltiptext" style="width:500px;">
-            The scoring matrix determines how the matches will occur:
-            <ul>
-            <li>Identity: Matches each amino acid exactly.</li>
-            <li>BLOSUM62: Matches each amino acid using blastp and a protein alignment substitution matrix.</li>
-            </ul>
-            Note that for a query that is less than 4 AA, a direct database query will be used. Also, when choosing 100% similarity and the identity matrix, a direct database query will always be used.
+<td style="padding-left:25px">
+<div class="form-group row"> <!-- Added 'row' class for horizontal alignment -->
+    <!-- Label column -->
+    <label for="funclabel" class="col-form-label col-sm-2">Function:</label>
+
+    <!-- Select2 dropdown column -->
+    <div class="col-sm-7 fixed-width-col">
+        <select multiple placeholder="Choose functions" data-allow-clear="1" id="funclabel" name="function[]" style="width:100%;">
+            <option value=""></option> <!-- This is for the placeholder -->
+            {% for function in functions %}
+                <option value="{{function}}">{{function}}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Tooltip column -->
+    <div class="col-sm-1">
+        <div class="mytooltip">
+            <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+            <div class="mytooltiptext" style="width:550px;">
+                Search the database for the bioactivity function of peptides:
+                <ul>
+                    <li>Reference the dropdown list for the cataloged bioactivity functions in the database.</li>
+                </ul>
+                Note that the function can be left blank.
+            </div>
         </div>
     </div>
 </div>
 </td></tr>
-<tr><td style="padding-left:15px">
-    <h5><u>Catagorical Search Options:</u></h5>
-</td></tr>
-<tr><td style="padding-left:30px">
-<div class="form-group">
-    <label for="protlabel">Protein ID</label>
-    <input list="proteinList" id=protlabel name="proteinid" size="30" style="text-align:left;" value="{% if data.proteinid %}{{ data.proteinid }}{% endif %}">
-    <datalist id="proteinList">
-    {% for desc, pids in description_to_pid.items %}
-        <option value="{{ pids|join:", " }}">{{ desc }}</option>
-    {% endfor %}
-    </datalist>
-     <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
-       <div class="mytooltiptext" style="width:550px;">
-          Search the database for UniProt accession numbers (protien IDs):
-          <ul>
-          <li>Reference the dropdown list for the cataloged protien IDs and descriptions in the database.</li>
-          <li>When searching multiple protien IDs a separating comma is required.</li>
-          </ul>
-          Note that protein ID can be left empty.
-       </div>
-     </div>
+
+<tr><td style="padding-left:25px">
+<div class="form-group row"> <!-- 'row' class for horizontal alignment -->
+
+    <!-- Label column -->
+    <label for="speciesInput" class="col-form-label col-sm-2">Species:</label>
+
+    <!-- Dropdown column -->
+    <div class="col-sm-7 fixed-width-col">
+        <select multiple placeholder="Choose species" data-allow-clear="1" id="speciesInput" name="species[]" style="width:100%;">
+            <option value=""></option> <!-- This is for the placeholder -->
+            {% for common_name, sci_name in common_to_sci_list.items %}
+                {% for sn in sci_name %}
+                    <option value="{{ sn }}">{{ common_name }} ({{ sn }})</option>
+                {% endfor %}
+            {% endfor %}
+        </select>
+    </div>
+    <!-- Tooltip column -->
+    <div class="col-sm-1">
+        <div class="mytooltip">
+            <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+            <div class="mytooltiptext" style="width:550px;">
+                Search the database for the species of origin for each peptide:
+                <ul>
+                    <li>Reference the dropdown list for the cataloged species in the database.</li>
+                </ul>
+                Note that species can be left blank.
+            </div>
+        </div>
+    </div>
 </div>
-</td><tr>
-
-<td style="padding-left:30px">
-<div class="form-group">
-    <label for="funclabel">Function</label>
-    <input list="functionList" id="funclabel" name="function" size="30" style="text-align:left;" value="{% if data.function %}{{ data.function }}{% endif %}">
-    <datalist id="functionList">
-    {% for function in functions %}
-        <option value= "{{function}}" </option>
-    {% endfor %}
-    </datalist>
-     <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
-       <div class="mytooltiptext" style="width:550px;">
-         Search the database for the bioactivity function of peptides:
-         <ul>
-         <li>Reference the dropdown list for the cataloged bioactivity functions in the database.</li>
-         <li>When searching multiple bioactivity functions a separating comma is required.</li>
-         </ul>
-         Note that function can be left blank.
-
-       </div>
-     </div>
-</div>
-</td></tr>
-
-<tr><td style="padding-left:30px">
-<div class="form-group">
-  <label for="speciesInput">Species</label>  <!-- 'for' attribute matches 'id' of input -->
-  <input id="speciesInput" list="speciesList" name="species" size="30" style="text-align:left;" value="{% if data.species %}{{ data.species }}{% endif %}">
-  <datalist id="speciesList">
-    {% for common_name, sci_name in common_to_sci_list.items %}
-        {% for sn in sci_name %}
-            <option value="{{ sn }}">{{ common_name }}</option>
-        {% endfor %}
-    {% endfor %}
-    </datalist>
-
-     <div class="mytooltip"><img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
-       <div class="mytooltiptext" style="width:550px;">
-         Search the database for the specie’s of origin for each peptide:
-         <ul>
-         <li>Reference the dropdown list for the cataloged species in the database.</li>
-         <li>When searching multiple species a separating comma is required.</li>
-         </ul>
-         Note that species can be left blank.
-       </div>
-     </div>
-</div>
-    <br>
-    <br>
-    <br>
     <br>
 </td></tr>
 
 </div>
 </table>
 </div>
-<br/>
 <br/>
 <button class="btn btn-default" id="search-db-btn">Search DB</button>  <a href=".">Clear all search criteria</a>
 <a name="search_results"></a>
@@ -245,6 +300,17 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 {% endif %}
 <br/><br/><br/><br/>
 <script>
+$(function () {
+  $('select').each(function () {
+    $(this).select2({
+      theme: 'bootstrap4',
+      width: 'style',
+      placeholder: $(this).attr('placeholder'),
+      allowClear: Boolean($(this).data('allow-clear')),
+    });
+  });
+});
+
 // This part handles the "Show More" and "Show Less" buttons
 document.addEventListener("DOMContentLoaded", function() {
     const toggleButtons = document.querySelectorAll(".toggle-content");
@@ -263,15 +329,18 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 
 
-// Additional JavaScript for collapsible
 document.addEventListener('DOMContentLoaded', function() {
     const toggleBtn = document.getElementById('toggleAdvancedOptions');
     const collapsibleDiv = document.getElementById('advancedSearchOptions');
+
+    // Define a maximum height for the collapsible content
+    const maxHeight = "800px";  // For example, set to 300 pixels. You can adjust this value.
+
     toggleBtn.addEventListener('click', function() {
-        if (collapsibleDiv.style.maxHeight) {
+        if (collapsibleDiv.style.maxHeight && collapsibleDiv.style.maxHeight !== '0px') {
             collapsibleDiv.style.maxHeight = null;
         } else {
-            collapsibleDiv.style.maxHeight = collapsibleDiv.scrollHeight + "px";
+            collapsibleDiv.style.maxHeight = maxHeight;
         }
     });
 });

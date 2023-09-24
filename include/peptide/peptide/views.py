@@ -48,12 +48,14 @@ def peptide_search(request):
     if request.method == 'POST':
         counter = Counter(ip=request.META['REMOTE_ADDR'], access_time=timezone.now(), page='peptide search')
         counter.save()
-
         peptides = list(set([line.strip() for line in request.POST.get('peptides', '').splitlines()]))
         peptide_option = list(set(request.POST.getlist('peptide_option')))
-        pid = list(set([x.strip() for x in request.POST.get('proteinid', '').split(',')])) if request.POST.get('proteinid', '').strip() else []
-        function = list(set([x.strip() for x in request.POST.get('function', '').split(',')])) if request.POST.get('function', '').strip() else []
-        species = list(set([x.strip() for x in request.POST.get('species', '').split(',')])) if request.POST.get('species', '').strip() else []
+        pid_input = request.POST.getlist('proteinid[]')
+        pid = [x.strip() for x in pid_input] if pid_input else []
+        function_input = request.POST.getlist('function[]')
+        function = [x.strip() for x in function_input] if function_input else []
+        species_input = request.POST.getlist('species[]')
+        species = [x.strip() for x in species_input] if species_input else []
         seqsim = int(request.POST['seqsim'])
         matrix = request.POST.getlist('matrix')
         for peptide in peptides:
@@ -124,7 +126,7 @@ def peptide_search(request):
             # Remove column from headers
             if column in results_headers:
                 results_headers.remove(column)
-
+    print(description_to_pid)
     return render(request, 'peptide/peptide_search.html', {
         'errors': errors,
         'warnings': warning_results,
