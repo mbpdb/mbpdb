@@ -32,42 +32,48 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     document.querySelector('#hiddenFileInput').click();
 });
 </script>
-<!-- Advanced Search Toggle Button -->
+{% with tooltip_counter=999 %}
+    <!-- Advanced Search Toggle Button -->
 <button class="btn btn-default" type="button" id="toggleAdvancedOptions">Advanced Search Options</button>
 </button>
 <!-- Advanced Search Options (Collapsed by default) -->
 <div class="collapsible-content" id="advancedSearchOptions">
-    <p class="help-block">Note that the Peptide Sequence, Protein ID, Function, and Species, inputs can be empty. <br/> If no peptide sequence is provided, homology search results can't be provided.</p>
     <table>
-    <td style="padding-left:15px">
-        <h5><u>Homology Search Options:</u></h5>
+    <td style="padding-left:0px">
+        <label class="col-sm-6 col-form-label"><u>Homology&nbspSearch&nbspOptions:</u></label>
+        <div class="col-sm-1">
+        <div class="mytooltip" style="z-index: {{ tooltip_counter }}">
+                    <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+                    <div class="mytooltiptext" style="width:550px;">
+                        To use the Homology Search Options, peptides must be entered above.
+                    </div>
+                </div>
         </td></tr>
+{% with tooltip_counter=tooltip_counter|add:"-1" %}
 
 <tr></tr><td style="padding-left:25px">
 <div class="form-group row">
-    <!-- Label -->
     <label class="col-sm-4 col-form-label">Search&nbsptype:</label>
 
-    <!-- Checkboxes -->
     <div class="col-sm-4">
         <input type="checkbox" name="peptide_option" value="sequence" {% if not peptide_option or 'sequence' in peptide_option %}checked{% endif %}>Sequence<br/>
         <input type="checkbox" name="peptide_option" value="truncated" {% if 'truncated' in peptide_option %}checked{% endif %}>Truncated<br/>
         <input type="checkbox" name="peptide_option" value="precursor" {% if 'precursor' in peptide_option %}checked{% endif %}>Precursor<br/>
     </div>
 
-    <!-- Tooltip -->
     <div class="col-sm-1">
-        <div class="mytooltip">
+        <div class="mytooltip" style="z-index: {{ tooltip_counter }}">
             <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
             <div class="mytooltiptext" style="width:580px;">
                 Sequence: Searches for peptides with a match to the above peptide sequence.<br/>
                 Truncated: Searches for peptides that contain the above peptide sequence.<br/>
-                Precursor: Searches for peptides that are contained within the above peptide sequence.<br/><br/>
+                Precursor: Searches for peptides that are contained within the above peptide sequence.<br/>
             </div>
         </div>
     </div>
 </div>
     </td></tr>
+{% with tooltip_counter=tooltip_counter|add:"-1" %}
 
     <tr><td style="padding-left:25px">
     <div class="form-group row">
@@ -88,7 +94,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
      </div>
 
                 <div class="col-sm-1">
-                <div class="mytooltip">
+                <div class="mytooltip" style="z-index: {{ tooltip_counter }}">
                     <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
                     <div class="mytooltiptext" style="width:550px;">
                         The similarity threshold is used with the search type in the following ways:
@@ -101,27 +107,23 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
                     </div>
                 </div>
             </div>
-
         </div>
     </td>
 </tr>
-
+{% with tooltip_counter=tooltip_counter|add:"-1" %}
 
 <tr>
     <td style="padding-left:25px">
             <div class="form-group row">
-            <!-- Label -->
             <label class="col-sm-4 col-form-label">Scoring&nbspmatrix:</label>
 
-            <!-- Checkboxes -->
             <div class="col-sm-4">
                 <input type="checkbox" name="matrix" value="IDENTITY" {% if not matrix or "IDENTITY" in matrix %}checked{% endif %}>Identity<br/>
                 <input type="checkbox" name="matrix" value="BLOSUM62" {% if "BLOSUM62" in matrix %}checked{% endif %}>BLOSUM62<br/>
             </div>
 
-            <!-- Tooltip -->
             <div class="col-sm-1">
-                <div class="mytooltip">
+                <div class="mytooltip" style="z-index: {{ tooltip_counter }}">
                     <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
                     <div class="mytooltiptext" style="width:500px;">
                         The scoring matrix determines how the matches will occur:
@@ -136,16 +138,23 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
         </div>
     </td>
 </tr>
-
-<tr><td style="padding-left:15px">
-    <h5><u>Catagorical Search Options:</u></h5>
+<tr><td style="padding-left:0px">
+        <label class="col-sm-6 col-form-label"><u>Catagorical&nbspSearch&nbspOptions:</u></label>
+        <div class="col-sm-1">
+        <div class="mytooltip" style="z-index: {{ tooltip_counter }}">
+                    <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+                    <div class="mytooltiptext" style="width:550px;">
+                        <li>Without peptides inputed above, the system retrieves all matches for Protein ID, Function, and Species.</li>
+                        <li>With peptides inputed above, the search refines matches based on Protein ID, Function, and Species.</li>
+                    </div>
+                </div>
 </td></tr>
+{% with tooltip_counter=tooltip_counter|add:"-1" %}
 
 <td style="padding-left:25px">
     <div class="form-group row">
         <label for="protlabel" class="col-form-label col-sm-2">Protein:</label>
 
-        <!-- Select2 dropdown column -->
         <div class="col-sm-7 fixed-width-col">
             <select multiple placeholder="Choose Protein ID(s)" data-allow-clear="1" id="protlabel" name="proteinid[]" style="width:100%;">
                 <option value=""></option> <!-- This is for the placeholder -->
@@ -157,29 +166,26 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
             </select>
         </div>
 
-        <!-- Tooltip column -->
         <div class="col-sm-1">
-            <div class="mytooltip">
+            <div class="mytooltip" style="z-index: {{ tooltip_counter }}">
                 <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
                 <div class="mytooltiptext" style="width:550px;">
                     Search the database for UniProt accession numbers (protein IDs):
                     <ul>
                         <li>Reference the dropdown list for the cataloged protein IDs and descriptions in the database.</li>
                     </ul>
-                    Note that protein ID can be left empty.
+                    Note that the Protein ID input can be left empty.
                 </div>
             </div>
         </div>
     </div>
 </td></tr>
-
+{% with tooltip_counter=tooltip_counter|add:"-1" %}
 
 <td style="padding-left:25px">
-<div class="form-group row"> <!-- Added 'row' class for horizontal alignment -->
-    <!-- Label column -->
+<div class="form-group row">
     <label for="funclabel" class="col-form-label col-sm-2">Function:</label>
 
-    <!-- Select2 dropdown column -->
     <div class="col-sm-7 fixed-width-col">
         <select multiple placeholder="Choose functions" data-allow-clear="1" id="funclabel" name="function[]" style="width:100%;">
             <option value=""></option> <!-- This is for the placeholder -->
@@ -189,29 +195,26 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
         </select>
     </div>
 
-    <!-- Tooltip column -->
     <div class="col-sm-1">
-        <div class="mytooltip">
+        <div class="mytooltip" style="z-index: {{ tooltip_counter }}">
             <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
             <div class="mytooltiptext" style="width:550px;">
                 Search the database for the bioactivity function of peptides:
                 <ul>
                     <li>Reference the dropdown list for the cataloged bioactivity functions in the database.</li>
                 </ul>
-                Note that the function can be left blank.
+                Note that the Function input can be left blank.
             </div>
         </div>
     </div>
 </div>
+{% with tooltip_counter=tooltip_counter|add:"-1" %}
 </td></tr>
 
 <tr><td style="padding-left:25px">
-<div class="form-group row"> <!-- 'row' class for horizontal alignment -->
-
-    <!-- Label column -->
+<div class="form-group row">
     <label for="speciesInput" class="col-form-label col-sm-2">Species:</label>
 
-    <!-- Dropdown column -->
     <div class="col-sm-7 fixed-width-col">
         <select multiple placeholder="Choose species" data-allow-clear="1" id="speciesInput" name="species[]" style="width:100%;">
             <option value=""></option> <!-- This is for the placeholder -->
@@ -222,25 +225,34 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
             {% endfor %}
         </select>
     </div>
-    <!-- Tooltip column -->
+
     <div class="col-sm-1">
-        <div class="mytooltip">
+        <div class="mytooltip" style="z-index: {{ tooltip_counter }}">
             <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
             <div class="mytooltiptext" style="width:550px;">
                 Search the database for the species of origin for each peptide:
                 <ul>
                     <li>Reference the dropdown list for the cataloged species in the database.</li>
                 </ul>
-                Note that species can be left blank.
+                Note that the Species input can be left blank.
             </div>
         </div>
     </div>
 </div>
     <br>
 </td></tr>
+{% with tooltip_counter=tooltip_counter|add:"-1" %}
 
 </div>
 </table>
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
 </div>
 <br/>
 <button class="btn btn-default" id="search-db-btn">Search DB</button>  <a href=".">Clear all search criteria</a>
