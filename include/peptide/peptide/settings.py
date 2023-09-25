@@ -25,7 +25,7 @@ DEBUG = True
 
 TEMPLATE_DEBUG = True
 
-ALLOWED_HOSTS = ['128.193.11.196', '127.0.0.1', 'localhost', '192.84.190.235', 'mbpdbcontainer--5qcnx68.lemonisland-71b15397.westus3.azurecontainerapps.io', 'mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io']
+ALLOWED_HOSTS = ['128.193.11.196', '127.0.0.1', 'localhost', '192.84.190.235', 'mbpdb.nws.oregonstate.edu','mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io']
 
 
 # Application definition
@@ -49,7 +49,7 @@ MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",
 ]
 
-CSRF_TRUSTED_ORIGINS = ['https://mbpdbcontainer--5qcnx68.lemonisland-71b15397.westus3.azurecontainerapps.io', 'https://mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io']
+CSRF_TRUSTED_ORIGINS = ['https://mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io','https://mbpdb.nws.oregonstate.edu']
 
 
 ROOT_URLCONF = 'peptide.urls'
@@ -126,21 +126,6 @@ SPEC_TRANSLATE_LIST = [
     #['american bison', 'bison bison'], no records in db
     #['elephant', 'elephas maximus'], no records in db
     #['mouse', 'mus musculus'], no records in db
-]
-#for protein search translation
-PRO_TRANSLATE_LIST = [
-  ['Alpha-S1-casein', 'P02662, P47710, P04653, P09115, P18626, O97943, O62823'],
-  ['Alpha-S2-casein', 'P02663, P04654, P33049, A0A1L6KYI1, E9NZN2'],
-  ['Beta-casein', 'P02666, P05814, P11839, P09116, Q9TSI0, Q9TVD0, P33048, P86273, A0A344X7B9'],
-  ['Kappa-casein', 'P02668, P07498, P02669, I6UFY2, P02670'],
-  ['Glycosylation-dependent cell adhesion molecule 1', 'P80195'],
-  ['Beta-lactoglobulin', 'P02754, P02755, P02756'],
-  ['Alpha-lactalbumin', 'P00711, P00710'],
-  ['Lactotransferrin', 'P24627, P02788, P14632, Q29477, O77698'],
-  ['Serum albumin', 'P14639, P02769'],
-  ['Beta-lactoglobulin-1/B', 'P67976'],
-  ['Beta-casein (Fragment)', 'L8I8G5'],
-  ['Hemoglobin subunit alpha', 'P01966']
 ]
 
 TEMPLATES = [
