@@ -111,7 +111,6 @@ def peptide_search(request):
 
     # Check if any items in results are strings
     if any(isinstance(result, str) for result in results):
-        print("Found strings in results:", [result for result in results if isinstance(result, str)])
         # Handle them as necessary, e.g., filter them out
         results = [result for result in results if isinstance(result, dict)]
 
@@ -126,7 +125,6 @@ def peptide_search(request):
             # Remove column from headers
             if column in results_headers:
                 results_headers.remove(column)
-    print(description_to_pid)
     return render(request, 'peptide/peptide_search.html', {
         'errors': errors,
         'warnings': warning_results,
