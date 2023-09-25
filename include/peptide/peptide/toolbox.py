@@ -258,18 +258,8 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
     invalid_functions = []  # List to keep track of invalid functions
     if pid:
         for protein in pid:
-            prot_list = []
-            for l in settings.PRO_TRANSLATE_LIST:  # Assuming PRO_TRANSLATE_LIST is accessible
-                if protein.lower() in l[0].lower():
-                    prot_list = l[1].split(", ")
-                    break  # break once the protein is found
-            search_ids = []
-
-            # Fetch ProteinInfo objects that match any of the provided PIDs
-            if prot_list:
-                protid_check = ProteinInfo.objects.filter(pid__in=prot_list)
-            else:
-                protid_check = ProteinInfo.objects.filter(pid__in=[protein])
+            
+            protid_check = ProteinInfo.objects.filter(pid__in=[protein])
 
             # If none found, add to the list of invalid PIDs
             if not protid_check.exists():
