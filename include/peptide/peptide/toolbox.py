@@ -84,12 +84,12 @@ def pepdb_add_csv(csv_file, messages):
                 protid = row['proteinID']
 
                 try:
-                    idcheck = ProteinInfo.objects.filter(pid=protid)
+                    idcheck = ProteinInfo.objects.filter(pid=protid).first()
                 except ProteinInfo.DoesNotExist:
                     messages.append("Error: Protein ID "+protid+" not found in database (Line "+str(rownum)+"). Skipping. You can use the Add Fasta Files tool to add the protein to the database.")
                     err+=1
                     continue
-                """
+
                 prot = idcheck.seq
                 # calculate start and stop intervals
                 intervals = ', '.join([str(m.start()+1) + "-" + str(m.start()+len(row['peptide'])) for m in re.finditer(row['peptide'], prot)])
@@ -99,38 +99,45 @@ def pepdb_add_csv(csv_file, messages):
                 if not intervals:
                     gv_check = ProteinVariant.objects.filter(protein=idcheck)
                     for pv in gv_check:
-                        intervals = ', '.join([str(m.start()+1) + "-" + str(m.start()+len(row['peptide'])) for m in re.finditer(row['peptide'], pv.seq)])
+                        intervals = ', '.join(
+                            [str(m.start() + 1) + "-" + str(m.start() + len(row['peptide'])) for m in
+                             re.finditer(row['peptide'], pv.seq)])
                         if intervals:
                             pvid_list.append(pv.pvid)
                     if not pvid_list:
-                        messages.append("Error: Peptide "+row['peptide']+" not found in protein or variants (ID "+protid+", Line "+str(rownum)+").")
-                        err+=1
+                        messages.append("Error: Peptide " + row[
+                            'peptide'] + " not found in protein or variants (ID " + protid + ", Line " + str(
+                            rownum) + ").")
+                        err += 1
                         continue
-                """
 
             if err == 0:
                 with open(input_tsv_path, 'r') as pepfile2:
                     data = csv.DictReader(pepfile2, dialect='pep_dialect')
                     tn = datetime.now()
-                    count=0
+                    count = 0
                     for row in data:
                         idcheck = ProteinInfo.objects.get(pid=row['proteinID'])
                         prot = idcheck.seq
 
-                        intervals = ', '.join([str(m.start()+1) + "-" + str(m.start()+len(row['peptide'])) for m in re.finditer(row['peptide'], prot)])
+                        intervals = ', '.join(
+                            [str(m.start() + 1) + "-" + str(m.start() + len(row['peptide'])) for m in
+                             re.finditer(row['peptide'], prot)])
 
-                        pvid_list=[]
-                        interval_list=[]
+                        pvid_list = []
+                        interval_list = []
 
                         if not intervals:
-                            gv_check = ProteinVariant.objects.get(protein=idcheck)
+                            gv_check = ProteinVariant.objects.filter(protein=idcheck)
                             for pv in gv_check:
-                                intervals = ', '.join([str(m.start()+1) + "-" + str(m.start()+len(row['peptide'])) for m in re.finditer(row['peptide'], pv.seq)])
+                                intervals = ', '.join(
+                                    [str(m.start() + 1) + "-" + str(m.start() + len(row['peptide'])) for
+                                     m in re.finditer(row['peptide'], pv.seq)])
                                 if intervals:
                                     pvid_list.append(pv.pvid)
                                     interval_list.append(intervals)
                         else:
-                            interval_list=[intervals]
+                            interval_list = [intervals]
 
                         # Check and handle the ic50 value
                         if not row['ic50'].strip():  # if ic50 is empty or just whitespace
@@ -172,45 +179,62 @@ def pepdb_approve(queryset):
             messages.append(
                 f"Error: Protein ID {e.protein_id} not found in database for peptide {e.peptide}. Skipping. You can use the Add Fasta Files tool to add the protein to the database.")
             continue
-
-        # Check if the peptide exists
-        pepcheck = PeptideInfo.objects.filter(peptide=e.peptide).first()
-
-        # If the peptide does not exist, create a new peptide entry
-        if not pepcheck:
+        try:
+            pepcheck = PeptideInfo.objects.get(peptide=e.peptide)
+        except PeptideInfo.DoesNotExist:
             tn = datetime.now()
-            pepinfo = PeptideInfo(peptide=e.peptide, protein_variants=e.protein_variants, protein=idcheck,
-                                  length=e.length, intervals=e.intervals, time_approved=tn)
+            pepinfo = PeptideInfo(peptide=e.peptide, protein_variants=e.protein_variants, protein=idcheck, length=e.length, intervals=e.intervals, time_approved=tn)
             pepinfo.save()
-        else:
-            pepinfo = pepcheck
+            f = Function(pep=pepinfo, function=e.function)
+            f.save()
+            r = Reference(func=f, title=e.title, authors=e.authors, abstract=e.abstract, doi=e.doi,additional_details=e.additional_details, ic50=e.ic50, inhibition_type=e.inhibition_type, inhibited_microorganisms=e.inhibited_microorganisms, ptm=e.ptm)
+            r.save()
+            records = records + 1
+            e.delete()
+            continue
 
-        # Check if a function for that peptide with the given function description exists
-        fcheck = Function.objects.filter(pep=pepinfo, function=e.function).first()
-
-        # If the function does not exist, create a new function entry
-        if not fcheck:
-            fcheck = Function(pep=pepinfo, function=e.function)
-            fcheck.save()
-
-        # Check if a reference for that function with the given DOI exists
-        doi_check = Reference.objects.filter(func=fcheck, doi=e.doi).first()
-
-        # If the reference does not exist, create a new reference entry
-        if not doi_check:
-            r = Reference(func=fcheck, title=e.title, authors=e.authors, abstract=e.abstract, doi=e.doi,
+        try:
+            fcheck = Function.objects.get(pep=pepcheck, function=e.function)
+        except Function.DoesNotExist:
+            f = Function(pep=pepcheck, function=e.function)
+            f.save()
+            r = Reference(func=f, title=e.title, authors=e.authors, abstract=e.abstract, doi=e.doi,
                           additional_details=e.additional_details, ic50=e.ic50, inhibition_type=e.inhibition_type,
                           inhibited_microorganisms=e.inhibited_microorganisms, ptm=e.ptm)
             r.save()
-            records += 1
-        else:
-            messages.append(
-                f"Warning: Peptide {e.peptide} with Function '{e.function}' and DOI '{e.doi}' already exists in DB.")
+            records = records + 1
+            e.delete()
+            continue
 
-        # Delete the submission
+        try:
+            doi_check = Reference.objects.get(func=fcheck, doi=e.doi)
+            if (doi_check.additional_details != '' and e.additional_details != '') or (doi_check.ptm != '' and e.ptm != ''):
+                if doi_check.secondary_func != '' and e.secondary_function != '':
+                    doi_check.secondary_func = e.secondary_function
+                    doi_check.save()
+                    messages.append("Peptide "+e.peptide+" with Function '"+e.function+"' and DOI '"+e.doi+"' found. Updated secondary function to '"+e.secondary_function+"'.")
+
+                if doi_check.ptm != '' and e.ptm != '':
+                    doi_check.ptm = e.ptm
+                    doi_check.save()
+                    messages.append("Peptide "+e.peptide+" with Function '"+e.function+"' and DOI '"+e.doi+"' found. Updated PTM to '"+e.ptm+"'.")
+
+                e.delete()
+                records = records + 1
+                continue
+        except Reference.DoesNotExist:
+            r = Reference(func=fcheck, title=e.title, authors=e.authors, abstract=e.abstract, doi=e.doi, additional_details=e.additional_details, ic50=e.ic50, inhibition_type=e.inhibition_type,
+                          inhibited_microorganisms=e.inhibited_microorganisms, ptm=e.ptm)
+            r.save()
+            records = records + 1
+            e.delete()
+            continue
+
+        messages.append("Warning: Peptide "+e.peptide+" with Function '"+e.function+"' and DOI '"+e.doi+"' already exists in DB.")
         e.delete()
+        continue
 
-    messages.append(f"Added {records} submissions to database.")
+    messages.append("Added "+str(records)+" submissions to database.")
     return messages
 
 #Primary function referenced in blast search when extra information is requested
@@ -258,7 +282,7 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
     invalid_functions = []  # List to keep track of invalid functions
     if pid:
         for protein in pid:
-            
+
             protid_check = ProteinInfo.objects.filter(pid__in=[protein])
 
             # If none found, add to the list of invalid PIDs
@@ -415,7 +439,7 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
                     append_with_titnum(titles, ref.title, titnum)
                 if ref.additional_details != '':
                     append_with_titnum(ad, ref.additional_details, titnum)
-                if ref.ic50 != '':
+                if ref.ic50 != '' and ref.ic50 is not None:
                     append_with_titnum(ic, str(ref.ic50), titnum)
                 if ref.inhibition_type != '':
                     append_with_titnum(it, ref.inhibition_type, titnum)
@@ -468,7 +492,9 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
                     temprow.extend(extra_info[str(info.id)])
                 else:
                     temprow.extend([u'\t'] * 9)  # Add nine tab characters
-
+            #removes none from ic50
+            temprow = ['' if x == 'None' else x for x in temprow]
+            
             # Iterate through common_fields to replace <br> with \n for file_temprow
             file_temprow = []
             for field in temprow:
