@@ -23,7 +23,7 @@
 {% csrf_token %}
 <div class="form-group">
     <textarea name="peptides" rows="10" placeholder="YPFPGPIPN" class="tools-form-raw-text-input" data-hj-allow="true">{% if data.peptides %}{{data.peptides}}{% endif %}</textarea><br/>
-    <p>Enter a peptide sequence or multiple sequences, or upload a simple text file of peptide sequences separated by white space, tab, new line or commas, <a href="#" id="loadFileLink">load from a text file</a> | <a href="{% static 'peptide/example/multiple_peptide_example.txt' %}" target="_blank">Example</a></p>
+    <p>Enter a peptide sequence or multiple sequences, or upload a simple text file of peptide sequences. To preform the query click the "Search DB" button. <a href="#" id="loadFileLink">load from a text file</a> | <a href="{% static 'peptide/example/multiple_peptide_example.txt' %}" target="_blank">Example</a></p>
     <input type="file" name="inputfile" id="hiddenFileInput" />
 </div>
 <script>
@@ -260,7 +260,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 </form>
 <br/>
 {% if not errors and results or warnings %}
-    <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a> | If you are referencing this database: <a href="{% url 'about_us' %}" style="font-size: 20px;"> <b>please cite</b></a>
+    <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a> | If you are referencing this database: <a href="{% url 'about_us' %}#Cite" style="font-size: 20px;"> <b>please cite</b></a>
     <br/>
 
 {{ formated_header|safe }}
