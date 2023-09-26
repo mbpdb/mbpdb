@@ -30,7 +30,8 @@ class PeptideInfo(models.Model):
 class Function(models.Model):
     pep = models.ForeignKey(PeptideInfo, related_name="functions", on_delete=models.CASCADE)
     function = models.CharField(max_length=400)
-
+    class Meta:
+        unique_together = [['pep', 'function']]
 class Reference(models.Model):
     func = models.ForeignKey(Function, related_name="references", on_delete=models.CASCADE)
     title = models.CharField(max_length=300)
