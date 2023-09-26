@@ -87,7 +87,7 @@ def peptide_search(request):
 
         if not (peptides or pid or function or species):
             errors.append(
-                f'Error: Please enter peptides into the Peptide Search box, or select a Function, Protein ID, or Species from the Catagorical Search Option.')
+                f'Error: Please enter peptides into the Peptide Search box, or select a Function, Protein ID, or Species from the Advanced Search Option.')
         if not (seqsim and matrix and peptide_option):
             errors.append(
                 f'Error: Please select the Search Type, Similarity Threshold and Scoring Matrix form the Homology Search Options')
