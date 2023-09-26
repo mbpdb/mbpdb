@@ -723,42 +723,44 @@ def add_proteins(input_fasta_files, messages):
             for seq_record in SeqIO.parse(fd, "fasta"):
                 m = re.search(".+?\|(.+?)\|.+?\s+(.+?)\s+OS=(.+?)\s+(GN|PE)", seq_record.description)
                 if not m:
-                    messages.append("Warning: Header '"+seq_record.description+"' not parseable. Skipping fasta record.")
+                    messages.append(
+                        "Warning: Header '" + seq_record.description + "' not parseable. Skipping fasta record.")
                     continue
                 protid = m.group(1)
                 prot_desc = m.group(2)
                 prot_species = m.group(3)
+                print(protid, prot_desc, prot_species)
 
-                gvid=''
+                gvid = ''
                 gv = re.search("GV=(.+?)\s*$", seq_record.description)
                 if gv:
                     gvid = gv.group(1)
 
-                try:
-                    idcheck = ProteinInfo.objects.filter(pid=protid)
-                except ProteinInfo.DoesNotExist:
+                protein_exists = ProteinInfo.objects.filter(pid=protid).exists()
+
+                if not protein_exists:
                     if not gvid:
-                        protinfo = ProteinInfo(header=seq_record.description, pid=protid, seq=seq_record.seq, desc=prot_desc, species=prot_species)
+                        protinfo = ProteinInfo(header=seq_record.description, pid=protid, seq=seq_record.seq,
+                                               desc=prot_desc, species=prot_species)
                         protinfo.save()
                         count = count + 1
-
                     else:
-                        messages.append("Error: Protein ID "+protid+" not found for variant "+gvid+". You must first add the original protein before adding variants.")
-                        continue
-
-                if gvid:
-                    gv_check = ProteinVariant.objects.filter(protein=idcheck,pvid=gvid)
-                    if gv_check.count() > 0:
-                        messages.append("Variant "+gvid+" already exists for protein "+protid+". Skipping.")
-                        continue
-
-                    else:
-                        pv = ProteinVariant(seq=seq_record.seq, pvid=gvid, protein=idcheck)
-                        pv.save()
-                        count = count + 1
-
+                        messages.append(
+                            "Error: Protein ID " + protid + " not found for variant " + gvid + ". You must first add the original protein before adding variants.")
                 else:
-                    messages.append("Protein ID "+protid+" already exists (and sequence is not variant). Skipping.")
+                    if gvid:
+                        gv_check = ProteinVariant.objects.filter(protein__pid=protid, pvid=gvid)
+                        if gv_check.count() > 0:
+                            messages.append("Variant " + gvid + " already exists for protein " + protid + ". Skipping.")
+                        else:
+                            # Assuming the relationship is ForeignKey; thus, using 'first()' to get the ProteinInfo instance
+                            idcheck = ProteinInfo.objects.filter(pid=protid).first()
+                            pv = ProteinVariant(seq=seq_record.seq, pvid=gvid, protein=idcheck)
+                            pv.save()
+                            count = count + 1
+                    else:
+                        messages.append(
+                            "Protein ID " + protid + " already exists (and sequence is not a variant). Skipping.")
                     continue
 
         except AttributeError as e:
