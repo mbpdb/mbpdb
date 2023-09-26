@@ -29,10 +29,52 @@
 {% csrf_token %}
 <div class="form-group">
     <input type="file" name="input_fasta_files" multiple/>
-    <p class="help-block">You can choose multiple FASTA files at once.<br>Click the link below to see examples of the format of the protein headers.</p>
+    <p class="help-block">
+        You can enter multiple FASTA files simultaneously.</br>
+      For peptides from uncataloged milk proteins, reference the comprehensive .fasta file below and add the required proteins. Only add new proteins if required for adding new peptides.
+    </p>
+    <a href="{% url 'download_fasta_file' %}" target="_blank">Download comprehensive milk protein .fasta file</a> </br>
+    <a href="#" id="toggleProteinList">Toggle list of cataloged protein IDs & descriptions</a>
+    <div id="proteinList" style="display:none;"></div>
 </div>
 <button class="btn btn-default">Run</button>
 </form>
 <br />
-<a href="{% url 'protein_headers' %}" target="_blank">View current protein fasta headers (IDs)</a>
+
+
+<script>
+let proteinDataFetched = false;  // This variable will track if we've already fetched the data
+
+document.getElementById("toggleProteinList").addEventListener("click", function(event) {
+    event.preventDefault(); // Prevents the default action of the hyperlink
+
+    const proteinListDiv = document.getElementById("proteinList");
+
+    // If we haven't fetched the protein data yet, fetch it now
+    if (!proteinDataFetched) {
+        fetch("/get_protein_list/")
+        .then(response => response.json())
+        .then(data => {
+            let content = "";
+            for (let desc of Object.keys(data)) {
+                for (let pid of data[desc]) {
+                    content += `<p>${desc} (${pid})</p>`;
+                }
+            }
+            proteinListDiv.innerHTML = content;
+            proteinDataFetched = true; // Mark data as fetched
+        })
+        .catch(error => {
+            console.error("There was an error fetching the protein data:", error);
+        });
+    }
+
+    // Toggle display based on current state
+    if (proteinListDiv.style.display === "none" || !proteinListDiv.style.display) {
+        proteinListDiv.style.display = "block";
+    } else {
+        proteinListDiv.style.display = "none";
+    }
+});
+</script>
 {% endblock 'content' %}

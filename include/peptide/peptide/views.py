@@ -5,7 +5,7 @@ import subprocess
 from subprocess import CalledProcessError
 from .models import Counter
 from django.utils import timezone
-from django.http import FileResponse, HttpResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.conf import settings
 
 #Unmodified
@@ -174,11 +174,13 @@ def pepex_tool(request):
     return render(request, 'peptide/pepex.html', {'errors':errors,'latest_peptides': q})
 
 #Unmodified returns a list of all proteins in protein fasta file
-def protein_headers(request):
-    ret = subprocess.check_output("grep -h '>' "+settings.FASTA_FILES_DIR+"/* | sort -u", shell=True, stderr=subprocess.STDOUT)
-    ret = ret.decode('utf-8')
-    ret = ret.replace('\n', '<br />')
-    return HttpResponse(ret)
+def download_fasta_file(request):
+    # Assuming you have a single FASTA file in FASTA_FILES_DIR
+    # If you have multiple files, you might need a way to specify which file to download
+    fasta_file_path = os.path.join(settings.FASTA_FILES_DIR, "protein_database.fasta")
+    response = FileResponse(open(fasta_file_path, 'rb'))
+    response['Content-Disposition'] = f'attachment; filename="{os.path.basename(fasta_file_path)}"'
+    return response
 
 #Updated returns downloadable file to user
 def tsv_search_results(request):
@@ -217,4 +219,7 @@ def about_us(request):
     q = get_latest_peptides(1)
     return render(request, 'peptide/about_us.html', {'latest_peptides': q})
 
-
+#Added  returns protein list for the add peptide/protein page
+def get_protein_list_view(request):
+    data = pro_list(request)
+    return JsonResponse(data)

@@ -81,13 +81,11 @@ def pepdb_add_csv(csv_file, messages):
                     err+=1
                     continue
 
-                protid = row['proteinID']
-
-                try:
-                    idcheck = ProteinInfo.objects.filter(pid=protid).first()
-                except ProteinInfo.DoesNotExist:
-                    messages.append("Error: Protein ID "+protid+" not found in database (Line "+str(rownum)+"). Skipping. You can use the Add Fasta Files tool to add the protein to the database.")
-                    err+=1
+                idcheck = ProteinInfo.objects.filter(pid=row['proteinID']).first()
+                if idcheck is None:
+                    messages.append("Error: Protein ID " + row['proteinID'] + " not found in database (Line " + str(
+                        rownum) + "). Skipping. You can use the Add Fasta Files tool to add the protein to the database. A list of Protein IDs cataloged in the database is avalible below.")
+                    err += 1
                     continue
 
                 prot = idcheck.seq
@@ -494,7 +492,7 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
                     temprow.extend([u'\t'] * 9)  # Add nine tab characters
             #removes none from ic50
             temprow = ['' if x == 'None' else x for x in temprow]
-            
+
             # Iterate through common_fields to replace <br> with \n for file_temprow
             file_temprow = []
             for field in temprow:

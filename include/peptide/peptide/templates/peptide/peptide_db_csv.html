@@ -30,9 +30,48 @@
 <div class="form-group">
      <input type="file" name="csv_file" />
      <p class="help-block">Use a correctly formatted TSV file with UTF-8 encoding. For format requirements, view the <a href="{% static 'peptide/example/peptide_db_input_file_example.tsv'%}">example file</a>.</p>
-     <p class="help-block">Note that the category, secondary function, and abstract columns can be empty.</p>
+     <p class="help-block">Note that the additionals details, ic50,  inhibition type, inhibited microrganisms, and abstract columns can be empty.</p>
 </div>
 
 <button class="btn btn-default">Add to DB</button>
 </form>
+</br>
+<a  href="#" id="toggleProteinList">Toggle list of cataloged protein IDs & descriptions</a>
+<div id="proteinList" style="display:none;"></div>
+
+<script>
+let proteinDataFetched = false;  // This variable will track if we've already fetched the data
+
+document.getElementById("toggleProteinList").addEventListener("click", function(event) {
+    event.preventDefault(); // Prevents the default action of the hyperlink
+
+    const proteinListDiv = document.getElementById("proteinList");
+
+    // If we haven't fetched the protein data yet, fetch it now
+    if (!proteinDataFetched) {
+        fetch("/get_protein_list/")
+        .then(response => response.json())
+        .then(data => {
+            let content = "";
+            for (let desc of Object.keys(data)) {
+                for (let pid of data[desc]) {
+                    content += `<p>${desc} (${pid})</p>`;
+                }
+            }
+            proteinListDiv.innerHTML = content;
+            proteinDataFetched = true; // Mark data as fetched
+        })
+        .catch(error => {
+            console.error("There was an error fetching the protein data:", error);
+        });
+    }
+
+    // Toggle display based on current state
+    if (proteinListDiv.style.display === "none" || !proteinListDiv.style.display) {
+        proteinListDiv.style.display = "block";
+    } else {
+        proteinListDiv.style.display = "none";
+    }
+});
+</script>
 {% endblock 'content' %}
