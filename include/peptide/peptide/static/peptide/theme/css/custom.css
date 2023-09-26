@@ -214,7 +214,7 @@ textarea.tools-form-raw-text-input {
     max-height: 0;
     height: 420px;
     overflow-y: auto;
-    overflow-x: hidden;
+    overflow-x: auto;
     transition: max-height 0.5s ease-in-out;
 }
 
