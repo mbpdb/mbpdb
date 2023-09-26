@@ -13,7 +13,6 @@ RUN apt-get update && apt-get install -y \
     ncbi-blast+ \
     git
 
-
 # Set the working directory in the container
 WORKDIR /app
 
@@ -29,8 +28,7 @@ COPY include /app/include
 
 # Create temp directory
 RUN mkdir -p /app/include/peptide/uploads/temp 
-RUN chmod 700 /app/include/peptide/uploads/temp
-
+# RUN chmod 700 /app/include/peptide/uploads/temp
 
 # Make port 8000 available to the world outside this container
 EXPOSE 8000
