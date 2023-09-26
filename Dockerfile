@@ -28,7 +28,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY include /app/include
 
 # Create temp directory
-RUN mkdir -p /app/include/peptide/uploads/temp
+RUN mkdir -p /app/include/peptide/uploads/temp && \
+    chmod 700 /app/include/peptide/uploads/temp
+
 
 # Make port 8000 available to the world outside this container
 EXPOSE 8000
