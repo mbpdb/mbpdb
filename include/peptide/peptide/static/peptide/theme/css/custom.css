@@ -127,6 +127,12 @@
 @media(min-width:768px) {
     #wrapper {
         padding-top: 50px;
+    }enubar-wrapper {
+        height: 0;
+    }
+
+    #page-content-wrapper {
+        padding: 20px;
     }
 
     #wrapper.toggled {
@@ -137,13 +143,7 @@
         height: 40px;
     }
 
-    #wrapper.toggled #menubar-wrapper {
-        height: 0;
-    }
-
-    #page-content-wrapper {
-        padding: 20px;
-    }
+    #wrapper.toggled #m
 }
 
 
@@ -153,7 +153,7 @@
     display: none;  /* By default, the dropdown is not shown */
     position: absolute;  /* Dropdown needs to be positioned relative to its parent */
     background-color: #000;  /* Matches the background color of your menubar */
-    width: 100%;  /* Full width to match the menubar */
+    //width: 100%;  /* Full width to match the menubar */
     left: 0;  /* Aligns the dropdown to the left side */
     z-index: 1001;  /* Ensures the dropdown appears above other content */
 }
@@ -164,8 +164,9 @@
 
 .dropdown-menu li a {
     color: #ffffff;  /* Font color for dropdown links */
-    padding: 10px 15px;  /* Some padding for the links */
+    padding: 5px 5px;  /* Some padding for the links */
     text-decoration: none;  /* Removes underline */
+    font-size: 16px;
 }
 
 .dropdown-menu li a:hover {
