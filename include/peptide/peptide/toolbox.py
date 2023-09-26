@@ -74,6 +74,9 @@ def pepdb_add_csv(csv_file, messages):
 
             err=0
             for row in data:
+                row = {key: value.strip() for key, value in row.items()}
+                print('cleaned_row',row)
+
                 rownum = rownum + 1
 
                 if (row['peptide']=='' or row['proteinID']=='' or row['function']=='' or row['title']=='' or row['authors']=='' or row['doi']==''):
@@ -138,15 +141,12 @@ def pepdb_add_csv(csv_file, messages):
                             interval_list = [intervals]
 
                         # Check and handle the ic50 value
-                        if not row['ic50'].strip():  # if ic50 is empty or just whitespace
-                            row['ic50'] = ""
-                        else:
+                        if row['ic50'] is not None:
                             try:
-                                row['ic50'] = float(row['ic50'])  # Attempt to convert ic50 to float
-                            except ValueError:
-                                messages.append(
-                                    f"Error: Line {rownum} has an invalid value for 'ic50'. Expected a number but got {row['ic50']}.")
-                                continue  # Skip this row and move to the next
+                                float(row['ic50'])
+                            except ValueError:  # if it's not a number
+                                row['ic50'] = None
+
                         sub = Submission(protein_id=row['proteinID'], peptide=row['peptide'], function=row['function'], additional_details=row['additional_details'], ic50=row['ic50'], inhibition_type=row['inhibition_type'],inhibited_microorganisms=row['inhibited_microorganisms'], ptm=row['ptm'], title=row['title'], authors=row['authors'], abstract=row['abstract'], doi=row['doi'], intervals=':'.join(interval_list), protein_variants=','.join(pvid_list), length=len(row['peptide']), time_submitted=tn)
                         sub.save()
                         count += 1
