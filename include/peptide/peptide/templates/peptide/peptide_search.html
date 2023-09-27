@@ -259,7 +259,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 <a name="search_results"></a>
 </form>
 <br/>
-{% if not errors and results or warnings %}
+{% if not errors and combined_results or warnings %}
     <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a> | If you are referencing this database: <a href="{% url 'about_us' %}#Cite" style="font-size: 20px;"> <b>please cite</b></a>
     <br/>
 
@@ -276,27 +276,53 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
         </tr>
     </thead>
     <tbody>
+{% for item in combined_results %}
+    {% if item.type == "warning" %}
+        <tr>
+            <td colspan={{ table_headers|length }} style="padding:10px;">
+                <div class="warning">
+                    {{ item.data|safe }}
+                </div>
+            </td>
+        </tr>
+    {% else %}
+        <tr>
+            {% for key, value in item.data.items %}
+                <td style="padding:10px; max-width:125px; word-wrap:break-word;">
+                    {% if key == "Abstract..." %}  <!-- Your long key here -->
+                        <button class="toggle-content">Show Abstract</button>
+                        <div class="collapsible-content">
+                            {{ value|safe }}
+                        </div>
+                    {% else %}
+                        {{ value|safe }}
+                    {% endif %}
+                </td>
+            {% endfor %}
+        </tr>
+    {% endif %}
+{% endfor %}
 
         <!-- Display warnings -->
-        {% for w in warnings %}
+        <!-- {% for w in warnings %}
             <tr>
                 <td  colspan={{ table_headers|length }} style="padding:10px;" >
                     <div class="warning">
                         <!-- Warning content -->
-                        {{ w|safe }}
+                        <!--{{ w|safe }}
                     </div>
                 </td>
             </tr>
         {% endfor %}
 
         <!-- Display regular results -->
-        {% for row in results %}
+        <!-- {% for row in results %}
             <tr>
                 {% for key, value in row.items %}
                         <td style="padding:10px; max-width:125px; word-wrap:break-word;">
                         {% if key == "Abstract&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp"%}
                             <!-- Make this column collapsible -->
-                            <button class="toggle-content">Show Abstract</button>
+                            <!--<button class="toggle-content">Show Abstract</button>
                             <div class="collapsible-content">
                                 {{ value|safe }}
                             </div>
@@ -306,7 +332,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
                     </td>
                 {% endfor %}
             </tr>
-        {% endfor %}
+        {% endfor %}-->
     </tbody>
 </table>
 {% endif %}
