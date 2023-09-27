@@ -341,9 +341,9 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
         # Filter the query using the final list of search IDs only if valid species exist
         if valid_species:
             q = q.filter(id__in=final_search_ids)
-        elif not valid_species:  # If no valid species exist, return immediately with the warning.
-            results.append("<h4>WARNING: No valid species found for the search.<h4>")
-            return results
+        #elif not valid_species:  # If no valid species exist, return immediately with the warning.
+        #    #results.append("<h4>WARNING: No valid species found for the search.<h4>")
+        #    return results
 
     if peptide != "":
         if "sequence" in peptide_option:
@@ -396,10 +396,14 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
     if (q.count() == 0):
         peptide_db_list = list(PeptideInfo.objects.values_list('peptide', flat=True))
         if peptide in peptide_db_list:
-            results.append("<h4>WARNING: Peptide: " + ''.join(peptide) + " does not meet other search critera.</h4>")
+            #results.append("<h4>WARNING: Peptide: " + ''.join(peptide) + " does not meet other search critera.</h4>")
+            results.append("<h4>Peptide: " + ''.join(peptide) + " does not meet other search critera.</h4>")
+            writer.writerow(["Peptide: " + ''.join(peptide) + " does not meet other search critera."])
             return results
         else:
-            results.append("<h4>WARNING: Peptide: " + ''.join(peptide) + " does not exist in database.</h4>")
+            #results.append("<h4>WARNING: Peptide: " + ''.join(peptide) + " does not exist in database.</h4>")
+            results.append("<h4>Peptide: " + ''.join(peptide) + " does not exist in database.</h4>")
+            writer.writerow(["Peptide: " + ''.join(peptide) + "  does not exist in database."])
             return results
 
     verified_functions = set()
@@ -510,7 +514,7 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
             # Append the results for web display using a dictionary
             results.append(dict(zip(results_headers, temprow)))
 
-
+    """
     invalid_functions = [fun for fun in function if fun not in verified_functions]
     invalid_species = list(set(invalid_species))
     invalid_pids = list(set(invalid_pids))
@@ -540,7 +544,7 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
 
     # Write everything to the CSV
     for row in all_rows:
-        writer.writerow(row)
+        writer.writerow(row)"""
 
 
     return results
