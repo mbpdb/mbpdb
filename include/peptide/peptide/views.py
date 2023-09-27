@@ -41,6 +41,7 @@ def peptide_search(request):
     peptide_option = []
     matrix = []
     output_path = ''
+    combined_results = []
     q = get_latest_peptides(1)
     description_to_pid = pro_list(request)
     unique_func = func_list(request)
@@ -48,19 +49,26 @@ def peptide_search(request):
     if request.method == 'POST':
         counter = Counter(ip=request.META['REMOTE_ADDR'], access_time=timezone.now(), page='peptide search')
         counter.save()
-        peptides = list(set([line.strip() for line in request.POST.get('peptides', '').splitlines()]))
-        peptide_option = list(set(request.POST.getlist('peptide_option')))
-        pid_input = request.POST.getlist('proteinid[]')
-        pid = [x.strip() for x in pid_input] if pid_input else []
-        function_input = request.POST.getlist('function[]')
-        function = [x.strip() for x in function_input] if function_input else []
-        species_input = request.POST.getlist('species[]')
-        species = [x.strip() for x in species_input] if species_input else []
+        # Split the input based on comma, tab, space, or new line.
+        peptides = re.split(r'[\s,\'\[\]\(\)\.\}\{"]+', request.POST.get('peptides', '').strip())
+        #peptides = list(set([line.strip() for line in request.POST.get('peptides', '').splitlines()]))
+        peptide_option = request.POST.getlist('peptide_option')
+        pid = request.POST.getlist('proteinid[]')
+        #pid = [x.strip() for x in pid_input] if pid_input else []
+        function = request.POST.getlist('function[]')
+        #function = [x.strip() for x in function_input] if function_input else []
+        species = request.POST.getlist('species[]')
+        #species = [x.strip() for x in species_input] if species_input else []
         seqsim = int(request.POST['seqsim'])
         matrix = request.POST.getlist('matrix')
+
+        # Remove empty strings from the list.
+        peptides = [peptide for peptide in peptides if peptide]
+
         for peptide in peptides:
             if not peptide.isalpha():
-                errors.append("Error: Invalid input. Only text characters are allowed. Ensure there are no emtpy lines.")
+                errors.append(
+                    f"Error: Invalid input '{peptide}'. Only text characters are allowed.")
             if len(peptide) >= 4:
                 extra = 1
             else:
@@ -106,17 +114,19 @@ def peptide_search(request):
         'PTM'
     ]
     # Separate warnings and results
-    warning_results = [r for r in results if isinstance(r, str) and "WARNING:" in r]
-    results = [r for r in results if not (isinstance(r, str) and "WARNING:" in r)]
+    #warning_results = [r for r in results if isinstance(r, str) and "WARNING:" in r]
+    #results = [r for r in results if not (isinstance(r, str) and "WARNING:" in r)]
 
     # Check if any items in results are strings
-    if any(isinstance(result, str) for result in results):
+    #if any(isinstance(result, str) for result in results):
         # Handle them as necessary, e.g., filter them out
-        results = [result for result in results if isinstance(result, dict)]
+    #    results = [result for result in results if isinstance(result, dict)]
 
     # Check for each column
     for column in columns_to_check:
-        if all([result.get(column, '').strip() == '' for result in results]):
+        if all([(result.get(column, '').strip() == '' if isinstance(result, dict) else True) for result in results]):
+
+        #if all([result.get(column, '').strip() == '' for result in results]):
             # Remove column from each dictionary in results
             for result in results:
                 if column in result:
@@ -125,10 +135,19 @@ def peptide_search(request):
             # Remove column from headers
             if column in results_headers:
                 results_headers.remove(column)
+
+    for item in results:
+        if isinstance(item, dict):  # Check if the item is a dictionary (a regular result)
+            combined_results.append({"type": "result", "data": item})
+        else:  # Assume it's a warning
+            combined_results.append({"type": "warning", "data": item})
+
+    print(results)
     return render(request, 'peptide/peptide_search.html', {
         'errors': errors,
-        'warnings': warning_results,
-        'results': results,
+        #'warnings': warning_results,
+        #'results': results,
+        'combined_results': combined_results,
         'output_path': output_path,
         'data': request.POST,
         'peptide_option': peptide_option,
