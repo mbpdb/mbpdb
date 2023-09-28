@@ -30,7 +30,7 @@ jobs:
           registryUsername: ${{ secrets.MBPDBCONTAINER_REGISTRY_USERNAME }}
           registryPassword: ${{ secrets.MBPDBCONTAINER_REGISTRY_PASSWORD }}
           containerAppName: mbpdbcontainer
-          resourceGroup: COH_MBPDB_RG
+          resourceGroup: mbpdb
           imageToBuild: mbpdb/mbpdb:latest
           dockerfilePath: Dockerfile
 
