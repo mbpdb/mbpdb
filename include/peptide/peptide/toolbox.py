@@ -75,8 +75,6 @@ def pepdb_add_csv(csv_file, messages):
             err=0
             for row in data:
                 row = {key: value.strip() for key, value in row.items()}
-                print('cleaned_row',row)
-
                 rownum = rownum + 1
 
                 if (row['peptide']=='' or row['proteinID']=='' or row['function']=='' or row['title']=='' or row['authors']=='' or row['doi']==''):
@@ -652,7 +650,10 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     formated_header = ("<h2><u>Search parameters:</u> </br></h2><h4>"+params_str_web+"</h4>")
     """
     for header in common_csv_headers:
-        cleaned_header = re.sub('&nbsp', '', header)
+        # Replace &nbsp when it's between two characters (word or non-word) with a space.
+        header = re.sub(r'(?<=[\w\W])&nbsp(?=[\w\W])', ' ', header)
+        # Replace &nbsp when it's not surrounded by characters with nothing.
+        cleaned_header = re.sub(r'&nbsp', '', header)
         common_csv_headers_file.append(cleaned_header)
 
     if extra and seqsim != 100:
@@ -684,7 +685,6 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     else:"""
 
     params_list = []
-    print("content",content)
     for cont in content.splitlines():
         # Split the cont string into pep and peptide_option
         pep, peptide_option, matrix = cont.split(' ', 2)
@@ -695,14 +695,10 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
         peptide_option_list=list(set(peptide_option_list))
         matrix_list=list(set(matrix_list))
 
-    print("matrix_list",matrix_list)
-    print("peptide_option_list",peptide_option_list)
-
     if (peptide_option_list != ['sequence'] and peptide_option_list != []) or seqsim != 100 or ( matrix_list != ['IDENTITY'] and matrix_list != []):
         params_list.append(f"<b>Search type:</b> {', '.join(peptide_option_list)},")
         params_list.append(f"<b>Similarity threshold:</b> {seqsim}%,")
         params_list.append(f"<b>Scoring matrix:</b> {', '.join(matrix_list)},")
-
 
     if pid:
         params_list.append(f"<b>Protein ID:</b> {', '.join(pid)},")
@@ -719,7 +715,6 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     # Write to file export using params_str_tab
     # Replace it with the following to remove HTML tags
     cleaned_params_str_tab = re.sub('<.*?>', '', params_str_tab)
-    print("params_list",params_list)
     if(len(params_list) >= 1):
         writer.writerow([f'#Advanced search parameters:\t{cleaned_params_str_tab}'])
         params_str_web = "</br>".join(params_list)
