@@ -29,7 +29,7 @@ jobs:
           registryUrl: docker.io
           registryUsername: ${{ secrets.MBPDBCONTAINER_REGISTRY_USERNAME }}
           registryPassword: ${{ secrets.MBPDBCONTAINER_REGISTRY_PASSWORD }}
-          containerAppName: mbpdbcontainer
+          containerAppName: COH_MBPDB_RG
           resourceGroup: mbpdb
           imageToBuild: mbpdb/mbpdb:latest
           dockerfilePath: Dockerfile
@@ -39,4 +39,4 @@ jobs:
 
     - name: Update Azure Container App
       run: |
-        az containerapp update --resource-group mbpdb --name mbpdbcontainer --image index.docker.io/mbpdb/mbpdb:latest
+        az containerapp update --resource-group COH_MBPDB_RG --name mbpdbcontainer --image index.docker.io/mbpdb/mbpdb:latest
