@@ -555,6 +555,7 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
 def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsim, matrix, extra, species, no_pep):
     results = []
     messages = []
+    formated_header = ''
     results_headers = []
     common_csv_headers_file = []
     # Check if WORK_DIRECTORY exists and is writable
@@ -575,7 +576,7 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
                           'Protein&nbspdescription',
                           'Species&nbsp&nbsp&nbsp&nbsp',
                           'Intervals',
-                          'Function',
+                          'Function&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp',
                           'Additional&nbspdetails',
                           'IC50&nbsp(μM)&nbsp&nbsp&nbsp&nbsp',
                           'Inhibition&nbsptype',
@@ -599,7 +600,7 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     matrix_list = []
     with open(input_pep_path, 'r') as pepfile:
         content = pepfile.read().strip()
-    if no_pep:
+    """if no_pep:
         params_list = []
         if pid:
             params_list.append(f"<b>Protein ID:</b> {pid},")
@@ -644,15 +645,16 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     cleaned_params_str_tab = re.sub('<.*?>', '', params_str_tab)
     writer.writerow([f'#Search parameters:\t{cleaned_params_str_tab}'])
 
-
     for header in common_csv_headers:
         cleaned_header = re.sub('&nbsp', '', header)
         common_csv_headers_file.append(cleaned_header)
     params_str_web = "</br>".join(params_list)
     formated_header = ("<h2><u>Search parameters:</u> </br></h2><h4>"+params_str_web+"</h4>")
+    """
+    for header in common_csv_headers:
+        cleaned_header = re.sub('&nbsp', '', header)
+        common_csv_headers_file.append(cleaned_header)
 
-
-    # Use the variables in your main code
     if extra and seqsim != 100:
         writer.writerow(list(common_csv_headers_file) + list(blast_output_headers))
         #results.append('<tr>{}{}</tr><tr><td>'.format(common_table_headers_str, blast_output_table_headers_str))
@@ -662,6 +664,7 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
         writer.writerow(common_csv_headers_file)
         #results.append(common_csv_headers)
         results_headers.extend(common_csv_headers)
+
     if not content:  # This will be True for both truly empty files and files with just whitespace or ""
         results.extend(
             pepdb_search_tsv_line_manual(writer, "", peptide_option, seqsim, matrix, extra, pid, function, species, no_pep, results_headers))
@@ -670,14 +673,67 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
             # Split the cont string into pep and peptide_option
             pep, peptide_option, matrix = cont.split(' ', 2)
             results.extend(pepdb_search_tsv_line_manual(writer, pep, peptide_option, seqsim, matrix, extra, pid, function, species,no_pep, results_headers))
-    # Extract and clean warning results
+    """if no_pep:
+        params_list = []
+        if pid:
+            params_list.append(f"<b>Protein ID:</b> {pid},")
+        if function:
+            params_list.append(f"<b>Function:</b> {function},")
+        if species:
+            params_list.append(f"<b>Species:</b> {species}")
+    else:"""
+
+    params_list = []
+    print("content",content)
+    for cont in content.splitlines():
+        # Split the cont string into pep and peptide_option
+        pep, peptide_option, matrix = cont.split(' ', 2)
+        pep_list.append(pep)
+        peptide_option_list.append((peptide_option))
+        matrix_list.append(matrix)
+        pep_list=list(set(pep_list))
+        peptide_option_list=list(set(peptide_option_list))
+        matrix_list=list(set(matrix_list))
+
+    print("matrix_list",matrix_list)
+    print("peptide_option_list",peptide_option_list)
+
+    if (peptide_option_list != ['sequence'] and peptide_option_list != []) or seqsim != 100 or ( matrix_list != ['IDENTITY'] and matrix_list != []):
+        params_list.append(f"<b>Search type:</b> {', '.join(peptide_option_list)},")
+        params_list.append(f"<b>Similarity threshold:</b> {seqsim}%,")
+        params_list.append(f"<b>Scoring matrix:</b> {', '.join(matrix_list)},")
+
+
+    if pid:
+        params_list.append(f"<b>Protein ID:</b> {', '.join(pid)},")
+    if function:
+        params_list.append(f"<b>Function:</b> {', '.join(function)},")
+    if species:
+        params_list.append(f"<b>Species:</b> {', '.join(species)}")
+    if params_list:
+        last_item = params_list[-1]
+        if last_item.endswith(','):
+            params_list[-1] = last_item[:-1]
+    # Join the list with a tab character between each item
+    params_str_tab = "\t".join(params_list)
+    # Write to file export using params_str_tab
+    # Replace it with the following to remove HTML tags
+    cleaned_params_str_tab = re.sub('<.*?>', '', params_str_tab)
+    print("params_list",params_list)
+    if(len(params_list) >= 1):
+        writer.writerow([f'#Advanced search parameters:\t{cleaned_params_str_tab}'])
+        params_str_web = "</br>".join(params_list)
+        formated_header = ("<h2><u>Advanced search parameters:</u> </br></h2><h4>"+params_str_web+"</h4>")
+
+
+    """# Extract and clean warning results
     warning_results = list(set(r for r in results if "WARNING:" in r))
     cleaned_warning_results = [re.sub('<.*?>', '', warning) for warning in warning_results]
 
     # Writing the cleaned_warning_results to a TSV (for demonstration, writing to a list)
 
     for cleaned_warning in cleaned_warning_results:
-        writer.writerow([cleaned_warning])
+        writer.writerow([cleaned_warning])"""
 
     return results,formated_header,output_path,results_headers
 
@@ -733,7 +789,6 @@ def add_proteins(input_fasta_files, messages):
                 protid = m.group(1)
                 prot_desc = m.group(2)
                 prot_species = m.group(3)
-                print(protid, prot_desc, prot_species)
 
                 gvid = ''
                 gv = re.search("GV=(.+?)\s*$", seq_record.description)
@@ -926,7 +981,7 @@ def clear_temp_directory(directory_path):
             elif os.path.isdir(file_path):
                 shutil.rmtree(file_path)
         except Exception as e:
-            print(f'Failed to delete {file_path}. Reason: {e}')
+            pass
 
 # init db to git repo
 def git_init(modeladmin, request, queryset):
