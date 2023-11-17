@@ -39,4 +39,8 @@ jobs:
 
     - name: Update Azure Container App
       run: |
-        az containerapp update --resource-group COH_MBPDB_RG --name mbpdbcontainer --image index.docker.io/mbpdb/mbpdb:latest
+          az containerapp update \
+                    --name mbpdbcontainer \
+                    --resource-group COH_MBPDB_RG \
+                    --image docker.io/mbpdb/mbpdb:latest \
+                    --environment managedEnvironment-mbpdb-a6f4
