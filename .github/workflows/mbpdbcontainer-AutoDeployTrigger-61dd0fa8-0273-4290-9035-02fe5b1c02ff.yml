@@ -26,7 +26,7 @@ jobs:
       uses: azure/container-apps-deploy-action@v1
       with:
           appSourcePath: .
-          registryUrl: docker.io
+          registryUrl: index.docker.io
           registryUsername: ${{ secrets.MBPDBCONTAINER_REGISTRY_USERNAME }}
           registryPassword: ${{ secrets.MBPDBCONTAINER_REGISTRY_PASSWORD }}
           containerAppName: mbpdb
@@ -39,4 +39,4 @@ jobs:
 
     - name: Update Azure Container App
       run: |
-        az containerapp update --resource-group COH_MBPDB_RG --name mbpdbcontainer --image docker.io/mbpdb/mbpdb:latest
+        az containerapp update --resource-group COH_MBPDB_RG --name mbpdbcontainer --image index.docker.io/mbpdb/mbpdb:latest
