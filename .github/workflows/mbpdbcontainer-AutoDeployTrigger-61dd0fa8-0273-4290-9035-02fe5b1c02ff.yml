@@ -42,5 +42,4 @@ jobs:
           az containerapp update \
                     --name mbpdbcontainer \
                     --resource-group COH_MBPDB_RG \
-                    --image docker.io/mbpdb/mbpdb:latest \
-                    --environment managedEnvironment-mbpdb-a6f4
+                    --image docker.io/mbpdb/mbpdb:latest
