@@ -654,6 +654,8 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
         header = re.sub(r'(?<=[\w\W])&nbsp(?=[\w\W])', ' ', header)
         # Replace &nbsp when it's not surrounded by characters with nothing.
         cleaned_header = re.sub(r'&nbsp', '', header)
+        # Strip leading and trailing whitespace
+        cleaned_header = cleaned_header.strip()
         common_csv_headers_file.append(cleaned_header)
 
     if extra and seqsim != 100:
