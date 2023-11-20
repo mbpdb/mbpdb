@@ -51,18 +51,12 @@ def peptide_search(request):
         counter.save()
         # Split the input based on comma, tab, space, or new line.
         peptides = re.split(r'[\s,\'\[\]\(\)\.\}\{"]+', request.POST.get('peptides', '').strip())
-        #peptides = list(set([line.strip() for line in request.POST.get('peptides', '').splitlines()]))
         peptide_option = request.POST.getlist('peptide_option')
         pid = request.POST.getlist('proteinid[]')
-        #pid = [x.strip() for x in pid_input] if pid_input else []
         function = request.POST.getlist('function[]')
-        #function = [x.strip() for x in function_input] if function_input else []
         species = request.POST.getlist('species[]')
-        #species = [x.strip() for x in species_input] if species_input else []
         seqsim = int(request.POST['seqsim'])
         matrix = request.POST.getlist('matrix')
-
-        # Remove empty strings from the list.
         peptides = [peptide for peptide in peptides if peptide]
         if (len(peptides) > 10000):
             errors.append(
@@ -77,6 +71,8 @@ def peptide_search(request):
                 extra = 0
         if not peptides:
                extra = 0
+
+
         # Save peptides to a file named pepfile.txt
         pepfile_path = os.path.join(settings.MEDIA_ROOT, "pepfile.txt")
         with open(os.path.join(settings.MEDIA_ROOT, "pepfile.txt"), "w") as pepfile:
@@ -115,20 +111,11 @@ def peptide_search(request):
         'Inhibited&nbspmicroorganisms',
         'PTM'
     ]
-    # Separate warnings and results
-    #warning_results = [r for r in results if isinstance(r, str) and "WARNING:" in r]
-    #results = [r for r in results if not (isinstance(r, str) and "WARNING:" in r)]
-
-    # Check if any items in results are strings
-    #if any(isinstance(result, str) for result in results):
-        # Handle them as necessary, e.g., filter them out
-    #    results = [result for result in results if isinstance(result, dict)]
 
     # Check for each column
     for column in columns_to_check:
         if all([(result.get(column, '').strip() == '' if isinstance(result, dict) else True) for result in results]):
 
-        #if all([result.get(column, '').strip() == '' for result in results]):
             # Remove column from each dictionary in results
             for result in results:
                 if column in result:
@@ -143,10 +130,34 @@ def peptide_search(request):
             combined_results.append({"type": "result", "data": item})
         else:  # Assume it's a warning
             combined_results.append({"type": "warning", "data": item})
+
+    # Initialize dictionaries for counting
+    species_counts = {}
+    function_counts = {}
+    protein_id_counts = {}
+    peptide_counts = {}
+
+    for item in combined_results:
+        if item['type'] == 'result':
+            # Extracting and adding unique values
+            peptide = item['data'].get('Peptide&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp', None)
+            species = item['data'].get('Species&nbsp&nbsp&nbsp&nbsp', None)
+            function = item['data'].get(
+                'Function&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp', None)
+            protein_id = item['data'].get('Protein&nbspID', None)
+
+            # Update counts in dictionaries
+            if peptide:
+                peptide_counts[peptide] = peptide_counts.get(peptide, 0) + 1
+            if species:
+                species_counts[species] = species_counts.get(species, 0) + 1
+            if function:
+                function_counts[function] = function_counts.get(function, 0) + 1
+            if protein_id:
+                protein_id_counts[protein_id] = protein_id_counts.get(protein_id, 0) + 1
+
     return render(request, 'peptide/peptide_search.html', {
         'errors': errors,
-        #'warnings': warning_results,
-        #'results': results,
         'combined_results': combined_results,
         'output_path': output_path,
         'data': request.POST,
@@ -158,7 +169,14 @@ def peptide_search(request):
         'common_to_sci_list': common_to_sci,
         'formated_header': formated_header,
         'table_headers': results_headers,
+        'function_counts': function_counts,
+        'species_counts': species_counts,
+        'function_counts': function_counts,
+        'protein_id_counts': protein_id_counts,
+        'peptide_counts': peptide_counts,
     })
+
+
 #unmodified but needs updating as message function is Deprecated
 def add_proteins_tool(request):
     errors = []
