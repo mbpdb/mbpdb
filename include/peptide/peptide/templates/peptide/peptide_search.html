@@ -160,6 +160,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
                 <option value=""></option> <!-- This is for the placeholder -->
                 {% for desc, pids in description_to_pid.items %}
                     {% for pid in pids %}
+                        <!--<option value="{{ pid }}" {% if pid in data.proteinid %}selected{% endif %}>{{ desc }} ({{ pid }})</option>-->
                         <option value="{{ pid }}">{{ desc }} ({{ pid }})</option>
                     {% endfor %}
                 {% endfor %}
@@ -190,6 +191,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
         <select multiple placeholder="Choose functions" data-allow-clear="1" id="funclabel" name="function[]" style="width:100%;">
             <option value=""></option> <!-- This is for the placeholder -->
             {% for function in functions %}
+                 <!--<option value="{{function}}" {% if function in data.function %}selected{% endif %}>{{function}}</option>-->
                 <option value="{{function}}">{{function}}</option>
             {% endfor %}
         </select>
@@ -263,78 +265,189 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a> | If you are referencing this database: <a href="{% url 'about_us' %}#Cite" style="font-size: 20px;"> <b>please cite</b></a>
     <br/>
 
-{{ formated_header|safe }}
 
-<table border="1" id="results_table">
+    <style>
+    #summary_table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+    }
+    #summary_table th, #summary_table td {
+        padding: 10px;
+        vertical-align: top;
+        border-bottom: 1px solid black; /* Bottom border for all cells */
+    }
+    #summary_table th {
+        text-align: center; /* Center align for headers */
+        border-bottom: 3px solid black; /* Thick bottom border for title row */
+    }
+    #summary_table .title-row th {
+        font-size: 1.5em; /* Larger font size for title */
+        font-weight: bold;
+        border-bottom: 3px solid black; /* Extra thick bottom border for title row */
+    }
+    #summary_table .header-row th {
+        border-bottom: 1px solid black;
+    }
+    #summary_table td.left-col, #summary_table th.left-col {
+        text-align: left !important; /* Left align the text for the first column, forced override */
+        border-right: 1px solid black !important; /* Right border for the first column, forced override */
+    }
+    #summary_table .mid-col {
+        text-align: center;
+    }
+    #summary_table td {
+        border-right: none; /* No right border for cells by default */
+    }
+    .count-cell {
+        display: inline; /* Ensure the count is on the same line */
+    }
+</style>
+
+<table id="summary_table">
+    <thead>
+
+Certainly! If you want to ensure that only the 'Search Parameters' and 'Total Counts' cells have a right border, you can apply the CSS specifically to those cells using the left-col class or an equivalent identifier. Below is the updated CSS and HTML code to apply the right border to only those cells:
+
+html
+Copy code
+<style>
+    #summary_table {
+        width: 720px;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+    }
+    #summary_table th, #summary_table td {
+        padding: 10px;
+        vertical-align: top;
+        text-align: center; /* Center align by default */
+        border-bottom: 1px solid black; /* Standard bottom border for all cells */
+    }
+    #summary_table th.title {
+        font-size: 1.5em; /* Larger font size for the full results title */
+        text-align: left; /* Left align the text for the first column */
+        border-bottom: 3px solid black; /* Thick bottom border for the title row */
+        padding-bottom: 5px; /* Adjust this value as needed for whitespace */
+        margin-bottom: 20px; /* Adjust this value to match the space below the 'Full Results' title */
+       }
+    #summary_table th:not(.title), #summary_table td {
+        border-bottom: 1px solid black; /* Standard bottom border for header and data cells */
+    }
+    #summary_table td.left-col {
+        text-align: left; /* Left align the text for the first column */
+        border-right: 1px solid black; /* Right border for the first column */
+    }
+    #summary_table tr:last-child td.left-col {
+        border-top: 2px solid black; /* Thicker top border for the last row */
+    }
+    .count-cell {
+        display: inline; /* Ensure the count is on the same line */
+    }
+    #results_table .full-results-title {
+        font-size: 1.5em; /* Larger font size for the full results title */
+        font-weight: bold;
+        text-align: center;;
+        border-bottom: 3px solid black; /* Thick bottom border for the full results title row */
+        border-top: 3px solid white;
+        border-left: 3px solid white;
+        border-right: 3px solid white;
+        padding-bottom: 5px; /* Adjust this value as needed for whitespace */
+        margin-bottom: 20px; /* Adjust this value to match the space below the 'Full Results' title */
+    }
+</style>
+
+<table id="summary_table">
     <thead>
         <tr>
-            {% for header in table_headers %}
-                <th style="padding:10px;" >
-                    {{ header | safe }}
-                </th>
-            {% endfor %}
+            <th colspan="5" class="title">Results Summary</th> <!-- Span the title across all columns -->
+        </tr>
+        <tr class="header-row">
+            <th> </th>
+            <th>Peptides</th>
+            <th>Species</th>
+            <th>Functions</th>
+            <th>Protein IDs</th>
         </tr>
     </thead>
     <tbody>
-{% for item in combined_results %}
-    {% if item.type == "warning" %}
         <tr>
-            <td colspan={{ table_headers|length }} style="padding:10px;">
-                <div class="warning">
-                    {{ item.data|safe }}
-                </div>
+            <td class="left-col"><b>Search Parameters</b></td>
+            <td class = ".mid-col" >
+                <!--{% for peptide, count in peptide_counts.items %}
+                    {{ peptide }}: {{ count }}<br>
+                {% endfor %}-->
+            </td>
+            <td>
+                {% for species, count in species_counts.items %}
+                    {{ species }}: {{ count }}<br>
+                {% endfor %}
+            </td>
+            <td>
+                {% for function, count in function_counts.items %}
+                    {{ function }}: {{ count }}<br>
+                {% endfor %}
+            </td>
+            <td>
+                {% for protein_id, count in protein_id_counts.items %}
+                    {{ protein_id }}: {{ count }}<br>
+                {% endfor %}
             </td>
         </tr>
-    {% else %}
         <tr>
-            {% for key, value in item.data.items %}
-                <td style="padding:10px; max-width:125px; word-wrap:break-word;">
-                    {% if key == "Abstract&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp"%}
-                        <button class="toggle-content">Show Abstract</button>
-                        <div class="collapsible-content">
-                            {{ value|safe }}
-                        </div>
-                    {% else %}
-                        {{ value|safe }}
-                    {% endif %}
-                </td>
-            {% endfor %}
+            <td class="left-col"><b>Total Counts</b></td>
+            <td>{{ peptide_counts|length }}</td>
+            <td>{{ species_counts|length }}</td>
+            <td>{{ function_counts|length }}</td>
+            <td>{{ protein_id_counts|length }}</td>
         </tr>
-    {% endif %}
-{% endfor %}
-
-        <!-- Display warnings -->
-        <!-- {% for w in warnings %}
-            <tr>
-                <td  colspan={{ table_headers|length }} style="padding:10px;" >
-                    <div class="warning">
-                        <!-- Warning content -->
-                        <!--{{ w|safe }}
-                    </div>
-                </td>
-            </tr>
-        {% endfor %}
-
-        <!-- Display regular results -->
-        <!-- {% for row in results %}
-            <tr>
-                {% for key, value in row.items %}
-                        <td style="padding:10px; max-width:125px; word-wrap:break-word;">
-                        {% if key == "Abstract&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp"%}
-                            <!-- Make this column collapsible -->
-                            <!--<button class="toggle-content">Show Abstract</button>
-                            <div class="collapsible-content">
-                                {{ value|safe }}
-                            </div>
-                        {% else %}
-                            {{ value|safe }}
-                        {% endif %}
-                    </td>
-                {% endfor %}
-            </tr>
-        {% endfor %}-->
     </tbody>
 </table>
+
+
+
+    <table border="1" id="results_table">
+        <thead>
+        <!-- Full Results title row -->
+        <tr class="full-results-title">
+            <th colspan="{{ table_headers|length }}">Full Results</th>
+        </tr>
+            <tr>
+                {% for header in table_headers %}
+                    <th style="padding:10px;" >
+                        {{ header | safe }}
+                    </th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in combined_results %}
+                {% if item.type == "warning" %}
+                    <tr>
+                        <td colspan={{ table_headers|length }} style="padding:10px;">
+                            <div class="warning">
+                                {{ item.data|safe }}
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        {% for key, value in item.data.items %}
+                            <td style="padding:10px; max-width:125px; word-wrap:break-word;">
+                                {% if key == "Abstract&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp"%}
+                                    <button class="toggle-content">Show Abstract</button>
+                                    <div class="collapsible-content">
+                                        {{ value|safe }}
+                                    </div>
+                                {% else %}
+                                    {{ value|safe }}
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
 {% endif %}
 <br/><br/><br/><br/>
 <script>
