@@ -265,53 +265,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     <a href="{% url 'tsv_search_results' %}{{output_path}}">Download results as a TSV file</a> | If you are referencing this database: <a href="{% url 'about_us' %}#Cite" style="font-size: 20px;"> <b>please cite</b></a>
     <br/>
 
-
     <style>
-    #summary_table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 20px;
-    }
-    #summary_table th, #summary_table td {
-        padding: 10px;
-        vertical-align: top;
-        border-bottom: 1px solid black; /* Bottom border for all cells */
-    }
-    #summary_table th {
-        text-align: center; /* Center align for headers */
-        border-bottom: 3px solid black; /* Thick bottom border for title row */
-    }
-    #summary_table .title-row th {
-        font-size: 1.5em; /* Larger font size for title */
-        font-weight: bold;
-        border-bottom: 3px solid black; /* Extra thick bottom border for title row */
-    }
-    #summary_table .header-row th {
-        border-bottom: 1px solid black;
-    }
-    #summary_table td.left-col, #summary_table th.left-col {
-        text-align: left !important; /* Left align the text for the first column, forced override */
-        border-right: 1px solid black !important; /* Right border for the first column, forced override */
-    }
-    #summary_table .mid-col {
-        text-align: center;
-    }
-    #summary_table td {
-        border-right: none; /* No right border for cells by default */
-    }
-    .count-cell {
-        display: inline; /* Ensure the count is on the same line */
-    }
-</style>
-
-<table id="summary_table">
-    <thead>
-
-Certainly! If you want to ensure that only the 'Search Parameters' and 'Total Counts' cells have a right border, you can apply the CSS specifically to those cells using the left-col class or an equivalent identifier. Below is the updated CSS and HTML code to apply the right border to only those cells:
-
-html
-Copy code
-<style>
     #summary_table {
         width: 720px;
         border-collapse: collapse;
@@ -337,13 +291,11 @@ Copy code
         text-align: left; /* Left align the text for the first column */
         border-right: 1px solid black; /* Right border for the first column */
     }
-    #summary_table tr:last-child td.left-col {
-        border-top: 2px solid black; /* Thicker top border for the last row */
-    }
-    .count-cell {
+     .count-cell {
         display: inline; /* Ensure the count is on the same line */
     }
     #results_table .full-results-title {
+        padding: 10px;
         font-size: 1.5em; /* Larger font size for the full results title */
         font-weight: bold;
         text-align: center;;
@@ -409,7 +361,7 @@ Copy code
         <thead>
         <!-- Full Results title row -->
         <tr class="full-results-title">
-            <th colspan="{{ table_headers|length }}">Full Results</th>
+            <th colspan="{{ table_headers|length }}">&nbspFull Results</th>
         </tr>
             <tr>
                 {% for header in table_headers %}
