@@ -223,17 +223,22 @@ def download_fasta_file(request):
 def tsv_search_results(request):
     debug_info = []  # List to collect debug information
     try:
+        #file_path = re.escape(settings.WORK_DIRECTORY)
+        print(settings.BASE_DIR)
         file_path = request.path.replace("/tsv_search_results/", "")  # No lstrip
         debug_info.append(f"File path from request: {file_path}\n")
-        #print(file_path)
+        print(file_path)
 
         escaped_work_directory = re.escape(settings.WORK_DIRECTORY)  # No lstrip
         debug_info.append(f"Escaped work directory from settings: {escaped_work_directory}\n")
-        #print(escaped_work_directory)
+        print(escaped_work_directory)
+        if file_path.startswith('/'):
+            regex_pattern = f"^{escaped_work_directory}/work_.+/MBPDB.+\\.tsv$"  # Updated regex
+        else:
+            regex_pattern = f"^/{escaped_work_directory}/work_.+/MBPDB.+\\.tsv$"  # Updated regex
 
-        regex_pattern = f"^{escaped_work_directory}/work_.+/MBPDB.+\\.tsv$"  # Updated regex
         debug_info.append(f"Regex pattern: {regex_pattern}\n")
-        #print(regex_pattern)
+        print(regex_pattern)
 
         if re.match(regex_pattern, file_path):
             if file_path.startswith('/'):
@@ -259,44 +264,7 @@ def tsv_search_results(request):
     # If none of the above returns execute, return a general error (this shouldn't normally be reached)
     debug_info.append("An unexpected error occurred\n")
     return HttpResponse("\n".join(debug_info), status=500, content_type='text/plain')
-"""def tsv_search_results(request):
-    debug_info = []  # List to collect debug information
-    try:
-        file_path = request.path.replace("/tsv_search_results/", "")#.lstrip('/')
-        debug_info.append(f"File path from request: {file_path}")
-        print(file_path)
-        escaped_work_directory = re.escape(settings.WORK_DIRECTORY)#.lstrip('/')
-        debug_info.append(f"Escaped work directory from settings: {escaped_work_directory}")
-        print(escaped_work_directory)
-        regex_pattern = "^" + escaped_work_directory + "/work_.+/MBPDB.+\.tsv$"  # Updated regex
-        debug_info.append(f"Regex pattern: {regex_pattern}")
-        print(regex_pattern)
-        if re.match(regex_pattern, file_path):
-            if file_path.startswith('/'):
-                absolute_file_path = file_path  # It's already an absolute path
-                print("if", absolute_file_path)
-            else:
-                # It's already an absolute path relative to the application directory, no need to append again.
-                absolute_file_path = '/' + file_path
-                print("else", absolute_file_path)
 
-            debug_info.append(f"Absolute file path: {absolute_file_path}")
-
-            if os.path.exists(absolute_file_path):
-                response = FileResponse(open(absolute_file_path, 'rb'))
-                print("if", response)
-
-                return response
-                print("else", response)
-
-            else:
-                debug_info.append("File not found")
-                return HttpResponse("\n".join(debug_info), status=404)
-
-    except Exception as e:
-        debug_info.append(f"An error occurred: {str(e)}")
-        return HttpResponse("\n".join(debug_info), status=500)
-"""
 #Added  returns about us page
 def about_us(request):
     q = get_latest_peptides(1)
