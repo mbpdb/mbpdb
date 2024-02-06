@@ -224,21 +224,20 @@ def tsv_search_results(request):
     debug_info = []  # List to collect debug information
     try:
         #file_path = re.escape(settings.WORK_DIRECTORY)
-        print(settings.BASE_DIR)
+        debug_info.append(f"BASE_DIR: {settings.BASE_DIR}\n")
+
         file_path = request.path.replace("/tsv_search_results/", "")  # No lstrip
         debug_info.append(f"File path from request: {file_path}\n")
-        print(file_path)
 
         escaped_work_directory = re.escape(settings.WORK_DIRECTORY)  # No lstrip
         debug_info.append(f"Escaped work directory from settings: {escaped_work_directory}\n")
-        print(escaped_work_directory)
+
         if file_path.startswith('/'):
             regex_pattern = f"^{escaped_work_directory}/work_.+/MBPDB.+\\.tsv$"  # Updated regex
         else:
             regex_pattern = f"^/{escaped_work_directory}/work_.+/MBPDB.+\\.tsv$"  # Updated regex
 
         debug_info.append(f"Regex pattern: {regex_pattern}\n")
-        print(regex_pattern)
 
         if re.match(regex_pattern, file_path):
             if file_path.startswith('/'):
