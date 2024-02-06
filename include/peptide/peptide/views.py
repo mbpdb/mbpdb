@@ -226,7 +226,7 @@ def tsv_search_results(request):
         #file_path = re.escape(settings.WORK_DIRECTORY)
         debug_info.append(f"BASE_DIR: {settings.BASE_DIR}\n")
 
-        file_path = request.path.replace("/tsv_search_results/", "")  # No lstrip
+        file_path = request.path.replace("/tsv_search_results/", "/")  # No lstrip
         debug_info.append(f"File path from request: {file_path}\n")
 
         escaped_work_directory = re.escape(settings.WORK_DIRECTORY)  # No lstrip
