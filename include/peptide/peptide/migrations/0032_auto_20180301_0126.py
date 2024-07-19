@@ -5,8 +5,8 @@ from __future__ import unicode_literals
 import datetime
 from django.db import migrations, models
 import django.db.models.deletion
-from django.utils.timezone import utc
-
+#from django.utils.timezone import utc
+from datetime import timezone
 
 class Migration(migrations.Migration):
 
@@ -32,7 +32,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='peptideinfo',
             name='time_approved',
-            field=models.DateTimeField(default=datetime.datetime(2018, 3, 1, 9, 26, 29, 411842, tzinfo=utc)),
+            field=models.DateTimeField(default=datetime.datetime(2018, 3, 1, 9, 26, 29, 411842, tzinfo=timezone.utc)),
             preserve_default=False,
         ),
         migrations.AddField(
