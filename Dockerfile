@@ -41,4 +41,4 @@ ENV DJANGO_SETTINGS_MODULE=peptide.settings
 ENV PYTHONPATH include/peptide/:$PYTHONPATH
 
 # Run your application
-CMD gunicorn -b 0.0.0.0:8000 --timeout=30 peptide.wsgi:application
+CMD gunicorn -b 0.0.0.0:8000 --timeout=300 peptide.wsgi:application
