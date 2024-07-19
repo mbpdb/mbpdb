@@ -20,13 +20,15 @@
 <br/>
     <h4>Peptide Search</h4>
 <div class="textarea-container">
-<form method="POST" enctype="multipart/form-data" action="." role="form" onsubmit="return validateFields();">
+<form method="POST" enctype="multipart/form-data" action="." role="form" onsubmit="showLoadingSpinner(); return validateFields();">
 {% csrf_token %}
 <div class="form-group">
     <textarea name="peptides" rows="10" placeholder="YPFPGPIPN" class="tools-form-raw-text-input" data-hj-allow="true">{% if data.peptides %}{{data.peptides}}{% endif %}</textarea><br/>
     <p>Enter a peptide sequence or multiple sequences, or upload a simple text file of peptide sequences. To preform the query click the "Search DB" button. <a href="#" id="loadFileLink">load from a text file</a> | <a href="{% static 'peptide/example/multiple_peptide_example.txt' %}" target="_blank">Example</a></p>
     <input type="file" name="inputfile" id="hiddenFileInput" />
 </div>
+
+
 <script>
 document.querySelector('#loadFileLink').addEventListener('click', function(event) {
     event.preventDefault();  // Prevent the default anchor action
@@ -258,6 +260,12 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     {% endwith %}
 </div>
 <br/>
+<div id="loadingSpinner" style="display:none;">
+    <img src="{% static 'peptide/Loading_icon.gif' %}" alt="Loading...">
+    <p style="font-size: 1.5em;"><b>Searching, please wait...</b></p>
+    <p>If the search takes <b>longer than 4 minutes</b>, try reducing the number of peptides.</p>
+    <br/>
+</div>
 <button class="btn btn-default" id="search-db-btn">Search DB</button>  <a href=".">Clear all search criteria</a>
 <br/><br/><br/><br/>
 
@@ -446,6 +454,19 @@ document.addEventListener('DOMContentLoaded', function() {
             collapsibleDiv.style.maxHeight = maxHeight;
         }
     });
+});
+
+function showLoadingSpinner() {
+    document.getElementById('loadingSpinner').style.display = 'block';
+}
+
+function hideLoadingSpinner() {
+    document.getElementById('loadingSpinner').style.display = 'none';
+}
+
+document.querySelector('#loadFileLink').addEventListener('click', function(event) {
+    event.preventDefault();  // Prevent the default anchor action
+    document.querySelector('#hiddenFileInput').click();
 });
 
 document.querySelector('input[name="inputfile"]').addEventListener('change', function(event) {
