@@ -237,18 +237,15 @@ def pepdb_approve(queryset):
 def run_blastp(q,peptide,matrix):
     work_path = create_work_directory(settings.WORK_DIRECTORY)
     query_path = os.path.join(work_path, "query.fasta")
-    fasta_db_path = os.path.join(work_path, "db.fasta")
-    output_path = os.path.join(work_path, "blastp_short.out")
-    fasta_db_file = open(fasta_db_path, "w")
-    for info in q:
-        fasta_db_file.write(">"+str(info.id)+"\n"+info.peptide+"\n")
-    fasta_db_file.close()
+    #fasta_db_path = os.path.join(work_path, "db.fasta")
 
     query_file = open(query_path, "w")
     query_file.write(">pep_query\n"+peptide+"\n")
     query_file.close()
+    output_path = os.path.join(work_path, "blastp_short.out")
 
-    make_blast_db(fasta_db_path)
+    #make_blast_db(fasta_db_path)
+
     subprocess.check_output(["blastp","-query",query_path,"-db",fasta_db_path,"-outfmt","6 std ppos qcovs qlen slen positive","-evalue","1000","-word_size","2","-matrix",matrix,"-threshold","1","-task","blastp-short","-out",output_path], stderr=subprocess.STDOUT)
 
     csv.register_dialect('blast_dialect', delimiter='\t')
@@ -556,8 +553,19 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
     formated_header = ''
     results_headers = []
     common_csv_headers_file = []
-    # Check if WORK_DIRECTORY exists and is writable
+    #Creates blast_db
+    global fasta_db_path
+    fasta_db_path = os.path.join(settings.BLAST_DB, "db.fasta")
 
+    fasta_db_file = open(fasta_db_path, "w")
+    q = PeptideInfo.objects.all()
+    for info in q:
+        fasta_db_file.write(">"+str(info.id)+"\n"+info.peptide+"\n")
+    fasta_db_file.close()
+
+    make_blast_db(fasta_db_path)
+
+    # Check if WORK_DIRECTORY exists and is writable
     work_path = create_work_directory(settings.WORK_DIRECTORY)
     input_pep_path = pepfile_path
     subprocess.check_output(['dos2unix', '-q', input_pep_path], stderr=subprocess.STDOUT)
