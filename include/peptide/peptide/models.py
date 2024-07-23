@@ -1,7 +1,6 @@
 from django.db import models
 
 # Create your models here.
-
 def protein_pid(obj):
     return ("%s" % obj.protein.pid)
 
