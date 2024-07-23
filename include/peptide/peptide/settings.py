@@ -105,6 +105,7 @@ COMBINE = os.path.join(BASE_DIR, 'scripts/combine.pl')
 PEPEX = os.path.join(BASE_DIR, 'scripts/pepex.pl')
 FASTA_FILES_DIR = os.path.join(BASE_DIR,'scripts/fasta_files')
 FIX_WEIRD_CHARS = os.path.join(BASE_DIR, 'scripts/fix_weird_chars.pl')
+BLAST_DB = os.path.join(BASE_DIR,'peptide/blast_db')
 
 #for species search translation
 SPEC_TRANSLATE_LIST = [
