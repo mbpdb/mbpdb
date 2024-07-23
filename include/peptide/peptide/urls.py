@@ -11,7 +11,7 @@ urlpatterns = [
     re_path(r'^peptide_db_csv/$', views.peptide_db_csv, name='peptide_db_csv'),
     re_path(r'^peptide_search/$', views.peptide_search, name='peptide_search'),
     re_path(r'^about_us/$', views.about_us, name='about_us'),
-    re_path(r'^test/$', views.test_page, name='test_page'),
+    re_path(r'^test/$', views.test, name='test_page'),
     re_path(r'^admin/', admin.site.urls),
     re_path('get_protein_list/', views.get_protein_list_view, name='get_protein_list'),
     path('start-work/', views.start_work, name='start_work'),

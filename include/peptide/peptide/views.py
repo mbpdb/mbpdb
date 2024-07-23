@@ -327,7 +327,7 @@ def about_us(request):
     q = get_latest_peptides(1)
     return render(request, 'peptide/about_us.html', {'latest_peptides': q})
 
-def test_page(request):
+def test(request):
     return render(request, 'peptide/test.html')
 
 #Added  returns protein list for the add peptide/protein page
