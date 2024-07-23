@@ -261,9 +261,9 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 </div>
 <br/>
 <div id="loadingSpinner" style="display:none;">
-    <img src="{% static 'peptide/Loading_icon.gif' %}" alt="Loading...">
+    <img src="{% static 'peptide/VI5N.gif' %}" alt="Loading...">
     <p style="font-size: 1.5em;"><b>Searching, please wait...</b></p>
-    <p>If the search takes <b>longer than 4 minutes</b>, try reducing the number of peptides.</p>
+    <p>If the search times out after <b>4 minutes</b>, try reducing the number of peptides.</p>
     <br/>
 </div>
 <button class="btn btn-default" id="search-db-btn">Search DB</button>  <a href=".">Clear all search criteria</a>
