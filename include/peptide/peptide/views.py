@@ -1,12 +1,68 @@
 from django.shortcuts import render
 import os, re
 from .toolbox import func_list, clear_temp_directory, spec_list, pro_list, run_pepex, add_proteins, pepdb_add_csv, pepdb_multi_search_manual, get_latest_peptides
+
 import subprocess
 from subprocess import CalledProcessError
 from .models import Counter
 from django.utils import timezone
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.conf import settings
+
+from .tasks import long_running_task
+from django.core.cache import cache
+
+
+def start_work(request):
+    task = long_running_task.delay()
+    print(f'Started task with ID: {task.id}')
+    return JsonResponse({'task_id': task.id})
+
+
+def check_progress(request, task_id):
+    progress = cache.get(f'progress_{task_id}')
+    elapsed_time = cache.get(f'elapsed_time_{task_id}')
+
+    if progress is None:
+        progress = 0  # Default value if not set yet
+    if elapsed_time is None:
+        elapsed_time = 0.0  # Default value if not set yet
+
+    # Calculate estimated time remaining
+    if progress > 0:
+        total_estimated_time = elapsed_time / (progress / 100)
+        time_remaining = total_estimated_time - elapsed_time
+    else:
+        time_remaining = 0.0
+
+    print(f'Checking progress for task ID: {task_id}, Progress: {progress}, Elapsed Time: {elapsed_time}, Time Remaining: {time_remaining}')
+    return JsonResponse({'progress': progress, 'elapsed_time': elapsed_time, 'time_remaining': time_remaining})
+def check_progress(request, task_id):
+    progress = cache.get(f'progress_{task_id}')
+    elapsed_time = cache.get(f'elapsed_time_{task_id}')
+
+    if progress is None:
+        progress = 0  # Default value if not set yet
+    if elapsed_time is None:
+        elapsed_time = 0.0  # Default value if not set yet
+
+    # Calculate estimated time remaining in seconds
+    if progress > 0:
+        total_estimated_time = elapsed_time / (progress / 100)
+        time_remaining = total_estimated_time - elapsed_time
+    else:
+        time_remaining = 0.0
+
+    # Convert times to minutes
+    elapsed_time_minutes = elapsed_time / 60
+    time_remaining_minutes = time_remaining / 60
+
+    print(f'Checking progress for task ID: {task_id}, Progress: {progress}, Elapsed Time: {elapsed_time_minutes} minutes, Time Remaining: {time_remaining_minutes} minutes')
+    return JsonResponse({
+        'progress': progress,
+        'elapsed_time': elapsed_time_minutes,
+        'time_remaining': time_remaining_minutes
+    })
 
 #Unmodified
 def index(request):
@@ -270,6 +326,9 @@ def tsv_search_results(request):
 def about_us(request):
     q = get_latest_peptides(1)
     return render(request, 'peptide/about_us.html', {'latest_peptides': q})
+
+def test_page(request):
+    return render(request, 'peptide/test.html')
 
 #Added  returns protein list for the add peptide/protein page
 def get_protein_list_view(request):
