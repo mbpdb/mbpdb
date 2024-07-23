@@ -11,7 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_PAT }} # Set for all steps in this job
-
+    
+    services:
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
     steps:
     - name: Checkout to the branch
       uses: actions/checkout@v2
