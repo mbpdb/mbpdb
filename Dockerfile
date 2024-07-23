@@ -11,9 +11,8 @@ RUN apt-get update && apt-get install -y \
     recode \
     sqlite3 \
     ncbi-blast+ \
-    git
-
-
+    git \
+    redis-server
 # Set the working directory in the container
 WORKDIR /app
 
@@ -41,4 +40,9 @@ ENV DJANGO_SETTINGS_MODULE=peptide.settings
 ENV PYTHONPATH include/peptide/:$PYTHONPATH
 
 # Run your application
-CMD gunicorn -b 0.0.0.0:8000 --timeout=300 peptide.wsgi:application
+# CMD gunicorn -b 0.0.0.0:8000 --timeout=300 peptide.wsgi:application
+
+# Run Redis, Django, and Celery
+CMD service redis-server start && \
+    gunicorn -b 0.0.0.0:8000 --timeout=300 peptide.wsgi:application & \
+    celery -A peptide worker --loglevel=info

@@ -7,3 +7,6 @@ setuptools
 wheel
 whitenoise
 biopython
+celery
+django-redis
+django-celery-progress
