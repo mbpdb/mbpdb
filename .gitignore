@@ -1,5 +1,10 @@
 *.pyc
 static_files/admin/js/vendor/select2/
 static_files/admin/css/vendor/select2/
-.idea/
+include/peptide/peptide/.idea/
 include/peptide/uploads/pepfile.txt
+include/peptide/peptide/blast_db/
+include/peptide/peptide/migrations/0023_peptideinfo_time_submitted.py
+include/peptide/peptide/migrations/0032_auto_20180301_0126.py
+include/peptide/peptide/static/peptide/VI5N.gif:Zone.Identifier
+include/peptide/uploads/temp/
