@@ -114,9 +114,9 @@ def peptide_search(request):
         seqsim = int(request.POST['seqsim'])
         matrix = request.POST.getlist('matrix')
         peptides = [peptide for peptide in peptides if peptide]
-        if (len(peptides) > 10000):
-            errors.append(
-                f"Error: A maximium of 10,000 peptides can be search in one Querry. Please reduce the list from the {len(peptides)} peptides inputed in the last search.")
+        #if (len(peptides) > 10000):
+        #    errors.append(
+        #        f"Error: A maximium of 10,000 peptides can be search in one Querry. Please reduce the list from the {len(peptides)} peptides inputed in the last search.")
         for peptide in peptides:
             if not peptide.isalpha():
                 errors.append(
