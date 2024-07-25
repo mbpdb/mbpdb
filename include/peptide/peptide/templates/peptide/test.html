@@ -37,15 +37,6 @@
                     $('#task-progress').html('Progress: ' + data.progress + '%');
                     $('#elapsed-time').html('Elapsed time: ' + data.elapsed_time.toFixed(2) + ' minutes');
                     $('#time-remaining').html('Estimated time remaining: ' + data.time_remaining.toFixed(2) + ' minutes');
-                    if (data.progress < 100) {
-                        setTimeout(function() {
-                            pollProgress(taskId);
-                        }, 1000);
-                    } else {
-                        $('#task-progress').html('Task complete');
-                        $('#elapsed-time').html('Elapsed time: ' + data.elapsed_time.toFixed(2) + ' minutes');
-                        $('#time-remaining').html('Estimated time remaining: 0.00 minutes');
-                    }
                 },
                 error: function(err) {
                     console.error('Error polling progress:', err);
