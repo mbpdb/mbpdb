@@ -49,7 +49,7 @@ def check_progress(request, task_id):
 
     # Calculate estimated time remaining in seconds
     if progress > 0:
-        total_estimated_time = elapsed_time / (progress / 100)
+        total_estimated_time = elapsed_time / (progress / 500)
         time_remaining = total_estimated_time - elapsed_time
     else:
         time_remaining = 0.0
@@ -58,7 +58,6 @@ def check_progress(request, task_id):
     elapsed_time_minutes = elapsed_time / 60
     time_remaining_minutes = time_remaining / 60
 
-    print(f'Checking progress for task ID: {task_id}, Progress: {progress}, Elapsed Time: {elapsed_time_minutes} minutes, Time Remaining: {time_remaining_minutes} minutes')
     return JsonResponse({
         'progress': progress,
         'elapsed_time': elapsed_time_minutes,
