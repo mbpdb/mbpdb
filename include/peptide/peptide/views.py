@@ -18,26 +18,6 @@ def start_work(request):
     print(f'Started task with ID: {task.id}')
     return JsonResponse({'task_id': task.id})
 
-"""
-def check_progress(request, task_id):
-    progress = cache.get(f'progress_{task_id}')
-    elapsed_time = cache.get(f'elapsed_time_{task_id}')
-
-    if progress is None:
-        progress = 0  # Default value if not set yet
-    if elapsed_time is None:
-        elapsed_time = 0.0  # Default value if not set yet
-
-    # Calculate estimated time remaining
-    if progress > 0:
-        total_estimated_time = elapsed_time / (progress / 100)
-        time_remaining = total_estimated_time - elapsed_time
-    else:
-        time_remaining = 0.0
-
-    print(f'Checking progress for task ID: {task_id}, Progress: {progress}, Elapsed Time: {elapsed_time}, Time Remaining: {time_remaining}')
-    return JsonResponse({'progress': progress, 'elapsed_time': elapsed_time, 'time_remaining': time_remaining})
-"""
 def check_progress(request, task_id):
     progress = cache.get(f'progress_{task_id}')
     elapsed_time = cache.get(f'elapsed_time_{task_id}')
@@ -49,7 +29,7 @@ def check_progress(request, task_id):
 
     # Calculate estimated time remaining in seconds
     if progress > 0:
-        total_estimated_time = elapsed_time / (progress / 500)
+        total_estimated_time = elapsed_time / (progress / 60)
         time_remaining = total_estimated_time - elapsed_time
     else:
         time_remaining = 0.0
