@@ -265,32 +265,25 @@ def append_with_titnum(data_list, data, titnum):
 
 #2nd function in toolbox data pipeline, handles the input from the pepdb_multi_search_manual
 #Returns list of string results form inputed peptide list (manual inputs)
-def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix, extra, pid, function, species, no_pep, results_headers):
+def pepdb_search_tsv_line_manual(writer, q, peptide, peptide_option, seqsim, matrix, extra, pid, function, species, no_pep, results_headers):
     results = []
     extra_info = defaultdict(list)
-    q = PeptideInfo.objects.all()
+    #q = PeptideInfo.objects.all()
+    """
     final_search_ids = []
-    invalid_pids = []  # List to keep track of invalid Protein IDs
-    invalid_species = []  # List to keep track of invalid species
-    invalid_functions = []  # List to keep track of invalid functions
     if pid:
         for protein in pid:
-
             protid_check = ProteinInfo.objects.filter(pid__in=[protein])
 
-            # If none found, add to the list of invalid PIDs
-            if not protid_check.exists():
-                invalid_pids.append(protein)
-            else:
-                # Fetch primary keys of these ProteinInfo objects
-                protein_ids = protid_check.values_list('id', flat=True)
+            # Fetch primary keys of these ProteinInfo objects
+            protein_ids = protid_check.values_list('id', flat=True)
 
-                # Fetch PeptideInfo objects based on these protein IDs
-                tempids = PeptideInfo.objects.filter(protein__id__in=protein_ids)
-                search_ids = [pepobj.id for pepobj in tempids]
+            # Fetch PeptideInfo objects based on these protein IDs
+            tempids = PeptideInfo.objects.filter(protein__id__in=protein_ids)
+            search_ids = [pepobj.id for pepobj in tempids]
 
-                # Append the search IDs from this iteration to the final list
-                final_search_ids.extend(search_ids)
+            # Append the search IDs from this iteration to the final list
+            final_search_ids.extend(search_ids)
 
         # Filter PeptideInfo objects based on the final list of search IDs
         if final_search_ids:
@@ -299,9 +292,40 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
             return results
 
     if species:
+        for spec in species:
+            spec_list = []
+
+            for l in settings.SPEC_TRANSLATE_LIST:
+                if spec.lower() in l:
+                    spec_list = list(l)
+            q_obj = Q(species__iexact=spec_list[1])
+            print("q_obj1", q_obj)
+            #for s in spec_list[1:]:
+            #    q_obj = q_obj | Q(species__iexact=s)
+            #    print("q_objs", s, q_obj)
+
+            proteins = ProteinInfo.objects.filter(q_obj)
+            protein_ids = [proobj.id for proobj in proteins]
+            tempids = PeptideInfo.objects.filter(protein__in=protein_ids)
+            search_ids = [pepobj.id for pepobj in tempids]
+            # Append the search IDs from this iteration to the final list
+        final_search_ids.extend(search_ids)
+
+        # Filter the query using the final list of search IDs only if
+        if final_search_ids:
+            q = q.filter(id__in=final_search_ids)
+        # elif not valid_species:  # If no valid species exist, return immediately with the warning.
+        #    #results.append("<h4>WARNING: No valid species found for the search.<h4>")
+        #    return results
+    if function:
+        q = q.filter(functions__function__in=function)
+    """
+
+
+
+    """
         # Initialize the final list of search IDs
         final_search_ids = []
-        valid_species = []  # List to keep track of valid species
 
         # Loop through each species in the list
         for spec in species:
@@ -339,7 +363,7 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
         #elif not valid_species:  # If no valid species exist, return immediately with the warning.
         #    #results.append("<h4>WARNING: No valid species found for the search.<h4>")
         #    return results
-
+    """
     if peptide != "":
         if "sequence" in peptide_option:
             if (len(peptide) < 4 or (seqsim == 100 and matrix=="IDENTITY")):
@@ -386,8 +410,7 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
                     extra_info[row['subject']] = ["{:.2f}".format(simcalc),row['qstart'],row['qend'],row['sstart'],row['send'],row['evalue'],row['align_len'],row['mismatches'],row['gaps']]
 
             q = q.filter(id__in=search_ids)
-    if function:
-        q = q.filter(functions__function__in=function)
+
     if (q.count() == 0):
         peptide_db_list = list(PeptideInfo.objects.values_list('peptide', flat=True))
         if peptide in peptide_db_list:
@@ -509,39 +532,6 @@ def pepdb_search_tsv_line_manual(writer, peptide, peptide_option, seqsim, matrix
             # Append the results for web display using a dictionary
             results.append(dict(zip(results_headers, temprow)))
 
-    """
-    invalid_functions = [fun for fun in function if fun not in verified_functions]
-    invalid_species = list(set(invalid_species))
-    invalid_pids = list(set(invalid_pids))
-
-    all_rows = []
-    if invalid_pids or invalid_species or invalid_functions:
-        warning_msg = []
-
-        if invalid_pids:
-            msg = "WARNING: Protein ID(s) " + ', '.join(invalid_pids) + " does not exist in database."
-            warning_msg.append(msg)
-            results.append("<h4>" + msg + "</h4>")
-
-        if invalid_species:
-            msg = "WARNING: Specie(s) " + ', '.join(invalid_species) + " does not exist in database."
-            warning_msg.append(msg)
-            results.append("<h4>" + msg + "</h4>")
-
-        if invalid_functions:
-            msg = "WARNING: Function(s) " + ', '.join(invalid_functions) + " does not exist in database."
-            warning_msg.append(msg)
-            results.append("<h4>" + msg + "</h4>")
-
-        # Prepare the warning messages for CSV
-        for msg in warning_msg:
-            all_rows.append([msg])
-
-    # Write everything to the CSV
-    for row in all_rows:
-        writer.writerow(row)"""
-
-
     return results
 
 #1st function in toolbox data pipeline when manual data input from peptide_search (views.py, peptide_search.htm)
@@ -559,6 +549,50 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
 
     fasta_db_file = open(fasta_db_path, "w")
     q = PeptideInfo.objects.all()
+    final_search_ids = []
+    if pid:
+        for protein in pid:
+            protid_check = ProteinInfo.objects.filter(pid__in=[protein])
+
+            # Fetch primary keys of these ProteinInfo objects
+            protein_ids = protid_check.values_list('id', flat=True)
+
+            # Fetch PeptideInfo objects based on these protein IDs
+            tempids = PeptideInfo.objects.filter(protein__id__in=protein_ids)
+            search_ids = [pepobj.id for pepobj in tempids]
+
+            # Append the search IDs from this iteration to the final list
+            final_search_ids.extend(search_ids)
+
+        # Filter PeptideInfo objects based on the final list of search IDs
+        if final_search_ids:
+            q = PeptideInfo.objects.filter(id__in=final_search_ids)
+        else:
+            return results
+
+    if species:
+        for spec in species:
+            for l in settings.SPEC_TRANSLATE_LIST:
+                if spec.lower() in l:
+                    spec_latin = (l[1])
+                    q_obj = Q(species__iexact=spec_latin)
+
+                    proteins = ProteinInfo.objects.filter(q_obj)
+                    protein_ids = [proobj.id for proobj in proteins]
+                    tempids = PeptideInfo.objects.filter(protein__in=protein_ids)
+                    search_ids = [pepobj.id for pepobj in tempids]
+                    # Append the search IDs from this iteration to the final list
+                    final_search_ids.extend(search_ids)
+
+        # Filter the query using the final list of search IDs only if
+        if final_search_ids:
+            q = q.filter(id__in=final_search_ids)
+        # elif not valid_species:  # If no valid species exist, return immediately with the warning.
+        #    #results.append("<h4>WARNING: No valid species found for the search.<h4>")
+        #    return results
+    if function:
+        q = q.filter(functions__function__in=function)
+
     for info in q:
         fasta_db_file.write(">"+str(info.id)+"\n"+info.peptide+"\n")
     fasta_db_file.close()
@@ -678,12 +712,12 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
 
     if not content:  # This will be True for both truly empty files and files with just whitespace or ""
         results.extend(
-            pepdb_search_tsv_line_manual(writer, "", peptide_option, seqsim, matrix, extra, pid, function, species, no_pep, results_headers))
+            pepdb_search_tsv_line_manual(writer, q, "", peptide_option, seqsim, matrix, extra, pid, function, species, no_pep, results_headers))
     else:
         for cont in content.splitlines():
             # Split the cont string into pep and peptide_option
             pep, peptide_option, matrix = cont.split(' ', 2)
-            results.extend(pepdb_search_tsv_line_manual(writer, pep, peptide_option, seqsim, matrix, extra, pid, function, species,no_pep, results_headers))
+            results.extend(pepdb_search_tsv_line_manual(writer, q, pep, peptide_option, seqsim, matrix, extra, pid, function, species,no_pep, results_headers))
     """if no_pep:
         params_list = []
         if pid:
