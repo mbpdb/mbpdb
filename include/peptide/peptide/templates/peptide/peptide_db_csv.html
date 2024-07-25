@@ -2,58 +2,6 @@
 {% load static %}
 {% block 'content' %}
 <h1> MBPDB add peptides (multiple entries)</h1>
-
-<button id="start-task-btn">Start Task</button>
-<div id="task-progress"></div>
-<div id="elapsed-time"></div>
-<div id="time-remaining"></div>
-
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script>
-    $(document).ready(function() {
-        $('#start-task-btn').click(function() {
-            $.ajax({
-                url: '{% url "start_work" %}',
-                method: 'GET',
-                success: function(data) {
-                    let taskId = data.task_id;
-                    console.log('Task started with ID:', taskId);
-                    $('#task-progress').html('<p>Task started</p>');
-                    pollProgress(taskId);
-                },
-                error: function(err) {
-                    console.error('Error starting task:', err);
-                }
-            });
-        });
-
-        function pollProgress(taskId) {
-            console.log('Polling progress for task ID:', taskId);
-            $.ajax({
-                url: `/check-progress/${taskId}/`,
-                method: 'GET',
-                success: function(data) {
-                    console.log('Progress data:', data);
-                    $('#task-progress').html('Progress: ' + data.progress + '%');
-                    $('#elapsed-time').html('Elapsed time: ' + data.elapsed_time.toFixed(2) + ' minutes');
-                    $('#time-remaining').html('Estimated time remaining: ' + data.time_remaining.toFixed(2) + ' minutes');
-                    if (data.progress < 100) {
-                        setTimeout(function() {
-                            pollProgress(taskId);
-                        }, 1000);
-                    } else {
-                        $('#task-progress').html('Task complete');
-                        $('#elapsed-time').html('Elapsed time: ' + data.elapsed_time.toFixed(2) + ' minutes');
-                        $('#time-remaining').html('Estimated time remaining: 0.00 minutes');
-                    }
-                },
-                error: function(err) {
-                    console.error('Error polling progress:', err);
-                }
-            });
-        }
-    });
-</script>
 <h4>Add to Milk Bioactive Peptide database using TSV (tab-separated values) file</h4>
 {% for e in errors %}
 <div class="alert alert-danger  alert-dismissible" role="alert">
