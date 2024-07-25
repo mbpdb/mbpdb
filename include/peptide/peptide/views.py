@@ -17,10 +17,10 @@ def start_work(request):
     task = long_running_task.delay()
     print(f'Started task with ID: {task.id}')
     return JsonResponse({'task_id': task.id})
-
 def check_progress(request, task_id):
     progress = cache.get(f'progress_{task_id}')
     elapsed_time = cache.get(f'elapsed_time_{task_id}')
+    status = cache.get(f'status_{task_id}', 'in_progress')  # Default status is 'in_progress'
 
     if progress is None:
         progress = 0  # Default value if not set yet
@@ -29,7 +29,7 @@ def check_progress(request, task_id):
 
     # Calculate estimated time remaining in seconds
     if progress > 0:
-        total_estimated_time = elapsed_time / (progress / 60)
+        total_estimated_time = elapsed_time / (progress / 360)
         time_remaining = total_estimated_time - elapsed_time
     else:
         time_remaining = 0.0
@@ -41,7 +41,8 @@ def check_progress(request, task_id):
     return JsonResponse({
         'progress': progress,
         'elapsed_time': elapsed_time_minutes,
-        'time_remaining': time_remaining_minutes
+        'time_remaining': time_remaining_minutes,
+        'status': status
     })
 
 #Unmodified
