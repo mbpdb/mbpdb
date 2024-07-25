@@ -31,6 +31,14 @@ RUN mkdir -p /app/include/peptide/uploads/temp
 RUN chmod 700 /app/include/peptide/uploads/temp
 
 
+# Explicitly copy start.sh
+COPY start.sh /app/start.sh
+
+# Make the start script executable
+RUN chmod +x /app/start.sh
+
+
+
 # Make port 8000 available to the world outside this container
 EXPOSE 8000
 
@@ -43,6 +51,9 @@ ENV PYTHONPATH include/peptide/:$PYTHONPATH
 # CMD gunicorn -b 0.0.0.0:8000 --timeout=300 peptide.wsgi:application
 
 # Run Redis, Django, and Celery
-CMD service redis-server start && \
-    gunicorn -b 0.0.0.0:8000 --timeout=300 peptide.wsgi:application & \
-    celery -A peptide worker --loglevel=info
+#CMD service redis-server start && \
+#    gunicorn -b 0.0.0.0:8000 --timeout=300 peptide.wsgi:application & \
+#    celery -A peptide worker --loglevel=info
+
+# Use the script as the CMD
+CMD ["/app/start.sh"]
