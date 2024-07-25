@@ -8,3 +8,7 @@ include/peptide/peptide/migrations/0023_peptideinfo_time_submitted.py
 include/peptide/peptide/migrations/0032_auto_20180301_0126.py
 include/peptide/peptide/static/peptide/VI5N.gif:Zone.Identifier
 include/peptide/uploads/temp/
+<<<<<<< HEAD
+=======
+
+>>>>>>> 56b04a88 (updated)
