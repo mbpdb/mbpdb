@@ -18,7 +18,7 @@ def start_work(request):
     print(f'Started task with ID: {task.id}')
     return JsonResponse({'task_id': task.id})
 
-
+"""
 def check_progress(request, task_id):
     progress = cache.get(f'progress_{task_id}')
     elapsed_time = cache.get(f'elapsed_time_{task_id}')
@@ -37,6 +37,7 @@ def check_progress(request, task_id):
 
     print(f'Checking progress for task ID: {task_id}, Progress: {progress}, Elapsed Time: {elapsed_time}, Time Remaining: {time_remaining}')
     return JsonResponse({'progress': progress, 'elapsed_time': elapsed_time, 'time_remaining': time_remaining})
+"""
 def check_progress(request, task_id):
     progress = cache.get(f'progress_{task_id}')
     elapsed_time = cache.get(f'elapsed_time_{task_id}')
