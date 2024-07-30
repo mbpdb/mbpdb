@@ -87,7 +87,9 @@ def peptide_search(request):
         counter = Counter(ip=request.META['REMOTE_ADDR'], access_time=timezone.now(), page='peptide search')
         counter.save()
         # Split the input based on comma, tab, space, or new line.
-        peptides = re.split(r'[\s,\'\[\]\(\)\.\}\{"]+', request.POST.get('peptides', '').strip())
+        peptides_raw = request.POST.get('peptides', '').strip()
+        peptides_cleaned = peptides_raw.replace('\r\n', ' ')  # Replace '\r\n' with a space
+        peptides = re.split(r'[\s,\'\[\]\(\)\.\}\{"]+', peptides_cleaned)
         peptide_option = request.POST.getlist('peptide_option')
         pid = request.POST.getlist('proteinid[]')
         function = request.POST.getlist('function[]')
@@ -155,7 +157,7 @@ def peptide_search(request):
 
             # Remove column from each dictionary in results
             for result in results:
-                if column in result:
+                if isinstance(result, dict) and column in result:
                     del result[column]
 
             # Remove column from headers
