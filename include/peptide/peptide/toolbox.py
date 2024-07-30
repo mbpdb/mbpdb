@@ -424,19 +424,14 @@ def pepdb_search_tsv_line_manual(writer, q, peptide, peptide_option, seqsim, mat
             writer.writerow(["Peptide: " + ''.join(peptide) + "  does not exist in database."])
             return results
 
-    verified_functions = set()
     for info in q:
         if function:
-            # Check if the provided functions actually exist in the database
+            # Filters peptides mapped to function
             fcheck = Function.objects.filter(pep=info, function__in=function)
-            # Update the verified_functions set with functions that do exist for this peptide
-            for func in fcheck:
-                verified_functions.add(func.function)
         else:
             fcheck = Function.objects.filter(pep=info)
 
         for func in fcheck:
-
             pp = info.protein.pid
             pd = info.protein.desc
             if info.protein_variants:
@@ -532,6 +527,7 @@ def pepdb_search_tsv_line_manual(writer, q, peptide, peptide_option, seqsim, mat
             # Append the results for web display using a dictionary
             results.append(dict(zip(results_headers, temprow)))
 
+
     return results
 
 #1st function in toolbox data pipeline when manual data input from peptide_search (views.py, peptide_search.htm)
@@ -590,6 +586,7 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
         # elif not valid_species:  # If no valid species exist, return immediately with the warning.
         #    #results.append("<h4>WARNING: No valid species found for the search.<h4>")
         #    return results
+
     if function:
         q = q.filter(functions__function__in=function)
 
@@ -763,16 +760,6 @@ def pepdb_multi_search_manual(pepfile_path, peptide_option, pid, function, seqsi
         writer.writerow([f'#Advanced search parameters:\t{cleaned_params_str_tab}'])
         params_str_web = "</br>".join(params_list)
         formated_header = ("<h2><u>Advanced search parameters:</u> </br></h2><h4>"+params_str_web+"</h4>")
-
-
-    """# Extract and clean warning results
-    warning_results = list(set(r for r in results if "WARNING:" in r))
-    cleaned_warning_results = [re.sub('<.*?>', '', warning) for warning in warning_results]
-
-    # Writing the cleaned_warning_results to a TSV (for demonstration, writing to a list)
-
-    for cleaned_warning in cleaned_warning_results:
-        writer.writerow([cleaned_warning])"""
 
     return results,formated_header,output_path,results_headers
 
