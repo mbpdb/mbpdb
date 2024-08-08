@@ -1,6 +1,6 @@
 from django.shortcuts import render
 import os, re
-from .toolbox import func_list, clear_temp_directory, spec_list, pro_list, run_pepex, add_proteins, pepdb_add_csv, pepdb_multi_search_manual, get_latest_peptides
+from .toolbox import func_list, clear_temp_directory, spec_list, pro_list, run_pepex, add_proteins, pepdb_add_csv, get_latest_peptides
 
 import subprocess
 from subprocess import CalledProcessError
@@ -8,95 +8,245 @@ from .models import Counter
 from django.utils import timezone
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.conf import settings
+from celery.result import AsyncResult
+from celery.app.control import Inspect
+from peptide.celery import app
 
-from .tasks import long_running_task
+from .tasks import pepdb_multi_search_manual
 from django.core.cache import cache
 
+# Fetch active Task ID function
+def get_active_tasks(request):
+    i = Inspect(app=app)
+    active_tasks = i.active()
+    task_ids = []
+
+    if active_tasks:
+        for worker, tasks in active_tasks.items():
+            for task in tasks:
+                task_ids.append(task['id'])
+    #print("active_taskID:",active_tasks)
+    #print("i",i)
+    return JsonResponse({'active_task_ids': task_ids,
+                         'errors': errors})
+
+#Polls progress of celery task and returns to website
+def check_progress(request, task_id):
+    #print("check_progress_tsk_id", task_id)
+    progress = cache.get(f'progress_{task_id}', 0)  # Default value if not set yet
+    size = cache.get(f'size_{task_id}')
+    elapsed_time = cache.get(f'elapsed_time_{task_id}', 0.0)  # Default value if not set yet
+    status = cache.get(f'status_{task_id}', 'in_progress')  # Default status is 'in_progress'
+    #print("status_check_progress_in_progress", status)
+    #print("elapsed_time_check_progress_in_progress",elapsed_time)
+
+    if status == 'in_progress':
+        # Calculate estimated time remaining in seconds
+        if progress > 0:
+            percent_progress = progress / size * 100
+
+            total_estimated_time = elapsed_time / percent_progress
+        else:
+            percent_progress = 0.0
+
+        return JsonResponse({
+            'progress': percent_progress,
+            'size': size,
+            'elapsed_time': elapsed_time,
+            'status': status
+        })
+
+    if status == 'complete':
+        elapsed_time = cache.get(f'elapsed_time_{task_id}', 0.0)  # Default value if not set yet
+        percent_progress = 100
+        #post_data, peptide_option, matrix, q, description_to_pid, unique_func, common_to_sci, errors, combined_results, output_path, formated_header, results_headers, species_counts, function_counts, protein_id_counts, peptide_counts = return_results(request, task_id)
+
+        return JsonResponse({
+
+            'progress': percent_progress,
+            'elapsed_time': elapsed_time,
+            'status': status,
+        })
+        """
+            'data': post_data,
+            'peptide_option': peptide_option,
+            'matrix': matrix,
+            'latest_peptides': q,
+            'description_to_pid': description_to_pid,
+            'functions': unique_func,
+            'common_to_sci_list': common_to_sci,
+            'errors': errors,
+            'combined_results': combined_results,
+            'output_path': output_path,
+            'formated_header': formated_header,
+            'table_headers': results_headers,
+            'species_counts': species_counts,
+            'function_counts': function_counts,
+            'protein_id_counts': protein_id_counts,
+            'peptide_counts': peptide_counts,
+        })
+        """
+    else:
+        # Ensure task_result.info is a dictionary
+        response_data = {
+            'status': task_result.status,
+            'progress': task_result.info.get('progress', 0),
+            'elapsed_time': task_result.info.get('elapsed_time', 0),
+        }
+        return JsonResponse(response_data)
+
+#Returns results of search to results_section html page
+def return_render_results(request):
+    if request.method == 'GET':
+        q = get_latest_peptides(1)
+        combined_results = []
+        task_result = AsyncResult(task_id)
+        if task_result.ready():
+            result_data = task_result.result
+
+            results = result_data.get('results', [])
+            formated_header = result_data.get('formated_header', [])
+            output_path = result_data.get('output_path', '')
+            results_headers = result_data.get('results_headers', [])
+
+            FileResponse(open(output_path, 'rb'))
+
+            # Given columns to check
+            columns_to_check = [
+                'Additional&nbspdetails',
+                'IC50&nbsp(μM)&nbsp&nbsp&nbsp&nbsp',
+                'Inhibition&nbsptype',
+                'Inhibited&nbspmicroorganisms',
+                'PTM'
+            ]
+
+            # Check for each column
+            for column in columns_to_check:
+                if all([(result.get(column, '').strip() == '' if isinstance(result, dict) else True) for result in
+                        results]):
+
+                    # Remove column from each dictionary in results
+                    for result in results:
+                        if isinstance(result, dict) and column in result:
+                            del result[column]
+
+                    # Remove column from headers
+                    if column in results_headers:
+                        results_headers.remove(column)
+
+            for item in results:
+                if isinstance(item, dict):  # Check if the item is a dictionary (a regular result)
+                    combined_results.append({"type": "result", "data": item})
+                else:  # Assume it's a warning
+                    combined_results.append({"type": "warning", "data": item})
+
+
+            # Initialize dictionaries for counting
+            species_counts = {}
+            function_counts = {}
+            protein_id_counts = {}
+            peptide_counts = {}
+
+            for item in combined_results:
+                if item['type'] == 'result':
+                    # Extracting and adding unique values
+                    peptide = item['data'].get('Peptide&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp', None)
+                    species = item['data'].get('Species&nbsp&nbsp&nbsp&nbsp', None)
+                    function = item['data'].get(
+                        'Function&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp',
+                        None)
+                    protein_id = item['data'].get('Protein&nbspID', None)
+
+                    # Update counts in dictionaries
+                    if peptide:
+                        peptide_counts[peptide] = peptide_counts.get(peptide, 0) + 1
+                    if species:
+                        species_counts[species] = species_counts.get(species, 0) + 1
+                    if function:
+                        function_counts[function] = function_counts.get(function, 0) + 1
+                    if protein_id:
+                        protein_id_counts[protein_id] = protein_id_counts.get(protein_id, 0) + 1
+
+            return render(request, 'peptide/results_section.html', {
+                'combined_results': combined_results,
+                'output_path': output_path,
+                'data': request.POST,
+                'peptide_option': peptide_option,
+                'matrix': matrix,
+                'latest_peptides': q,
+                'description_to_pid': description_to_pid,
+                'functions': unique_func,
+                'common_to_sci_list': common_to_sci,
+                'formated_header': formated_header,
+                'table_headers': results_headers,
+                'function_counts': function_counts,
+                'species_counts': species_counts,
+                'protein_id_counts': protein_id_counts,
+                'peptide_counts': peptide_counts,
+            })
+        else:
+            return render(request, 'peptide/results_section.html', {
+                'data': request.POST,
+                'peptide_option': peptide_option,
+                'matrix': matrix,
+                'latest_peptides': q,
+                'description_to_pid': description_to_pid,
+                'functions': unique_func,
+                'common_to_sci_list': common_to_sci,
+            })
 
 def start_work(request):
-    task = long_running_task.delay()
-    print(f'Started task with ID: {task.id}')
-    return JsonResponse({'task_id': task.id})
-def check_progress(request, task_id):
-    progress = cache.get(f'progress_{task_id}')
-    elapsed_time = cache.get(f'elapsed_time_{task_id}')
-    status = cache.get(f'status_{task_id}', 'in_progress')  # Default status is 'in_progress'
+    #peptide_search(request)
+    #task = pepdb_multi_search_manual.delay('', '', '', '', '', '', '', '', '')
+    #task_id = task.id  # Extiract the task ID from the AsyncResult
+    print("task_result", task)  # This will print the AsyncResult object
+    print(f"Task ID: {task_id}")  # This will print the task ID
 
-    if progress is None:
-        progress = 0  # Default value if not set yet
-    if elapsed_time is None:
-        elapsed_time = 0.0  # Default value if not set yet
+    return JsonResponse({'task_id': task_id})
 
-    # Calculate estimated time remaining in seconds
-    if progress > 0:
-        total_estimated_time = elapsed_time / (progress / 360)
-        time_remaining = total_estimated_time - elapsed_time
-    else:
-        time_remaining = 0.0
+def get_request_parameter(request, param_name):
+    param_value = request.POST.get(param_name)
+    if param_value is not None:
+        if param_value == '':
+            return []
+        return [param_value]
 
-    # Convert times to minutes
-    elapsed_time_minutes = elapsed_time / 60
-    time_remaining_minutes = time_remaining / 60
-
-    return JsonResponse({
-        'progress': progress,
-        'elapsed_time': elapsed_time_minutes,
-        'time_remaining': time_remaining_minutes,
-        'status': status
-    })
-
-#Unmodified
-def index(request):
-    context = {}
-    return render(request, 'peptide/index.html', context)
-
-#Unmodified, function is used to add csv file of peptides to sqlite db  needs updating as message function is Deprecated
-def peptide_db_csv(request):
-    errors = []
-    messages = []
-    if request.method == 'POST':
-        if not request.FILES.get('csv_file',False):
-            errors.append('File fields are mandatory.')
-        if len(errors) == 0:
-            try:
-                messages = pepdb_add_csv(request.FILES['csv_file'],messages)
-            except CalledProcessError as e:
-                return render(request, 'peptide/peptide_db_csv.html', {'errors':[e.output]})
-    return render(request, 'peptide/peptide_db_csv.html', {'errors':errors, 'messages':messages})
-
+    param_list = request.POST.getlist(param_name + '[]')
+    return [item for item in param_list if item]  # Filter out empty strings
 
 #Updated handles the search from peptide_search.html, handles both tsv upload and manual peptide search
 def peptide_search(request):
     # Clear the temp directory first
+    global WORK_DIRECTORY, errors, peptide_option, matrix, pid, seqsim, species, function, description_to_pid, unique_func, common_to_sci, post_data
+
     WORK_DIRECTORY = os.path.join(settings.BASE_DIR, 'uploads/temp')
     clear_temp_directory(WORK_DIRECTORY)
-
     errors = []
-    results_headers = []
-    formated_header = []
-    results = []
     peptide_option = []
     matrix = []
-    output_path = ''
-    combined_results = []
-    q = get_latest_peptides(1)
     description_to_pid = pro_list(request)
     unique_func = func_list(request)
     common_to_sci = spec_list(request)
+    q = get_latest_peptides(1)
     if request.method == 'POST':
+        post_data = request.POST
+        print(post_data)
         counter = Counter(ip=request.META['REMOTE_ADDR'], access_time=timezone.now(), page='peptide search')
         counter.save()
         # Split the input based on comma, tab, space, or new line.
         peptides_raw = request.POST.get('peptides', '').strip()
         peptides_cleaned = peptides_raw.replace('\r\n', ' ')  # Replace '\r\n' with a space
         peptides = re.split(r'[\s,\'\[\]\(\)\.\}\{"]+', peptides_cleaned)
-        peptide_option = request.POST.getlist('peptide_option')
-        pid = request.POST.getlist('proteinid[]')
-        function = request.POST.getlist('function[]')
-        species = request.POST.getlist('species[]')
+
+        peptide_option = get_request_parameter(request, 'peptide_option')
+        pid = get_request_parameter(request, 'proteinid')
+        function = get_request_parameter(request, 'function')
+        species = get_request_parameter(request, 'species')
         seqsim = int(request.POST['seqsim'])
-        matrix = request.POST.getlist('matrix')
+        matrix = get_request_parameter(request, 'matrix')
         peptides = [peptide for peptide in peptides if peptide]
+
+        #("len(peptides) ",len(peptides) )
         #if (len(peptides) > 10000):
         #    errors.append(
         #        f"Error: A maximium of 10,000 peptides can be search in one Querry. Please reduce the list from the {len(peptides)} peptides inputed in the last search.")
@@ -129,6 +279,7 @@ def peptide_search(request):
                                 # Handle the error case here if needed, for example:
                                 errors.append("Error: Peptide, search type and scoring matrix must be non-empty.")
                 no_pep = 0
+        print("peptides",peptides,"pid",pid,"function",function,"species",species,"no_pep",no_pep)
 
         if not (peptides or pid or function or species):
             errors.append(
@@ -136,69 +287,33 @@ def peptide_search(request):
         if not (seqsim and matrix and peptide_option):
             errors.append(
                 f'Error: Please select the Search Type, Similarity Threshold and Scoring Matrix form the Homology Search Options')
+
+        if errors:
+            return JsonResponse({'errors': errors})
         try:
-            (results, formated_header,output_path,results_headers) = pepdb_multi_search_manual(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species,no_pep)
-            FileResponse(open(output_path, 'rb'))
+            #(results, formated_header,output_path,results_headers) = pepdb_multi_search_manual.delay(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species,no_pep)
+            global task, task_id
+            task = pepdb_multi_search_manual.delay(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species,no_pep)
+            task_id = task.id
+            return render(request, 'peptide/peptide_search.html', {
+                'errors': errors,
+                'data': request.POST,
+                'peptide_option': peptide_option,
+                'matrix': matrix,
+                'latest_peptides': q,
+                'description_to_pid': description_to_pid,
+                'functions': unique_func,
+                'common_to_sci_list': common_to_sci,
+                'task_id': task_id
+            })
         except CalledProcessError as e:
-            return render(request, 'peptide/peptide_search.html', {'errors': [e.output], 'data':request.POST})
+            #return render(request, 'peptide/peptide_search.html', {'errors': [e.output], 'data': request.POST})
+            return JsonResponse({'errors': [e.output]})
 
-    # Given columns to check
-    columns_to_check = [
-        'Additional&nbspdetails',
-        'IC50&nbsp(μM)&nbsp&nbsp&nbsp&nbsp',
-        'Inhibition&nbsptype',
-        'Inhibited&nbspmicroorganisms',
-        'PTM'
-    ]
-
-    # Check for each column
-    for column in columns_to_check:
-        if all([(result.get(column, '').strip() == '' if isinstance(result, dict) else True) for result in results]):
-
-            # Remove column from each dictionary in results
-            for result in results:
-                if isinstance(result, dict) and column in result:
-                    del result[column]
-
-            # Remove column from headers
-            if column in results_headers:
-                results_headers.remove(column)
-
-    for item in results:
-        if isinstance(item, dict):  # Check if the item is a dictionary (a regular result)
-            combined_results.append({"type": "result", "data": item})
-        else:  # Assume it's a warning
-            combined_results.append({"type": "warning", "data": item})
-
-    # Initialize dictionaries for counting
-    species_counts = {}
-    function_counts = {}
-    protein_id_counts = {}
-    peptide_counts = {}
-
-    for item in combined_results:
-        if item['type'] == 'result':
-            # Extracting and adding unique values
-            peptide = item['data'].get('Peptide&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp', None)
-            species = item['data'].get('Species&nbsp&nbsp&nbsp&nbsp', None)
-            function = item['data'].get(
-                'Function&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp', None)
-            protein_id = item['data'].get('Protein&nbspID', None)
-
-            # Update counts in dictionaries
-            if peptide:
-                peptide_counts[peptide] = peptide_counts.get(peptide, 0) + 1
-            if species:
-                species_counts[species] = species_counts.get(species, 0) + 1
-            if function:
-                function_counts[function] = function_counts.get(function, 0) + 1
-            if protein_id:
-                protein_id_counts[protein_id] = protein_id_counts.get(protein_id, 0) + 1
+    #return JsonResponse({'task_id': task_id})
 
     return render(request, 'peptide/peptide_search.html', {
         'errors': errors,
-        'combined_results': combined_results,
-        'output_path': output_path,
         'data': request.POST,
         'peptide_option': peptide_option,
         'matrix': matrix,
@@ -206,15 +321,7 @@ def peptide_search(request):
         'description_to_pid': description_to_pid,
         'functions': unique_func,
         'common_to_sci_list': common_to_sci,
-        'formated_header': formated_header,
-        'table_headers': results_headers,
-        'function_counts': function_counts,
-        'species_counts': species_counts,
-        'function_counts': function_counts,
-        'protein_id_counts': protein_id_counts,
-        'peptide_counts': peptide_counts,
     })
-
 
 #unmodified but needs updating as message function is Deprecated
 def add_proteins_tool(request):
@@ -310,6 +417,9 @@ def about_us(request):
     q = get_latest_peptides(1)
     return render(request, 'peptide/about_us.html', {'latest_peptides': q})
 
+#Renders results section which is seperate html with results of query
+def results_section(request):
+    return render(request, 'peptide/results_section.html')
 def test(request):
     return render(request, 'peptide/test.html')
 
@@ -317,3 +427,126 @@ def test(request):
 def get_protein_list_view(request):
     data = pro_list(request)
     return JsonResponse(data)
+
+#Unmodified
+def index(request):
+    context = {}
+    return render(request, 'peptide/index.html', context)
+
+#Unmodified, function is used to add csv file of peptides to sqlite db  needs updating as message function is Deprecated
+def peptide_db_csv(request):
+    errors = []
+    messages = []
+    if request.method == 'POST':
+        if not request.FILES.get('csv_file',False):
+            errors.append('File fields are mandatory.')
+        if len(errors) == 0:
+            try:
+                messages = pepdb_add_csv(request.FILES['csv_file'],messages)
+            except CalledProcessError as e:
+                return render(request, 'peptide/peptide_db_csv.html', {'errors':[e.output]})
+    return render(request, 'peptide/peptide_db_csv.html', {'errors':errors, 'messages':messages})
+
+
+"""
+def return_results(request, task_id):
+    q = get_latest_peptides(1)
+    combined_results = []
+    task_result = AsyncResult(task_id)
+    if task_result.ready():
+        result_data = task_result.result
+
+        results = result_data.get('results', [])
+        formated_header = result_data.get('formated_header', [])
+        output_path = result_data.get('output_path', '')
+        results_headers = result_data.get('results_headers', [])
+
+        FileResponse(open(output_path, 'rb'))
+
+        # Given columns to check
+        columns_to_check = [
+            'Additional&nbspdetails',
+            'IC50&nbsp(μM)&nbsp&nbsp&nbsp&nbsp',
+            'Inhibition&nbsptype',
+            'Inhibited&nbspmicroorganisms',
+            'PTM'
+        ]
+
+        # Check for each column
+        for column in columns_to_check:
+            if all([(result.get(column, '').strip() == '' if isinstance(result, dict) else True) for result in
+                    results]):
+
+                # Remove column from each dictionary in results
+                for result in results:
+                    if isinstance(result, dict) and column in result:
+                        del result[column]
+
+                # Remove column from headers
+                if column in results_headers:
+                    results_headers.remove(column)
+
+        for item in results:
+            if isinstance(item, dict):  # Check if the item is a dictionary (a regular result)
+                combined_results.append({"type": "result", "data": item})
+            else:  # Assume it's a warning
+                combined_results.append({"type": "warning", "data": item})
+
+
+        # Initialize dictionaries for counting
+        species_counts = {}
+        function_counts = {}
+        protein_id_counts = {}
+        peptide_counts = {}
+
+        for item in combined_results:
+            if item['type'] == 'result':
+                # Extracting and adding unique values
+                peptide = item['data'].get('Peptide&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp', None)
+                species = item['data'].get('Species&nbsp&nbsp&nbsp&nbsp', None)
+                function = item['data'].get(
+                    'Function&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp',
+                    None)
+                protein_id = item['data'].get('Protein&nbspID', None)
+
+                # Update counts in dictionaries
+                if peptide:
+                    peptide_counts[peptide] = peptide_counts.get(peptide, 0) + 1
+                if species:
+                    species_counts[species] = species_counts.get(species, 0) + 1
+                if function:
+                    function_counts[function] = function_counts.get(function, 0) + 1
+                if protein_id:
+                    protein_id_counts[protein_id] = protein_id_counts.get(protein_id, 0) + 1
+
+        return (
+            post_data,
+            peptide_option,
+            matrix,
+            q,
+            description_to_pid,
+            unique_func,
+            common_to_sci,
+            errors,
+            combined_results,
+            output_path,
+            formated_header,
+            results_headers,
+            species_counts,
+            function_counts,
+            protein_id_counts,
+            peptide_counts,
+    )
+"""
+"""
+import logging
+
+logger = logging.getLogger(__name__)
+
+def log_message(request):
+    if request.method == 'POST':
+        message = request.POST.get('message')
+        logger.info(message)
+        return JsonResponse({"status": "success"})
+    return JsonResponse({"status": "error"}, status=400)
+"""
