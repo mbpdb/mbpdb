@@ -47,13 +47,5 @@ ENV DJANGO_SETTINGS_MODULE=peptide.settings
 
 ENV PYTHONPATH include/peptide/:$PYTHONPATH
 
-# Run your application
-# CMD gunicorn -b 0.0.0.0:8000 --timeout=300 peptide.wsgi:application
-
-# Run Redis, Django, and Celery
-#CMD service redis-server start && \
-#    gunicorn -b 0.0.0.0:8000 --timeout=300 peptide.wsgi:application & \
-#    celery -A peptide worker --loglevel=info
-
 # Use the script as the CMD
 CMD ["/app/start.sh"]
