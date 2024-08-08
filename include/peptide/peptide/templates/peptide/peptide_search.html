@@ -2,25 +2,14 @@
 {% load static %}
 {% block 'content' %}
 {% load custom_filters %}
-{% for e in errors %}
 
-<div class="alert alert-danger  alert-dismissible" role="alert">
-  <button type="button" class="close" data-dismiss="alert">
-  <span aria-hidden="true">&times;</span>
-  <span class="sr-only">Close</span>
-  </button>
-  <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
-  <span class="sr-only">Error:</span>
-    {{ e|safe }}
 
-</div>
-{% endfor %}
 
 <h2><u>Milk Bioactive Peptide Database</u></h2>
 <br/>
     <h4>Peptide Search</h4>
 <div class="textarea-container">
-<form method="POST" enctype="multipart/form-data" action="." role="form" onsubmit="showLoadingSpinner(); return validateFields();">
+<form method="POST" enctype="multipart/form-data" action="{% url 'peptide_search' %}" id="peptide-search-form" role="form" onsubmit="showLoadingSpinner(); return validateFields();">
 {% csrf_token %}
 <div class="form-group">
     <textarea name="peptides" rows="10" placeholder="YPFPGPIPN" class="tools-form-raw-text-input" data-hj-allow="true">{% if data.peptides %}{{data.peptides}}{% endif %}</textarea><br/>
@@ -38,7 +27,6 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 {% with tooltip_counter=999 %}
     <!-- Advanced Search Toggle Button -->
 <button class="btn btn-default" type="button" id="toggleAdvancedOptions">Advanced Search Options</button>
-</button>
 <!-- Advanced Search Options (Collapsed by default) -->
 <div class="collapsible-content" id="advancedSearchOptions">
     <table>
@@ -260,156 +248,234 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     {% endwith %}
 </div>
 <br/>
+
+<button class="btn btn-default" id="search-db-btn">Search DB</button>  <a href=".">Clear all search criteria</a>
+<!--<button id="start-task-btn">Start Task</button>-->
+</form>
+
+<!-- jQuery library -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- Select2 library -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+
+<script>
+    $(document).ready(function() {
+        function showLoadingSpinner() {
+            document.getElementById('loadingSpinner').style.display = 'block';
+        }
+
+        function hideLoadingSpinner() {
+            document.getElementById('loadingSpinner').style.display = 'none';
+        }
+    function fetchActiveTasks(callback) {
+        $.ajax({
+            url: '/get-active-tasks/',  // Ensure this URL matches the Django URL pattern
+            method: 'GET',
+            success: function(data) {
+                if (data.errors && data.errors.length > 0) {
+                    console.error('Errors returned:', data.errors);
+                    displayErrors(data.errors);  // Display the errors
+                    hideLoadingSpinner();
+                    $('#search-db-btn').prop('disabled', false);
+                    $('#search-db-btn').text('Search');
+                } else {
+                    let activeTaskIds = data.active_task_ids;
+                    console.log('Active Task IDs:', activeTaskIds);
+                    $('#active-task-ids').html('Active Task IDs: ' + activeTaskIds.join(', '));
+                    callback(activeTaskIds);  // Pass activeTaskIds to the callback
+                }
+            },
+            error: function(err) {
+                console.error('Error submitting form data:', err);
+                displayErrors(data.errors);  // Display the errors
+                hideLoadingSpinner();
+                $('#search-db-btn').prop('disabled', false);
+                $('#search-db-btn').text('Search');
+            }
+        });
+    }
+
+    function startTask(activeTaskIds) {
+        $.ajax({
+            url: '{% url "start_work" %}',
+            method: 'GET',
+            success: function(data) {
+                let taskId = data.task_id;
+                console.log('Task started with ID:', taskId);
+                $('#task-progress').html('<p>Task started</p>');
+                showLoadingSpinner();
+                pollProgress(taskId);  // Use the new task ID for polling progress
+            },
+            error: function(err) {
+                console.error('Error starting task:', err);
+            }
+        });
+    }
+
+        function attachToggleContentListeners() {
+        const toggleButtons = document.querySelectorAll(".toggle-content");
+        toggleButtons.forEach(function(btn) {
+            btn.addEventListener("click", function() {
+                const content = this.nextElementSibling;
+                if (content.style.maxHeight) {
+                    content.style.maxHeight = null;
+                    this.innerText = "Show Abstract";
+                } else {
+                    content.style.maxHeight = content.scrollHeight + "px";
+                    this.innerText = "Hide Abstract";
+                }
+            });
+        });
+    }
+
+        function renderResults() {
+            $.ajax({
+                url: '{% url "return_render_results" %}',
+                method: 'GET',
+                success: function(data) {
+                    // Handle the successful rendering of results
+                    console.log('Results rendered successfully');
+                    // You may need to update the DOM with the returned HTML content
+                    $('#results-container').html(data);
+                    attachToggleContentListeners();
+
+                },
+                error: function(err) {
+                    console.error('Error rendering results:', err);
+                }
+            });
+        }
+    function displayErrors(errors) {
+        let errorContainer = $('#errors-container');
+        errorContainer.html('');
+        errors.forEach(function(e) {
+            let errorHtml = `
+                <div class="alert alert-danger alert-dismissible" role="alert">
+                    <button type="button" class="close" data-dismiss="alert">
+                        <span aria-hidden="true">&times;</span>
+                        <span class="sr-only">Close</span>
+                    </button>
+                    <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+                    <span class="sr-only">Error:</span>
+                    ${e}
+                </div>
+            `;
+            errorContainer.append(errorHtml);
+        });
+    }
+
+    $('#search-db-btn').click(function(event) {
+        event.preventDefault();  // Prevent the form from submitting
+
+        let postData = $('#peptide-search-form').serializeArray();
+        let formData = {};
+        $.each(postData, function() {
+            if (formData[this.name]) {
+                if (!Array.isArray(formData[this.name])) {
+                    formData[this.name] = [formData[this.name]];
+                }
+                formData[this.name].push(this.value || '');
+            } else {
+                formData[this.name] = this.value || '';
+            }
+        });
+
+        // Disable the search button
+        $('#search-db-btn').prop('disabled', true);
+        $('#search-db-btn').text('Searching...');
+
+        $.ajax({
+            url: '/',  // Ensure the URL points to the correct view
+            method: 'POST',
+            data: formData,
+            success: function(data) {
+                if (data.errors && data.errors.length > 0) {
+                    console.error('Errors returned:', data.errors);
+                    displayErrors(data.errors);  // Display the errors
+                    hideLoadingSpinner();
+                    $('#search-db-btn').prop('disabled', false);
+                    $('#search-db-btn').text('Search');
+                } else {
+                    console.log('Form data submitted successfully');
+                    fetchActiveTasks(startTask);  // Fetch active tasks and then start a new task
+                }
+            },
+            error: function(err) {
+                console.error('Error submitting form data:', err);
+                displayErrors(data.errors);  // Display the errors
+                hideLoadingSpinner();
+                $('#search-db-btn').prop('disabled', false);
+                $('#search-db-btn').text('Search');
+            }
+        });
+    });
+
+    // Attach the event listeners when the DOM content is loaded initially
+    document.addEventListener("DOMContentLoaded", function() {
+        attachToggleContentListeners();
+    });
+
+    function pollProgress(taskId) {
+        console.log('Polling progress for task ID:', taskId);
+        $.ajax({
+            url: `/check-progress/${taskId}/`,
+            method: 'GET',
+            success: function(data) {
+                console.log('Progress data:', data);
+
+                $('#task-progress').html('Progress: ' + data.progress.toFixed(2) + '%');
+                $('#elapsed-time').html('Elapsed time: ' + data.elapsed_time.toFixed(2) + ' seconds');
+                if (data.status == 'in_progress') {
+                    setTimeout(function() {
+                        pollProgress(taskId);
+                    }, 1000);
+                } else if (data.status == 'complete') {
+                    hideLoadingSpinner();
+                    $('#task-progress').html('<p style="font-size: 1.5em;"><b>Search complete</b></p>');
+                    $('#elapsed-time').html('Elapsed time: ' + data.elapsed_time.toFixed(2) + ' seconds');
+                    renderResults();  // Call the function to render results when task is complete
+                    // Re-enable the search button when task is complete
+                    $('#search-db-btn').prop('disabled', false);
+                    $('#search-db-btn').text('Search');
+                }
+            },
+            error: function(err) {
+                console.error('Error polling progress:', err);
+            }
+        });
+    }
+});
+</script>
+{% if not errors%}
+
+<br/>
 <div id="loadingSpinner" style="display:none;">
     <img src="{% static 'peptide/VI5N.gif' %}" alt="Loading...">
     <p style="font-size: 1.5em;"><b>Searching, please wait...</b></p>
-    <p>If the search times out after <b>4 minutes</b>, try reducing the number of peptides.</p>
-    <br/>
 </div>
-<button class="btn btn-default" id="search-db-btn">Search DB</button>  <a href=".">Clear all search criteria</a>
-<br/><br/><br/><br/>
+<div id="task-progress"></div>
+<div id="elapsed-time"></div>
 
-<a name="search_results"></a>
-</form>
-{% if not errors and combined_results or warnings %}
-    <br/>
-      <style>
-        #summary_table {
-            width: 720px;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-        #summary_table th, #summary_table td {
-            padding: 10px;
-            vertical-align: top;
-            text-align: center; /* Center align by default */
-            border-bottom: 1px solid black; /* Standard bottom border for all cells */
-        }
-        #summary_table th.title {
-            font-size: 1.5em; /* Larger font size for the full results title */
-            text-align: left; /* Left align the text for the first column */
-            border-bottom: 3px solid black; /* Thick bottom border for the title row */
-            padding-bottom: 5px; /* Adjust this value as needed for whitespace */
-            margin-bottom: 20px; /* Adjust this value to match the space below the 'Full Results' title */
-           }
-        #summary_table th:not(.title), #summary_table td {
-            border-bottom: 1px solid black; /* Standard bottom border for header and data cells */
-        }
-        #summary_table td.left-col {
-            text-align: left; /* Left align the text for the first column */
-            border-right: 1px solid black; /* Right border for the first column */
-        }
-         .count-cell {
-            display: inline; /* Ensure the count is on the same line */
-        }
-        #results_table .full-results-title {
-            padding: 10px;
-            font-size: 1.5em; /* Larger font size for the full results title */
-            font-weight: bold;
-            text-align: center;;
-            border-bottom: 3px solid black; /* Thick bottom border for the full results title row */
-            border-top: 3px solid white;
-            border-left: 3px solid white;
-            border-right: 3px solid white;
-            padding-bottom: 5px; /* Adjust this value as needed for whitespace */
-            margin-bottom: 20px; /* Adjust this value to match the space below the 'Full Results' title */
-        }
-    </style>
-    <table id="summary_table">
-        <thead>
-            <tr>
-                <th colspan="5" class="title">Results Summary</th> <!-- Span the title across all columns -->
-            </tr>
-            <tr class="header-row">
-                <th> </th>
-                <th>Peptides</th>
-                <th>Species</th>
-                <th>Functions</th>
-                <th>Protein IDs</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td class="left-col"><b>Grouped Results:</b></td>
-                <td class = ".mid-col" >
-                    <!--{% for peptide, count in peptide_counts.items %}
-                        {{ peptide }}: {{ count }}<br>
-                    {% endfor %}-->
-                </td>
-                <td>
-                    {% for species, count in species_counts.items %}
-                        {{ species }}: {{ count }}<br>
-                    {% endfor %}
-                </td>
-                <td>
-                    {% for function, count in function_counts.items %}
-                        {{ function }}: {{ count }}<br>
-                    {% endfor %}
-                </td>
-                <td>
-                    {% for protein_id, count in protein_id_counts.items %}
-                        {{ protein_id }}: {{ count }}<br>
-                    {% endfor %}
-                </td>
-            </tr>
-            <tr>
-                <td class="left-col"><b>Total Counts:</b></td>
-                <td>{{ peptide_counts|length }}</td>
-                <td>{{ species_counts|length }}</td>
-                <td>{{ function_counts|length }}</td>
-                <td>{{ protein_id_counts|length }}</td>
-            </tr>
-        </tbody>
-    </table>
-
-    <a href="{% url 'tsv_search_results' %}{{output_path}}">Download full rsesults as a TSV file</a> | If you are referencing this database: <a href="{% url 'about_us' %}#Cite" style="font-size: 20px;"> <b>please cite</b></a>
-    <br/>
-
-    <table border="1" id="results_table">
-        <thead>
-        <!-- Full Results title row -->
-        <tr class="full-results-title">
-            <th colspan="{{ table_headers|length }}">&nbspFull Results</th>
-        </tr>
-            <tr>
-                {% for header in table_headers %}
-                    <th style="padding:10px;" >
-                        {{ header | safe }}
-                    </th>
-                {% endfor %}
-            </tr>
-        </thead>
-        <tbody>
-            {% for item in combined_results %}
-                {% if item.type == "warning" %}
-                    <tr>
-                        <td colspan={{ table_headers|length }} style="padding:10px;">
-                            <div class="warning">
-                                {{ item.data|safe }}
-                            </div>
-                        </td>
-                    </tr>
-                {% else %}
-                    <tr>
-                        {% for key, value in item.data.items %}
-                            <td style="padding:10px; max-width:125px; word-wrap:break-word;">
-                                {% if key == "Abstract&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp"%}
-                                    <button class="toggle-content">Show Abstract</button>
-                                    <div class="collapsible-content">
-                                        {{ value|safe }}
-                                    </div>
-                                {% else %}
-                                    {{ value|safe }}
-                                {% endif %}
-                            </td>
-                        {% endfor %}
-                    </tr>
-                {% endif %}
-            {% endfor %}
-        </tbody>
-    </table>
+<div id="errors-container">
+    {% for e in errors %}
+        <div class="alert alert-danger alert-dismissible" role="alert">
+            <button type="button" class="close" data-dismiss="alert">
+                <span aria-hidden="true">&times;</span>
+                <span class="sr-only">Close</span>
+            </button>
+            <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+            <span class="sr-only">Error:</span>
+            {{ e|safe }}
+        </div>
+    {% endfor %}
+</div>
+<br/>
+<div id="results-container">
+    {% include 'peptide/results_section.html' %}
+</div>
 {% endif %}
-<br/><br/><br/><br/>
+
 <script>
 $(function () {
   $('select').each(function () {
@@ -421,25 +487,6 @@ $(function () {
     });
   });
 });
-
-// This part handles the "Show More" and "Show Less" buttons
-document.addEventListener("DOMContentLoaded", function() {
-    const toggleButtons = document.querySelectorAll(".toggle-content");
-    toggleButtons.forEach(function(btn) {
-        btn.addEventListener("click", function() {
-            const content = this.nextElementSibling;
-            if (content.style.maxHeight) {
-                content.style.maxHeight = null;
-                this.innerText = "Show Abstract";
-            } else {
-                content.style.maxHeight = content.scrollHeight + "px";
-                this.innerText = "Hide Text";
-            }
-        });
-    });
-});
-
-
 document.addEventListener('DOMContentLoaded', function() {
     const toggleBtn = document.getElementById('toggleAdvancedOptions');
     const collapsibleDiv = document.getElementById('advancedSearchOptions');
@@ -456,13 +503,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-function showLoadingSpinner() {
-    document.getElementById('loadingSpinner').style.display = 'block';
-}
-
-function hideLoadingSpinner() {
-    document.getElementById('loadingSpinner').style.display = 'none';
-}
 
 document.querySelector('#loadFileLink').addEventListener('click', function(event) {
     event.preventDefault();  // Prevent the default anchor action
@@ -500,6 +540,7 @@ document.querySelector('input[name="inputfile"]').addEventListener('change', fun
 document.getElementById('downloadLink').addEventListener('click', function() {
     document.getElementById('hiddenButton').click();
 });
+
 
 // This function checks if the input string has only allowed characters
 function isValidInput(str) {
