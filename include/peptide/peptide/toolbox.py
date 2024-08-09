@@ -488,7 +488,7 @@ def clear_temp_directory(directory_path):
 
     # Keep the 10 most recent directories, delete the rest
     for dir_entry in dirs[25:]:
-        try
+        try:
             shutil.rmtree(dir_entry.path)
         except Exception as e:
             pass  # Handle or log the exception as needed
