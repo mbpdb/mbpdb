@@ -1,7 +1,7 @@
 from django.urls import include, re_path, path
 from django.contrib import admin
 from . import views
-
+import uuid
 urlpatterns = [
     re_path(r'^$', views.peptide_search, name='index'),
     re_path(r'^pepex/$', views.pepex_tool, name='pepex'),
@@ -11,13 +11,13 @@ urlpatterns = [
     re_path(r'^peptide_db_csv/$', views.peptide_db_csv, name='peptide_db_csv'),
     re_path(r'^peptide_search/$', views.peptide_search, name='peptide_search'),
     re_path(r'^about_us/$', views.about_us, name='about_us'),
-    re_path(r'^results_section/$', views.results_section, name='results_section'),
+    path('results-section/<uuid:task_id>/', views.results_section, name='results_section'),
     re_path(r'^test/$', views.test, name='test_page'),
     re_path(r'^admin/', admin.site.urls),
     re_path('get_protein_list/', views.get_protein_list_view, name='get_protein_list'),
     path('start-work/', views.start_work, name='start_work'),
     path('check-progress/<str:task_id>/', views.check_progress, name='check_progress'),
     path('get-active-tasks/', views.get_active_tasks, name='get_active_tasks'),
-    path('return-results/', views.return_render_results, name='return_render_results'),
+    path('return_render_results/<uuid:task_id>/', views.return_render_results, name='return_render_results'),
     #path('log', views.log_message, name='log_message'),
 ]

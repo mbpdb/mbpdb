@@ -50,7 +50,9 @@ def check_progress(request, task_id):
             percent_progress = 0.0
 
         return JsonResponse({
-            'progress': percent_progress,
+            'task_id': task_id,
+            'percent_progress': percent_progress,
+            'progress': progress,
             'size': size,
             'elapsed_time': elapsed_time,
             'status': status
@@ -62,10 +64,12 @@ def check_progress(request, task_id):
         #post_data, peptide_option, matrix, q, description_to_pid, unique_func, common_to_sci, errors, combined_results, output_path, formated_header, results_headers, species_counts, function_counts, protein_id_counts, peptide_counts = return_results(request, task_id)
 
         return JsonResponse({
-
-            'progress': percent_progress,
+            'task_id': task_id,
+            'percent_progress': percent_progress,
+            'progress': progress,
+            'size': size,
             'elapsed_time': elapsed_time,
-            'status': status,
+            'status': status
         })
         """
             'data': post_data,
@@ -96,11 +100,12 @@ def check_progress(request, task_id):
         return JsonResponse(response_data)
 
 #Returns results of search to results_section html page
-def return_render_results(request):
+def return_render_results(request, task_id):
     if request.method == 'GET':
         q = get_latest_peptides(1)
         combined_results = []
-        task_result = AsyncResult(task_id)
+        task_id_str = str(task_id)
+        task_result = AsyncResult(task_id_str)
         if task_result.ready():
             result_data = task_result.result
 
@@ -230,7 +235,7 @@ def peptide_search(request):
     q = get_latest_peptides(1)
     if request.method == 'POST':
         post_data = request.POST
-        print(post_data)
+        #print(post_data)
         counter = Counter(ip=request.META['REMOTE_ADDR'], access_time=timezone.now(), page='peptide search')
         counter.save()
         # Split the input based on comma, tab, space, or new line.
@@ -279,7 +284,7 @@ def peptide_search(request):
                                 # Handle the error case here if needed, for example:
                                 errors.append("Error: Peptide, search type and scoring matrix must be non-empty.")
                 no_pep = 0
-        print("peptides",peptides,"pid",pid,"function",function,"species",species,"no_pep",no_pep)
+        #print("peptides",peptides,"pid",pid,"function",function,"species",species,"no_pep",no_pep)
 
         if not (peptides or pid or function or species):
             errors.append(
@@ -418,8 +423,12 @@ def about_us(request):
     return render(request, 'peptide/about_us.html', {'latest_peptides': q})
 
 #Renders results section which is seperate html with results of query
-def results_section(request):
-    return render(request, 'peptide/results_section.html')
+def results_section(request, task_id):
+    # Assuming task_id is being passed in the URL or through some other means
+    context = {
+        'task_id': task_id
+    }
+    return render(request, 'peptide/results_section.html', context)
 def test(request):
     return render(request, 'peptide/test.html')
 
