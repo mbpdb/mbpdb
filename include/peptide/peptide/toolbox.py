@@ -1,7 +1,5 @@
-import subprocess, os
+import subprocess, os, shutil, time, csv
 from django.conf import settings
-import time
-import csv
 from .models import PeptideInfo, Reference, Function, ProteinInfo, Submission, ProteinVariant
 import re, sys
 from collections import defaultdict
@@ -11,8 +9,11 @@ from django.contrib.auth.models import User
 from chardet.universaldetector import UniversalDetector
 from django.db.models import Count
 from django.http import HttpResponse
-import shutil
 from Bio import SeqIO
+from pathlib import Path
+
+
+
 
 #Creates temp folder /include/peptide/peptide/upload/temp for storage related to each unique search request
 def create_work_directory(base_dir):
@@ -479,15 +480,18 @@ def export_database(request):
 
 #Function clears the temp directory at the onset of peptide_search in views.py
 def clear_temp_directory(directory_path):
-    for filename in os.listdir(directory_path):
-        file_path = os.path.join(directory_path, filename)
-        try:
-            if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.unlink(file_path)
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
+    # Get all directories in the path
+    dirs = [f for f in os.scandir(directory_path) if f.is_dir()]
+
+    # Sort the directories by modification time, most recent first
+    dirs.sort(key=lambda x: os.path.getmtime(x.path), reverse=True)
+
+    # Keep the 10 most recent directories, delete the rest
+    for dir_entry in dirs[25:]:
+        try
+            shutil.rmtree(dir_entry.path)
         except Exception as e:
-            pass
+            pass  # Handle or log the exception as needed
 
 # init db to git repo
 def git_init(modeladmin, request, queryset):
