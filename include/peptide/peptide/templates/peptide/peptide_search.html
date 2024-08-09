@@ -249,9 +249,26 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 </div>
 <br/>
 
+
+
 <button class="btn btn-default" id="search-db-btn">Search DB</button>  <a href=".">Clear all search criteria</a>
-<!--<button id="start-task-btn">Start Task</button>-->
+<br/><br/>
 </form>
+<div id="errors-container">
+    {% for e in errors %}
+        <div class="alert alert-danger alert-dismissible" role="alert">
+            <button type="button" class="close" data-dismiss="alert">
+                <span aria-hidden="true">&times;</span>
+                <span class="sr-only">Close</span>
+            </button>
+            <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+            <span class="sr-only">Error:</span>
+            {{ e|safe }}
+        </div>
+    {% endfor %}
+
+
+</div>
 
 <!-- jQuery library -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -262,7 +279,9 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 <script>
     $(document).ready(function() {
         function showLoadingSpinner() {
-            document.getElementById('loadingSpinner').style.display = 'block';
+        document.getElementById('loadingSpinner').style.display = 'block';
+            $('#task-progress').show();
+            $('#elapsed-time').show();
         }
 
         function hideLoadingSpinner() {
@@ -276,14 +295,14 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
                 if (data.errors && data.errors.length > 0) {
                     console.error('Errors returned:', data.errors);
                     displayErrors(data.errors);  // Display the errors
-                    hideLoadingSpinner();
                     $('#search-db-btn').prop('disabled', false);
                     $('#search-db-btn').text('Search');
                 } else {
                     let activeTaskIds = data.active_task_ids;
                     console.log('Active Task IDs:', activeTaskIds);
-                    $('#active-task-ids').html('Active Task IDs: ' + activeTaskIds.join(', '));
+                    // $('#active-task-ids').html('Active Task IDs: ' + activeTaskIds.join(', '));
                     callback(activeTaskIds);  // Pass activeTaskIds to the callback
+
                 }
             },
             error: function(err) {
@@ -292,6 +311,10 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
                 hideLoadingSpinner();
                 $('#search-db-btn').prop('disabled', false);
                 $('#search-db-btn').text('Search');
+                $('#task-progress').hide();
+                $('#elapsed-time').hide();
+                document.getElementById('errors-container').style.display = 'block';
+
             }
         });
     }
@@ -329,25 +352,40 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
         });
     }
 
-        function renderResults() {
-            $.ajax({
-                url: '{% url "return_render_results" %}',
-                method: 'GET',
-                success: function(data) {
-                    // Handle the successful rendering of results
-                    console.log('Results rendered successfully');
-                    // You may need to update the DOM with the returned HTML content
-                    $('#results-container').html(data);
-                    attachToggleContentListeners();
-
-                },
-                error: function(err) {
-                    console.error('Error rendering results:', err);
+    function renderResults(taskId) {
+        $.ajax({
+            url: `/return_render_results/${taskId}/`,  // Pass taskId to fetch results specific to this task
+            method: 'GET',
+            success: function(data) {
+                // Ensure that the results are rendered in a unique container for this task
+                let taskResultContainer = $(`#results-container-${taskId}`);
+                if (!taskResultContainer.length) {
+                    // If no container exists for this task, create one
+                    $('#results-container').append(`<div id="results-container-${taskId}" class="task-results"></div>`);
+                    taskResultContainer = $(`#results-container-${taskId}`);
+                } else {
+                    // If the container already exists, clear its content
+                    taskResultContainer.empty();
                 }
-            });
-        }
+
+                taskResultContainer.html(data);  // Update the specific container with results
+
+                // Show the results container (if it was hidden before)
+                $('#results-container').show();
+
+                attachToggleContentListeners();  // Re-attach event listeners if needed
+            },
+            error: function(err) {
+                console.error('Error rendering results:', err);
+            }
+        });
+    }
     function displayErrors(errors) {
+        document.getElementById('errors-container').style.display = 'block';
         let errorContainer = $('#errors-container');
+        $('#task-progress').hide();
+        $('#elapsed-time').hide();
+        hideLoadingSpinner();
         errorContainer.html('');
         errors.forEach(function(e) {
             let errorHtml = `
@@ -360,13 +398,19 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
                     <span class="sr-only">Error:</span>
                     ${e}
                 </div>
-            `;
+            <br/>`;
             errorContainer.append(errorHtml);
         });
     }
 
     $('#search-db-btn').click(function(event) {
         event.preventDefault();  // Prevent the form from submitting
+
+        // Clear any text inside the results container
+        $('#results-container').empty();
+
+        // Hide the results container
+        $('#results-container').hide();
 
         let postData = $('#peptide-search-form').serializeArray();
         let formData = {};
@@ -384,6 +428,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
         // Disable the search button
         $('#search-db-btn').prop('disabled', true);
         $('#search-db-btn').text('Searching...');
+        document.getElementById('errors-container').style.display = 'none';
 
         $.ajax({
             url: '/',  // Ensure the URL points to the correct view
@@ -393,7 +438,6 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
                 if (data.errors && data.errors.length > 0) {
                     console.error('Errors returned:', data.errors);
                     displayErrors(data.errors);  // Display the errors
-                    hideLoadingSpinner();
                     $('#search-db-btn').prop('disabled', false);
                     $('#search-db-btn').text('Search');
                 } else {
@@ -404,9 +448,11 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
             error: function(err) {
                 console.error('Error submitting form data:', err);
                 displayErrors(data.errors);  // Display the errors
-                hideLoadingSpinner();
                 $('#search-db-btn').prop('disabled', false);
                 $('#search-db-btn').text('Search');
+                $('#task-progress').hide();
+                $('#elapsed-time').hide();
+                document.getElementById('errors-container').style.display = 'block';
             }
         });
     });
@@ -424,8 +470,8 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
             success: function(data) {
                 console.log('Progress data:', data);
 
-                $('#task-progress').html('Progress: ' + data.progress.toFixed(2) + '%');
-                $('#elapsed-time').html('Elapsed time: ' + data.elapsed_time.toFixed(2) + ' seconds');
+                $('#task-progress').html('Progress: ' + data.percent_progress.toFixed(2) + '% (' + data.progress + ' processed out of ' + data.size + ').');
+                $('#elapsed-time').html('Elapsed time: ' + data.elapsed_time.toFixed(2) + ' seconds<br/>');
                 if (data.status == 'in_progress') {
                     setTimeout(function() {
                         pollProgress(taskId);
@@ -433,12 +479,13 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
                 } else if (data.status == 'complete') {
                     hideLoadingSpinner();
                     $('#task-progress').html('<p style="font-size: 1.5em;"><b>Search complete</b></p>');
-                    $('#elapsed-time').html('Elapsed time: ' + data.elapsed_time.toFixed(2) + ' seconds');
-                    renderResults();  // Call the function to render results when task is complete
-                    // Re-enable the search button when task is complete
+                    $('#elapsed-time').html('Elapsed time: ' + data.elapsed_time.toFixed(2) + ' seconds<br/>');
+                    renderResults(taskId);  // Pass taskId here
                     $('#search-db-btn').prop('disabled', false);
                     $('#search-db-btn').text('Search');
+
                 }
+
             },
             error: function(err) {
                 console.error('Error polling progress:', err);
@@ -449,28 +496,15 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 </script>
 {% if not errors%}
 
-<br/>
+
 <div id="loadingSpinner" style="display:none;">
-    <img src="{% static 'peptide/VI5N.gif' %}" alt="Loading...">
+    <img src="{% static 'peptide/VI5N.gif' %}" alt="Loading..." style="width: 50px; height: 128px;">
     <p style="font-size: 1.5em;"><b>Searching, please wait...</b></p>
 </div>
 <div id="task-progress"></div>
 <div id="elapsed-time"></div>
 
-<div id="errors-container">
-    {% for e in errors %}
-        <div class="alert alert-danger alert-dismissible" role="alert">
-            <button type="button" class="close" data-dismiss="alert">
-                <span aria-hidden="true">&times;</span>
-                <span class="sr-only">Close</span>
-            </button>
-            <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
-            <span class="sr-only">Error:</span>
-            {{ e|safe }}
-        </div>
-    {% endfor %}
-</div>
-<br/>
+
 <div id="results-container">
     {% include 'peptide/results_section.html' %}
 </div>
