@@ -7,10 +7,10 @@ https://docs.djangoproject.com/en/1.7/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.7/ref/settings/
 """
+from celery import Celery
+import os, re
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
-
-import os, re
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 
@@ -27,21 +27,22 @@ TEMPLATE_DEBUG = True
 
 ALLOWED_HOSTS = ['128.193.11.196', '127.0.0.1', 'localhost', '192.84.190.235', 'mbpdb.nws.oregonstate.edu','mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io']
 
-from celery import Celery
 
 # Celery settings
 CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
 CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
-
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
+CELERY_TASK_SOFT_TIME_LIMIT = 600  # 10 minutes
+CELERY_TASK_TIME_LIMIT = 600  # 10 minutes
 
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
         'LOCATION': 'redis://127.0.0.1:6379/1',  # Default local Redis server
+        'TIMEOUT': 600,
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         }
