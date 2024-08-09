@@ -49,3 +49,4 @@ ENV PYTHONPATH include/peptide/:$PYTHONPATH
 
 # Use the script as the CMD
 CMD ["/app/start.sh"]
+
