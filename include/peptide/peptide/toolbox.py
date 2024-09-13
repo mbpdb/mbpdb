@@ -1,9 +1,6 @@
-import subprocess, os, shutil, time, csv
+import subprocess, os, shutil, time, csv, re, sys
 from django.conf import settings
 from .models import PeptideInfo, Reference, Function, ProteinInfo, Submission, ProteinVariant
-import re, sys
-from collections import defaultdict
-from django.db.models import Q
 from datetime import datetime
 from django.contrib.auth.models import User
 from chardet.universaldetector import UniversalDetector
@@ -11,7 +8,8 @@ from django.db.models import Count
 from django.http import HttpResponse
 from Bio import SeqIO
 from pathlib import Path
-
+from collections import defaultdict
+from django.db.models import Q
 
 
 
@@ -234,7 +232,6 @@ def pepdb_approve(queryset):
     messages.append("Added "+str(records)+" submissions to database.")
     return messages
 
-
 # This function appends the data to the list, prepending it with a title number if there is more than one entry.
 def append_with_titnum(data_list, data, titnum):
     if len(data_list) > 0:
@@ -348,7 +345,6 @@ def add_proteins(input_fasta_files, messages):
     messages.append(str(count)+" fasta record(s) added to database.")
     return messages
 
-#Secondary function used in the blast search when extra infor is requested
 def xlsx_to_tsv(path):
     (root,ext) = os.path.splitext(path)
     tsv_path = root + '.tsv'
@@ -356,7 +352,6 @@ def xlsx_to_tsv(path):
     subprocess.call('%s "%s" "%s" 2> /dev/null' % (settings.XLS_TO_TSV,path,tsv_path),shell=True)
     return tsv_path
 
-#Secondary function used in the blast search when extra infor is requested
 def create_fasta_lib(library_tsv_path):
     (root,ext) = os.path.splitext(library_tsv_path)
     with_ids_tsv_path = root + 'with_ids.tsv'
@@ -364,7 +359,7 @@ def create_fasta_lib(library_tsv_path):
     subprocess.check_output([settings.CREATE_FASTA_LIB,library_tsv_path,with_ids_tsv_path,with_ids_fasta_path],stderr=subprocess.STDOUT)
     return (with_ids_tsv_path,with_ids_fasta_path)
 
-#Secondary function used in the blast search when extra infor is requested
+
 def create_fasta_input(input_tsv_path):
     (root,ext) = os.path.splitext(input_tsv_path)
     with_ids_tsv_path = root + 'with_ids.tsv'
@@ -372,7 +367,6 @@ def create_fasta_input(input_tsv_path):
     subprocess.check_output([settings.CREATE_FASTA_INPUT,input_tsv_path,with_ids_tsv_path,with_ids_fasta_path],stderr=subprocess.STDOUT)
     return (with_ids_tsv_path,with_ids_fasta_path)
 
-#Secondary function used in the blast search when extra infor is requested
 #Secondary function used in the blast search when extra infor is requested
 def make_blast_db(library_fasta_path):
     subprocess.check_output(['makeblastdb','-in', library_fasta_path,'-dbtype','prot'],stderr=subprocess.STDOUT)
