@@ -89,10 +89,13 @@
             </tr>
         </tbody>
     </table>
-
+    <br/><br/>
     <a href="{% url 'tsv_search_results' %}{{output_path}}">Download full rsesults as a TSV file</a> | If you are referencing this database: <a href="{% url 'about_us' %}#Cite" style="font-size: 20px;"> <b>please cite</b></a>
-    <br/>
-
+    <br/><br/>
+    <label for="filter-warnings">
+        <input type="checkbox" id="filter-warnings"> Only show matching peptide results
+    </label>
+    <br/><br/>
     <table border="1" id="results_table">
         <thead>
         <!-- Full Results title row -->
@@ -110,8 +113,8 @@
         <tbody>
             {% for item in combined_results %}
                 {% if item.type == "warning" %}
-                    <tr>
-                        <td colspan={{ table_headers|length }} style="padding:10px;">
+                    <tr class="warning-row">
+                        <td colspan="{{ table_headers|length }}" style="padding:10px;">
                             <div class="warning">
                                 {{ item.data|safe }}
                             </div>
@@ -144,5 +147,22 @@
             renderResults(taskId);
         }
     });
+    $(document).ready(function() {
+    // Handle the filter checkbox
+    $('#filter-warnings').on('change', function() {
+        if ($(this).is(':checked')) {
+            // Hide all warning rows
+            $('.warning-row').hide();
+        } else {
+            // Show all warning rows
+            $('.warning-row').show();
+        }
+    });
+
+    var taskId = $('#results-container').data('task-id');
+    if (taskId) {
+        renderResults(taskId);
+    }
+});
 </script>
 <br/><br/><br/><br/></div>
