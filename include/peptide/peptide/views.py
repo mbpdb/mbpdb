@@ -1,13 +1,14 @@
 from django.shortcuts import render
-import os, re
+import os, re, subprocess
 from .toolbox import func_list, clear_temp_directory, spec_list, pro_list, run_pepex, add_proteins, pepdb_add_csv, get_latest_peptides
 
-import subprocess
 from subprocess import CalledProcessError
 from .models import Counter
 from django.utils import timezone
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.conf import settings
+from django.urls import reverse
+
 from celery.result import AsyncResult
 from celery.app.control import Inspect
 from peptide.celery import app
@@ -172,6 +173,23 @@ def return_render_results(request, task_id):
                     if protein_id:
                         protein_id_counts[protein_id] = protein_id_counts.get(protein_id, 0) + 1
 
+            if len(results) >= 1000:
+                # Remove all warnings from combined_results
+                combined_results = [item for item in combined_results if item['type'] != 'warning']
+
+                # Insert a new warning at the start
+                download_url = reverse('tsv_search_results') + output_path
+
+                combined_results.insert(0, {
+                    "type": "warning",
+                    "data": (
+                        f'<div style="font-size: 18px; color: red; padding: 10px;">'
+                        f'Search results exceed 1,000 entries. Non-matching results have been hidden from this display but can be reviewed in the '
+                        f'<a href="{download_url}" download style="color: blue; text-decoration: underline;">downloadable file</a>.'
+                        f'</div>'
+                    )
+                })
+
             return render(request, 'peptide/results_section.html', {
                 'combined_results': combined_results,
                 'output_path': output_path,
@@ -261,6 +279,7 @@ def peptide_search(request):
                     f"Error: Invalid input '{peptide}'. Only text characters are allowed.")
             if len(peptide) >= 4:
                 extra = 1
+                break  # Exits the loop after the condition is met
             else:
                 extra = 0
         if not peptides:
@@ -429,6 +448,7 @@ def results_section(request, task_id):
         'task_id': task_id
     }
     return render(request, 'peptide/results_section.html', context)
+
 def test(request):
     return render(request, 'peptide/test.html')
 
@@ -456,97 +476,6 @@ def peptide_db_csv(request):
                 return render(request, 'peptide/peptide_db_csv.html', {'errors':[e.output]})
     return render(request, 'peptide/peptide_db_csv.html', {'errors':errors, 'messages':messages})
 
-
-"""
-def return_results(request, task_id):
-    q = get_latest_peptides(1)
-    combined_results = []
-    task_result = AsyncResult(task_id)
-    if task_result.ready():
-        result_data = task_result.result
-
-        results = result_data.get('results', [])
-        formated_header = result_data.get('formated_header', [])
-        output_path = result_data.get('output_path', '')
-        results_headers = result_data.get('results_headers', [])
-
-        FileResponse(open(output_path, 'rb'))
-
-        # Given columns to check
-        columns_to_check = [
-            'Additional&nbspdetails',
-            'IC50&nbsp(μM)&nbsp&nbsp&nbsp&nbsp',
-            'Inhibition&nbsptype',
-            'Inhibited&nbspmicroorganisms',
-            'PTM'
-        ]
-
-        # Check for each column
-        for column in columns_to_check:
-            if all([(result.get(column, '').strip() == '' if isinstance(result, dict) else True) for result in
-                    results]):
-
-                # Remove column from each dictionary in results
-                for result in results:
-                    if isinstance(result, dict) and column in result:
-                        del result[column]
-
-                # Remove column from headers
-                if column in results_headers:
-                    results_headers.remove(column)
-
-        for item in results:
-            if isinstance(item, dict):  # Check if the item is a dictionary (a regular result)
-                combined_results.append({"type": "result", "data": item})
-            else:  # Assume it's a warning
-                combined_results.append({"type": "warning", "data": item})
-
-
-        # Initialize dictionaries for counting
-        species_counts = {}
-        function_counts = {}
-        protein_id_counts = {}
-        peptide_counts = {}
-
-        for item in combined_results:
-            if item['type'] == 'result':
-                # Extracting and adding unique values
-                peptide = item['data'].get('Peptide&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp', None)
-                species = item['data'].get('Species&nbsp&nbsp&nbsp&nbsp', None)
-                function = item['data'].get(
-                    'Function&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp',
-                    None)
-                protein_id = item['data'].get('Protein&nbspID', None)
-
-                # Update counts in dictionaries
-                if peptide:
-                    peptide_counts[peptide] = peptide_counts.get(peptide, 0) + 1
-                if species:
-                    species_counts[species] = species_counts.get(species, 0) + 1
-                if function:
-                    function_counts[function] = function_counts.get(function, 0) + 1
-                if protein_id:
-                    protein_id_counts[protein_id] = protein_id_counts.get(protein_id, 0) + 1
-
-        return (
-            post_data,
-            peptide_option,
-            matrix,
-            q,
-            description_to_pid,
-            unique_func,
-            common_to_sci,
-            errors,
-            combined_results,
-            output_path,
-            formated_header,
-            results_headers,
-            species_counts,
-            function_counts,
-            protein_id_counts,
-            peptide_counts,
-    )
-"""
 """
 import logging
 
