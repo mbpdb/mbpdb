@@ -11,7 +11,7 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     env:
-      GITHUB_PAT: ${{ secrets.GITHUB_PAT }} # Set for all steps in this job
+      GITHUB_PAT: ${{ secrets.MY_GITHUB_PAT }} # Set for all steps in this job
     
     services:
       redis:
@@ -41,7 +41,7 @@ jobs:
           dockerfilePath: Dockerfile
 
       env:
-        GITHUB_PAT: ${{ secrets.GITHUB_PAT }}
+        GITHUB_PAT: ${{ secrets.MY_GITHUB_PAT }}
 
     - name: Update Azure Container App
       run: |
