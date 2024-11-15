@@ -403,7 +403,8 @@ def func_list(request):
     functions = Function.objects.values('function').annotate(count=Count('function')).order_by('-count')
 
     # Extracting only the unique functions in descending order of their occurrence
-    unique_func = [func['function'] for func in functions]
+    unique_func = sorted([func['function'] for func in functions])
+
     return unique_func
 
 #Added RK 8/22/23 returns list of species to the html page from settings.translatelist
