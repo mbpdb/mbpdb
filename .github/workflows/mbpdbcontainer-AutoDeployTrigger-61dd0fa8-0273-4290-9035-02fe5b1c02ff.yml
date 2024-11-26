@@ -62,7 +62,7 @@ jobs:
           --resource-group COH_MBPDB_RG \
           --hostname "voila.mbpdb.nws.oregonstate.edu"
 
-   - name: Update container app resources
+    - name: Update environment variables
       run: |
         az containerapp update \
           --name mbpdbcontainer \
