@@ -67,4 +67,3 @@ jobs:
           --max-replicas 3 \
           --cpu 2 \
           --memory 4Gi
-
