@@ -42,6 +42,7 @@ jobs:
         ingress: external
         cpu: 1.0
         memory: 2.0Gi
+        daprEnabled: false  # Disable Dapr
         env: |
           WEBSITES_PORT=8000
           WEBSITES_CONTAINER_START_TIME_LIMIT=1800
