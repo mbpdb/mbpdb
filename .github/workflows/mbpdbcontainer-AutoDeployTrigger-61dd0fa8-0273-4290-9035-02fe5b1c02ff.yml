@@ -70,8 +70,6 @@ jobs:
         az containerapp update \
           --name mbpdbcontainer \
           --resource-group COH_MBPDB_RG \
-          --cpu 1.0 \
-          --memory 2.0Gi \
           --set-env-vars \
           DJANGO_SETTINGS_MODULE=peptide.settings \
           PYTHONPATH=/app/include/peptide \
