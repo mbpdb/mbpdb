@@ -1,0 +1,1 @@
+{"HM": {"type": "nested", "path": "HM"}, "HM_I": {"type": "nested", "path": "HM_I"}, "HM_G": {"type": "nested", "path": "HM_G"}, "HM_F": {"type": "nested", "path": "HM_F"}, "Bovine_F": {"type": "nested", "path": "Bovine_F"}, "Bovine_G": {"type": "nested", "path": "Bovine_G"}, "Bovine_I": {"type": "nested", "path": "Bovine_I"}, "Bovine": {"type": "nested", "path": "Bovine"}}
