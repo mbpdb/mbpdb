@@ -1,3 +1,4 @@
+# Updated requirements.txt (combined both sets)
 gunicorn
 Unicodecsv
 chardet
@@ -10,3 +11,14 @@ biopython
 celery
 django-redis
 django-celery-progress
+notebook
+ipykernel
+jupyter_core
+jupyter_server
+jupyter-client
+voila
+ipywidgets>=8.0.0
+numpy>=1.24.3
+pandas>=2.0.0
+matplotlib>=3.8.0
+widgetsnbextension
