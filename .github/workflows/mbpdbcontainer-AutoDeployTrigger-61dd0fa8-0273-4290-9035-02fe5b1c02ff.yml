@@ -68,7 +68,7 @@ jobs:
           --name mbpdbcontainer \
           --resource-group COH_MBPDB_RG \
           --cpu 2.0 \
-          --memory 4.0Gi
+          --memory 4.0Gi \
           --set-env-vars \
           DJANGO_SETTINGS_MODULE=peptide.settings \
           PYTHONPATH=/app/include/peptide \
