@@ -1,6 +1,5 @@
 name: Trigger auto deployment for mbpdbcontainer
 
-
 on:
   push:
     branches:
@@ -25,27 +24,47 @@ jobs:
     - name: Azure Login
       uses: azure/login@v1
       with:
-          creds: ${{ secrets.MBPDBCONTAINER_AZURE_CREDENTIALS }}
+          creds: ${{ secrets.MBPDBCONTAINER_AZURE_CREDENTIALS_UPDATED }}
 
     # Pass the GitHub PAT as a build argument to Docker
     - name: Build and push container image to registry
       uses: azure/container-apps-deploy-action@v1
       with:
-          appSourcePath: .
-          registryUrl: docker.io
-          registryUsername: ${{ secrets.MBPDBCONTAINER_REGISTRY_USERNAME }}
-          registryPassword: ${{ secrets.MBPDBCONTAINER_REGISTRY_PASSWORD }}
-          containerAppName: mbpdbcontainer
-          resourceGroup: COH_MBPDB_RG
-          imageToBuild: mbpdb/mbpdb:latest
-          dockerfilePath: Dockerfile
+        appSourcePath: .
+        registryUrl: docker.io
+        registryUsername: ${{ secrets.MBPDBCONTAINER_REGISTRY_USERNAME }}
+        registryPassword: ${{ secrets.MBPDBCONTAINER_REGISTRY_PASSWORD }}
+        containerAppName: mbpdbcontainer
+        resourceGroup: COH_MBPDB_RG
+        imageToBuild: mbpdb/mbpdb:latest
+        dockerfilePath: Dockerfile
+        targetPort: 8000
+        ingress: external
+        env: |
+          WEBSITES_PORT=8000
+          WEBSITES_CONTAINER_START_TIME_LIMIT=1800
 
-      env:
-        GITHUB_PAT: ${{ secrets.MY_GITHUB_PAT }}
-
-    - name: Update Azure Container App
+    - name: Update Azure Container App with multi-port configuration
       run: |
-          az containerapp update \
-                    --name mbpdbcontainer \
-                    --resource-group COH_MBPDB_RG \
-                    --image docker.io/mbpdb/mbpdb:latest
+        az containerapp update \
+          --name mbpdbcontainer \
+          --resource-group COH_MBPDB_RG \
+          --image docker.io/mbpdb/mbpdb:latest \
+          --ingress external \
+          --target-port 8000 \
+          --additional-ports 8866 \
+          --query-parameters \
+          --set-env-vars \
+            WEBSITES_PORT=8000 \
+            WEBSITES_CONTAINER_START_TIME_LIMIT=1800
+
+    - name: Configure Container App Scale Rules
+      run: |
+        az containerapp update \
+          --name mbpdbcontainer \
+          --resource-group COH_MBPDB_RG \
+          --min-replicas 1 \
+          --max-replicas 3 \
+          --cpu 2 \
+          --memory 4Gi
+
