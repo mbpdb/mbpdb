@@ -1,4 +1,4 @@
-name: Trigger auto deployment for mbpdbcontainer
+name: Deploy Django-Voila Container to Azure
 
 on:
   push:
@@ -10,13 +10,14 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     env:
-      GITHUB_PAT: ${{ secrets.MY_GITHUB_PAT }} # Set for all steps in this job
+      GITHUB_PAT: ${{ secrets.MY_GITHUB_PAT }}
     
     services:
       redis:
         image: redis:latest
         ports:
           - 6379:6379
+
     steps:
     - name: Checkout to the branch
       uses: actions/checkout@v2
@@ -24,9 +25,8 @@ jobs:
     - name: Azure Login
       uses: azure/login@v1
       with:
-          creds: ${{ secrets.MBPDBCONTAINER_AZURE_CREDENTIALS_UPDATED }}
+        creds: ${{ secrets.MBPDBCONTAINER_AZURE_CREDENTIALS_UPDATED }}
 
-    # Pass the GitHub PAT as a build argument to Docker
     - name: Build and push container image to registry
       uses: azure/container-apps-deploy-action@v1
       with:
@@ -44,26 +44,32 @@ jobs:
           WEBSITES_PORT=8000
           WEBSITES_CONTAINER_START_TIME_LIMIT=1800
 
-    - name: Update Azure Container App with multi-port configuration
+    - name: Enable multi-port ingress
       run: |
-        az containerapp update \
+        az containerapp ingress update \
           --name mbpdbcontainer \
           --resource-group COH_MBPDB_RG \
-          --image docker.io/mbpdb/mbpdb:latest \
-          --ingress external \
           --target-port 8000 \
           --additional-ports 8866 \
-          --query-parameters \
-          --set-env-vars \
-            WEBSITES_PORT=8000 \
-            WEBSITES_CONTAINER_START_TIME_LIMIT=1800
+          --exposed-port 8866 \
+          --transport http \
+          --type external
 
-    - name: Configure Container App Scale Rules
+    - name: Configure DNS for Voila
+      run: |
+        az containerapp hostname add \
+          --name mbpdbcontainer \
+          --resource-group COH_MBPDB_RG \
+          --hostname "voila.mbpdb.nws.oregonstate.edu"
+
+    - name: Update environment variables
       run: |
         az containerapp update \
           --name mbpdbcontainer \
           --resource-group COH_MBPDB_RG \
-          --min-replicas 1 \
-          --max-replicas 3 \
-          --cpu 2 \
-          --memory 4Gi
+          --set-env-vars \
+          DJANGO_SETTINGS_MODULE=peptide.settings \
+          PYTHONPATH=/app/include/peptide \
+          WEBSITES_PORT=8000 \
+          WEBSITES_CONTAINER_START_TIME_LIMIT=1800 \
+          VOILA_PORT=8866
