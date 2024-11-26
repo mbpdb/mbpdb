@@ -62,11 +62,13 @@ jobs:
           --resource-group COH_MBPDB_RG \
           --hostname "voila.mbpdb.nws.oregonstate.edu"
 
-    - name: Update environment variables
+   - name: Update container app resources
       run: |
         az containerapp update \
           --name mbpdbcontainer \
           --resource-group COH_MBPDB_RG \
+          --cpu 2.0 \
+          --memory 4.0Gi
           --set-env-vars \
           DJANGO_SETTINGS_MODULE=peptide.settings \
           PYTHONPATH=/app/include/peptide \
