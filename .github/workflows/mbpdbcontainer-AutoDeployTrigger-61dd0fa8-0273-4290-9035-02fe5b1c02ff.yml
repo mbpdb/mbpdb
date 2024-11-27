@@ -47,24 +47,6 @@ jobs:
           WEBSITES_PORT=8000
           WEBSITES_CONTAINER_START_TIME_LIMIT=1800
 
-    - name: Enable multi-port ingress
-      run: |
-        az containerapp ingress update \
-          --name mbpdbcontainer \
-          --resource-group COH_MBPDB_RG \
-          --target-port 8000 \
-          --additional-ports 8866 \
-          --exposed-port 8866 \
-          --transport http \
-          --type external
-
-    - name: Configure DNS for Voila
-      run: |
-        az containerapp hostname add \
-          --name mbpdbcontainer \
-          --resource-group COH_MBPDB_RG \
-          --hostname "voila.mbpdb.nws.oregonstate.edu"
-
     - name: Update environment variables
       run: |
         az containerapp update \
