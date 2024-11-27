@@ -10,6 +10,7 @@ ENV BASE_PYTHONPATH=/app/include/peptide
 
 # Update apt-get and install system dependencies
 RUN apt-get update && apt-get install -y \
+    nginx \ 
     dos2unix \
     nano \
     recode \
@@ -56,6 +57,9 @@ RUN jupyter trust /app/include/peptide/peptide/notebooks/Heatmap_Visualization_w
 # Copy and setup start script
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
+
+# Copy Nginx configuration
+COPY nginx.conf /etc/nginx/nginx.conf
 
 
 # Set PYTHONPATH properly
