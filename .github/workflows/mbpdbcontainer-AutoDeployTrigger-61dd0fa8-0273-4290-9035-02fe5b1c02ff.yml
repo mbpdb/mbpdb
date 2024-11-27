@@ -52,6 +52,7 @@ jobs:
         az containerapp update \
           --name mbpdbcontainer \
           --resource-group COH_MBPDB_RG \
+          --container-name mbpdbcontainer \
           --set-env-vars \
           DJANGO_SETTINGS_MODULE=peptide.settings \
           PYTHONPATH=/app/include/peptide \
