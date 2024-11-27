@@ -10,7 +10,6 @@ cleanup() {
     exit 0
 }
 
-# Setup trap for cleanup
 trap cleanup SIGTERM SIGINT
 
 # Start Redis server
@@ -19,19 +18,14 @@ service redis-server start || echo "Redis server failed to start"
 
 # Start Nginx server
 echo "Starting Nginx..."
-service nginx start || echo "Nginx failed to start"
-
-# Reload Nginx configuration
-echo "Reloading Nginx configuration..."
-nginx -s reload || echo "Failed to reload Nginx configuration"
+nginx -t && service nginx start || echo "Nginx failed to start: $(nginx -t 2>&1)"
 
 # Change to Django app directory
-echo "Changing to Django application directory..."
 cd /app/include/peptide
 
-# Start Gunicorn in background
+# Start Gunicorn in background (now on port 8001)
 echo "Starting Gunicorn..."
-gunicorn -b 127.0.0.1:8000 --timeout=600 peptide.wsgi:application &
+gunicorn -b 127.0.0.1:8001 --timeout=600 peptide.wsgi:application &
 GUNICORN_PID=$!
 
 # Start Celery worker in background
@@ -40,19 +34,23 @@ celery -A peptide worker --loglevel=info &
 CELERY_PID=$!
 
 # Change to notebooks directory
-echo "Changing to Voilà notebooks directory..."
 cd /app/include/peptide/peptide/notebooks
 
 # Start Voilà in background
 echo "Starting Voilà..."
+# Generate a static token
+
 voila \
     --no-browser \
     --port=8866 \
     --Voila.ip=127.0.0.1 \
     --template=lab \
-    --enable_nbextensions=True \
+    --Voila.base_url='/voila/' \
+    --ServerApp.allow_origin='http://127.0.0.1:8000' \
+    --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
+    --ServerApp.token="${VOILA_TOKEN}" \
+    --ServerApp.allow_credentials=True \
+    --Voila.tornado_settings="{'allow_origin': '*'}" \
     --debug \
     Heatmap_Visualization_widget_volia.ipynb &
-
-# Keep the script running to handle signals
-wait
+    wait

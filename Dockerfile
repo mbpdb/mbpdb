@@ -8,6 +8,11 @@ ENV JUPYTER_PLATFORM_DIRS=1
 ENV DJANGO_SETTINGS_MODULE=peptide.settings
 ENV BASE_PYTHONPATH=/app/include/peptide
 
+# Generate a random token and save it as an environment variable
+RUN VOILA_TOKEN=$(openssl rand -hex 32) && \
+    echo "export VOILA_TOKEN=${VOILA_TOKEN}" >> /etc/profile.d/voila_token.sh && \
+    echo "VOILA_TOKEN=${VOILA_TOKEN}" >> /.env
+
 # Update apt-get and install system dependencies
 RUN apt-get update && apt-get install -y \
     nginx \ 
@@ -40,8 +45,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
-RUN python3 -m ipykernel install --user 
-#RUN jupyter nbextension enable --py widgetsnbextension
+RUN python3 -m ipykernel install --user
 
 
 # Copy application files

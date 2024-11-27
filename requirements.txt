@@ -22,3 +22,6 @@ numpy>=1.24.3
 pandas>=2.0.0
 matplotlib>=3.8.0
 widgetsnbextension
+nbconvert
+jupyter_contrib_nbextensions
+jupyterlab_widgets
