@@ -10,6 +10,7 @@ import numpy as np
 from itertools import cycle
 from IPython.display import display, HTML, clear_output
 import ipywidgets as widgets
+from io import BytesIO
 
 # Declare global variables and assign the settings values to them
 global valid_discrete_cmaps, default_hm_color, default_lp_color, default_avglp_color, default_filename_port, default_filename_land, images_folder_name
@@ -384,7 +385,7 @@ class ProteinVariableSelector:
 
             with self.var_selection_output:
                 self.var_selection_output.clear_output()
-                display(HTML("<hr style='border: 1px solid black;'>"))
+                #display(HTML("<hr style='border: 1px solid black;'>"))
                 display(HTML(f"<b>{len(combined_keys)} variables added.</b>"))
                 display(HTML(f"<b>Selected variables:</b> {', '.join(combined_keys)}"))
                 display(HTML(f"<b>Total unique variables:</b> {len(self.selected_var_keys_list)}"))
@@ -1437,8 +1438,10 @@ def create_plotting_widgets(user_protein_id, ms_average_choice, bio_or_pep, lege
 
 def update_filenames(input_filename_port, input_filename_land):
     # Append directory and .png only when necessary
-    updated_filename_port = f'{images_folder_name}/{input_filename_port}.png' if input_filename_port else None
-    updated_filename_land = f'{images_folder_name}/{input_filename_land}.png' if input_filename_land else None
+    #updated_filename_port = f'{images_folder_name}/{input_filename_port}.png' if input_filename_port else None
+    #updated_filename_land = f'{images_folder_name}/{input_filename_land}.png' if input_filename_land else None
+    updated_filename_port = f'{input_filename_port}.png' if input_filename_port else None
+    updated_filename_land = f'{input_filename_land}.png' if input_filename_land else None
 
     return updated_filename_land, updated_filename_port
 
@@ -2395,7 +2398,23 @@ def visualize_sequence_heatmap_lanscape(available_data_variables,
     #plt.subplots_adjust(left=0.05)  # Create space on the left for the y-label
 
     if save_fig == 'yes':
-        fig.savefig(filename, bbox_inches='tight')
+        # Save the figure to a BytesIO buffer
+        buffer = BytesIO()
+        fig.savefig(buffer, format="png", bbox_inches='tight')
+        buffer.seek(0)
+
+        # Generate the download link
+        data_url = f"data:image/png;base64,{buffer.getvalue().decode('latin1')}"
+        download_html = f"""
+        <script>
+            var link = document.createElement('a');
+            link.href = "{data_url}";
+            link.download = "{filename}";
+            link.click();
+        </script>
+        """
+        # Display the auto-download script in the browser
+        display(HTML(download_html))
         display(HTML(f'An image file of the figure above has been saved as <b>{filename}</b>.'))
 
     # Display the plot inline
@@ -2525,7 +2544,7 @@ def visualize_sequence_heatmap_portrait(available_data_variables,
     plt.tight_layout()
     #plt.subplots_adjust(left=0.15)  # Create space on the left for the y-label
     fig.text(yaxis_position, 0.5, yaxis_label, va='center', rotation='vertical', fontsize=16)
-    fig.text(0.5, 0.075, xaxis_label, ha='center', va='center', fontsize=16)
+    fig.text(0.5, 0.05, xaxis_label, ha='center', va='center', fontsize=16)
     if save_fig == 'yes':
         fig.savefig(filename, bbox_inches='tight')
         display(HTML(f'An image file of the figure above has been saved as <b>{filename}</b>.'))
