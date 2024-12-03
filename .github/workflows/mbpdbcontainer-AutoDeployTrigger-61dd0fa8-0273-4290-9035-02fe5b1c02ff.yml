@@ -40,12 +40,12 @@ jobs:
         dockerfilePath: Dockerfile
         targetPort: 8000
         ingress: external
-        cpu: 1.0
-        memory: 2.0Gi
-        daprEnabled: false  # Disable Dapr
-        env: |
+        environmentVariables: |
+          DJANGO_SETTINGS_MODULE=peptide.settings
+          PYTHONPATH=/app/include/peptide
           WEBSITES_PORT=8000
           WEBSITES_CONTAINER_START_TIME_LIMIT=1800
+          VOILA_PORT=8866
 
     - name: Update environment variables
       run: |
