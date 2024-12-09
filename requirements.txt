@@ -25,3 +25,8 @@ widgetsnbextension
 nbconvert
 jupyter_contrib_nbextensions
 jupyterlab_widgets
+seaborn
+traitlets
+scipy
+ipydatagrid
+statsmodels

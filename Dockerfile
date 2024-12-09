@@ -70,7 +70,7 @@ COPY nginx.conf /etc/nginx/nginx.conf
 ENV PYTHONPATH=/app/include/peptide:${BASE_PYTHONPATH}
 
 # Expose ports for Django and Voila
-EXPOSE 8000 8866
+EXPOSE 8000 8866 8867
 
 # Use the start script as the entry point
 CMD ["/app/start.sh"]
