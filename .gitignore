@@ -23,3 +23,5 @@ include/peptide/uploads/temp/
 # Ignore heatmap images
 include/peptide/peptide/notebooks/heatmap_images/*
 
+# Ignore Build.sh
+build.sh
