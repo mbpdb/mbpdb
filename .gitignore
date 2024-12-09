@@ -8,3 +8,18 @@ include/peptide/peptide/migrations/0023_peptideinfo_time_submitted.py
 include/peptide/peptide/migrations/0032_auto_20180301_0126.py
 include/peptide/peptide/static/peptide/VI5N.gif:Zone.Identifier
 include/peptide/uploads/temp/
+
+# Ignore Jupyter checkpoint files
+.ipynb_checkpoints/
+*-checkpoint.ipynb
+
+# Ignore copy files
+*-Copy*.ipynb
+*-Copy[0-9]*.ipynb
+
+# IDE files
+.idea/
+
+# Ignore heatmap images
+include/peptide/peptide/notebooks/heatmap_images/*
+
