@@ -1617,18 +1617,18 @@ def initialize_settings():
     global images_folder_name
     images_folder_name = 'heatmap_images'
     folder_path = check_and_create_folder(current_directory, images_folder_name)
-    fasta_dir = 'fasta_files/'
-    fasta_files = list_fasta_files(fasta_dir)
-    proteins_dic = parse_fasta_files(fasta_dir, fasta_files)
+    #fasta_dir = 'fasta_files/'
+    #fasta_files = list_fasta_files(fasta_dir)
+    #proteins_dic = parse_fasta_files(fasta_dir, fasta_files)
 
     return {
         'current_directory': current_directory,
         'heatmap_directory': heatmap_directory,
         'images_folder_name': images_folder_name,
         'folder_path': folder_path,
-        'fasta_dir': fasta_dir,
-        'fasta_files': fasta_files,
-        'proteins_dic': proteins_dic
+        #'fasta_dir': fasta_dir,
+        #'fasta_files': fasta_files,
+        #'proteins_dic': proteins_dic
     }
 
 
@@ -2398,23 +2398,9 @@ def visualize_sequence_heatmap_lanscape(available_data_variables,
     #plt.subplots_adjust(left=0.05)  # Create space on the left for the y-label
 
     if save_fig == 'yes':
-        # Save the figure to a BytesIO buffer
-        buffer = BytesIO()
-        fig.savefig(buffer, format="png", bbox_inches='tight')
-        buffer.seek(0)
+        #return save_figure_as_download(fig, filename)
 
-        # Generate the download link
-        data_url = f"data:image/png;base64,{buffer.getvalue().decode('latin1')}"
-        download_html = f"""
-        <script>
-            var link = document.createElement('a');
-            link.href = "{data_url}";
-            link.download = "{filename}";
-            link.click();
-        </script>
-        """
         # Display the auto-download script in the browser
-        display(HTML(download_html))
         display(HTML(f'An image file of the figure above has been saved as <b>{filename}</b>.'))
 
     # Display the plot inline
@@ -2449,6 +2435,7 @@ def visualize_sequence_heatmap_portrait(available_data_variables,
                                              bio_or_pep,
                                              save_fig,
                                              chunk_size):
+
 
     lineplot_height, scale_factor = settings.port_hm_settings.get(
         len(available_data_variables), (20, 0.1))
