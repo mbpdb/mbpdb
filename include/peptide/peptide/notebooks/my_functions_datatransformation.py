@@ -395,17 +395,17 @@ def initialize_settings():
     heatmap_directory = check_and_create_folder(current_directory,'heatmap_data_files')
     images_folder_name = check_and_create_folder(current_directory, 'heatmap_images')
     vp_directory = check_and_create_folder(current_directory, 'volcano_plot')
-    fasta_dir = 'fasta_files/'
-    fasta_files = [f for f in os.listdir(fasta_dir) if f.endswith('.fasta')]
-    proteins_dic = parse_fasta([os.path.join(fasta_dir, f) for f in fasta_files])
+    #fasta_dir = 'fasta_files/'
+    #fasta_files = [f for f in os.listdir(fasta_dir) if f.endswith('.fasta')]
+    #proteins_dic = parse_fasta([os.path.join(fasta_dir, f) for f in fasta_files])
     
     return {
         'current_directory': current_directory,
         'heatmap_directory': heatmap_directory,
         'images_folder_name': images_folder_name,
-        'fasta_dir': fasta_dir,
-        'fasta_files': fasta_files,
-        'proteins_dic': proteins_dic
+        #'fasta_dir': fasta_dir,
+        #'fasta_files': fasta_files,
+        #'proteins_dic': proteins_dic
     }
 
 def get_protein_details(protein_id, proteins_dic):
