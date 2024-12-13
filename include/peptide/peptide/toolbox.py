@@ -351,15 +351,6 @@ def xlsx_to_tsv(path):
     #This is NOISY!  Ignore output.
     subprocess.call('%s "%s" "%s" 2> /dev/null' % (settings.XLS_TO_TSV,path,tsv_path),shell=True)
     return tsv_path
-
-def create_fasta_lib(library_tsv_path):
-    (root,ext) = os.path.splitext(library_tsv_path)
-    with_ids_tsv_path = root + 'with_ids.tsv'
-    with_ids_fasta_path = root + 'with_ids.fasta'
-    subprocess.check_output([settings.CREATE_FASTA_LIB,library_tsv_path,with_ids_tsv_path,with_ids_fasta_path],stderr=subprocess.STDOUT)
-    return (with_ids_tsv_path,with_ids_fasta_path)
-
-
 def create_fasta_input(input_tsv_path):
     (root,ext) = os.path.splitext(input_tsv_path)
     with_ids_tsv_path = root + 'with_ids.tsv'
@@ -368,6 +359,7 @@ def create_fasta_input(input_tsv_path):
     return (with_ids_tsv_path,with_ids_fasta_path)
 
 #Secondary function used in the blast search when extra infor is requested
+
 def make_blast_db(library_fasta_path):
     subprocess.check_output(['makeblastdb','-in', library_fasta_path,'-dbtype','prot'],stderr=subprocess.STDOUT)
 
