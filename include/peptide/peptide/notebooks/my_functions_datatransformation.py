@@ -609,6 +609,7 @@ def check_and_add_protein(user_protein_ids, proteins_dic):
 def fetch_protein_names(accession_str):
     names = []
     for acc in accession_str.split('; '):
+
         if acc in proteins_dic:
             names.append(f"{acc}<span style='color:blue'> ({proteins_dic[acc]['species']} - {proteins_dic[acc]['name']})</span>")
         else:
