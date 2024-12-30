@@ -16,6 +16,17 @@ from peptide.celery import app
 from .tasks import pepdb_multi_search_manual
 from django.core.cache import cache
 
+
+from django.shortcuts import render
+
+def voila_heatmap_view(request):
+    return render(request, 'peptide/heatmap.html')
+
+def voila_data_view(request):
+    return render(request, 'peptide/data_transform.html')
+def test(request):
+    return render(request, 'peptide/test.html')
+
 # Fetch active Task ID function
 def get_active_tasks(request):
     i = Inspect(app=app)

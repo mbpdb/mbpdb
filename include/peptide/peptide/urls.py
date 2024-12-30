@@ -19,5 +19,7 @@ urlpatterns = [
     path('check-progress/<str:task_id>/', views.check_progress, name='check_progress'),
     path('get-active-tasks/', views.get_active_tasks, name='get_active_tasks'),
     path('return_render_results/<uuid:task_id>/', views.return_render_results, name='return_render_results'),
-    #path('log', views.log_message, name='log_message'),
+    path('heatmap/', views.voila_heatmap_view, name='voila_heatmap'),
+    path('data_transform/', views.voila_data_view, name='voila_data'),
 ]
+
