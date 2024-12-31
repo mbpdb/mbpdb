@@ -24,6 +24,9 @@ def voila_heatmap_view(request):
 
 def voila_data_view(request):
     return render(request, 'peptide/data_transform.html')
+
+def voila_correlation_view(request):
+    return render(request, 'peptide/correlation.html')
 def test(request):
     return render(request, 'peptide/test.html')
 
