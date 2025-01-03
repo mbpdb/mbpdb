@@ -21,6 +21,7 @@ urlpatterns = [
     path('return_render_results/<uuid:task_id>/', views.return_render_results, name='return_render_results'),
     path('heatmap/', views.voila_heatmap_view, name='voila_heatmap'),
     path('data_transform/', views.voila_data_view, name='voila_data'),
-    path('correlation_view/', views.voila_correlation_view, name='voila_correlation')
+    path('correlation_view/', views.voila_correlation_view, name='voila_correlation'),
+    path('protein_bar_view/', views.voila_protein_bar_view, name='voila_protein_bar')
 ]
 

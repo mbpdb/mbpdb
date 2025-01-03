@@ -72,6 +72,7 @@ voila \
     Data_Transformation_widget.ipynb &
 VOILA_DATA_PID=$!
 
+echo "Starting Voilà for Correlation Plotter and Exporter..."
 voila \
     --no-browser \
     --port=8868 \
@@ -86,5 +87,22 @@ voila \
     --debug \
     Correlations.ipynb &
 VOILA_DATA_PID=$!
+
+echo "Starting Voilà for Correlation Plotter and Exporter..."
+voila \
+    --no-browser \
+    --port=8869 \
+    --Voila.ip=127.0.0.1 \
+    --template=lab \
+    --Voila.base_url='/protein_bar/' \
+    --ServerApp.allow_origin='http://127.0.0.1:8000' \
+    --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
+    --ServerApp.token="${VOILA_TOKEN}" \
+    --ServerApp.allow_credentials=True \
+    --Voila.tornado_settings="{'allow_origin': '*'}" \
+    --debug \
+    Protein_Bar_Plot.ipynb &
+VOILA_DATA_PID=$!
+
 # Wait for all background processes
 wait
