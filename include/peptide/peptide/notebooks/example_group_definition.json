@@ -1,0 +1,60 @@
+{
+    "1": {
+        "grouping_variable": "Threshold",
+        "abundance_columns": [
+            "T_0_2a",
+            "T_0_2b",
+            "T_0_2c",
+            "T_0_2d"
+        ]
+    },
+    "2": {
+        "grouping_variable": "Low",
+        "abundance_columns": [
+            "L_3_3",
+            "L_2_9",
+            "L_6_0"
+        ]
+    },
+    "3": {
+        "grouping_variable": "Moderate",
+        "abundance_columns": [
+            "M_7_3",
+            "M_6_2",
+            "M_5_6"
+        ]
+    },
+    "4": {
+        "grouping_variable": "Extreme",
+        "abundance_columns": [
+            "E_7_2",
+            "E_8_7a",
+            "E_5_7",
+            "E_8_7b"
+        ]
+    },
+    "5": {
+        "grouping_variable": "Bitter",
+        "abundance_columns": [
+            "M_7_3",
+            "M_6_2",
+            "M_5_6",
+            "E_7_2",
+            "E_8_7a",
+            "E_5_7",
+            "E_8_7b"
+        ]
+    },
+    "6": {
+        "grouping_variable": "Non_bitter",
+        "abundance_columns": [
+            "T_0_2a",
+            "T_0_2b",
+            "T_0_2c",
+            "T_0_2d",
+            "L_3_3",
+            "L_2_9",
+            "L_6_0"
+        ]
+    }
+}
