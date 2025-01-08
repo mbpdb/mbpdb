@@ -32,3 +32,4 @@ ipydatagrid
 statsmodels
 plotly
 openpyxl
+kaleido
