@@ -27,6 +27,28 @@ valid_gradient_cmaps = [
     'rainbow_r', 'seismic_r', 'spring_r', 'summer_r', 'terrain_r', 'winter_r'
 ]
 
+# plot;y color schemes
+plotly_colors = [
+                ('Viridis', 'Viridis'), ('Cividis', 'Cividis'),
+                ('Inferno', 'Inferno'), ('Magma', 'Magma'),
+                ('Plasma', 'Plasma'), ('Warm', 'Warm'),
+                ('Cool', 'Cool'), ('Hot', 'Hot'),
+                ('Jet', 'Jet'), ('Blues', 'Blues'),
+                ('Bluered', 'Bluered'), ('Blugrn', 'Blugrn'),
+                ('Greens', 'Greens'), ('Gnbu', 'GnBu'),
+                ('Purples', 'Purples'), ('Pubu', 'PuBu'),
+                ('Purd', 'PuRd'), ('Purp', 'Purp'),
+                ('Oranges', 'Oranges'), ('Reds', 'Reds'),
+                ('Orrd', 'OrRd'), ('Spectral', 'Spectral'),
+                ('RdBu', 'RdBu'), ('RdYlBu', 'RdYlBu'),
+                ('RdYlGn', 'RdYlGn'), ('PiYG', 'PiYG'),
+                ('PRGn', 'PRGn'), ('BrBG', 'BrBG'),
+                ('RdGy', 'RdGy'), ('Rainbow', 'Rainbow'),
+                ('IceFire', 'IceFire'), ('Edge', 'Edge'),
+                ('HSV', 'HSV'), ('Twilight', 'Twilight'),
+                ('Mrybm', 'Mrybm'), ('Mygbm', 'Mygbm'),
+            ]
+
 # Define default values for the color maps
 default_hm_color = 'RdYlGn_r'
 #default_hm_color = 'Purples'
