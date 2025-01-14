@@ -22,6 +22,8 @@ urlpatterns = [
     path('heatmap/', views.voila_heatmap_view, name='voila_heatmap'),
     path('data_transform/', views.voila_data_view, name='voila_data'),
     path('correlation_view/', views.voila_correlation_view, name='voila_correlation'),
-    path('protein_bar_view/', views.voila_protein_bar_view, name='voila_protein_bar')
+    path('protein_bar_view/', views.voila_protein_bar_view, name='voila_protein_bar'),
+    path('bioactive_bar_view/', views.voila_bioactive_bar_view, name='voila_bioactive_bar'),
+    path('summed_bar_view/', views.voila_summed_bar_view, name='voila_summed_bar'),
 ]
 

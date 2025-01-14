@@ -30,6 +30,10 @@ def voila_correlation_view(request):
 
 def voila_protein_bar_view(request):
     return render(request, 'peptide/protein_bar_plot.html')
+def voila_bioactive_bar_view(request):
+    return render(request, 'peptide/bioactive_bar_plot.html')
+def voila_summed_bar_view(request):
+    return render(request, 'peptide/summed_bar_plot.html')
 
 def test(request):
     return render(request, 'peptide/test.html')

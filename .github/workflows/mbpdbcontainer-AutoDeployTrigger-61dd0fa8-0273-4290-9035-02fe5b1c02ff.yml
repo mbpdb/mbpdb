@@ -49,6 +49,8 @@ jobs:
           DATA_PORT=8867
           CORR_PORT=8868
           PBP_PORT=8869
+          BIOB_PORT=8870
+          SUMB_PORT=8871
 
     - name: Update environment variables
       run: |
@@ -63,3 +65,5 @@ jobs:
           WEBSITES_CONTAINER_START_TIME_LIMIT=1800 \
           VOILA_PORT=8866
           PBP_PORT=8869
+          BIOB_PORT=8870
+          SUMB_PORT=8871

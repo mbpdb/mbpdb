@@ -104,5 +104,37 @@ voila \
     Protein_Bar_Plot.ipynb &
 VOILA_DATA_PID=$!
 
+echo "Starting Voilà for Bioactive Bar plotter and Exporter..."
+voila \
+    --no-browser \
+    --port=8870 \
+    --Voila.ip=127.0.0.1 \
+    --template=lab \
+    --Voila.base_url='/bioactive_bar/' \
+    --ServerApp.allow_origin='http://127.0.0.1:8000' \
+    --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
+    --ServerApp.token="${VOILA_TOKEN}" \
+    --ServerApp.allow_credentials=True \
+    --Voila.tornado_settings="{'allow_origin': '*'}" \
+    --debug \
+    Bioactive_Bar_Graph.ipynb &
+VOILA_DATA_PID=$!
+
+echo "Starting Voilà for Summed Bar Plotter and Exporter..."
+voila \
+    --no-browser \
+    --port=8871 \
+    --Voila.ip=127.0.0.1 \
+    --template=lab \
+    --Voila.base_url='/summed_bar/' \
+    --ServerApp.allow_origin='http://127.0.0.1:8000' \
+    --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
+    --ServerApp.token="${VOILA_TOKEN}" \
+    --ServerApp.allow_credentials=True \
+    --Voila.tornado_settings="{'allow_origin': '*'}" \
+    --debug \
+    Summed_Bar_Graph.ipynb &
+VOILA_DATA_PID=$!
+
 # Wait for all background processes
 wait
