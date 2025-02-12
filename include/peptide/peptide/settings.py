@@ -25,9 +25,6 @@ DEBUG = False
 
 ALLOWED_HOSTS = ['128.193.11.196', '127.0.0.1', 'localhost', '192.84.190.235', 'mbpdb.nws.oregonstate.edu','mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io']
 
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, "peptide/static"),  # This ensures Django finds your app's static files
-]
 
 # Celery settings
 CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
@@ -121,9 +118,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.7/howto/static-files/
 
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, "peptide/static"),  # Keep this as your main static directory
+]
+
+# Make sure these paths are correct
+STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static_files')
 
-STATIC_URL = '/static/'
 
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
