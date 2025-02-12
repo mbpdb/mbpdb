@@ -69,6 +69,19 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # Set PYTHONPATH properly
 ENV PYTHONPATH=/app/include/peptide:${BASE_PYTHONPATH}
 
+# Add these new commands for static files handling
+WORKDIR /app/include/peptide
+
+# Collect static files
+RUN python manage.py collectstatic --noinput
+
+# Make sure static files are accessible
+RUN chmod -R 755 /app/include/peptide/static_files
+
+# Create required directories and set permissions
+RUN mkdir -p /app/include/peptide/static_files && \
+    chmod -R 755 /app/include/peptide/static_files
+
 # Expose ports for Django and Voila
 EXPOSE 8000 8866 8867 8868 8869 8870 8871
 
