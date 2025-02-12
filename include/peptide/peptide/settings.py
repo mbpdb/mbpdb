@@ -25,6 +25,9 @@ DEBUG = False
 
 ALLOWED_HOSTS = ['128.193.11.196', '127.0.0.1', 'localhost', '192.84.190.235', 'mbpdb.nws.oregonstate.edu','mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io']
 
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, "peptide/static"),  # This ensures Django finds your app's static files
+]
 
 # Celery settings
 CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
