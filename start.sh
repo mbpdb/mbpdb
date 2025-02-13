@@ -30,9 +30,23 @@ echo "Starting Gunicorn..."
 gunicorn -b 127.0.0.1:8001 --timeout=600 peptide.wsgi:application &
 GUNICORN_PID=$!
 
-# Start Celery worker in background
+
+# Create a non-root user for Celery if it doesn't exist
+if ! id -u celery_user > /dev/null 2>&1; then
+    adduser --system --no-create-home --group celery_user
+fi
+
+# Ensure proper permissions for working directories
+chown -R celery_user:celery_user /app/include/peptide/uploads
+chmod 755 /app/include/peptide/uploads
+
+# Ensure database has proper permissions
+chown celery_user:celery_user /app/include/peptide/db.sqlite3
+chmod 664 /app/include/peptide/db.sqlite3
+
+# Start Celery worker in background with non-root user
 echo "Starting Celery worker..."
-celery -A peptide worker --loglevel=info &
+gosu celery_user celery -A peptide worker --loglevel=info &
 CELERY_PID=$!
 
 # Change to notebooks directory
@@ -50,7 +64,7 @@ voila \
     --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
     --ServerApp.token="${VOILA_TOKEN}" \
     --ServerApp.allow_credentials=True \
-    --Voila.tornado_settings="{'allow_origin': '*'}" \
+    --Voila.tornado_settings allow_origin=* \
     --debug \
     Heatmap_Visualization_widget_volia.ipynb &
 VOILA_HEATMAP_PID=$!
@@ -67,7 +81,7 @@ voila \
     --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
     --ServerApp.token="${VOILA_TOKEN}" \
     --ServerApp.allow_credentials=True \
-    --Voila.tornado_settings="{'allow_origin': '*'}" \
+    --Voila.tornado_settings allow_origin=* \
     --debug \
     Data_Transformation_widget.ipynb &
 VOILA_DATA_PID=$!
@@ -83,7 +97,7 @@ voila \
     --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
     --ServerApp.token="${VOILA_TOKEN}" \
     --ServerApp.allow_credentials=True \
-    --Voila.tornado_settings="{'allow_origin': '*'}" \
+    --Voila.tornado_settings allow_origin=* \
     --debug \
     Correlations.ipynb &
 VOILA_DATA_PID=$!
@@ -99,7 +113,7 @@ voila \
     --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
     --ServerApp.token="${VOILA_TOKEN}" \
     --ServerApp.allow_credentials=True \
-    --Voila.tornado_settings="{'allow_origin': '*'}" \
+    --Voila.tornado_settings allow_origin=* \
     --debug \
     Protein_Bar_Plot.ipynb &
 VOILA_DATA_PID=$!
@@ -115,7 +129,7 @@ voila \
     --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
     --ServerApp.token="${VOILA_TOKEN}" \
     --ServerApp.allow_credentials=True \
-    --Voila.tornado_settings="{'allow_origin': '*'}" \
+    --Voila.tornado_settings allow_origin=* \
     --debug \
     Bioactive_Bar_Graph.ipynb &
 VOILA_DATA_PID=$!
@@ -131,7 +145,7 @@ voila \
     --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
     --ServerApp.token="${VOILA_TOKEN}" \
     --ServerApp.allow_credentials=True \
-    --Voila.tornado_settings="{'allow_origin': '*'}" \
+    --Voila.tornado_settings allow_origin=* \
     --debug \
     Summed_Bar_Graph.ipynb &
 VOILA_DATA_PID=$!
