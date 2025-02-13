@@ -13,6 +13,12 @@ RUN VOILA_TOKEN=$(openssl rand -hex 32) && \
     echo "export VOILA_TOKEN=${VOILA_TOKEN}" >> /etc/profile.d/voila_token.sh && \
     echo "VOILA_TOKEN=${VOILA_TOKEN}" >> /.env
 
+
+# Add gosu for privilege dropping
+RUN apt-get update && apt-get install -y gosu && \
+    useradd -r -s /sbin/nologin celery_user && \
+    rm -rf /var/lib/apt/lists/*
+
 # Update apt-get and install system dependencies
 RUN apt-get update && apt-get install -y \
     nginx \ 
@@ -48,12 +54,19 @@ RUN pip install --upgrade pip && \
 RUN python3 -m ipykernel install --user
 
 
+
 # Copy application files
 COPY include /app/include
 
-# Create required directories
+# Create required directories and set permissions
 RUN mkdir -p /app/include/peptide/uploads/temp && \
-    chmod 700 /app/include/peptide/uploads/temp
+    chmod 750 /app/include/peptide/uploads/temp
+
+RUN chown -R celery_user:celery_user /app/include/peptide && \
+    chmod -R 755 /app/include/peptide && \
+    touch /app/include/peptide/db.sqlite3 && \
+    chown celery_user:celery_user /app/include/peptide/db.sqlite3 && \
+    chmod 664 /app/include/peptide/db.sqlite3
 
 # Trust notebooks
 RUN jupyter trust /app/include/peptide/peptide/notebooks/Heatmap_Visualization_widget_volia.ipynb || echo "Warning: Could not trust notebook"

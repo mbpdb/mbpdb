@@ -27,6 +27,7 @@ ALLOWED_HOSTS = ['128.193.11.196', '127.0.0.1', 'localhost', '192.84.190.235', '
 
 
 # Celery settings
+CELERY_WORKER_USER = 'celery_user'
 CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
 CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
@@ -69,6 +70,8 @@ MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",
 ]
 CORS_ALLOWED_ORIGINS = [
+"https://mbpdb.nws.oregonstate.edu",
+    "https://mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     "http://localhost:8866",
