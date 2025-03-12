@@ -29,26 +29,35 @@ valid_gradient_cmaps = [
 
 # plot;y color schemes
 plotly_colors = [
-                ('Viridis', 'Viridis'), ('Cividis', 'Cividis'),
-                ('Inferno', 'Inferno'), ('Magma', 'Magma'),
-                ('Plasma', 'Plasma'), ('Warm', 'Warm'),
-                ('Cool', 'Cool'), ('Hot', 'Hot'),
-                ('Jet', 'Jet'), ('Blues', 'Blues'),
-                ('Bluered', 'Bluered'), ('Blugrn', 'Blugrn'),
-                ('Greens', 'Greens'), ('Gnbu', 'GnBu'),
-                ('Purples', 'Purples'), ('Pubu', 'PuBu'),
-                ('Purd', 'PuRd'), ('Purp', 'Purp'),
-                ('Oranges', 'Oranges'), ('Reds', 'Reds'),
-                ('Orrd', 'OrRd'), ('Spectral', 'Spectral'),
-                ('RdBu', 'RdBu'), ('RdYlBu', 'RdYlBu'),
-                ('RdYlGn', 'RdYlGn'), ('PiYG', 'PiYG'),
-                ('PRGn', 'PRGn'), ('BrBG', 'BrBG'),
-                ('RdGy', 'RdGy'), ('Rainbow', 'Rainbow'),
-                ('IceFire', 'IceFire'), ('Edge', 'Edge'),
-                ('HSV', 'HSV'), ('Twilight', 'Twilight'),
-                ('Mrybm', 'Mrybm'), ('Mygbm', 'Mygbm'),
-            ]
-
+    # Sequential
+    ('Viridis', 'Viridis'), ('Cividis', 'Cividis'),
+    ('Inferno', 'Inferno'), ('Magma', 'Magma'),
+    ('Plasma', 'Plasma'), ('Hot', 'Hot'),
+    ('Jet', 'Jet'), ('Blues', 'Blues'),
+    ('Greens', 'Greens'), ('Reds', 'Reds'),
+    ('Purples', 'Purples'), ('Oranges', 'Oranges'),
+    ('OrRd', 'OrRd'), ('PuRd', 'PuRd'), 
+    ('PuBu', 'PuBu'), ('GnBu', 'GnBu'),
+    ('BuGn', 'BuGn'), ('BuPu', 'BuPu'),
+    
+    # Diverging
+    ('Spectral', 'Spectral'), ('RdBu', 'RdBu'), 
+    ('RdYlBu', 'RdYlBu'), ('RdYlGn', 'RdYlGn'),
+    ('PiYG', 'PiYG'), ('PRGn', 'PRGn'), 
+    ('BrBG', 'BrBG'), ('RdGy', 'RdGy'),
+    
+    # Cyclical
+    ('IceFire', 'IceFire'), ('Edge', 'Edge'),
+    ('HSV', 'HSV'), ('Twilight', 'Twilight'),
+    
+    # Qualitative (good for categorical data)
+    ('Plotly', 'Plotly'), ('D3', 'D3'),
+    ('G10', 'G10'), ('T10', 'T10'),
+    ('Alphabet', 'Alphabet'), ('Set1', 'Set1'),
+    ('Set2', 'Set2'), ('Set3', 'Set3'),
+    ('Pastel1', 'Pastel1'), ('Pastel2', 'Pastel2'),
+    ('Paired', 'Paired')
+]
 # Define default values for the color maps
 default_hm_color = 'RdYlGn_r'
 #default_hm_color = 'Purples'
