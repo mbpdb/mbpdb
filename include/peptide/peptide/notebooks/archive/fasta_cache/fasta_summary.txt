@@ -1,8 +1,0 @@
-Total proteins requested: 62
-Successful retrievals: 59
-Failed retrievals: 3
-
-Missing proteins:
-F1MLW8
-P02666A2
-P02666A1

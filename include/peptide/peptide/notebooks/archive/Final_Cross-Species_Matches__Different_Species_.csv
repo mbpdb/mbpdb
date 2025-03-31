@@ -1,7 +1,0 @@
-,Peptide_Species1,protein_name,position,Function_Species1,Species1,Peptide_Species2,Function_Species2,Species2
-114,VLGPVRGPFPIIV,Beta-casein,[212-224],ACE-inhibitory,Bovine,PVTQPLAPVHNPI,Antimicrobial,Human
-115,PVTQPLAPVHNPI,Beta-casein,[212-224],Antimicrobial,Human,VLGPVRGPFPIIV,ACE-inhibitory,Bovine
-178,LRQAQEKFGKDKSPKFQL,Lactotransferrin,[290-307],Antimicrobial,Human,LSKAQEKFGKNKSRSFQL,Antimicrobial,Bovine
-179,LSKAQEKFGKNKSRSFQL,Lactotransferrin,[290-307],Antimicrobial,Bovine,LRQAQEKFGKDKSPKFQL,Antimicrobial,Human
-592,WLAHKAL,Alpha-lactalbumin,[123-129],ACE-inhibitory; DPP-IV Inhibitory,Human,WLAHKAL,ACE-inhibitory; DPP-IV Inhibitory,Bovine
-593,WLAHKAL,Alpha-lactalbumin,[123-129],ACE-inhibitory; DPP-IV Inhibitory,Bovine,WLAHKAL,ACE-inhibitory; DPP-IV Inhibitory,Human
