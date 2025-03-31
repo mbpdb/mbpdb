@@ -1,0 +1,138 @@
+{
+    "1": {
+        "grouping_variable": "A",
+        "abundance_columns": [
+            "A1_F",
+            "A1_G",
+            "A1_I",
+            "A2_F",
+            "A2_G",
+            "A2_I",
+            "A3_F",
+            "A3_G",
+            "A3_I"
+        ]
+    },
+    "2": {
+        "grouping_variable": "A1",
+         "abundance_columns": [
+            "A1_1_F",
+            "A1_2_F",
+            "A1_3_F",
+            "A1_1_G",
+            "A1_2_G",
+            "A1_3_G",
+            "A1_1_I",
+            "A1_2_I",
+            "A1_3_I"
+        ]
+    },
+    "3": {
+        "grouping_variable": "Human_Milk",
+        "abundance_columns": [
+            "HM1_F",
+            "HM1_G",
+            "HM1_I",
+            "HM2_F",
+            "HM2_G",
+            "HM2_I",
+            "HM3_F",
+            "HM3_G",
+            "HM3_I",
+            "HM4_F",
+            "HM4_G",
+            "HM4_I"
+        ]
+    },
+    "4": {
+        "grouping_variable": "Human_Milk_Intestinal",
+        "abundance_columns": [
+            "HM1_I",
+            "HM2_I",
+            "HM3_I",
+            "HM4_I"
+        ]
+    },
+    "5": {
+        "grouping_variable": "Human_Milk_Gastric",
+        "abundance_columns": [
+            "HM1_G",
+            "HM2_G",
+            "HM3_G",
+            "HM4_G"
+        ]
+    },
+    "6": {
+        "grouping_variable": "Human_Milk_Feed",
+        "abundance_columns": [
+            "HM1_F",
+            "HM2_F",
+            "HM3_F",
+            "HM4_F"
+        ]
+    },
+    "7": {
+        "grouping_variable": "A_Feed",
+        "abundance_columns": [
+            "A1_F",
+            "A2_F",
+            "A3_F"
+        ]
+    },
+    "8": {
+        "grouping_variable": "A_Gastric",
+        "abundance_columns": [
+            "A1_G",
+            "A2_G",
+            "A3_G"
+        ]
+    },
+    "9": {
+        "grouping_variable": "A_Intestinal",
+        "abundance_columns": [
+            "A1_I",
+            "A2_I",
+            "A3_I"
+        ]
+    },
+    "10": {
+        "grouping_variable": "A1_Feed",
+        "abundance_columns": [
+            "A1_1_F",
+            "A1_2_F",
+            "A1_3_F"
+        ]
+    },
+    "11": {
+        "grouping_variable": "A1_Gastric",
+        "abundance_columns": [
+            "A1_1_G",
+            "A1_2_G",
+            "A1_3_G"
+        ]
+    },
+    "12": {
+        "grouping_variable": "A1_Intestinal",
+        "abundance_columns": [
+            "A1_1_I",
+            "A1_2_I",
+            "A1_3_I"
+        ]
+    },
+    "13": {
+        "grouping_variable": "Infant_Formula_Feed",
+        "abundance_columns": ["A1_F", "A2_F", "A3_F", "A1_1_F", "A1_2_F", "A1_3_F"]
+    },
+    "14": {
+        "grouping_variable": "Infant_Formula_Gastric",
+        "abundance_columns": ["A1_G", "A2_G", "A3_G", "A1_1_G", "A1_2_G", "A1_3_G"]
+    },
+    "15": {
+        "grouping_variable": "Infant_Formula_Intestinal",
+        "abundance_columns": ["A1_I", "A2_I", "A3_I", "A1_1_I", "A1_2_I", "A1_3_I"]
+    },
+    "16": {
+        "grouping_variable": "Infant_Formula",
+        "abundance_columns": ["A1_F", "A2_F", "A3_F", "A1_1_F", "A1_2_F", "A1_3_F", "A1_G", "A2_G", "A3_G", "A1_1_G", "A1_2_G", "A1_3_G", "A1_I", "A2_I", "A3_I", "A1_1_I", "A1_2_I", "A1_3_I"]
+    }
+}

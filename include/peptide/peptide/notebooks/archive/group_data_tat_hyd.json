@@ -1,0 +1,51 @@
+{
+    "1": {
+        "grouping_variable": "Acid_Low_DH",
+        "abundance_columns": [
+            "117_A",
+            "117_B"
+        ]
+    },
+    "2": {
+        "grouping_variable": "Sweet_Low_DH1",
+        "abundance_columns": [
+            "118_1_A",
+            "118_1_B"
+        ]
+    },
+    "3": {
+        "grouping_variable": "Sweet_Low_DH2",
+        "abundance_columns": [
+            "225_A",
+            "225_B"
+        ]
+    },
+    "4": {
+        "grouping_variable": "Acid_Mid_DH",
+        "abundance_columns": [
+            "205_A",
+            "205_B"
+        ]
+    },
+    "5": {
+        "grouping_variable": "Sweet_Mid_DH",
+        "abundance_columns": [
+            "314_A",
+            "314_B"
+        ]
+    },
+    "6": {
+        "grouping_variable": "Sweet_High_DH1",
+        "abundance_columns": [
+            "305_1_A",
+            "305_1_B"
+        ]
+    },
+    "7": {
+        "grouping_variable": "Sweet_High_DH2",
+        "abundance_columns": [
+            "305_2_A",
+            "305_2_B"
+        ]
+    }
+}

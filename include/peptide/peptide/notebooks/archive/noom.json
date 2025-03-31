@@ -1,0 +1,106 @@
+{
+    "1": {
+        "grouping_variable": "Gastric IVT",
+        "abundance_columns": [
+            "G20_1",
+            "G20_3",
+            "G60_1",
+            "G60_3",
+            "G120_1",
+            "G120_3"
+        ]
+    },
+    "2": {
+        "grouping_variable": "Intestinal IVT",
+        "abundance_columns": [
+            "G20_I30_1",
+            "G20_I30_3",
+            "G20_I60_1",
+            "G20_I60_3",
+            "G20_I120_1",
+            "G20_I120_3",
+            "G60_I30_1",
+            "G60_I30_3",
+            "G60_I60_1",
+            "G60_I60_3",
+            "G60_I120_1",
+            "G60_I120_3",
+            "G120_I30_1",
+            "G120_I30_3",
+            "G120_I60_1",
+            "G120_I60_3",
+            "G120_I120_1",
+            "G120_I120_3"
+        ]
+    },
+    "3": {
+        "grouping_variable": "Intestinal IVV",
+        "abundance_columns": [
+	    "A1H_1",
+            "A1H_2",
+            "B1H_1",
+            "B1H_2",
+            "C1H_1",
+            "C1H_2",
+            "A2H_1",
+            "A2H_2",
+            "B2H_1",
+            "B2H_2",
+            "C2H_1",
+            "C2H_2",
+            "A3H_1",
+            "A3H_2",
+            "B3H_1",
+            "B3H_2",
+            "A4H_1",
+            "A4H_2",
+            "B4H_1",
+            "B4H_2",
+            "C4H_1",
+            "C4H_2"
+        ]
+    },
+        "4": {
+        "grouping_variable": "J1H",
+        "abundance_columns": [
+            "A1H_1",
+            "A1H_2",
+            "B1H_1",
+            "B1H_2",
+            "C1H_1",
+            "C1H_2"
+        ]
+    },
+    "5": {
+        "grouping_variable": "J2H",
+        "abundance_columns": [
+            "A2H_1",
+            "A2H_2",
+            "B2H_1",
+            "B2H_2",
+            "C2H_1",
+            "C2H_2"
+        ]
+    },
+    "6": {
+        "grouping_variable": "J3H",
+        "abundance_columns": [
+            "A3H_1",
+            "A3H_2",
+            "B3H_1",
+            "B3H_2"
+        ]
+    },
+    "7": {
+        "grouping_variable": "J4H",
+        "abundance_columns": [
+            "A4H_1",
+            "A4H_2",
+            "B4H_1",
+            "B4H_2",
+            "C4H_1",
+            "C4H_2"
+        ]
+    }
+}
+            

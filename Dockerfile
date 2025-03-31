@@ -98,7 +98,7 @@ RUN mkdir -p /app/include/peptide/static_files && \
     chmod -R 755 /app/include/peptide/static_files
 
 # Expose ports for Django and Voila
-EXPOSE 8000 8866 8867 8868 8869 8870 8871
+EXPOSE 8000 8866 8867 8868 8869
 
 # Use the start script as the entry point
 CMD ["/app/start.sh"]
