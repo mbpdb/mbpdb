@@ -25,11 +25,8 @@ def voila_heatmap_view(request):
 def voila_data_view(request):
     return render(request, 'peptide/data_transform.html')
 
-def voila_correlation_view(request):
-    return render(request, 'peptide/correlation.html')
-
-def voila_bar_pie_total_view(request):
-    return render(request, 'peptide/bar_pie_total_plot.html')
+def voila_data_visualization_view(request):
+    return render(request, 'peptide/data_visualization_plot.html')
 
 #def voila_protein_bar_view(request):
 #    return render(request, 'peptide/protein_bar_plot.html')

@@ -71,7 +71,9 @@ RUN chown -R celery_user:celery_user /app/include/peptide && \
     chmod 664 /app/include/peptide/db.sqlite3
 
 # Trust notebooks
-RUN jupyter trust /app/include/peptide/peptide/notebooks/Heatmap_Visualization_widget_volia.ipynb || echo "Warning: Could not trust notebook"
+RUN jupyter trust /app/include/peptide/peptide/notebooks/Heatmap_Visualization_widget_volia.ipynb || echo "Warning: Could not trust notebook" && \
+    jupyter trust /app/include/peptide/peptide/notebooks/Data_Transformation_widget.ipynb || echo "Warning: Could not trust notebook" && \
+    jupyter trust /app/include/peptide/peptide/notebooks/Data_Vizualization.ipynb || echo "Warning: Could not trust notebook"
 
 # Copy and setup start script
 COPY start.sh /app/start.sh
