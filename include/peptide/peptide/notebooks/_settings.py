@@ -58,40 +58,7 @@ plotly_colors = [
     ('Pastel1', 'Pastel1'), ('Pastel2', 'Pastel2'),
     ('Paired', 'Paired')
 ]
-# Define default values for the color maps
-default_hm_color = 'RdYlGn_r'
-#default_hm_color = 'Purples'
 
-default_lp_color = 'Set3'
-default_avglp_color = 'Dark2'
-
-# Define the color map for the heatmap
-hm_selected_color = default_hm_color
-cmap = plt.get_cmap(hm_selected_color)
-
-# Define the color map for the individual line plots
-lp_selected_color = default_lp_color
-
-# Define the color for the averaged line plots
-avglp_selected_color = default_avglp_color
-avg_cmap = plt.get_cmap(avglp_selected_color)
-
-# Define settings for different numbers of variables
-port_hm_settings = {
-    #num_var: (lineplot_height, scale_factor)
-    1: (35, 0.075),
-    2: (20, 0.125),
-    3: (20, 0.15),
-    4: (20, 0.175),
-    5: (20, 0.225),
-    6: (20, 0.25),
-    7: (20, 0.275),
-    8: (20, 0.3),
-    9: (20, 0.325),
-    10: (20, 0.36),
-    11: (20, 0.38),
-    12: (20, 0.41)
-}
 
 SPEC_TRANSLATE_LIST = [
     ['Human', 'homo sapiens', 'human'],
@@ -113,6 +80,3 @@ SPEC_TRANSLATE_LIST = [
     ['Elephant', 'elephas maximus'],
     ['Mouse', 'mus musculus']
 ]
-
-legend_title = ['Sample Type:','Peptide Counts:','Bioactivity Function:','Peptide Interval:', 'Average Absorbance:']
-
