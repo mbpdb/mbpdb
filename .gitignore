@@ -43,3 +43,6 @@ homo.fasta
 homo.fasta:Zone.Identifier
 include/peptide/peptide/notebooks/Data_Transformation_widget - Copy.ipynb:Zone.Identifier
 include/peptide/peptide/notebooks/Data_Transformation_widget - b4widget updates.ipynb
+
+#dictionary export folder
+protein_data_export/
