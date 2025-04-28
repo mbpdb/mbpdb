@@ -46,3 +46,4 @@ include/peptide/peptide/notebooks/Data_Transformation_widget - b4widget updates.
 
 #dictionary export folder
 protein_data_export/
+include/peptide/peptide/notebooks/example_peptide_data_nooverlapingproteins.csv
