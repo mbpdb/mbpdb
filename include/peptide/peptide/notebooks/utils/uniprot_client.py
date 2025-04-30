@@ -46,15 +46,24 @@ def fetch_uniprot_info(protein_id, fetch_sequence=False):
                     # Fallback to full name
                     protein_name = names.get('recommendedName', {}).get('fullName', {}).get('value')
                 
-                # Get species common name
-                organism_data = data['organism']
+                # Get species common name - improved logic
+                organism_data = data.get('organism', {})
                 species = None
-                for name in organism_data.get('names', []):
-                    if name['type'] == 'common':
-                        species = name['value']
+                
+                # Try all possible name types in order of preference
+                name_types = ['common', 'scientific', 'synonym']
+                for name_type in name_types:
+                    for name in organism_data.get('names', []):
+                        if name.get('type') == name_type:
+                            species = name.get('value')
+                            if species:  # If we found a valid name, break
+                                break
+                    if species:  # If we found a valid name, break
                         break
-                if not species:  # Fallback to scientific name
-                    species = organism_data.get('scientificName')
+                
+                # If still no species name, try lineage
+                if not species and 'lineage' in organism_data:
+                    species = organism_data['lineage'][-1]  # Get the most specific taxon
                 
                 # Get sequence if requested
                 if fetch_sequence and 'sequence' in data:
@@ -86,16 +95,22 @@ def fetch_uniprot_info(protein_id, fetch_sequence=False):
         )
         protein_name = name_element.text if name_element is not None else None
         
-        # Get species common name
+        # Get species name with improved logic
         species = None
-        # Try common name first
-        organism = root.find('.//up:organism/up:name[@type="common"]', ns)
-        if organism is not None:
-            species = organism.text
-        else:
-            # Fallback to scientific name
-            organism = root.find('.//up:organism/up:name[@type="scientific"]', ns)
-            species = organism.text if organism is not None else "Unknown"
+        # Try different name types in order of preference
+        name_types = ['common', 'scientific', 'synonym']
+        for name_type in name_types:
+            organism = root.find(f'.//up:organism/up:name[@type="{name_type}"]', ns)
+            if organism is not None:
+                species = organism.text
+                if species:  # If we found a valid name, break
+                    break
+        
+        # If still no species name, try lineage
+        if not species:
+            lineage = root.find('.//up:organism/up:lineage', ns)
+            if lineage is not None:
+                species = lineage.text.split(',')[-1].strip()  # Get the most specific taxon
         
         # Get sequence if requested
         if fetch_sequence:
@@ -106,9 +121,10 @@ def fetch_uniprot_info(protein_id, fetch_sequence=False):
         if protein_name:
             # Clean up protein name - remove any "precursor" or similar suffixes
             protein_name = protein_name.split(' precursor')[0].split(' (')[0]
-            return protein_name, species, sequence
         else:
             return None, None, None
+            
+        return protein_name, species, sequence
         
     except Exception as e:
         print(f"Error fetching UniProt data for {protein_id}: {str(e)}")
@@ -138,7 +154,7 @@ def fetch_uniprot_info_batch(protein_ids, max_retries=3, timeout=30):
         
         # Create a query with OR conditions for each protein ID
         query = ' OR '.join([f'accession:{pid}' for pid in protein_ids])
-        
+
         # Parameters for the request
         params = {
             'query': query,
@@ -184,7 +200,8 @@ def fetch_uniprot_info_batch(protein_ids, max_retries=3, timeout=30):
                 # Extract protein name
                 protein_name = None
                 protein_data = entry.get('proteinDescription', {})
-                
+                #{'recommendedName': {'fullName': {'value': 'Alpha-S2-casein'}}, 'contains': [{'recommendedName': {'fullName': {'value': 'Casocidin-1'}}, 'alternativeNames': [{'fullName': {'value': 'Casocidin-I'}}]}], 'flag': 'Precursor'}
+
                 # Try to find a common/short name first
                 if 'recommendedName' in protein_data:
                     if 'shortNames' in protein_data['recommendedName']:
@@ -198,39 +215,28 @@ def fetch_uniprot_info_batch(protein_ids, max_retries=3, timeout=30):
                         protein_name = protein_data['alternativeNames'][0]['shortNames'][0]['value']
                     else:
                         protein_name = protein_data['alternativeNames'][0].get('fullName', {}).get('value')
-                
                 # Extract species name
                 species = None
-                organism_data = entry.get('organism', {})
-                organism_names = organism_data.get('names', [])
-                
-                # Try to find common name first
-                for name in organism_names:
-                    if name['type'] == 'common':
-                        species = name['value']
-                        break
-                
-                # Fallback to scientific name
-                if not species and organism_names:
-                    for name in organism_names:
-                        if name['type'] == 'scientific':
-                            species = name['value']
-                            break
-                
+                organism_data = entry.get('organism')
+                #{'scientificName': 'Bos taurus', 'commonName': 'Bovine', 'taxonId': 9913, 'lineage': ['Eukaryota', 'Metazoa', 'Chordata', 'Craniata', 'Vertebrata', 'Euteleostomi', 'Mammalia', 'Eutheria', 'Laurasiatheria', 'Artiodactyla', 'Ruminantia', 'Pecora', 'Bovidae', 'Bovinae', 'Bos']}
+                if 'commonName' in str(organism_data):
+                    protein_species = organism_data.get('commonName') 
+                else:
+                    protein_species = organism_data.get('scientificName') 
+
                 # Clean up protein name if found
                 if protein_name:
                     protein_name = protein_name.split(' precursor')[0].split(' (')[0]
                 
                 # Store the results
-                if accession and (protein_name or species):
-                    results[accession] = (protein_name or accession, species or "Unknown")
+                if accession and protein_name and protein_species:
+                    results[accession] = (protein_name, protein_species)# or "Unknown")
         
         return results
     
     except Exception as e:
         print(f"Error in batch fetch: {str(e)}")
         return {}
-
 
 class UniProtClient:
     """
@@ -245,27 +251,6 @@ class UniProtClient:
         self.cache = {}
         self.sequence_cache = {}
     
-    def fetch_protein_info(self, protein_id):
-        """
-        Fetch information for a single protein, using cache if available.
-        
-        Args:
-            protein_id (str): UniProt accession ID.
-            
-        Returns:
-            tuple: (protein_name, species)
-        """
-        # Check cache first
-        if protein_id in self.cache:
-            return self.cache[protein_id]
-        
-        # Fetch from UniProt
-        name, species, _ = fetch_uniprot_info(protein_id)
-        
-        # Cache the result
-        self.cache[protein_id] = (name, species)
-        
-        return name, species
     
     def fetch_protein_info_with_sequence(self, protein_id):
         """
