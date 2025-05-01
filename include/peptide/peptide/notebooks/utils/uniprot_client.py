@@ -130,7 +130,6 @@ def fetch_uniprot_info(protein_id, fetch_sequence=False):
         print(f"Error fetching UniProt data for {protein_id}: {str(e)}")
         return None, None, None
 
-
 def fetch_uniprot_info_batch(protein_ids, max_retries=3, timeout=30):
     """
     Fetch protein information for multiple proteins at once using UniProt's batch API.
