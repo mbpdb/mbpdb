@@ -58,6 +58,7 @@
 <div id="menubar-wrapper">
     <ul class="menubar-nav">
         <li><a href="{% url 'peptide_search' %}">Search</a></li>
+        <li><a href="{% url 'peptiline_landing' %}">PeptiLine</a></li>
         <li><a href="{% url 'about_us' %}">About</a></li>
         <li class="dropdown"><a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Contact<span class="caret"></span></a>
             <ul class="dropdown-menu">
@@ -68,6 +69,7 @@
         <li class="dropdown">
             <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Tools <span class="caret"></span></a>
             <ul class="dropdown-menu">
+                <li><a href="{% url 'peptiline_landing' %}">PeptiLine</a></li>
                 <li><a href="{% url 'voila_data' %}">Data Transformation</a></li>
                 <li><a href="{% url 'voila_data_visualization' %}">Data Visualization</a></li>
                 <li><a href="{% url 'voila_heatmap' %}">Heatmap Visualization</a></li>
