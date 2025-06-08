@@ -484,7 +484,6 @@ def clear_temp_directory(directory_path):
 def git_init(modeladmin, request, queryset):
     # Fetch GITHUB_PAT from environment variables
     github_pat = os.environ.get("GITHUB_PAT")
-    # github_pat = os.environ.get("githubpat")
 
     try:
 

@@ -9,8 +9,8 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_PAT: ${{ secrets.MY_GITHUB_PAT }}
+    #env:
+    #  GITHUB_PAT: ${{ secrets.MY_GITHUB_PAT }}
     
     services:
       redis:
@@ -48,7 +48,7 @@ jobs:
           VOILA_PORT=8866
           DATA_PORT=8867
           DATA_VIZ_PORT=8868
-
+          GITHUB_PAT=${{ secrets.MY_GITHUB_PAT }} 
 
     - name: Update environment variables
       run: |
