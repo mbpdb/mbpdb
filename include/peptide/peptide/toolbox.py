@@ -35,132 +35,140 @@ def get_tsv_path(request_file,directory_path=None):
 
 #Uploads csv to sqsqlite3 database
 def pepdb_add_csv(csv_file, messages):
-    csv.register_dialect('pep_dialect', delimiter='\t')
-
     work_path = create_work_directory(settings.WORK_DIRECTORY)
-    input_tsv_path = os.path.join(work_path, csv_file.name).replace(' ','_')
-    handle_uploaded_file(csv_file,input_tsv_path)
-    records=0
+    input_file_path = os.path.join(work_path, csv_file.name).replace(' ','_')
+    handle_uploaded_file(csv_file, input_file_path)
+    records = 0
 
-    # remove weird characters from end of fields
-    temp_file = os.path.join(work_path, "temp.csv")
-    subprocess.check_output(['dos2unix','-q',input_tsv_path], stderr=subprocess.STDOUT)
-    subprocess.check_output([settings.FIX_WEIRD_CHARS,input_tsv_path,temp_file], stderr=subprocess.STDOUT)
-    subprocess.check_output(['mv',temp_file,input_tsv_path], stderr=subprocess.STDOUT)
+    # Handle file based on extension
+    file_extension = os.path.splitext(csv_file.name)[1].lower()
+    
+    if file_extension == '.xlsx':
+        try:
+            import pandas as pd
+            df = pd.read_excel(input_file_path)
+            # Convert DataFrame to list of dictionaries
+            data = df.to_dict('records')
+            # Convert all values to strings and strip whitespace, handle NaN values
+            data = [{k: str(v).strip() if pd.notna(v) else '' for k, v in row.items()} for row in data]
+        except Exception as e:
+            raise subprocess.CalledProcessError(1, cmd="", output=f"Error reading Excel file: {str(e)}")
+    else:  # .tsv file
+        csv.register_dialect('pep_dialect', delimiter='\t')
+        
+        # remove weird characters from end of fields
+        temp_file = os.path.join(work_path, "temp.csv")
+        subprocess.check_output(['dos2unix','-q',input_file_path], stderr=subprocess.STDOUT)
+        subprocess.check_output([settings.FIX_WEIRD_CHARS,input_file_path,temp_file], stderr=subprocess.STDOUT)
+        subprocess.check_output(['mv',temp_file,input_file_path], stderr=subprocess.STDOUT)
 
-    # detecting file encoding
-    detector = UniversalDetector()
-    for line in open(input_tsv_path, 'rb'):
-        detector.feed(line)
-        if detector.done: break
-    detector.close()
+        # detecting file encoding
+        detector = UniversalDetector()
+        for line in open(input_file_path, 'rb'):
+            detector.feed(line)
+            if detector.done: break
+        detector.close()
 
-    # if file is not UTF-8, attempt to recode to UTF-8
-    if detector.result['encoding'].lower() != "utf-8":
-        subprocess.check_output(['recode',detector.result['encoding']+'..UTF-8',input_tsv_path], stderr=subprocess.STDOUT)
+        # if file is not UTF-8, attempt to recode to UTF-8
+        if detector.result['encoding'].lower() != "utf-8":
+            subprocess.check_output(['recode',detector.result['encoding']+'..UTF-8',input_file_path], stderr=subprocess.STDOUT)
 
-    try:
-        rownum=1
-        with open(input_tsv_path, 'r', encoding='utf-8') as pepfile:
-            data = csv.DictReader(pepfile, dialect='pep_dialect')
-            headers = list(data.fieldnames)
-            headers = list(filter(None, headers)) # remove empty column headers
-            headers.sort()
+        try:
+            with open(input_file_path, 'r', encoding='utf-8') as pepfile:
+                reader = csv.DictReader(pepfile, dialect='pep_dialect')
+                data = list(reader)
+        except UnicodeDecodeError:
+            raise subprocess.CalledProcessError(1, cmd="", output="Error: File needs to use Unicode (UTF-8) encoding. Conversion failed.")
 
-            # check if headers are correct
-            if headers != ['abstract', 'additional_details', 'authors', 'doi','function', 'ic50', 'inhibited_microorganisms', 'inhibition_type', 'peptide', 'proteinID', 'ptm', 'title']:
-                raise subprocess.CalledProcessError(1, cmd="", output="Error: Input file does not have the correct headers (proteinID, peptide, function, 'additional_details', 'ic50' , 'inhibition_type','inhibited_microorganisms', ptm, title, authors, abstract, and doi).")
+    # Validate headers
+    headers = list(data[0].keys())
+    headers = list(filter(None, headers))  # remove empty column headers
+    headers.sort()
 
-            err=0
-            for row in data:
-                row = {key: value.strip() for key, value in row.items()}
-                rownum = rownum + 1
+    required_headers = ['abstract', 'additional_details', 'authors', 'doi', 'function', 'ic50', 
+                       'inhibited_microorganisms', 'inhibition_type', 'peptide', 'proteinID', 'ptm', 'title']
+    required_headers.sort()
 
-                if (row['peptide']=='' or row['proteinID']=='' or row['function']=='' or row['title']=='' or row['authors']=='' or row['doi']==''):
-                    messages.append("Error: Line "+str(rownum)+" in file has values that cannot be empty (only abstract, additional_details, ic50 , inhibition_type, inhibited_microorganisms, and ptm can be empty).")
-                    err+=1
-                    continue
+    if headers != required_headers:
+        raise subprocess.CalledProcessError(1, cmd="", 
+            output="Error: Input file does not have the correct headers (proteinID, peptide, function, 'additional_details', 'ic50' , 'inhibition_type','inhibited_microorganisms', ptm, title, authors, abstract, and doi).")
 
-                idcheck = ProteinInfo.objects.filter(pid=row['proteinID']).first()
-                if idcheck is None:
-                    messages.append("Error: Protein ID " + row['proteinID'] + " not found in database (Line " + str(
-                        rownum) + "). Skipping. You can use the Add Fasta Files tool to add the protein to the database. A list of Protein IDs cataloged in the database is avalible below.")
-                    err += 1
-                    continue
+    err = 0
+    count = 0
+    tn = datetime.now()
+    
+    for row in data:
+        rownum = count + 2  # +2 because Excel/CSV files typically start at row 2 (after header)
 
-                prot = idcheck.seq
-                # calculate start and stop intervals
-                intervals = ', '.join([str(m.start()+1) + "-" + str(m.start()+len(row['peptide'])) for m in re.finditer(row['peptide'], prot)])
+        # Validate required fields
+        if (row['peptide']=='' or row['proteinID']=='' or row['function']=='' or row['title']=='' or row['authors']=='' or row['doi']==''):
+            messages.append("Error: Line "+str(rownum)+" in file has values that cannot be empty (only abstract, additional_details, ic50 , inhibition_type, inhibited_microorganisms, and ptm can be empty).")
+            err+=1
+            continue
 
-                pvid_list=[]
+        # Check if protein exists
+        idcheck = ProteinInfo.objects.filter(pid=row['proteinID']).first()
+        if idcheck is None:
+            messages.append("Error: Protein ID " + row['proteinID'] + " not found in database (Line " + str(rownum) + "). Skipping. You can use the Add Fasta Files tool to add the protein to the database.")
+            err += 1
+            continue
 
-                if not intervals:
-                    gv_check = ProteinVariant.objects.filter(protein=idcheck)
-                    for pv in gv_check:
-                        intervals = ', '.join(
-                            [str(m.start() + 1) + "-" + str(m.start() + len(row['peptide'])) for m in
-                             re.finditer(row['peptide'], pv.seq)])
-                        if intervals:
-                            pvid_list.append(pv.pvid)
-                    if not pvid_list:
-                        messages.append("Error: Peptide " + row[
-                            'peptide'] + " not found in protein or variants (ID " + protid + ", Line " + str(
-                            rownum) + ").")
-                        err += 1
-                        continue
+        # Check if peptide exists in protein or variants
+        prot = idcheck.seq
+        intervals = ', '.join([str(m.start()+1) + "-" + str(m.start()+len(row['peptide'])) for m in re.finditer(row['peptide'], prot)])
+        pvid_list = []
 
-            if err == 0:
-                with open(input_tsv_path, 'r') as pepfile2:
-                    data = csv.DictReader(pepfile2, dialect='pep_dialect')
-                    tn = datetime.now()
-                    count = 0
-                    for row in data:
-                        idcheck = ProteinInfo.objects.get(pid=row['proteinID'])
-                        prot = idcheck.seq
+        if not intervals:
+            gv_check = ProteinVariant.objects.filter(protein=idcheck)
+            for pv in gv_check:
+                intervals = ', '.join(
+                    [str(m.start() + 1) + "-" + str(m.start() + len(row['peptide'])) for m in
+                     re.finditer(row['peptide'], pv.seq)])
+                if intervals:
+                    pvid_list.append(pv.pvid)
+            if not pvid_list:
+                messages.append(f"Error: Peptide sequence '{row['peptide']}' was not found in protein ID {row['proteinID']} or any of its variants. This occurred in line {rownum} of your input file.")
+                err += 1
+                continue
 
-                        intervals = ', '.join(
-                            [str(m.start() + 1) + "-" + str(m.start() + len(row['peptide'])) for m in
-                             re.finditer(row['peptide'], prot)])
+        # Check and handle the ic50 value
+        ic50_value = None
+        if row['ic50'] and row['ic50'].strip():
+            try:
+                ic50_value = float(row['ic50'])
+            except ValueError:
+                messages.append(f"Warning: Invalid IC50 value '{row['ic50']}' in line {rownum}. Setting to null.")
+                ic50_value = None
 
-                        pvid_list = []
-                        interval_list = []
+        # If we get here, the entry is valid - create the submission
+        sub = Submission(protein_id=row['proteinID'], 
+                        peptide=row['peptide'], 
+                        function=row['function'], 
+                        additional_details=row['additional_details'], 
+                        ic50=ic50_value, 
+                        inhibition_type=row['inhibition_type'],
+                        inhibited_microorganisms=row['inhibited_microorganisms'], 
+                        ptm=row['ptm'], 
+                        title=row['title'], 
+                        authors=row['authors'], 
+                        abstract=row['abstract'], 
+                        doi=row['doi'], 
+                        intervals=intervals, 
+                        protein_variants=','.join(pvid_list), 
+                        length=len(row['peptide']), 
+                        time_submitted=tn)
+        sub.save()
+        count += 1
 
-                        if not intervals:
-                            gv_check = ProteinVariant.objects.filter(protein=idcheck)
-                            for pv in gv_check:
-                                intervals = ', '.join(
-                                    [str(m.start() + 1) + "-" + str(m.start() + len(row['peptide'])) for
-                                     m in re.finditer(row['peptide'], pv.seq)])
-                                if intervals:
-                                    pvid_list.append(pv.pvid)
-                                    interval_list.append(intervals)
-                        else:
-                            interval_list = [intervals]
+    if file_extension == '.tsv' and detector.result['encoding'].lower() != "utf-8":
+        messages.append("Warning: Detected encoding for input file was not UTF-8 (It was detected as "+detector.result['encoding']+"). Recoding was attempted but if this is not the correct original encoding, then non-standard characters may not have been recoded correctly.")
+    
+    if count > 0:
+        messages.append(f"Successfully added {count} entries to the database.")
+    if err > 0:
+        errbit = "errors" if err > 1 else "error"
+        messages.append(f"{err} {errbit} were found and those entries were skipped.")
 
-                        # Check and handle the ic50 value
-                        if row['ic50'] is not None:
-                            try:
-                                float(row['ic50'])
-                            except ValueError:  # if it's not a number
-                                row['ic50'] = None
-
-                        sub = Submission(protein_id=row['proteinID'], peptide=row['peptide'], function=row['function'], additional_details=row['additional_details'], ic50=row['ic50'], inhibition_type=row['inhibition_type'],inhibited_microorganisms=row['inhibited_microorganisms'], ptm=row['ptm'], title=row['title'], authors=row['authors'], abstract=row['abstract'], doi=row['doi'], intervals=':'.join(interval_list), protein_variants=','.join(pvid_list), length=len(row['peptide']), time_submitted=tn)
-                        sub.save()
-                        count += 1
-
-                    suq = User.objects.filter(is_superuser=1)
-                    #email_subject = "New Peptide Submission %s" % time.strftime('%Y-%m-%d %H:%M:%S',time.localtime())
-                    #send_mail(email_subject, 'There are '+str(count)+' new peptide submissions for the MBPDB.', 'New Peptides <'+settings.NOREPLY_EMAIL+'>',[e.email for e in suq])
-
-                    if detector.result['encoding'].lower() != "utf-8":
-                        messages.append("Warning: Detected encoding for input file was not UTF-8 (It was detected as "+detector.result['encoding']+"). Recoding was attempted but if this is not the correct original encoding, then non-standard characters may not have been recoded correctly.")
-                    messages.append("No errors found. "+str(count)+" entries have been submitted for approval.")
-            else:
-                errbit = "errors" if err > 1 else "error"
-                messages.append(str(err)+" "+errbit+" found. Please correct and resubmit the file.")
-
-    except UnicodeDecodeError:
-        raise subprocess.CalledProcessError(1, cmd="", output="Error: File needs to use Unicode (UTF-8) encoding. Conversion failed.")
     return messages
 
 def pepdb_approve(queryset):
@@ -204,10 +212,10 @@ def pepdb_approve(queryset):
         try:
             doi_check = Reference.objects.get(func=fcheck, doi=e.doi)
             if (doi_check.additional_details != '' and e.additional_details != '') or (doi_check.ptm != '' and e.ptm != ''):
-                if doi_check.secondary_func != '' and e.secondary_function != '':
-                    doi_check.secondary_func = e.secondary_function
+                if doi_check.additional_details != '' and e.additional_details != '':
+                    doi_check.additional_details = e.additional_details
                     doi_check.save()
-                    messages.append("Peptide "+e.peptide+" with Function '"+e.function+"' and DOI '"+e.doi+"' found. Updated secondary function to '"+e.secondary_function+"'.")
+                    messages.append("Peptide "+e.peptide+" with Function '"+e.function+"' and DOI '"+e.doi+"' found. Updated additional details to '"+e.additional_details+"'.")
 
                 if doi_check.ptm != '' and e.ptm != '':
                     doi_check.ptm = e.ptm
