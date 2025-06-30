@@ -67,8 +67,3 @@ jobs:
           DATA_VIZ_PORT=8868 \
           GITHUB_PAT=${{ secrets.MY_GITHUB_PAT }} \
           githubpat=${{ secrets.MY_GITHUB_PAT }}
-
-    - name: Run Django migrations
-      run: |
-        cd include/peptide
-        python3 manage.py migrate --noinput
