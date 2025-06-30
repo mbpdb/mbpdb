@@ -66,3 +66,10 @@ class Counter(models.Model):
     ip = models.CharField(max_length=40)
     access_time = models.DateTimeField()
     page = models.CharField(max_length=40)
+
+class GitHubActions(models.Model):
+    class Meta:
+        verbose_name = "GitHub Actions"
+        verbose_name_plural = "GitHub Actions"
+        app_label = "peptide"
+        managed = False  # No DB table will be created

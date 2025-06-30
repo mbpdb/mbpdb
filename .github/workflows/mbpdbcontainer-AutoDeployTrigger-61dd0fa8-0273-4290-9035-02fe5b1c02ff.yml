@@ -49,7 +49,8 @@ jobs:
           DATA_PORT=8867
           DATA_VIZ_PORT=8868
           GITHUB_PAT=${{ secrets.MY_GITHUB_PAT }} 
-
+          githubpat=${{ secrets.MY_GITHUB_PAT }}
+          
     - name: Update environment variables
       run: |
         az containerapp update \

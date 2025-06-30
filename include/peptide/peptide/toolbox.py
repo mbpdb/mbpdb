@@ -1,4 +1,5 @@
 import subprocess, os, shutil, time, csv, re, sys
+import pandas as pd
 from django.conf import settings
 from .models import PeptideInfo, Reference, Function, ProteinInfo, Submission, ProteinVariant
 from datetime import datetime
@@ -45,7 +46,6 @@ def pepdb_add_csv(csv_file, messages):
     
     if file_extension == '.xlsx':
         try:
-            import pandas as pd
             df = pd.read_excel(input_file_path)
             # Convert DataFrame to list of dictionaries
             data = df.to_dict('records')
@@ -494,6 +494,9 @@ def git_init(modeladmin, request, queryset):
     github_pat = os.environ.get("GITHUB_PAT")
 
     try:
+        if not github_pat:
+            modeladmin.message_user(request, "GITHUB_PAT environment variable is not set.")
+            return
 
         # Initialize Git if it's not already initialized
         subprocess.run(["git", "init"], check=True)
