@@ -505,6 +505,9 @@ def git_init(modeladmin, request, queryset):
         subprocess.run(["git", "config", "--global", "user.email", "contact-mbpdb@oregonstate.edu"], check=True)
         subprocess.run(["git", "config", "--global", "user.name", "Rusty"], check=True)
 
+        # Add the directory to the safe directory list
+        subprocess.run(["git", "config", "--global", "--add", "safe.directory", "/app/include/peptide"], check=True)
+
         remote_url = f"https://{github_pat}@github.com/mbpdb/mbpdb.git"
         # Check if 'origin' remote exists
         result = subprocess.run(["git", "remote"], capture_output=True, text=True)
