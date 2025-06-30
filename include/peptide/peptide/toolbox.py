@@ -505,10 +505,14 @@ def git_init(modeladmin, request, queryset):
         subprocess.run(["git", "config", "--global", "user.email", "contact-mbpdb@oregonstate.edu"], check=True)
         subprocess.run(["git", "config", "--global", "user.name", "Rusty"], check=True)
 
-        # Add remote origin (if not added)
-        subprocess.run(["git", "remote", "add", "origin", f"https://{github_pat}@github.com/mbpdb/mbpdb.git"],
-                       check=True)
-        # Fetchs origin
+        remote_url = f"https://{github_pat}@github.com/mbpdb/mbpdb.git"
+        # Check if 'origin' remote exists
+        result = subprocess.run(["git", "remote"], capture_output=True, text=True)
+        if "origin" in result.stdout.split():
+            subprocess.run(["git", "remote", "set-url", "origin", remote_url], check=True)
+        else:
+            subprocess.run(["git", "remote", "add", "origin", remote_url], check=True)
+        # Fetch origin
         subprocess.run(["git", "fetch", "origin"], check=True)
 
         # switch to main branch
