@@ -521,7 +521,11 @@ def git_init(modeladmin, request, queryset):
         # switch to main branch
         subprocess.run(["git", "clean", "-f", "-d"], check=True)
         subprocess.run(["git", "checkout", "main"], check=True)
-        modeladmin.message_user(request, "Git init was successful.")
+
+        # Run Django migrations to ensure all tables exist
+        subprocess.run(["python", "manage.py", "migrate"], check=True)
+
+        modeladmin.message_user(request, "Git init and migrate were successful.")
         
     except Exception as e:
         modeladmin.message_user(request, f"Git init failed: {e}")
