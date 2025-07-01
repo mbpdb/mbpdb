@@ -519,7 +519,7 @@ def git_init(modeladmin, request, queryset):
         subprocess.run(["git", "fetch", "origin"], check=True)
 
         # switch to main branch
-        subprocess.run(["git", "clean", "-f", "-d"], check=True)
+        # subprocess.run(["git", "clean", "-f", "-d"], check=True)
         subprocess.run(["git", "checkout", "main"], check=True)
 
         # Run Django migrations to ensure all tables exist
