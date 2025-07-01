@@ -520,10 +520,10 @@ def git_init(modeladmin, request, queryset):
 
         # switch to main branch
         # subprocess.run(["git", "clean", "-f", "-d"], check=True)
-        subprocess.run(["git", "checkout", "main"], check=True)
+        #subprocess.run(["git", "checkout", "main"], check=True)
 
         # Run Django migrations to ensure all tables exist
-        subprocess.run(["python3", "manage.py", "migrate"], check=True)
+        #subprocess.run(["python3", "manage.py", "migrate"], check=True)
 
         modeladmin.message_user(request, "Git init and migrate were successful.")
         
