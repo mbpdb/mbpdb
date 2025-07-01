@@ -21,7 +21,7 @@ service redis-server start || echo "Redis server failed to start"
 
 # Start Nginx server
 echo "Starting Nginx..."
-nginx -t && service nginx start || echo "Nginx failed to start: $(nginx -t 2>&1)"
+nginx -t && service nginx start || { echo "Nginx failed to start: $(nginx -t 2>&1)"; exit 1; }
 
 # Change to Django app directory
 cd /app/include/peptide
