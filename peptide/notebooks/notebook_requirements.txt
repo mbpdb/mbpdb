@@ -1,0 +1,27 @@
+# Node.js and npm are required for ipywidgets   
+# For JupyterLab, install the extension
+#!jupyter labextension install @jupyter-widgets/jupyterlab-manager
+pandas
+numpy
+plotly
+ipywidgets
+matplotlib
+widgetsnbextension
+nbconvert
+jupyter_contrib_nbextensions
+jupyterlab_widgets
+seaborn
+traitlets
+scipy
+ipydatagrid
+statsmodels
+plotly
+openpyxl
+nodejs
+ipykernel
+npm
+django
+#--upgrade jupyter
+#--upgrade notebook
+#--upgrade jupyterlab
+#--upgrade ipywidgets
