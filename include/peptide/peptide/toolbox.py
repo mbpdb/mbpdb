@@ -523,7 +523,7 @@ def git_init(modeladmin, request, queryset):
         subprocess.run(["git", "checkout", "main"], check=True)
 
         # Run Django migrations to ensure all tables exist
-        subprocess.run(["python", "manage.py", "migrate"], check=True)
+        subprocess.run(["python3", "manage.py", "migrate"], check=True)
 
         modeladmin.message_user(request, "Git init and migrate were successful.")
         
@@ -533,9 +533,9 @@ def git_init(modeladmin, request, queryset):
 # pushes db to git repo
 def git_push(modeladmin, request, queryset):
     try:
-        # Adds and commits db change
-        subprocess.run(["git", "add", "include/peptide/db.sqlite3"], check=True)
-        subprocess.run(["git", "commit", "include/peptide/db.sqlite3", "-m", "Updated db"], check=True)
+        # Adds and commits all changes, respecting .gitignore
+        subprocess.run(["git", "add", "."], check=True)
+        subprocess.run(["git", "commit", "-m", "Updated db"], check=True)
 
         # Push changes to remote new branch
         subprocess.run(["git", "push", "origin", "main"], check=True)
@@ -543,5 +543,5 @@ def git_push(modeladmin, request, queryset):
         modeladmin.message_user(request, "Git push was successful.")
 
     except Exception as e:
-        modeladmin.message_user(request, f"Git init failed: {e}")
+        modeladmin.message_user(request, f"Git push failed: {e}")
 
