@@ -26,10 +26,6 @@ nginx -t && service nginx start || echo "Nginx failed to start: $(nginx -t 2>&1)
 # Change to Django app directory
 cd /app/include/peptide
 
-# Run Django migrations
-echo "Running Django migrations..."
-python3 manage.py migrate --noinput
-
 # Start Gunicorn in background
 echo "Starting Gunicorn..."
 gunicorn -b 127.0.0.1:8001 --timeout=600 peptide.wsgi:application &
