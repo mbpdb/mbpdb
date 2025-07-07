@@ -8,9 +8,7 @@
 <div class="container">
     <!-- Hero Section -->
     <div class="hero">
-        <h1>PeptiLine</h1>
-        <p>An Interactive Platform for Customizable Functional Peptidomic Analysis</p>
-        <p style="font-size: 1.1em; color: #888;">Transform your peptidomic mass spectrometry data into interactive visualizations and statistical insights</p>
+        <img src="{% static 'peptide/hero.png' %}" alt="PeptiLine Hero" class="hero-image">
     </div>
 
     <!-- CSS Grid Workflow Section -->
@@ -208,12 +206,20 @@
         }
 
         .hero {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 80px 0;
-            text-align: center;
             margin-bottom: 60px;
-            backdrop-filter: blur(10px);
-            max-height: 300px;
+            text-align: center;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+        }
+
+        .hero-image {
+            width: 100%;
+            height: auto;
+            display: block;
+            min-height: 400px;
+            max-height: 600px;
+            object-fit: cover;
         }
 
         .hero h1 {
@@ -234,11 +240,13 @@
         }
 
         .workflow-section {
-            background: white;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
             margin-bottom: 60px;
             padding: 60px 0;
             border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             position: relative;
         }
 
@@ -267,12 +275,13 @@
     .grid-parent {
         grid-row: 1;
         grid-column: 1 / 3;
-        background: white;
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(15px);
         color: #333;
         padding: 25px 40px;
         border-radius: 15px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-        border: 2px solid #e9ecef;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+        border: 2px solid rgba(255, 255, 255, 0.3);
         text-align: center;
         width: 100%;
         max-width: 500px;
@@ -282,19 +291,21 @@
 
     .grid-parent:hover {
         transform: translateY(-5px);
-        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.15);
-        border-color: #667eea;
+        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.18);
+        border-color: rgba(102, 126, 234, 0.6);
+        background: rgba(255, 255, 255, 0.95);
     }
 
     .grid-child1 {
         grid-row: 2;
         grid-column: 1;
-        background: white;
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(15px);
         color: #333;
         padding: 25px;
         border-radius: 15px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-        border: 2px solid #e9ecef;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+        border: 2px solid rgba(255, 255, 255, 0.3);
         text-align: center;
         width: 100%;
         max-width: 300px;
@@ -306,12 +317,13 @@
     .grid-child2 {
         grid-row: 2;
         grid-column: 2;
-        background: white;
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(15px);
         color: #333;
         padding: 25px;
         border-radius: 15px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-        border: 2px solid #e9ecef;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+        border: 2px solid rgba(255, 255, 255, 0.3);
             text-align: center;
         width: 100%;
         max-width: 300px;
@@ -333,8 +345,9 @@
     .grid-child1:hover,
     .grid-child2:hover {
         transform: translateY(-8px);
-        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.15);
-        border-color: #667eea;
+        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.18);
+        border-color: rgba(102, 126, 234, 0.6);
+        background: rgba(255, 255, 255, 0.95);
     }
 
     @keyframes pulse {
@@ -384,10 +397,12 @@
         }
 
         .module-card {
-            background: white;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(15px);
             border-radius: 20px;
             padding: 40px;
-            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.25);
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
@@ -395,7 +410,9 @@
 
         .module-card:hover {
             transform: translateY(-10px);
-            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.2);
+            background: rgba(255, 255, 255, 0.95);
+            border-color: rgba(255, 255, 255, 0.4);
         }
 
         .module-card::before {
@@ -479,11 +496,13 @@
         }
 
         .visualization-gallery {
-            background: white;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
             padding: 60px 0;
             border-radius: 20px;
             margin-bottom: 60px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
         .gallery-title {
@@ -503,7 +522,9 @@
             text-align: center;
             padding: 20px;
             border-radius: 15px;
-            background: #f8f9fa;
+            background: rgba(248, 249, 250, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
             transition: all 0.3s ease;
             position: relative;
             z-index: 1;
@@ -511,7 +532,9 @@
 
         .viz-item:hover {
             transform: scale(1.05);
-            background: #e9ecef;
+            background: rgba(233, 236, 239, 0.8);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
         }
 
 
@@ -526,6 +549,9 @@
             background: white;
             box-shadow: 0 0 50px rgba(0, 0, 0, 0.3);
             padding: 0;
+            border-radius: 15px;
+            overflow: hidden;
+            pointer-events: auto !important;
         }
 
         .viz-item.sequence-heatmap.expanded {
@@ -536,6 +562,7 @@
             min-height: 40vh;
             display: flex;
             flex-direction: column;
+            pointer-events: auto !important;
         }
 
         .viz-item.expanded .viz-placeholder {
@@ -546,8 +573,9 @@
             position: relative;
             display: block !important;
             overflow: visible;
-            padding: 20px; /* Add some padding */
+            padding: 20px;
             box-sizing: border-box;
+            pointer-events: auto !important;
         }
 
         .viz-item.sequence-heatmap.expanded .viz-placeholder {
@@ -558,6 +586,7 @@
             align-items: center;
             justify-content: center;
             min-height: calc(40vh - 80px);
+            pointer-events: auto !important;
         }
 
         .viz-item.sequence-heatmap.expanded .viz-title,
@@ -575,6 +604,7 @@
         .viz-item.sequence-heatmap.expanded .viz-description {
             font-size: 1.6em;
             margin-top: 0;
+            margin-bottom: 18px;
         }
         .viz-item.expanded .viz-title,
         .viz-item.expanded .viz-description {
@@ -585,12 +615,13 @@
 
         .viz-item.expanded .viz-title {
             font-size: 1.4em;
-            margin-bottom: 5px;
+            margin-bottom: 0px;
         }
 
         .viz-item.expanded .viz-description {
             font-size: 1.2em;
             margin-top: 0;
+            margin-bottom: 20px;
         }
 
         .overlay {
@@ -599,39 +630,63 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.7);
             opacity: 0;
             visibility: hidden;
             transition: all 0.3s ease;
-            z-index: 999;
+            z-index: 998; /* Lower z-index */
+            pointer-events: none; /* Allow overlay clicks for closing, but don't block content */
         }
 
         .overlay.active {
             opacity: 1;
             visibility: visible;
+            pointer-events: auto; /* Allow clicks for closing */
         }
 
         .close-expanded {
             position: absolute;
-            top: 10px;
-            right: 10px;
-            background: white;
-            border: none;
+            top: 15px;
+            right: 15px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid #667eea;
             border-radius: 50%;
-            width: 30px;
-            height: 30px;
+            width: 40px;
+            height: 40px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             z-index: 1001;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
             opacity: 0;
-            transition: opacity 0.3s ease;
+            transition: all 0.3s ease;
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+            pointer-events: auto !important;
         }
 
         .viz-item.expanded .close-expanded {
             opacity: 1;
+        }
+
+        .close-expanded:hover {
+            background: #667eea;
+            color: white;
+            transform: scale(1.1);
+        }
+
+        /* Add a click-catcher div for closing */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 997; /* Lower than overlay to not interfere */
+            pointer-events: none; /* Disable to prevent interference */
+            background: transparent;
         }
 
         .plot-container {
@@ -640,6 +695,7 @@
             position: relative;
             display: block !important;
             overflow: visible;
+            pointer-events: auto !important;
         }
 
         .plot-frame {
@@ -649,6 +705,7 @@
             background: white;
             box-sizing: border-box;
             display: block !important;
+            pointer-events: auto !important;
         }
 
 
@@ -812,245 +869,241 @@
     <div class="overlay" id="overlay"></div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const vizItems = document.querySelectorAll('.viz-item');
-            const overlay = document.getElementById('overlay');
+document.addEventListener('DOMContentLoaded', function() {
+    const vizItems = document.querySelectorAll('.viz-item');
+    const overlay = document.getElementById('overlay');
+    
+    // No longer need backdrop - using overlay for click detection
+    
+    vizItems.forEach(item => {
+        const plotPreview = item.querySelector('.plot-preview');
+        if (!plotPreview) return;
+
+        const plotUrl = plotPreview.dataset.plot;
+        
+        if (!plotUrl) return;
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'close-expanded';
+        closeBtn.innerHTML = '×';
+        item.appendChild(closeBtn);
+
+        const originalPreview = plotPreview.outerHTML;
+
+        const handlePlotClick = function() {
+            const isSequenceHeatmap = item.classList.contains('sequence-heatmap');
+            const isPngFile = plotUrl.toLowerCase().endsWith('.png');
             
-            vizItems.forEach(item => {
-                const plotPreview = item.querySelector('.plot-preview');
-                if (!plotPreview) return;
-
-                const plotUrl = plotPreview.dataset.plot;
+            const plotContainer = document.createElement('div');
+            plotContainer.className = 'plot-container';
+            
+            if (isPngFile) {
+                const img = document.createElement('img');
+                img.style.maxWidth = '100%';
+                img.style.maxHeight = '100%';
+                img.style.width = 'auto';
+                img.style.height = 'auto';
+                img.style.objectFit = 'contain';
+                img.style.objectPosition = 'center';
+                img.style.background = 'white';
+                img.style.pointerEvents = 'auto';
+                img.alt = 'Enlarged view';
+                img.src = plotUrl;
                 
-                // Skip if no plot URL
-                if (!plotUrl) return;
+                if (isSequenceHeatmap) {
+                    plotContainer.style.display = 'flex';
+                    plotContainer.style.alignItems = 'center';
+                    plotContainer.style.justifyContent = 'center';
+                    plotContainer.style.flex = '1';
+                    plotContainer.style.minHeight = '0';
+                }
                 
-                const closeBtn = document.createElement('button');
-                closeBtn.className = 'close-expanded';
-                closeBtn.innerHTML = '×';
-                item.appendChild(closeBtn);
-
-                // Store original preview HTML
-                const originalPreview = plotPreview.outerHTML;
-
-                plotPreview.addEventListener('click', function() {
-                    // Check if this is a sequence heatmap for special handling
-                    const isSequenceHeatmap = item.classList.contains('sequence-heatmap');
-                    
-                    // Check if this is a PNG file
-                    const isPngFile = plotUrl.toLowerCase().endsWith('.png');
-                    
-                    // Create container for plot
-                    const plotContainer = document.createElement('div');
-                    plotContainer.className = 'plot-container';
-                    
-                    // For PNG files, show image directly without iframe
-                    if (isPngFile) {
-                        const img = document.createElement('img');
-                        img.style.maxWidth = '100%';
-                        img.style.maxHeight = '100%';
-                        img.style.width = 'auto';
-                        img.style.height = 'auto';
-                        img.style.objectFit = 'contain';
-                        img.style.objectPosition = 'center';
-                        img.style.background = 'white';
-                        img.alt = 'Enlarged view';
-                        img.src = plotUrl;
-                        // For sequence heatmaps, make container flexible
-                        if (isSequenceHeatmap) {
-                            plotContainer.style.display = 'flex';
-                            plotContainer.style.alignItems = 'center';
-                            plotContainer.style.justifyContent = 'center';
-                            plotContainer.style.flex = '1';
-                            plotContainer.style.minHeight = '0';
-                        }
-                        
-                        plotContainer.appendChild(img);
-                        
-                        // Replace static image with container
-                        const placeholder = item.querySelector('.viz-placeholder');
-                        placeholder.innerHTML = '';
-                        placeholder.appendChild(plotContainer);
-                        
-                        // Expand the item
-                        item.classList.add('expanded');
-                        overlay.classList.add('active');
-                        document.body.style.overflow = 'hidden';
-                        return;
-                    }
-                    
-                    // For HTML files, continue with iframe loading
-                    // Create loading spinner
-                    const spinner = document.createElement('div');
-                    spinner.className = 'loading-spinner';
-                    const spinnerSize = isSequenceHeatmap ? '4rem' : '3rem';
-                    spinner.innerHTML = `
-                        <div class="spinner-border text-primary" role="status" style="width: ${spinnerSize}; height: ${spinnerSize};">
-                            <span class="sr-only">Loading...</span>
-                        </div>
-                    `;
-                    spinner.style.position = 'absolute';
-                    spinner.style.top = '50%';
-                    spinner.style.left = '50%';
-                    spinner.style.transform = 'translate(-50%, -50%)';
-                    spinner.style.zIndex = '1002';
-                    plotContainer.appendChild(spinner);
-                    
-                    // Create iframe
-                    const iframe = document.createElement('iframe');
-                    iframe.className = 'plot-frame';
-                    // Remove sandbox since these are local static files
-                    iframe.style.display = 'none';
-                    plotContainer.appendChild(iframe);
-                    
-                    // Replace static image with container
-                    const placeholder = item.querySelector('.viz-placeholder');
-                    placeholder.innerHTML = '';
-                    placeholder.appendChild(plotContainer);
-                    
-                    // Expand the item
-                    item.classList.add('expanded');
-                    overlay.classList.add('active');
-                    document.body.style.overflow = 'hidden';
-                    
-                    // Load the interactive plot
-                    iframe.onload = function() {
-                        spinner.style.display = 'none';
-                        iframe.style.display = 'block';
-                        
-                        // Add DOCTYPE if missing and center content
-                        try {
-                            const frameDoc = iframe.contentDocument || iframe.contentWindow.document;
-                            if (!frameDoc.doctype) {
-                                const newDoc = '<!DOCTYPE html>\n' + frameDoc.documentElement.outerHTML;
-                                frameDoc.open();
-                                frameDoc.write(newDoc);
-                                frameDoc.close();
-                            }
-                            
-                            // Inject CSS to fix plotly display and prevent legend cutoff
-                            const style = frameDoc.createElement('style');
-                            const bodyPadding = isSequenceHeatmap ? '5px' : '10px';
-                            style.textContent = `
-                                body {
-                                    margin: 0 !important;
-                                    padding: ${bodyPadding} !important;
-                                    box-sizing: border-box !important;
-                                    overflow: visible !important;
-                                    display: block !important;
-                                }
-                                .plotly-graph-div {
-                                    overflow: visible !important;
-                                    display: block !important;
-                                    width: 100% !important;
-                                    height: 100% !important;
-                                }
-                                .js-plotly-plot {
-                                    display: block !important;
-                                    overflow: visible !important;
-                                }
-                                .plot-container {
-                                    display: block !important;
-                                    overflow: visible !important;
-                                }
-                                div[data-plotly] {
-                                    display: block !important;
-                                }
-                            `;
-                            frameDoc.head.appendChild(style);
-                            
-                            // Force plotly to resize after style injection
-                            setTimeout(() => {
-                                try {
-                                    if (frameDoc.defaultView && frameDoc.defaultView.Plotly) {
-                                        const plotlyDiv = frameDoc.querySelector('.js-plotly-plot');
-                                        if (plotlyDiv) {
-                                            // First resize to current dimensions
-                                            frameDoc.defaultView.Plotly.Plots.resize(plotlyDiv);
-                                            
-                                                                        // Then relayout to fix legend position and container sizing
-                            setTimeout(() => {
-                                const relayoutConfig = {
-                                    width: null,
-                                    height: null,
-                                    autosize: true,
-                                    'legend.x': 0,
-                                    'legend.y': 1,
-                                    'legend.xanchor': 'left',
-                                    'legend.yanchor': 'top'
-                                };
-                                
-                                // For sequence heatmaps, position legend to the right side
-                                if (isSequenceHeatmap) {
-                                    relayoutConfig['legend.x'] = 1.02;
-                                    relayoutConfig['legend.y'] = 1;
-                                    relayoutConfig['legend.xanchor'] = 'left';
-                                    relayoutConfig['legend.yanchor'] = 'top';
-                                }
-                                
-                                frameDoc.defaultView.Plotly.relayout(plotlyDiv, relayoutConfig);
-                            }, 100);
-                            
-                            // Additional resize after legend positioning
-                            setTimeout(() => {
-                                frameDoc.defaultView.Plotly.Plots.resize(plotlyDiv);
-                            }, isSequenceHeatmap ? 500 : 300);
-                                        }
-                                    }
-                                } catch (resizeError) {
-                                    console.warn('Could not resize plotly:', resizeError);
-                                }
-                            }, 500);
-                        } catch (e) {
-                            console.warn('Could not modify frame content:', e);
-                        }
-                    };
-                    
-                    iframe.onerror = function() {
-                        spinner.style.display = 'none';
-                        const errorDiv = document.createElement('div');
-                        errorDiv.style.position = 'absolute';
-                        errorDiv.style.top = '50%';
-                        errorDiv.style.left = '50%';
-                        errorDiv.style.transform = 'translate(-50%, -50%)';
-                        errorDiv.style.background = 'white';
-                        errorDiv.style.padding = '20px';
-                        errorDiv.style.borderRadius = '8px';
-                        errorDiv.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
-                        errorDiv.style.zIndex = '1002';
-                        errorDiv.style.textAlign = 'center';
-                        errorDiv.innerHTML = `
-                            <h4>Error Loading Plot</h4>
-                            <p>There was an error loading the interactive plot. Please try again.</p>
-                        `;
-                        plotContainer.appendChild(errorDiv);
-                    };
-                    
-                    // Set iframe source after setting up handlers
-                    iframe.src = plotUrl;
-                });
-
-                closeBtn.addEventListener('click', function(e) {
+                plotContainer.appendChild(img);
+                
+                const placeholder = item.querySelector('.viz-placeholder');
+                placeholder.innerHTML = '';
+                placeholder.appendChild(plotContainer);
+                
+                // Show modal
+                item.classList.add('expanded');
+                overlay.classList.add('active');
+                document.body.style.overflow = 'hidden';
+                
+                // Prevent clicks inside modal from closing it
+                item.addEventListener('click', function(e) {
                     e.stopPropagation();
-                    
-                    // Restore original preview
-                    const placeholder = item.querySelector('.viz-placeholder');
+                });
+                
+                return;
+            }
+            
+            // For HTML files
+            const spinner = document.createElement('div');
+            spinner.className = 'loading-spinner';
+            const spinnerSize = isSequenceHeatmap ? '4rem' : '3rem';
+            spinner.innerHTML = `
+                <div class="spinner-border text-primary" role="status" style="width: ${spinnerSize}; height: ${spinnerSize};">
+                    <span class="sr-only">Loading...</span>
+                </div>
+            `;
+            spinner.style.position = 'absolute';
+            spinner.style.top = '50%';
+            spinner.style.left = '50%';
+            spinner.style.transform = 'translate(-50%, -50%)';
+            spinner.style.zIndex = '1002';
+            plotContainer.appendChild(spinner);
+            
+            const iframe = document.createElement('iframe');
+            iframe.className = 'plot-frame';
+            iframe.style.display = 'none';
+            iframe.style.pointerEvents = 'auto';
+            
+            // Set iframe attributes for better interaction and security
+            iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
+            iframe.setAttribute('allow', 'fullscreen');
+            iframe.setAttribute('frameborder', '0');
+            iframe.setAttribute('scrolling', 'no');
+            
+            plotContainer.appendChild(iframe);
+            
+            const placeholder = item.querySelector('.viz-placeholder');
+            placeholder.innerHTML = '';
+            placeholder.appendChild(plotContainer);
+            
+            // Show modal
+            item.classList.add('expanded');
+            overlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            
+            // Prevent clicks inside modal from closing it
+            item.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+                                        
+            iframe.onload = function() {
+                spinner.style.display = 'none';
+                iframe.style.display = 'block';
+                iframe.style.pointerEvents = 'auto';
+                
+                // Ensure iframe is properly configured for interaction
+                iframe.style.border = 'none';
+                iframe.style.width = '100%';
+                iframe.style.height = '100%';
+                iframe.style.background = 'white';
+                
+                // Post a message to the iframe to trigger any resize logic
+                // This is a safer approach than trying to access cross-origin content
+                try {
+                    if (iframe.contentWindow) {
+                        setTimeout(() => {
+                            iframe.contentWindow.postMessage({
+                                type: 'resize',
+                                width: iframe.offsetWidth,
+                                height: iframe.offsetHeight
+                            }, '*');
+                        }, 100);
+                        
+                        // Try again after a longer delay for complex plots
+                        setTimeout(() => {
+                            iframe.contentWindow.postMessage({
+                                type: 'resize',
+                                width: iframe.offsetWidth,
+                                height: iframe.offsetHeight
+                            }, '*');
+                        }, 1000);
+                    }
+                } catch (e) {
+                    console.warn('Could not communicate with iframe:', e);
+                }
+                
+                console.log('Plot iframe loaded successfully');
+            };
+            
+            iframe.onerror = function() {
+                spinner.style.display = 'none';
+                const errorDiv = document.createElement('div');
+                errorDiv.style.position = 'absolute';
+                errorDiv.style.top = '50%';
+                errorDiv.style.left = '50%';
+                errorDiv.style.transform = 'translate(-50%, -50%)';
+                errorDiv.style.background = 'white';
+                errorDiv.style.padding = '20px';
+                errorDiv.style.borderRadius = '8px';
+                errorDiv.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
+                errorDiv.style.zIndex = '1002';
+                errorDiv.style.textAlign = 'center';
+                errorDiv.innerHTML = `
+                    <h4>Error Loading Plot</h4>
+                    <p>There was an error loading the interactive plot. Please try again.</p>
+                `;
+                plotContainer.appendChild(errorDiv);
+            };
+            
+            iframe.src = plotUrl;
+        };
+
+        plotPreview.addEventListener('click', handlePlotClick);
+
+        // Close function
+        const closeModal = function(e) {
+            if (e) {
+                e.stopPropagation();
+                e.preventDefault();
+            }
+            
+            try {
+                const placeholder = item.querySelector('.viz-placeholder');
+                if (placeholder && originalPreview) {
                     placeholder.innerHTML = originalPreview;
                     
-                    // Collapse the item
-                    item.classList.remove('expanded');
-                    overlay.classList.remove('active');
-                    document.body.style.overflow = '';
-                });
-            });
-
-            overlay.addEventListener('click', function() {
-                const expandedItem = document.querySelector('.viz-item.expanded');
-                if (expandedItem) {
-                    expandedItem.querySelector('.close-expanded').click();
+                    const restoredPlotPreview = placeholder.querySelector('.plot-preview');
+                    if (restoredPlotPreview) {
+                        restoredPlotPreview.addEventListener('click', handlePlotClick);
+                    }
                 }
-            });
-        });
+                
+                item.classList.remove('expanded');
+                overlay.classList.remove('active');
+                document.body.style.overflow = '';
+                
+            } catch (error) {
+                console.error('Error closing modal:', error);
+                item.classList.remove('expanded');
+                overlay.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        };
+
+        closeBtn.addEventListener('click', closeModal);
+    });
+
+    // Handle overlay clicks (clicking outside the modal)
+    overlay.addEventListener('click', function(e) {
+        // Check if the click was on the overlay itself, not a child
+        if (e.target === overlay) {
+            const expandedItem = document.querySelector('.viz-item.expanded');
+            if (expandedItem) {
+                const closeBtn = expandedItem.querySelector('.close-expanded');
+                if (closeBtn) {
+                    closeBtn.click();
+                }
+            }
+        }
+    });
+
+        // Close on ESC key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const expandedItem = document.querySelector('.viz-item.expanded');
+            if (expandedItem) {
+                const closeBtn = expandedItem.querySelector('.close-expanded');
+                if (closeBtn) {
+                    closeBtn.click();
+                }
+            }
+        }
+    });
+});
 
     function drawWorkflowArrows() {
         const svg = document.getElementById('workflow-arrows');
