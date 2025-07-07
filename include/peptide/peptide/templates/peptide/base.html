@@ -51,6 +51,37 @@
 	</script>
 	{% block 'head' %}
 	{% endblock 'head' %}
+	
+	<style>
+	    /* Fixed header and footer styling */
+	    #menubar-wrapper {
+	        position: fixed;
+	        top: 0;
+	        left: 0;
+	        right: 0;
+	        z-index: 1000;
+	        background: black
+	        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+	    }
+
+	    footer {
+	        position: fixed;
+	        bottom: 0;
+	        left: 0;
+	        right: 0;
+	        z-index: 1000;
+	        background: black;
+	        box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+	        padding: 10px 0;
+	        text-align: center;
+	    }
+
+	    /* Add padding to body to account for fixed header and footer */
+	    body {
+	        padding-top: 60px;
+	        padding-bottom: 60px;
+	    }
+	</style>
 </head>
 
 <body>

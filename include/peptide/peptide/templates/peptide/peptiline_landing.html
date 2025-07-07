@@ -19,23 +19,71 @@
                 <div class="step-icon"><i class="fas fa-cogs"></i></div>
                 <div class="step-title">Data Transformation</div>
                 <div class="step-description">Upload and standardize your peptidomic data with automated bioactivity annotation</div>
+                <button class="learn-more-btn" onclick="toggleExpanded('step1')">Learn More</button>
+                
+                <!-- Expanded content -->
+                <div class="expanded-content" id="step1-expanded">
+                    <div class="expanded-description">
+                        Standardize and annotate your peptidomic data with automated bioactivity mapping from MBPDB and custom databases.
+                    </div>
+                    <ul class="features-list">
+                        <li>Automated peptide-to-protein mapping</li>
+                        <li>MBPDB bioactivity annotation</li>
+                        <li>Study variable assignment</li>
+                        <li>Multiple protein mapping resolution</li>
+                        <li>Standardized data export</li>
+                    </ul>
+                    <a href="{% url 'voila_data' %}" class="btn">Start Data Transformation</a>
+                </div>
             </div>
             <div class="grid-child1" id="step2">
                 <div class="step-icon"><i class="fas fa-chart-line"></i></div>
                 <div class="step-title">Descriptive Analysis</div>
                 <div class="step-description">Explore correlations, bioactivity profiles, and protein contributions</div>
+                <button class="learn-more-btn" onclick="toggleExpanded('step2')">Learn More</button>
+                
+                <!-- Expanded content -->
+                <div class="expanded-content" id="step2-expanded">
+                    <div class="expanded-description">
+                        Comprehensive statistical analysis and visualization of peptide profiles, correlations, and bioactivity distributions.
+                    </div>
+                    <ul class="features-list">
+                        <li>Sample correlation analysis</li>
+                        <li>Bioactivity profiling & visualization</li>
+                        <li>Protein origin contribution analysis</li>
+                        <li>Total counts & abundance summaries</li>
+                        <li>Interactive plots and charts</li>
+                    </ul>
+                    <a href="{% url 'voila_data_visualization' %}" class="btn">Explore Data Analysis</a>
+                </div>
             </div>
             <div class="grid-child2" id="step3">
                 <div class="step-icon"><i class="fas fa-fire"></i></div>
                 <div class="step-title">Sequence Visualization</div>
                 <div class="step-description">Generate interactive heatmaps mapping peptides to protein sequences</div>
+                <button class="learn-more-btn" onclick="toggleExpanded('step3')">Learn More</button>
+                
+                <!-- Expanded content -->
+                <div class="expanded-content" id="step3-expanded">
+                    <div class="expanded-description">
+                        Interactive heatmap visualization mapping peptide abundance and bioactivity along protein sequences.
+                    </div>
+                    <ul class="features-list">
+                        <li>Protein sequence mapping</li>
+                        <li>Quantitative abundance visualization</li>
+                        <li>Functional peptide highlighting</li>
+                        <li>Comparative sample analysis</li>
+                        <li>Bioactive hotspot identification</li>
+                    </ul>
+                    <a href="{% url 'voila_heatmap' %}" class="btn">Create Heatmaps</a>
+                </div>
             </div>
         </div>
         <svg id="workflow-arrows" style="position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; z-index:0;"></svg>
     </div>
 
-    <!-- Modules Grid -->
-    <div class="modules-grid">
+    <!-- Modules Grid - Hidden as content is now integrated into workflow -->
+    <div class="modules-grid" style="display: none;">
         <!-- Module 1: Data Transformation -->
         <div class="module-card">
             <div class="module-header">
@@ -204,7 +252,7 @@
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 0 20px;
+            padding: 0 20px 100px 20px; /* Add bottom padding to prevent footer overlap */
         }
 
         .hero {
@@ -249,7 +297,7 @@
         grid-template-columns: 1fr 1fr;
         grid-template-rows: auto auto;
         gap: 100px 10px;
-        align-items: center;
+        align-items: start;
         justify-items: center;
         margin-bottom: 50px;
         max-width: 700px;
@@ -368,7 +416,82 @@
         font-size: 0.95em;
         line-height: 1.5;
             color: #666;
+        margin-bottom: 15px;
         }
+
+    /* Learn More Button Styles */
+    .learn-more-btn {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 0.9em;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    }
+
+    .learn-more-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .learn-more-btn.expanded {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+    }
+
+    /* Expanded Content Styles */
+    .expanded-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.4s ease-out, padding 0.4s ease-out;
+        padding: 0 15px;
+        margin-top: 10px;
+    }
+
+    .expanded-content.active {
+        max-height: 500px;
+        padding: 20px 15px;
+        border-top: 2px solid #e9ecef;
+        margin-top: 15px;
+    }
+
+    .expanded-description {
+        color: #555;
+        line-height: 1.6;
+        margin-bottom: 20px;
+        font-size: 0.95em;
+    }
+
+    .expanded-content .features-list {
+        list-style: none;
+        margin-bottom: 25px;
+        padding-left: 0;
+    }
+
+    .expanded-content .features-list li {
+        padding: 6px 0;
+        position: relative;
+        padding-left: 20px;
+        color: #555;
+        font-size: 0.9em;
+    }
+
+    .expanded-content .features-list li::before {
+        content: '✓';
+        position: absolute;
+        left: 0;
+        color: #667eea;
+        font-weight: bold;
+    }
+
+    .expanded-content .btn {
+        font-size: 0.9em;
+        padding: 12px 24px;
+    }
 
         .modules-grid {
             display: grid;
@@ -476,7 +599,7 @@
             background: white;
             padding: 60px 0;
             border-radius: 20px;
-            margin-bottom: 60px;
+            margin-bottom: 80px; /* Increase bottom margin for footer spacing */
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
         }
 
@@ -731,7 +854,7 @@
             grid-template-rows: auto auto auto;
             gap: 30px;
             max-width: 350px;
-            max-height: 350px;
+            max-height: none; /* Allow height to grow with expanded content */
         }
         
         .grid-parent {
@@ -749,12 +872,22 @@
             grid-row: 3;
             grid-column: 1;
             max-width: none;
-            }
-            
-            .modules-grid {
-                grid-template-columns: 1fr;
-            }
         }
+        
+        .expanded-content.active {
+            max-height: 600px; /* Increase max-height for mobile */
+            padding: 15px 10px;
+        }
+        
+        .learn-more-btn {
+            font-size: 0.85em;
+            padding: 6px 14px;
+        }
+        
+        .modules-grid {
+            grid-template-columns: 1fr;
+        }
+    }
 
     @media (max-width: 480px) {
         .card-parent,
@@ -800,12 +933,55 @@
     }
 
 
+
+
     </style>
 
     <!-- Add overlay div -->
     <div class="overlay" id="overlay"></div>
 
     <script>
+        // Function to toggle expanded content in workflow steps
+        function toggleExpanded(stepId) {
+            const expandedContent = document.getElementById(stepId + '-expanded');
+            const button = document.querySelector(`#${stepId} .learn-more-btn`);
+            
+            if (expandedContent.classList.contains('active')) {
+                // Collapse
+                expandedContent.classList.remove('active');
+                button.classList.remove('expanded');
+                button.textContent = 'Learn More';
+            } else {
+                // Expand
+                expandedContent.classList.add('active');
+                button.classList.add('expanded');
+                button.textContent = 'Collapse';
+            }
+            
+            // Start continuous arrow redrawing during animation
+            animateArrows();
+        }
+
+        // Function to continuously redraw arrows during animations
+        function animateArrows() {
+            let animationStart = performance.now();
+            const animationDuration = 400; // Match CSS transition duration
+            
+            function updateArrows(currentTime) {
+                drawWorkflowArrows();
+                
+                // Continue animation if still within duration
+                if (currentTime - animationStart < animationDuration) {
+                    requestAnimationFrame(updateArrows);
+                } else {
+                    // Final redraw to ensure accuracy
+                    drawWorkflowArrows();
+                }
+            }
+            
+            requestAnimationFrame(updateArrows);
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             const vizItems = document.querySelectorAll('.viz-item');
             const overlay = document.getElementById('overlay');
@@ -1046,6 +1222,12 @@
 
         // Clear previous arrows
         svg.innerHTML = '';
+
+        // Update SVG height to match container
+        const workflowContainer = document.querySelector('.grid-workflow');
+        if (workflowContainer) {
+            svg.style.height = workflowContainer.offsetHeight + 'px';
+        }
 
         // Get bounding boxes relative to the SVG container
         const s1 = step1.getBoundingClientRect();
