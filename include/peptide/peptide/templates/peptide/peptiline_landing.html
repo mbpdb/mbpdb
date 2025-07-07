@@ -213,6 +213,7 @@
             text-align: center;
             margin-bottom: 60px;
             backdrop-filter: blur(10px);
+            max-height: 300px;
         }
 
         .hero h1 {
@@ -513,7 +514,9 @@
             background: #e9ecef;
         }
 
-        .viz-item.expanded {
+
+
+                .viz-item.expanded {
             position: fixed;
             top: 50%;
             left: 50%;
@@ -531,6 +534,9 @@
             border: none;
             margin: 0;
             position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .viz-item.expanded .viz-title,
@@ -585,6 +591,9 @@
             width: 100%;
             height: 100%;
             position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .plot-frame {
@@ -594,27 +603,7 @@
             background: white;
         }
 
-        .loading-spinner {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 1002;
-        }
 
-        .error-message {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            z-index: 1002;
-            text-align: center;
-            max-width: 80%;
-        }
 
         .viz-placeholder {
             width: 100%;
@@ -630,22 +619,7 @@
             position: relative;
         }
 
-        .carousel {
-            width: 100%;
-            height: 100%;
-        }
 
-        .carousel-inner {
-            height: 100%;
-        }
-
-        .carousel-item {
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: white;
-        }
 
         .plot-preview {
             width: 100%;
@@ -691,33 +665,7 @@
             transform: scale(1.05);
         }
 
-        .modal-xl {
-            max-width: 90%;
-        }
 
-        .modal-body {
-            padding: 0;
-            height: 80vh;
-        }
-
-        .carousel-control-prev,
-        .carousel-control-next {
-            width: 10%;
-            opacity: 0.7;
-            z-index: 5;
-        }
-
-        .carousel-control-prev:hover,
-        .carousel-control-next:hover {
-            opacity: 1;
-        }
-
-        .carousel-control-prev-icon,
-        .carousel-control-next-icon {
-            background-color: rgba(102, 126, 234, 0.5);
-            border-radius: 50%;
-            padding: 10px;
-        }
 
         .viz-title {
             font-weight: 600;
@@ -740,6 +688,7 @@
             grid-template-rows: auto auto auto;
             gap: 30px;
             max-width: 350px;
+            max-height: 350px;
         }
         
         .grid-parent {
@@ -795,7 +744,7 @@
     /* Update arrow styles */
     .grid-child1::before,
     .grid-child2::before {
-        content: '\f107';  /* Font Awesome down arrow */
+        /* content: '\f107';  /* Font Awesome down arrow */
         font-family: 'Font Awesome 6 Free';
         font-weight: 900;
         position: absolute;
@@ -807,25 +756,7 @@
         animation: pulse 2s infinite;
     }
 
-    .modal-fullscreen {
-        max-width: 100%;
-        margin: 0;
-        height: 100%;
-    }
 
-    .modal-fullscreen .modal-content {
-        height: 100vh;
-        border: 0;
-        border-radius: 0;
-    }
-
-    .modal-fullscreen .modal-body {
-        overflow: hidden;
-    }
-
-    .plot-frame {
-        background: white;
-    }
     </style>
 
     <!-- Add overlay div -->
@@ -841,6 +772,10 @@
                 if (!plotPreview) return;
 
                 const plotUrl = plotPreview.dataset.plot;
+                
+                // Skip if no plot URL
+                if (!plotUrl) return;
+                
                 const closeBtn = document.createElement('button');
                 closeBtn.className = 'close-expanded';
                 closeBtn.innerHTML = '×';
@@ -859,15 +794,20 @@
                     spinner.className = 'loading-spinner';
                     spinner.innerHTML = `
                         <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
-                            <span class="visually-hidden">Loading...</span>
+                            <span class="sr-only">Loading...</span>
                         </div>
                     `;
+                    spinner.style.position = 'absolute';
+                    spinner.style.top = '50%';
+                    spinner.style.left = '50%';
+                    spinner.style.transform = 'translate(-50%, -50%)';
+                    spinner.style.zIndex = '1002';
                     plotContainer.appendChild(spinner);
                     
                     // Create iframe
                     const iframe = document.createElement('iframe');
                     iframe.className = 'plot-frame';
-                    iframe.sandbox = 'allow-scripts allow-same-origin';
+                    // Remove sandbox since these are local static files
                     iframe.style.display = 'none';
                     plotContainer.appendChild(iframe);
                     
@@ -886,7 +826,7 @@
                         spinner.style.display = 'none';
                         iframe.style.display = 'block';
                         
-                        // Add DOCTYPE if missing
+                        // Add DOCTYPE if missing and center content
                         try {
                             const frameDoc = iframe.contentDocument || iframe.contentWindow.document;
                             if (!frameDoc.doctype) {
@@ -895,6 +835,60 @@
                                 frameDoc.write(newDoc);
                                 frameDoc.close();
                             }
+                            
+                            // Inject CSS to center plotly content without cropping
+                            const style = frameDoc.createElement('style');
+                            style.textContent = `
+                                body {
+                                    margin: 0 !important;
+                                    padding: 40px !important;
+                                    display: flex !important;
+                                    align-items: center !important;
+                                    justify-content: center !important;
+                                    min-height: calc(100vh - 80px) !important;
+                                    box-sizing: border-box !important;
+                                    overflow: hidden !important;
+                                }
+                                .plotly-graph-div {
+                                    max-width: calc(100vw - 120px) !important;
+                                    max-height: calc(100vh - 160px) !important;
+                                    width: auto !important;
+                                    height: auto !important;
+                                    margin: 0 auto !important;
+                                }
+                                .plot-container {
+                                    max-width: 100% !important;
+                                    max-height: 100% !important;
+                                    overflow: visible !important;
+                                }
+                                /* Specific plotly layout adjustments */
+                                .plotly .modebar {
+                                    margin-right: 20px !important;
+                                }
+                                .plotly .legend {
+                                    max-width: 200px !important;
+                                }
+                                /* Ensure plotly resizes properly */
+                                .js-plotly-plot {
+                                    width: 100% !important;
+                                    height: 100% !important;
+                                }
+                            `;
+                            frameDoc.head.appendChild(style);
+                            
+                            // Force plotly to resize after style injection
+                            setTimeout(() => {
+                                try {
+                                    if (frameDoc.defaultView && frameDoc.defaultView.Plotly) {
+                                        const plotlyDiv = frameDoc.querySelector('.js-plotly-plot');
+                                        if (plotlyDiv) {
+                                            frameDoc.defaultView.Plotly.Plots.resize(plotlyDiv);
+                                        }
+                                    }
+                                } catch (resizeError) {
+                                    console.warn('Could not resize plotly:', resizeError);
+                                }
+                            }, 500);
                         } catch (e) {
                             console.warn('Could not modify frame content:', e);
                         }
@@ -903,13 +897,19 @@
                     iframe.onerror = function() {
                         spinner.style.display = 'none';
                         const errorDiv = document.createElement('div');
-                        errorDiv.className = 'error-message';
+                        errorDiv.style.position = 'absolute';
+                        errorDiv.style.top = '50%';
+                        errorDiv.style.left = '50%';
+                        errorDiv.style.transform = 'translate(-50%, -50%)';
+                        errorDiv.style.background = 'white';
+                        errorDiv.style.padding = '20px';
+                        errorDiv.style.borderRadius = '8px';
+                        errorDiv.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
+                        errorDiv.style.zIndex = '1002';
+                        errorDiv.style.textAlign = 'center';
                         errorDiv.innerHTML = `
                             <h4>Error Loading Plot</h4>
                             <p>There was an error loading the interactive plot. Please try again.</p>
-                            <button class="btn btn-primary mt-3" onclick="this.parentElement.remove(); this.parentElement.parentElement.querySelector('.close-expanded').click();">
-                                Close
-                            </button>
                         `;
                         plotContainer.appendChild(errorDiv);
                     };
@@ -1003,28 +1003,5 @@
     window.addEventListener('resize', drawWorkflowArrows);
     </script>
 
-    <!-- Modal for interactive plots -->
-    <div class="modal fade" id="plotModal" tabindex="-1" aria-labelledby="plotModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-fullscreen">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="plotModalLabel">Interactive Plot</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body p-0">
-                    <div id="plotContainer" style="width: 100%; height: calc(100vh - 60px); position: relative;">
-                        <div id="loadingSpinner" class="text-center" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000;">
-                            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </div>
-                        <div id="errorMessage" class="alert alert-danger" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000;">
-                            Error loading interactive plot. Please try again.
-                        </div>
-                        <iframe id="plotFrame" class="plot-frame" frameborder="0" sandbox="allow-scripts allow-same-origin" style="width: 100%; height: 100%; border: none;"></iframe>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+
 {% endblock %}

@@ -1,7 +1,0 @@
-{% extends "admin/change_list.html" %}
-
-{% block object-tools %}
-    {{ block.super }}
-    <li><a class="button" href="{% url 'admin:git-init' %}">Git Init</a></li>
-    <li><a class="button" href="{% url 'admin:git-push' %}">Git Push</a></li>
-{% endblock %} 
