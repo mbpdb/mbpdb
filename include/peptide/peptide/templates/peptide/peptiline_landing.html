@@ -37,7 +37,7 @@
 
     <!-- CSS Grid Workflow Section -->
     <div class="workflow-section">
-        <h2 class="workflow-title">Workflow</h2>
+        <h2 class="workflow-title">⚙️ Workflow</h2>
         <div class="grid-workflow" id="workflow-grid">
             <div class="grid-parent" id="step1">
                 <div class="step-icon"><i class="fas fa-cogs"></i></div>
@@ -169,7 +169,12 @@
     <!-- Visualization Gallery -->
     <div class="visualization-gallery">
         <h2 class="gallery-title">Visualization Capabilities</h2>
-        <div class="gallery-grid">
+        
+        <!-- Plot Types Section -->
+        <div class="viz-section">
+            <h3 class="viz-section-title">📊 Explore Different Plot Types</h3>
+            <p class="viz-section-description">Discover the best visualization formats to easily reveal insights from your data</p>
+            <div class="gallery-grid viz-types-grid">
             <div class="viz-item">
                 <div class="viz-placeholder">
                     <div class="plot-preview" data-plot="{% static 'peptide/scatter_plot_1.html' %}">
@@ -250,8 +255,84 @@
                         </div>
                     </div>
                 </div>
-                <div class="viz-title"> Scaled Stacked Bar Plots</div>
-                <div class="viz-description"> Stacked Bar plot showing peptide abundance by protein origin or bioactivity accross samples</div>
+                <div class="viz-title">Interactive Scaled Plots</div>
+                <div class="viz-description">Dynamic bioactivity visualization with hover details and filtering capabilities</div>
+            </div>
+            </div>
+        </div>
+        
+        <!-- Abundance Distribution Options Section -->
+        <div class="viz-section">
+            <h3 class="viz-section-title">🔍 Explore Different Scaling and Orientations Options</h3>
+            <p class="viz-section-description">To discover novel insights by from ploting different data orientations and relative vs. absolute absorbance or counts distributions</p>
+            <div class="gallery-grid viz-options-grid">
+            
+            <div class="viz-item">
+                <div class="viz-placeholder">
+                    <div class="plot-preview" data-plot="{% static 'peptide/absolute_summed_plot_1.html' %}">
+                        <img src="{% static 'peptide/absolute_summed_plot_1.png' %}" alt="Absolute Summed Plot" class="plot-image">
+                        <div class="plot-overlay">
+                            <i class="fas fa-expand"></i>
+                            <span>Click to view interactive plot</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="viz-title">Absolute Summed Abundance</div>
+                <div class="viz-description">Absolute abundance distribution showing total peptide contribution by protein origin</div>
+            </div>
+            
+            <div class="viz-item">
+                <div class="viz-placeholder">
+                    <div class="plot-preview" data-plot="{% static 'peptide/relative_protein_plot_1.html' %}">
+                        <img src="{% static 'peptide/relative_protein_plot_1.png' %}" alt="Relative Protein Plot" class="plot-image">
+                        <div class="plot-overlay">
+                            <i class="fas fa-expand"></i>
+                            <span>Click to view interactive plot</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="viz-title">Relative Abundance by Protein</div>
+                <div class="viz-description">Relative abundance distribution showing protein contribution percentages across samples</div>
+            </div>
+            
+            <div class="viz-item">
+                <div class="viz-placeholder">
+                    <div class="plot-preview" data-plot="{% static 'peptide/relative_sample_plot_1.html' %}">
+                        <img src="{% static 'peptide/relative_sample_plot_1.png' %}" alt="Relative Sample Plot" class="plot-image">
+                        <div class="plot-overlay">
+                            <i class="fas fa-expand"></i>
+                            <span>Click to view interactive plot</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="viz-title">Relative Abundance by Sample</div>
+                <div class="viz-description">Relative abundance distribution showing sample-specific protein contributions</div>
+            </div>
+            </div>
+        </div>
+        
+        <!-- Bottom Get Started Section -->
+        <div class="bottom-get-started">
+            <div class="bottom-get-started-content">
+                <h3 class="bottom-get-started-title">
+                    <span class="rocket-emoji">🚀</span>
+                    Get Started to Explore Even More Visualization Options
+                </h3>
+                <p class="bottom-get-started-description">Ready to dive deeper? Access our full suite of interactive visualization tools and customization options</p>
+                <div class="bottom-get-started-buttons">
+                    <a href="{% url 'voila_data' %}" class="bottom-get-started-btn">
+                        <i class="fas fa-cogs"></i>
+                        <span>Data Transformation</span>
+                    </a>
+                    <a href="{% url 'voila_data_visualization' %}" class="bottom-get-started-btn">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Data Analysis</span>
+                    </a>
+                    <a href="{% url 'voila_heatmap' %}" class="bottom-get-started-btn">
+                        <i class="fas fa-fire"></i>
+                        <span>Heatmap Visualization</span>
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -728,8 +809,110 @@
         .gallery-title {
             text-align: center;
             font-size: 2.5em;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
             color: #333;
+        }
+
+        /* Visualization Section Styles */
+        .viz-section {
+            margin-bottom: 50px;
+        }
+
+        .viz-section-title {
+            font-size: 1.8em;
+            color: #333;
+            text-align: center;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .viz-section-description {
+            text-align: center;
+            font-size: 1.2em;
+            color: #666;
+            margin-bottom: 30px;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Bottom Get Started Section Styles */
+        .bottom-get-started {
+            text-align: center;
+            margin-top: 40px;
+            margin-bottom: 50px;
+        }
+
+        .bottom-get-started-content {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .bottom-get-started .rocket-emoji {
+            font-size: 1.2em;
+            display: inline-block;
+            margin-right: 15px;
+            animation: rocket-bounce 2s ease-in-out infinite;
+        }
+
+        .bottom-get-started-title {
+            font-size: 2em;
+            color: #333;
+            margin: 0 0 15px 0;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .bottom-get-started-description {
+            font-size: 1.2em;
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .bottom-get-started-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .bottom-get-started-btn {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 18px 22px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            text-decoration: none;
+            border-radius: 15px;
+            font-weight: 600;
+            font-size: 0.95em;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.25);
+            min-width: 140px;
+        }
+
+        .bottom-get-started-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.35);
+            color: white;
+            text-decoration: none;
+        }
+
+        .bottom-get-started-btn i {
+            font-size: 1.8em;
+            margin-bottom: 3px;
+        }
+
+        .bottom-get-started-btn span {
+            font-size: 0.9em;
+            text-align: center;
+            line-height: 1.2;
         }
 
         .gallery-grid {
@@ -1013,6 +1196,49 @@
         
         .get-started-footer {
             font-size: 0.85em;
+        }
+        
+        /* Visualization Section Mobile Styles */
+        .viz-section-title {
+            font-size: 1.5em;
+        }
+        
+        /* Bottom Get Started Mobile Styles */
+        .bottom-get-started {
+            margin-top: 30px;
+        }
+        
+        .bottom-get-started .rocket-emoji {
+            font-size: 1em;
+            margin-right: 10px;
+        }
+        
+        .bottom-get-started-title {
+            font-size: 1.6em;
+            margin-bottom: 12px;
+            flex-direction: row;
+            flex-wrap: wrap;
+        }
+        
+        .bottom-get-started-description {
+            font-size: 1em;
+            margin-bottom: 5px;
+        }
+        
+        .bottom-get-started-buttons {
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .bottom-get-started-btn {
+            font-size: 1.1em;
+            padding: 15px 18px;
+            min-width: 160px;
+        }
+        
+        .bottom-get-started-btn i {
+            font-size: 1.5em;
         }
         
         .grid-workflow {
