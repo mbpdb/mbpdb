@@ -824,7 +824,8 @@
                 // Store original preview HTML
                 const originalPreview = plotPreview.outerHTML;
 
-                plotPreview.addEventListener('click', function() {
+                // Define the click handler function that can be reused
+                const clickHandler = function() {
                     // Check if this is a sequence heatmap for special handling
                     const isSequenceHeatmap = item.classList.contains('sequence-heatmap');
                     
@@ -999,7 +1000,11 @@
                     
                     // Set iframe source after setting up handlers
                     iframe.src = plotUrl;
-                });
+                };
+
+                // Store the click handler and attach it to the preview
+                plotPreview._clickHandler = clickHandler;
+                plotPreview.addEventListener('click', clickHandler);
 
                 closeBtn.addEventListener('click', function(e) {
                     e.stopPropagation();
@@ -1007,6 +1012,12 @@
                     // Restore original preview
                     const placeholder = item.querySelector('.viz-placeholder');
                     placeholder.innerHTML = originalPreview;
+                    
+                    // Re-attach click handler to the restored preview element
+                    const newPlotPreview = placeholder.querySelector('.plot-preview');
+                    if (newPlotPreview) {
+                        newPlotPreview.addEventListener('click', clickHandler);
+                    }
                     
                     // Collapse the item
                     item.classList.remove('expanded');
