@@ -11,6 +11,30 @@
         <img src="{% static 'peptide/hero.png' %}" alt="PeptiLine" class="hero-image">
     </div>
 
+    <!-- Get Started Section -->
+    <div class="get-started-section">
+        <div class="get-started-header">
+            <span class="rocket-emoji">🚀</span>
+            <h2 class="get-started-title">Get Started</h2>
+        </div>
+        <p class="get-started-description">Jump right into analyzing your peptidomic data with our powerful tools</p>
+        <div class="get-started-buttons">
+            <a href="{% url 'voila_data' %}" class="get-started-btn data-transform">
+                <i class="fas fa-cogs"></i>
+                <span>Data Transformation</span>
+            </a>
+            <a href="{% url 'voila_data_visualization' %}" class="get-started-btn data-analysis">
+                <i class="fas fa-chart-line"></i>
+                <span>Data Analysis</span>
+            </a>
+            <a href="{% url 'voila_heatmap' %}" class="get-started-btn heatmap">
+                <i class="fas fa-fire"></i>
+                <span>Heatmap Visualization</span>
+            </a>
+        </div>
+        <p class="get-started-footer">To learn more about the process, see the workflow below and explore our visualization examples</p>
+    </div>
+
     <!-- CSS Grid Workflow Section -->
     <div class="workflow-section">
         <h2 class="workflow-title">Workflow</h2>
@@ -170,8 +194,8 @@
                         </div>
                     </div>
                 </div>
-                <div class="viz-title">Protein Contribution Plots</div>
-                <div class="viz-description">Stacked bar plots showing peptide abundance by protein origin across samples</div>
+                <div class="viz-title">Grouped Bar Plots</div>
+                <div class="viz-description">Grouped bar plots showing peptide abundance by protein origin or bioactivity across samples</div>
             </div>
             
             <div class="viz-item">
@@ -184,8 +208,8 @@
                         </div>
                     </div>
                 </div>
-                <div class="viz-title">Bioactivity Pie Charts</div>
-                <div class="viz-description">Distribution of functional peptide categories within and across samples</div>
+                <div class="viz-title">Pie Charts</div>
+                <div class="viz-description">Distribution of functional peptide categories or protein origin within and across samples</div>
             </div>
             
             <div class="viz-item sequence-heatmap">
@@ -226,8 +250,8 @@
                         </div>
                     </div>
                 </div>
-                <div class="viz-title">Interactive Scaled Plots</div>
-                <div class="viz-description">Dynamic bioactivity visualization with hover details and filtering capabilities</div>
+                <div class="viz-title"> Scaled Stacked Bar Plots</div>
+                <div class="viz-description"> Stacked Bar plot showing peptide abundance by protein origin or bioactivity accross samples</div>
             </div>
         </div>
     </div>
@@ -273,6 +297,104 @@
             max-height: 100%;
             object-fit: cover;
             border-radius: 20px;
+        }
+
+        /* Get Started Section Styles */
+        .get-started-section {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 50px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08);
+        }
+
+        .get-started-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 5px;
+            gap: 12px;
+        }
+
+        .rocket-emoji {
+            font-size: 2.2em;
+            animation: rocket-bounce 2s ease-in-out infinite;
+        }
+
+        @keyframes rocket-bounce {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .get-started-title {
+            font-size: 2.2em;
+            color: #333;
+            margin: 0;
+            font-weight: 600;
+        }
+
+        .get-started-description {
+            font-size: 1.2em;
+            color: #666;
+            margin-bottom: 30px;
+            max-width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+            margin-top: 0px;
+            margin-bottom: 10px;
+        }
+
+        .get-started-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .get-started-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 18px 22px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            text-decoration: none;
+            border-radius: 15px;
+            font-weight: 600;
+            font-size: 0.95em;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.25);
+            min-width: 140px;
+        }
+
+        .get-started-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.35);
+            color: white;
+            text-decoration: none;
+        }
+
+        .get-started-btn i {
+            font-size: 1.8em;
+            margin-bottom: 3px;
+        }
+
+        .get-started-btn span {
+            font-size: 1.2em;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .get-started-footer {
+            font-size: 1.2em;
+            color: #777;
+            margin: 0;
+            font-style: italic;
         }
 
         .workflow-section {
@@ -679,7 +801,7 @@
 
         .viz-item.sequence-heatmap.expanded .viz-title,
         .viz-item.sequence-heatmap.expanded .viz-description {
-            padding: 10px 15px;
+            padding: 0px 0px;
             margin: 0;
             background: white;
         }
@@ -695,7 +817,7 @@
         }
         .viz-item.expanded .viz-title,
         .viz-item.expanded .viz-description {
-            padding: 15px;
+            padding: 0px 0px;
             margin: 0;
             background: white;
         }
@@ -707,7 +829,8 @@
 
         .viz-item.expanded .viz-description {
             font-size: 1.2em;
-            margin-top: 0;
+            padding: 0px 0px;
+            margin: 0px;
         }
 
         .overlay {
@@ -847,6 +970,49 @@
     @media (max-width: 768px) {
         .hero h1 {
             font-size: 2.5em;
+        }
+        
+        /* Get Started Section Mobile Styles */
+        .get-started-section {
+            padding: 25px 15px;
+        }
+        
+        .get-started-header {
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .rocket-emoji {
+            font-size: 2em;
+        }
+        
+        .get-started-title {
+            font-size: 1.8em;
+        }
+        
+        .get-started-description {
+            font-size: 1em;
+            margin-bottom: 25px;
+        }
+        
+        .get-started-buttons {
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .get-started-btn {
+            min-width: 160px;
+            padding: 15px 18px;
+        }
+        
+        .get-started-btn i {
+            font-size: 1.5em;
+        }
+        
+        .get-started-footer {
+            font-size: 0.85em;
         }
         
         .grid-workflow {
