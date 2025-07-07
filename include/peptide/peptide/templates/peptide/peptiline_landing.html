@@ -142,13 +142,13 @@
                 <div class="viz-description">Distribution of functional peptide categories within and across samples</div>
             </div>
             
-            <div class="viz-item">
+            <div class="viz-item sequence-heatmap">
                 <div class="viz-placeholder">
                     <div class="plot-preview" data-plot="{% static 'peptide/sequence_heatmap_1.png' %}">
                         <img src="{% static 'peptide/sequence_heatmap_1.png' %}" alt="Sequence Heatmap" class="plot-image">
                         <div class="plot-overlay">
                             <i class="fas fa-expand"></i>
-                            <span>Click to view interactive plot</span>
+                            <span>Click to view enlarged image</span>
                         </div>
                     </div>
                 </div>
@@ -489,7 +489,7 @@
         .gallery-title {
             text-align: center;
             font-size: 2.5em;
-            margin-bottom: 50px;
+            margin-bottom: 30px;
             color: #333;
         }
 
@@ -528,6 +528,16 @@
             padding: 0;
         }
 
+        .viz-item.sequence-heatmap.expanded {
+            width: 95vw;
+            height: auto;
+            max-width: 95vw;
+            max-height: 85vh;
+            min-height: 40vh;
+            display: flex;
+            flex-direction: column;
+        }
+
         .viz-item.expanded .viz-placeholder {
             height: calc(100% - 100px);
             width: 100%;
@@ -539,11 +549,48 @@
             padding: 20px; /* Add some padding */
             box-sizing: border-box;
         }
+
+        .viz-item.sequence-heatmap.expanded .viz-placeholder {
+            height: auto;
+            flex: 1;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: calc(40vh - 80px);
+        }
+
+        .viz-item.sequence-heatmap.expanded .viz-title,
+        .viz-item.sequence-heatmap.expanded .viz-description {
+            padding: 10px 15px;
+            margin: 0;
+            background: white;
+        }
+
+        .viz-item.sequence-heatmap.expanded .viz-title {
+            font-size: 2.2em;
+            margin-bottom: 5px;
+        }
+
+        .viz-item.sequence-heatmap.expanded .viz-description {
+            font-size: 1.6em;
+            margin-top: 0;
+        }
         .viz-item.expanded .viz-title,
         .viz-item.expanded .viz-description {
             padding: 15px;
             margin: 0;
             background: white;
+        }
+
+        .viz-item.expanded .viz-title {
+            font-size: 1.4em;
+            margin-bottom: 5px;
+        }
+
+        .viz-item.expanded .viz-description {
+            font-size: 1.2em;
+            margin-top: 0;
         }
 
         .overlay {
@@ -614,7 +661,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 105px;
+            margin-bottom: 15px;
             border: 2px dashed #667eea;
             overflow: visible;
             position: relative;
@@ -672,11 +719,12 @@
             font-weight: 600;
             color: #333;
             margin-bottom: 10px;
+            font-size: 1.3em;
         }
 
         .viz-description {
             color: #666;
-            font-size: 0.9em;
+            font-size: 1.1em;
         }
 
     @media (max-width: 768px) {
@@ -786,15 +834,58 @@
                 const originalPreview = plotPreview.outerHTML;
 
                 plotPreview.addEventListener('click', function() {
+                    // Check if this is a sequence heatmap for special handling
+                    const isSequenceHeatmap = item.classList.contains('sequence-heatmap');
+                    
+                    // Check if this is a PNG file
+                    const isPngFile = plotUrl.toLowerCase().endsWith('.png');
+                    
                     // Create container for plot
                     const plotContainer = document.createElement('div');
                     plotContainer.className = 'plot-container';
                     
+                    // For PNG files, show image directly without iframe
+                    if (isPngFile) {
+                        const img = document.createElement('img');
+                        img.style.maxWidth = '100%';
+                        img.style.maxHeight = '100%';
+                        img.style.width = 'auto';
+                        img.style.height = 'auto';
+                        img.style.objectFit = 'contain';
+                        img.style.objectPosition = 'center';
+                        img.style.background = 'white';
+                        img.alt = 'Enlarged view';
+                        img.src = plotUrl;
+                        // For sequence heatmaps, make container flexible
+                        if (isSequenceHeatmap) {
+                            plotContainer.style.display = 'flex';
+                            plotContainer.style.alignItems = 'center';
+                            plotContainer.style.justifyContent = 'center';
+                            plotContainer.style.flex = '1';
+                            plotContainer.style.minHeight = '0';
+                        }
+                        
+                        plotContainer.appendChild(img);
+                        
+                        // Replace static image with container
+                        const placeholder = item.querySelector('.viz-placeholder');
+                        placeholder.innerHTML = '';
+                        placeholder.appendChild(plotContainer);
+                        
+                        // Expand the item
+                        item.classList.add('expanded');
+                        overlay.classList.add('active');
+                        document.body.style.overflow = 'hidden';
+                        return;
+                    }
+                    
+                    // For HTML files, continue with iframe loading
                     // Create loading spinner
                     const spinner = document.createElement('div');
                     spinner.className = 'loading-spinner';
+                    const spinnerSize = isSequenceHeatmap ? '4rem' : '3rem';
                     spinner.innerHTML = `
-                        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                        <div class="spinner-border text-primary" role="status" style="width: ${spinnerSize}; height: ${spinnerSize};">
                             <span class="sr-only">Loading...</span>
                         </div>
                     `;
@@ -839,10 +930,11 @@
                             
                             // Inject CSS to fix plotly display and prevent legend cutoff
                             const style = frameDoc.createElement('style');
+                            const bodyPadding = isSequenceHeatmap ? '5px' : '10px';
                             style.textContent = `
                                 body {
                                     margin: 0 !important;
-                                    padding: 10px !important;
+                                    padding: ${bodyPadding} !important;
                                     box-sizing: border-box !important;
                                     overflow: visible !important;
                                     display: block !important;
@@ -876,14 +968,33 @@
                                             // First resize to current dimensions
                                             frameDoc.defaultView.Plotly.Plots.resize(plotlyDiv);
                                             
-                                            // Then relayout to fill the container
-                                            setTimeout(() => {
-                                                frameDoc.defaultView.Plotly.relayout(plotlyDiv, {
-                                                    width: null,
-                                                    height: null,
-                                                    autosize: true
-                                                });
-                                            }, 100);
+                                                                        // Then relayout to fix legend position and container sizing
+                            setTimeout(() => {
+                                const relayoutConfig = {
+                                    width: null,
+                                    height: null,
+                                    autosize: true,
+                                    'legend.x': 0,
+                                    'legend.y': 1,
+                                    'legend.xanchor': 'left',
+                                    'legend.yanchor': 'top'
+                                };
+                                
+                                // For sequence heatmaps, position legend to the right side
+                                if (isSequenceHeatmap) {
+                                    relayoutConfig['legend.x'] = 1.02;
+                                    relayoutConfig['legend.y'] = 1;
+                                    relayoutConfig['legend.xanchor'] = 'left';
+                                    relayoutConfig['legend.yanchor'] = 'top';
+                                }
+                                
+                                frameDoc.defaultView.Plotly.relayout(plotlyDiv, relayoutConfig);
+                            }, 100);
+                            
+                            // Additional resize after legend positioning
+                            setTimeout(() => {
+                                frameDoc.defaultView.Plotly.Plots.resize(plotlyDiv);
+                            }, isSequenceHeatmap ? 500 : 300);
                                         }
                                     }
                                 } catch (resizeError) {
