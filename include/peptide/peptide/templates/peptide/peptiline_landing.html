@@ -32,73 +32,156 @@
                 <span>Heatmap Visualization</span>
             </a>
         </div>
-        <p class="get-started-footer">To learn more about the process, see the workflow below and explore our visualization examples</p>
+        <p class="get-started-description">To learn more about the process, see the workflow below and explore our visualization examples</p>
     </div>
 
     <!-- CSS Grid Workflow Section -->
     <div class="workflow-section">
-        <h2 class="workflow-title">⚙️ Workflow</h2>
+        <h2 class="workflow-title"><span class="emoji">⚙️</span> Workflow</h2>
         <div class="grid-workflow" id="workflow-grid">
             <div class="grid-parent" id="step1">
                 <div class="step-icon"><i class="fas fa-cogs"></i></div>
                 <div class="step-title">Data Transformation</div>
-                <div class="step-description">Upload and standardize your peptidomic data with automated bioactivity annotation</div>
+                <div class="step-description">Organize, label, annotate and explore your peptidomic data with the data transformation tool</div>
                 <button class="learn-more-btn" onclick="toggleExpanded('step1')">Learn More</button>
                 
                 <!-- Expanded content -->
                 <div class="expanded-content" id="step1-expanded">
-                    <div class="expanded-description">
-                        Standardize and annotate your peptidomic data with automated bioactivity mapping from MBPDB and custom databases.
+                    <div class="process-section">
+                        <h4 class="process-title">Features</h4>
+                        <ul class="features-list">
+                            <li>Automated peptide-to-protein mapping</li>
+                            <li>MBPDB bioactivity annotation</li>
+                            <li>Study variable assignment</li>
+                            <li>Exploritoy data analysis</li>
+                            <li>Multiple data export options</li>
+                        </ul>
+                    </div>                   
+                    <div class="process-section">
+                        <h4 class="process-title">Inputs</h4>
+                        <ul class="features-list">
+                            <li>Peptidomic data</li>
+                            <li>Functional data (optional)</li>
+                            <li>Protein FASTA file (optional)</li>
+                        </ul>
                     </div>
-                    <ul class="features-list">
-                        <li>Automated peptide-to-protein mapping</li>
-                        <li>MBPDB bioactivity annotation</li>
-                        <li>Study variable assignment</li>
-                        <li>Multiple protein mapping resolution</li>
-                        <li>Standardized data export</li>
-                    </ul>
+                    
+                    <div class="process-section">
+                        <h4 class="process-title">Steps</h4>
+                        <ul class="features-list">
+                            <li>Upload files and functional annotation</li>
+                            <li>Organize peptides with multiples protein assignments</li>
+                            <li>Assign study variables or grouppings</li>
+                            <li>Process and export datasets </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="process-section">
+                        <h4 class="process-title">Exports</h4>
+                        <ul class="features-list">
+                            <li>Merged dataset (for future visualizations)</li>
+                            <li>Functional data (raw and summarized)</li>
+                            <li>Variable definitions (JSON)</li>
+                            <li>Correlations within and between samples</li>
+                            <li>Total peptide count and abundance summaries</li>
+                            <li>Protein contribution of peptides</li>
+                            <li>List of peptides by samples</li>
+                        </ul>
+                    </div>
+                    
                     <a href="{% url 'voila_data' %}" class="btn">Start Data Transformation</a>
                 </div>
             </div>
             <div class="grid-child1" id="step2">
                 <div class="step-icon"><i class="fas fa-chart-line"></i></div>
                 <div class="step-title">Descriptive Analysis</div>
-                <div class="step-description">Explore correlations, bioactivity profiles, and protein contributions</div>
+                <div class="step-description">Explore you data and generate visualizations through interactive plots</div>
                 <button class="learn-more-btn" onclick="toggleExpanded('step2')">Learn More</button>
                 
                 <!-- Expanded content -->
                 <div class="expanded-content" id="step2-expanded">
-                    <div class="expanded-description">
-                        Comprehensive statistical analysis and visualization of peptide profiles, correlations, and bioactivity distributions.
+
+                    <div class="process-section">
+                        <h4 class="process-title">Features</h4>
+                        <ul class="features-list">
+                            <li>Perform descriptive analysis</li>
+                            <li>Functional profiling & visualization</li>
+                            <li>Protein origin contribution analysis</li>
+                            <li>Transform and visualize your data</li>
+                            <li>Adjust data scaling and orientation</li>
+                            <li>Customizable appearance settings</li>
+                            <li>Generate interactive plots</li>
+                        </ul>
+                        <h4 class="process-title">Inputs</h4>
+                        <ul class="features-list">
+                            <li>Merged data (from Data Transformation)</li>
+                        </ul>
                     </div>
-                    <ul class="features-list">
-                        <li>Sample correlation analysis</li>
-                        <li>Bioactivity profiling & visualization</li>
-                        <li>Protein origin contribution analysis</li>
-                        <li>Total counts & abundance summaries</li>
-                        <li>Interactive plots and charts</li>
-                    </ul>
+                    
+                    <div class="process-section">
+                        <h4 class="process-title">Steps</h4>
+                        <ul class="features-list">
+                            <li>Select sample(s) to analyze</li>
+                            <li>Apply data filter (protein or functional)</li>
+                            <li>Select plot type and settings</li>
+                            <li>Generate, explore and export plots</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="process-section">
+                        <h4 class="process-title">Exports</h4>
+                        <ul class="features-list">
+                            <li>Interactive Plottly plots (HTML)</li>
+                            <li>Static image exports (PNG)</li>
+                        </ul>
+                    </div>
+                    
                     <a href="{% url 'voila_data_visualization' %}" class="btn">Explore Data Analysis</a>
                 </div>
             </div>
             <div class="grid-child2" id="step3">
                 <div class="step-icon"><i class="fas fa-fire"></i></div>
                 <div class="step-title">Sequence Visualization</div>
-                <div class="step-description">Generate interactive heatmaps mapping peptides to protein sequences</div>
+                <div class="step-description">Generate heatmap visualization mapping site specific peptide absorbance and count along protein sequences</div>
                 <button class="learn-more-btn" onclick="toggleExpanded('step3')">Learn More</button>
                 
                 <!-- Expanded content -->
-                <div class="expanded-content" id="step3-expanded">
-                    <div class="expanded-description">
-                        Interactive heatmap visualization mapping peptide abundance and bioactivity along protein sequences.
+                <div class="expanded-content" id="step3-expanded">                
+                    <div class="process-section">
+                        <h4 class="process-title">Features</h4>
+                        <ul class="features-list">
+                            <li>Protein sequence mapping</li>
+                            <li>Visualize peptide absorbance and count</li>
+                            <li>Functional peptide highlighting</li>
+                            <li>Comparative sample analysis</li>
+                            <li>Compare different protein sequences</li>
+                            <li>Customizable color and label settings</li>   
+                            <li>Functional hotspot identification</li>
+                        </ul>
+                        <h4 class="process-title">Inputs</h4>
+                        <ul class="features-list">
+                            <li>Merged data (from Data Transformation)</li>
+                        </ul>
                     </div>
-                    <ul class="features-list">
-                        <li>Protein sequence mapping</li>
-                        <li>Quantitative abundance visualization</li>
-                        <li>Functional peptide highlighting</li>
-                        <li>Comparative sample analysis</li>
-                        <li>Bioactive hotspot identification</li>
-                    </ul>
+                    
+                    <div class="process-section">
+                        <h4 class="process-title">Steps</h4>
+                        <ul class="features-list">
+                            <li>Select sample(s) to analyze</li>
+                            <li>Select protein(s) to analyze</li>
+                            <li>Filter data</li>
+                            <li>Select plot options</li>
+                            <li>Generate, explore and export plots</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="process-section">
+                        <h4 class="process-title">Exports</h4>
+                        <ul class="features-list">
+                            <li>Static image exports (PNG)</li>
+                        </ul>
+                    </div>
+                    
                     <a href="{% url 'voila_heatmap' %}" class="btn">Create Heatmaps</a>
                 </div>
             </div>
@@ -106,69 +189,10 @@
         <svg id="workflow-arrows" style="position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; z-index:0;"></svg>
     </div>
 
-    <!-- Modules Grid - Hidden as content is now integrated into workflow -->
-    <div class="modules-grid" style="display: none;">
-        <!-- Module 1: Data Transformation -->
-        <div class="module-card">
-            <div class="module-header">
-                <div class="module-icon"><i class="fas fa-cogs"></i></div>
-                <div class="module-title">Data Transformation</div>
-            </div>
-            <div class="module-description">
-                Standardize and annotate your peptidomic data with automated bioactivity mapping from MBPDB and custom databases.
-            </div>
-            <ul class="features-list">
-                <li>Automated peptide-to-protein mapping</li>
-                <li>MBPDB bioactivity annotation</li>
-                <li>Study variable assignment</li>
-                <li>Multiple protein mapping resolution</li>
-                <li>Standardized data export</li>
-            </ul>
-            <a href="{% url 'voila_data' %}" class="btn">Start Data Transformation</a>
-        </div>
-
-        <!-- Module 2: Descriptive Analysis -->
-        <div class="module-card">
-            <div class="module-header">
-                <div class="module-icon"><i class="fas fa-chart-line"></i></div>
-                <div class="module-title">Descriptive Analysis</div>
-            </div>
-            <div class="module-description">
-                Comprehensive statistical analysis and visualization of peptide profiles, correlations, and bioactivity distributions.
-            </div>
-            <ul class="features-list">
-                <li>Sample correlation analysis</li>
-                <li>Bioactivity profiling & visualization</li>
-                <li>Protein origin contribution analysis</li>
-                <li>Total counts & abundance summaries</li>
-                <li>Interactive plots and charts</li>
-            </ul>
-            <a href="{% url 'voila_data_visualization' %}" class="btn">Explore Data Analysis</a>
-        </div>
-
-        <!-- Module 3: Sequence Heatmaps -->
-        <div class="module-card">
-            <div class="module-header">
-                <div class="module-icon"><i class="fas fa-fire"></i></div>
-                <div class="module-title">Sequence Heatmaps</div>
-            </div>
-            <div class="module-description">
-                Interactive heatmap visualization mapping peptide abundance and bioactivity along protein sequences.
-            </div>
-            <ul class="features-list">
-                <li>Protein sequence mapping</li>
-                <li>Quantitative abundance visualization</li>
-                <li>Functional peptide highlighting</li>
-                <li>Comparative sample analysis</li>
-                <li>Bioactive hotspot identification</li>
-            </ul>
-            <a href="{% url 'voila_heatmap' %}" class="btn">Create Heatmaps</a>
-        </div>
-    </div>
 
     <!-- Visualization Gallery -->
     <div class="visualization-gallery">
-        <h2 class="gallery-title">📈 Visualization Capabilities</h2>
+        <h2 class="gallery-title"><span class="emoji">📈</span> Visualizations</h2>
         
         <!-- Plot Types Section -->
         <div class="viz-section">
@@ -177,30 +201,30 @@
             <div class="gallery-grid viz-types-grid">
             <div class="viz-item">
                 <div class="viz-placeholder">
-                    <div class="plot-preview" data-plot="{% static 'peptide/scatter_plot_1.html' %}">
-                        <img src="{% static 'peptide/scatter_plot_1.png' %}" alt="Scatter Plot 1" class="plot-image">
+                    <div class="plot-preview" data-plot="{% static 'peptide/scaled_plot_1.html' %}">
+                        <img src="{% static 'peptide/scaled_plot_1.png' %}" alt="Scaled Plot" class="plot-image">
                         <div class="plot-overlay">
                             <i class="fas fa-expand"></i>
                             <span>Click to view interactive plot</span>
                         </div>
                     </div>
                 </div>
-                <div class="viz-title">Correlation Scatter Plots</div>
-                <div class="viz-description">Interactive correlation analysis between samples with functional peptide differentiation</div>
+                <div class="viz-title">Stacked Bar Plots</div>
+                <div class="viz-description">Easily visualize both absolute and relative abundance distributions to understand the trends within and across samples proteins or functional categories</div>
             </div>
             
-            <div class="viz-item">
+            <div class="viz-item sequence-heatmap">
                 <div class="viz-placeholder">
-                    <div class="plot-preview" data-plot="{% static 'peptide/protein_plot_1.html' %}">
-                        <img src="{% static 'peptide/protein_plot_1.png' %}" alt="Protein Plot 1" class="plot-image">
+                    <div class="plot-preview" data-plot="{% static 'peptide/sequence_heatmap_1.png' %}">
+                        <img src="{% static 'peptide/sequence_heatmap_1.png' %}" alt="Sequence Heatmap" class="plot-image">
                         <div class="plot-overlay">
                             <i class="fas fa-expand"></i>
-                            <span>Click to view interactive plot</span>
+                            <span>Click to expand the figure</span>
                         </div>
                     </div>
                 </div>
-                <div class="viz-title">Grouped Bar Plots</div>
-                <div class="viz-description">Grouped bar plots showing peptide abundance by protein origin or bioactivity across samples</div>
+                <div class="viz-title">Sequence Heatmaps</div>
+                <div class="viz-description">Identify key regions of peptide or functional distribution with in a protein(s) illustrating site specific peptide absorbance and peptide counts</div>
             </div>
             
             <div class="viz-item">
@@ -214,21 +238,21 @@
                     </div>
                 </div>
                 <div class="viz-title">Pie Charts</div>
-                <div class="viz-description">Distribution of functional peptide categories or protein origin within and across samples</div>
+                <div class="viz-description">Identify relationships within each sample, functional categories or protein origin with interactive pie charts</div>
             </div>
             
-            <div class="viz-item sequence-heatmap">
+            <div class="viz-item">
                 <div class="viz-placeholder">
-                    <div class="plot-preview" data-plot="{% static 'peptide/sequence_heatmap_1.png' %}">
-                        <img src="{% static 'peptide/sequence_heatmap_1.png' %}" alt="Sequence Heatmap" class="plot-image">
+                    <div class="plot-preview" data-plot="{% static 'peptide/protein_plot_1.html' %}">
+                        <img src="{% static 'peptide/protein_plot_1.png' %}" alt="Protein Plot 1" class="plot-image">
                         <div class="plot-overlay">
                             <i class="fas fa-expand"></i>
-                            <span>Click to view enlarged image</span>
+                            <span>Click to view interactive plot</span>
                         </div>
                     </div>
                 </div>
-                <div class="viz-title">Sequence Heatmaps</div>
-                <div class="viz-description">Peptide abundance mapped along protein sequences with bioactive region highlighting</div>
+                <div class="viz-title">Grouped Bar Plots</div>
+                <div class="viz-description">Grouped bar plots showing peptide abundance by protein origin (or function) across samples</div>
             </div>
             
             <div class="viz-item">
@@ -242,29 +266,30 @@
                     </div>
                 </div>
                 <div class="viz-title">Summary Bar Plots</div>
-                <div class="viz-description">Total peptide counts and abundance summaries with statistical error bars</div>
+                <div class="viz-description">Total peptide counts and abundance summaries with statistical error bars to understand the overall distribution of your data</div>
             </div>
-            
             <div class="viz-item">
                 <div class="viz-placeholder">
-                    <div class="plot-preview" data-plot="{% static 'peptide/scaled_plot_1.html' %}">
-                        <img src="{% static 'peptide/scaled_plot_1.png' %}" alt="Scaled Plot" class="plot-image">
+                    
+                    <div class="plot-preview" data-plot="{% static 'peptide/scatter_plot_1.html' %}">
+                        <img src="{% static 'peptide/scatter_plot_1.png' %}" alt="Scatter Plot 1" class="plot-image">
                         <div class="plot-overlay">
                             <i class="fas fa-expand"></i>
                             <span>Click to view interactive plot</span>
                         </div>
                     </div>
                 </div>
-                <div class="viz-title">Interactive Scaled Plots</div>
-                <div class="viz-description">Dynamic bioactivity visualization with hover details and filtering capabilities</div>
+                <div class="viz-title">Correlation Scatter Plots</div>
+                <div class="viz-description">Identify correlations between samples with our interactive scatter plots and SPLOM ploting options</div>
             </div>
+
             </div>
         </div>
         
         <!-- Abundance Distribution Options Section -->
         <div class="viz-section">
-            <h3 class="viz-section-title"> Explore Different Scaling and Orientations Options</h3>
-            <p class="viz-section-description">To discover novel insights by from ploting different data orientations and relative vs. absolute absorbance or counts distributions</p>
+            <h3 class="viz-section-title"> Explore Data Scaling and Orientations Options</h3>
+            <p class="viz-section-description">Discover insights through diverse data transformations and visualization options</p>
             <div class="gallery-grid viz-options-grid">
             
             <div class="viz-item">
@@ -278,7 +303,7 @@
                     </div>
                 </div>
                 <div class="viz-title">Absolute Summed Abundance</div>
-                <div class="viz-description">Absolute abundance distribution showing total peptide contribution by protein origin</div>
+                <div class="viz-description">Absolute abundance distribution comparing the total peptide contribution by protein orgin or function across groups and relative contribution within each group</div>
             </div>
             
             <div class="viz-item">
@@ -292,7 +317,7 @@
                     </div>
                 </div>
                 <div class="viz-title">Relative Abundance by Protein</div>
-                <div class="viz-description">Relative abundance distribution showing protein contribution percentages across samples</div>
+                <div class="viz-description">Relative abundance distribution showing protein (or function) contribution percentages across samples</div>
             </div>
             
             <div class="viz-item">
@@ -306,7 +331,7 @@
                     </div>
                 </div>
                 <div class="viz-title">Relative Abundance by Sample</div>
-                <div class="viz-description">Relative abundance distribution showing sample-specific protein contributions</div>
+                <div class="viz-description">Relative abundance distribution showing sample-specific protein (or function) contributions</div>
             </div>
             </div>
         </div>
@@ -317,7 +342,7 @@
                 <h3 class="bottom-get-started-title">
                     Get Started to Explore Even More Visualization Options
                 </h3>
-                <p class="bottom-get-started-description">Ready to dive deeper? Access our full suite of interactive visualization tools and customization options</p>
+                <p class="bottom-get-started-description">Ready to dive deeper? Access our full suite of customizable interactive visualization tools</p>
                 <div class="bottom-get-started-buttons">
                     <a href="{% url 'voila_data' %}" class="bottom-get-started-btn">
                         <i class="fas fa-cogs"></i>
@@ -411,21 +436,33 @@
         }
 
         .get-started-title {
-            font-size: 2.2em;
+            font-size: 3em;
             color: #333;
-            margin: 0;
-            font-weight: 600;
+            margin: 0 0 10px 0;
+            font-weight: 700;
+            text-decoration: underline;
+            text-decoration-color: #667eea;
+            text-decoration-thickness: 3px;
+            text-underline-offset: 8px;
+            text-shadow: 2px 2px 4px rgba(102, 126, 234, 0.1);
+            background: linear-gradient(135deg, #333 0%, #667eea 50%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         .get-started-description {
-            font-size: 1.2em;
+            font-size: 1.3em;
             color: #666;
             margin-bottom: 30px;
             max-width: 100%;
+            min-width: 300px;
+            width: 100%;
             margin-left: auto;
             margin-right: auto;
             margin-top: 0px;
             margin-bottom: 10px;
+            white-space: nowrap;
         }
 
         .get-started-buttons {
@@ -450,7 +487,8 @@
             font-size: 0.95em;
             transition: all 0.3s ease;
             box-shadow: 0 8px 20px rgba(102, 126, 234, 0.25);
-            min-width: 140px;
+            min-width: 220px;
+            white-space: nowrap;
         }
 
         .get-started-btn:hover {
@@ -469,14 +507,9 @@
             font-size: 1.2em;
             text-align: center;
             line-height: 1.2;
+            white-space: nowrap;
         }
 
-        .get-started-footer {
-            font-size: 1.2em;
-            color: #777;
-            margin: 0;
-            font-style: italic;
-        }
 
         .workflow-section {
             background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 255, 0.95) 30%, rgba(252, 248, 255, 0.98) 70%, rgba(255, 255, 255, 0.98) 100%);
@@ -490,9 +523,30 @@
 
         .workflow-title {
             text-align: center;
-            font-size: 2.5em;
-            margin-bottom: 25px;
+            font-size: 3.2em;
+            margin-bottom: 35px;
             color: #333;
+            font-weight: 700;
+            text-decoration: underline;
+            text-decoration-color: #667eea;
+            text-decoration-thickness: 3px;
+            text-underline-offset: 10px;
+            text-shadow: 2px 2px 4px rgba(102, 126, 234, 0.1);
+            background: linear-gradient(135deg, #333 0%, #667eea 50%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .workflow-title .emoji {
+            background: none !important;
+            -webkit-background-clip: initial !important;
+            -webkit-text-fill-color: initial !important;
+            background-clip: initial !important;
+            text-decoration: none !important;
+            color: initial !important;
+            margin-right: 15px;
+            display: inline-block;
         }
 
     /* CSS Grid Workflow Styles */
@@ -500,11 +554,11 @@
         display: grid;
         grid-template-columns: 1fr 1fr;
         grid-template-rows: auto auto;
-        gap: 100px 10px;
+        gap: 100px 20px;
         align-items: start;
         justify-items: center;
         margin-bottom: 50px;
-        max-width: 700px;
+        max-width: 900px;
         margin-left: auto;
         margin-right: auto;
         position: relative;
@@ -543,7 +597,7 @@
         border: 2px solid rgba(255, 255, 255, 0.4);
         text-align: center;
         width: 100%;
-        max-width: 300px;
+        max-width: 400px;
         transition: all 0.3s ease;
         justify-self: center;
         position: relative;
@@ -560,7 +614,7 @@
         border: 2px solid rgba(255, 255, 255, 0.4);
             text-align: center;
         width: 100%;
-        max-width: 300px;
+        max-width: 400px;
         transition: all 0.3s ease;
         justify-self: center;
             position: relative;
@@ -608,16 +662,17 @@
     .grid-parent .step-title,
     .grid-child1 .step-title,
     .grid-child2 .step-title {
-        font-size: 1.4em;
-            font-weight: 600;
-        margin-bottom: 12px;
+        font-size: 1.8em;
             color: #333;
+            text-align: center;
+            margin-bottom: 15px;
+            font-weight: 600;
         }
 
     .grid-parent .step-description,
     .grid-child1 .step-description,
     .grid-child2 .step-description {
-        font-size: 0.95em;
+        font-size: 1.2em;
         line-height: 1.5;
             color: #666;
         margin-bottom: 15px;
@@ -630,7 +685,7 @@
         border: none;
         padding: 8px 16px;
         border-radius: 20px;
-        font-size: 0.9em;
+        font-size: 1.2em;
         font-weight: 500;
         cursor: pointer;
         transition: all 0.3s ease;
@@ -657,7 +712,7 @@
     }
 
     .expanded-content.active {
-        max-height: 500px;
+        max-height: 1200px;
         padding: 20px 15px;
         border-top: 2px solid #e9ecef;
         margin-top: 15px;
@@ -667,13 +722,15 @@
         color: #555;
         line-height: 1.6;
         margin-bottom: 20px;
-        font-size: 0.95em;
+        font-size: 1.2em;
     }
 
     .expanded-content .features-list {
         list-style: none;
         margin-bottom: 25px;
         padding-left: 0;
+        font-size: 1.2em;
+        text-align: left;
     }
 
     .expanded-content .features-list li {
@@ -682,6 +739,7 @@
         padding-left: 20px;
         color: #555;
         font-size: 0.9em;
+        text-align: left;
     }
 
     .expanded-content .features-list li::before {
@@ -695,6 +753,22 @@
     .expanded-content .btn {
         font-size: 0.9em;
         padding: 12px 24px;
+    }
+
+    /* Process Section Styles */
+    .process-section {
+        margin-bottom: 20px;
+    }
+
+    .process-title {
+        font-size: 1.2em;
+        font-weight: 600;
+        color: #667eea;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 2px solid #e9ecef;
+        padding-bottom: 5px;
     }
 
         .modules-grid {
@@ -758,6 +832,7 @@
 
         .module-description {
             color: #666;
+            font-size: 1.2em;
             margin-bottom: 25px;
             line-height: 1.7;
         }
@@ -811,9 +886,30 @@
 
         .gallery-title {
             text-align: center;
-            font-size: 2.5em;
-            margin-bottom: 40px;
+            font-size: 3.2em;
+            margin-bottom: 45px;
+            font-weight: 700;
+            text-decoration: underline;
+            text-decoration-color: #667eea;
+            text-decoration-thickness: 3px;
+            text-underline-offset: 10px;
+            text-shadow: 2px 2px 4px rgba(102, 126, 234, 0.1);
+            background: linear-gradient(135deg, #333 0%, #667eea 50%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
             color: #333;
+        }
+
+        .gallery-title .emoji {
+            background: none !important;
+            -webkit-background-clip: initial !important;
+            -webkit-text-fill-color: initial !important;
+            background-clip: initial !important;
+            text-decoration: none !important;
+            color: initial !important;
+            margin-right: 15px;
+            display: inline-block;
         }
 
         /* Visualization Section Styles */
@@ -848,7 +944,7 @@
         }
 
         .bottom-get-started-content {
-            max-width: 600px;
+            max-width: 100%;
             margin: 0 auto;
         }
 
@@ -897,7 +993,8 @@
             font-size: 0.95em;
             transition: all 0.3s ease;
             box-shadow: 0 8px 20px rgba(102, 126, 234, 0.25);
-            min-width: 140px;
+            min-width: 220px;
+            white-space: nowrap;
         }
 
         .bottom-get-started-btn:hover {
@@ -916,6 +1013,7 @@
             font-size: 0.9em;
             text-align: center;
             line-height: 1.2;
+            white-space: nowrap;
         }
 
         .gallery-grid {
@@ -1201,10 +1299,7 @@
             font-size: 1.5em;
         }
         
-        .get-started-footer {
-            font-size: 0.85em;
-        }
-        
+
         /* Visualization Section Mobile Styles */
         .viz-section-title {
             font-size: 1.5em;
@@ -1274,7 +1369,7 @@
         }
         
         .expanded-content.active {
-            max-height: 600px; /* Increase max-height for mobile */
+            max-height: 1200px; /* Increase max-height for mobile */
             padding: 15px 10px;
         }
         
