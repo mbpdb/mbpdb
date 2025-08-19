@@ -8,7 +8,7 @@ cleanup() {
     kill $CELERY_PID 2>/dev/null || true
     kill $VOILA_HEATMAP_PID 2>/dev/null || true
     kill $VOILA_DATA_PID 2>/dev/null || true
-    kill $VOILA_DATA_VISUALIZATION_PID 2>/dev/null || true
+    kill $VOILA_DATA_ANALYSIS_PID 2>/dev/null || true
     service nginx stop || echo "Failed to stop Nginx"
     exit 0
 }
@@ -66,7 +66,7 @@ voila \
     --ServerApp.allow_credentials=True \
     --Voila.tornado_settings allow_origin=* \
     --debug \
-    Heatmap_Visualization_widget_volia.ipynb &
+    heatmap_visualization.ipynb &
 VOILA_HEATMAP_PID=$!
 
 # Start Voilà instance for Data Transformation
@@ -76,31 +76,31 @@ voila \
     --port=8867 \
     --Voila.ip=127.0.0.1 \
     --template=lab \
-    --Voila.base_url='/data/' \
+    --Voila.base_url='/data_transformation/' \
     --ServerApp.allow_origin='http://127.0.0.1:8000' \
     --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
     --ServerApp.token="${VOILA_TOKEN}" \
     --ServerApp.allow_credentials=True \
     --Voila.tornado_settings allow_origin=* \
     --debug \
-    Data_Transformation_widget.ipynb &
+    data_transformation.ipynb &
 VOILA_DATA_PID=$!
 
-echo "Starting Voilà for Data Visualization..."
+echo "Starting Voilà for Data Analysis..."
 voila \
     --no-browser \
     --port=8868 \
     --Voila.ip=127.0.0.1 \
     --template=lab \
-    --Voila.base_url='/data_visualization/' \
+    --Voila.base_url='/data_analysis/' \
     --ServerApp.allow_origin='http://127.0.0.1:8000' \
     --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
     --ServerApp.token="${VOILA_TOKEN}" \
     --ServerApp.allow_credentials=True \
     --Voila.tornado_settings allow_origin=* \
     --debug \
-    Data_Vizualization.ipynb &
-VOILA_DATA_VISUALIZATION_PID=$!
+    data_analysis.ipynb &
+VOILA_DATA_ANALYSIS_PID=$!
 
 # Wait for all background processes
 wait
