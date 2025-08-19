@@ -6,7 +6,7 @@ include/peptide/uploads/pepfile.txt
 include/peptide/peptide/blast_db/
 include/peptide/peptide/migrations/0023_peptideinfo_time_submitted.py
 include/peptide/peptide/migrations/0032_auto_20180301_0126.py
-include/peptide/peptide/static/peptide/VI5N.gif:Zone.Identifier
+
 include/peptide/uploads/temp/
 
 # Ignore Jupyter checkpoint files
@@ -26,22 +26,22 @@ include/peptide/peptide/notebooks/heatmap_images/*
 # Ignore Build.sh
 build.sh
 
+# Ignore Windows Zone Identifier files
+*:Zone.Identifier
+
 # Archive
 include/peptide/peptide/notebooks/archive/
 
 #local env
 .venv/
 Abbott_HM_A_A1_merged_df.csv
-Data_Transformation_widget.ipynb:Zone.Identifier
+
 Peptidomics_result_Russell.csv
-Peptidomics_result_Russell.csv:Zone.Identifier
+
 Protein_Bar_Plot_backup.ipynb
 bovine.fasta
-bovine.fasta:Zone.Identifier
 example_merged_dataframe_P02666.csv
 homo.fasta
-homo.fasta:Zone.Identifier
-include/peptide/peptide/notebooks/Data_Transformation_widget - Copy.ipynb:Zone.Identifier
 include/peptide/peptide/notebooks/Data_Transformation_widget - b4widget updates.ipynb
 
 #dictionary export folder
