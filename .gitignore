@@ -57,3 +57,7 @@ include/peptide/peptide/notebooks/Peptidomics_result_Russell_short.csv
 # Zone Identifier
 *.Zone.Identifier
 
+env/
+lib/
+*.pyc
+__pycache__/
