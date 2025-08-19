@@ -1,104 +1,59 @@
-# ==============================
-# Python Virtual Environments
-# ==============================
-env/
-.env/
-.venv/
-venv/
-ENV/
-bin/
-lib/
-pyvenv.cfg
-.Python
-
-# ==============================
-# Python Cache & Compiled Files
-# ==============================
-__pycache__/
-*.py[cod]
-*$py.class
 *.pyc
-*.pyo
-*.pyd
-*.so
-*.egg
-*.egg-info/
-.eggs/
-*.manifest
-*.spec
-
-# ==============================
-# Django Specific
-# ==============================
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-media/
 static_files/admin/js/vendor/select2/
 static_files/admin/css/vendor/select2/
+include/peptide/peptide/.idea/
+include/peptide/uploads/pepfile.txt
+include/peptide/peptide/blast_db/
+include/peptide/peptide/migrations/0023_peptideinfo_time_submitted.py
+include/peptide/peptide/migrations/0032_auto_20180301_0126.py
+include/peptide/peptide/static/peptide/VI5N.gif:Zone.Identifier
+include/peptide/uploads/temp/
 
-# ==============================
-# IDE & Editor Files
-# ==============================
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
-
-# ==============================
-# Jupyter Notebook
-# ==============================
+# Ignore Jupyter checkpoint files
 .ipynb_checkpoints/
 *-checkpoint.ipynb
+
+# Ignore copy files
 *-Copy*.ipynb
 *-Copy[0-9]*.ipynb
 
-# ==============================
-# Data & Research Files
-# ==============================
-*.fasta
-*.fasta:Zone.Identifier
-*.csv
-*.tsv
-*.xlsx
-*.xls
-protein_data_export/
-include/peptide/peptide/notebooks/heatmap_images/
+# IDE files
+.idea/
+
+# Ignore heatmap images
+include/peptide/peptide/notebooks/heatmap_images/*
+
+# Ignore Build.sh
+build.sh
+
+# Archive
 include/peptide/peptide/notebooks/archive/
+
+#local env
+.venv/
+.env/
+
+#ignore lib folder
+lib/
+
+Abbott_HM_A_A1_merged_df.csv
+Data_Transformation_widget.ipynb:Zone.Identifier
+Peptidomics_result_Russell.csv
+Peptidomics_result_Russell.csv:Zone.Identifier
+Protein_Bar_Plot_backup.ipynb
+bovine.fasta
+bovine.fasta:Zone.Identifier
+example_merged_dataframe_P02666.csv
+homo.fasta
+homo.fasta:Zone.Identifier
+include/peptide/peptide/notebooks/Data_Transformation_widget - Copy.ipynb:Zone.Identifier
+include/peptide/peptide/notebooks/Data_Transformation_widget - b4widget updates.ipynb
+
+#dictionary export folder
+protein_data_export/
 include/peptide/peptide/notebooks/example_peptide_data_nooverlapingproteins.csv
 include/peptide/peptide/notebooks/Peptidomics_result_Russell_short.csv
 
-# ==============================
-# Project Specific
-# ==============================
-include/peptide/peptide/blast_db/
-include/peptide/uploads/temp/
-include/peptide/uploads/pepfile.txt
-build.sh
+# Zone Identifier
+*.Zone.Identifier
 
-# ==============================
-# Zone Identifier Files (Windows)
-# ==============================
-*:Zone.Identifier
-
-# ==============================
-# Backup & Temporary Files
-# ==============================
-*.bak
-*.backup
-*.tmp
-*.temp
-*~
-*.old
-
-# ==============================
-# Git Files (shouldn't be tracked)
-# ==============================
-FETCH_HEAD
-ORIG_HEAD
-MERGE_HEAD
-refs/
