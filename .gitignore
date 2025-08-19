@@ -35,19 +35,7 @@ include/peptide/peptide/notebooks/archive/
 
 #ignore lib folder
 lib/
-
-Abbott_HM_A_A1_merged_df.csv
-Data_Transformation_widget.ipynb:Zone.Identifier
-Peptidomics_result_Russell.csv
-Peptidomics_result_Russell.csv:Zone.Identifier
-Protein_Bar_Plot_backup.ipynb
-bovine.fasta
-bovine.fasta:Zone.Identifier
-example_merged_dataframe_P02666.csv
-homo.fasta
-homo.fasta:Zone.Identifier
-include/peptide/peptide/notebooks/Data_Transformation_widget - Copy.ipynb:Zone.Identifier
-include/peptide/peptide/notebooks/Data_Transformation_widget - b4widget updates.ipynb
+lib64/
 
 #dictionary export folder
 protein_data_export/
