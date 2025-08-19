@@ -50,12 +50,17 @@ jobs:
         # Verify remote is added correctly
         git remote -v
         
-        # Push notebooks using subtree to main branch
-        echo "Pushing notebooks to main branch..."
-        git subtree push --prefix=include/peptide/peptide/notebooks peptiline main
+        # Create branch name with timestamp
+        BRANCH_NAME="sync-notebooks-$(date +%Y%m%d-%H%M%S)"
+        echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+        echo "Creating branch: $BRANCH_NAME"
+        
+        # Push notebooks using subtree to new branch
+        echo "Pushing notebooks to new branch: $BRANCH_NAME"
+        git subtree push --prefix=include/peptide/peptide/notebooks peptiline $BRANCH_NAME
     
     - name: Verify sync success
       run: |
-        echo "✅ Successfully synced notebooks to https://github.com/Kuhfeldrf/peptiline"
-        echo "📂 Notebooks are now available at: https://github.com/Kuhfeldrf/peptiline"
-        
+        echo "✅ Successfully synced notebooks to new branch: $BRANCH_NAME"
+        echo "📂 Branch URL: https://github.com/Kuhfeldrf/peptiline/tree/$BRANCH_NAME"
+        echo "🔄 Create a pull request to merge the changes: https://github.com/Kuhfeldrf/peptiline/compare/$BRANCH_NAME"
