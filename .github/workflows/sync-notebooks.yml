@@ -39,33 +39,24 @@ jobs:
         fi
         echo "Found notebooks directory with $(find include/peptide/peptide/notebooks -name "*.ipynb" | wc -l) notebook files"
     
-    - name: Setup authenticated remote and push notebook contents
+    - name: Sync notebook contents (no history)
       run: |
-        # Remove any existing peptiline remote
-        git remote remove peptiline 2>/dev/null || true
-        
-        # Add remote with explicit token authentication
-        git remote add peptiline https://${{ secrets.PERSONAL_GITHUB_TOKEN }}@github.com/Kuhfeldrf/peptiline.git
-        
-        # Verify remote is added correctly
-        git remote -v
-        
-        # Clone the target repository to a temporary directory
-        git clone https://${{ secrets.PERSONAL_GITHUB_TOKEN }}@github.com/Kuhfeldrf/peptiline.git temp_repo
+        # Clone the target repository (shallow clone for efficiency)
+        git clone --depth 1 https://${{ secrets.PERSONAL_GITHUB_TOKEN }}@github.com/Kuhfeldrf/peptiline.git temp_repo
         cd temp_repo
         
-        # Switch to main branch (should already be on main, but being explicit)
-        git checkout main
+        # Remove all existing files except .git directory
+        find . -maxdepth 1 -not -name '.git' -not -name '.' -exec rm -rf {} +
         
         # Copy notebook files to root of target repo (contents only, not the folder)
         cp -r ../include/peptide/peptide/notebooks/* . 2>/dev/null || echo "No files to copy"
         
-        # Add and commit changes
+        # Add and commit changes (this creates a new commit without preserving source history)
         git add .
         if git diff --staged --quiet; then
           echo "No changes to commit"
         else
-          git commit -m "Sync notebook contents from $(date)"
+          git commit -m "Sync notebook contents from MBPDB - $(date '+%Y-%m-%d %H:%M:%S')"
           echo "Pushing notebook contents to main branch"
           git push origin main
         fi
