@@ -21,11 +21,15 @@ jobs:
       run: |
         git config --global user.name "kuhfeldrf"
         git config --global user.email "kuhfeldrf@gmail.com"
-        git config --global url."https://${{ secrets.PERSONAL_GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
     
-    - name: Add personal repo remote
+    - name: Debug token availability
       run: |
-        git remote add peptiline https://${{ secrets.PERSONAL_GITHUB_TOKEN }}@github.com/Kuhfeldrf/peptiline.git
+        if [ -z "${{ secrets.PERSONAL_GITHUB_TOKEN }}" ]; then
+          echo "❌ PERSONAL_GITHUB_TOKEN is not set or empty"
+          exit 1
+        else
+          echo "✅ PERSONAL_GITHUB_TOKEN is available"
+        fi
     
     - name: Verify notebooks directory exists
       run: |
@@ -35,12 +39,22 @@ jobs:
         fi
         echo "Found notebooks directory with $(find include/peptide/peptide/notebooks -name "*.ipynb" | wc -l) notebook files"
     
-    - name: Push notebooks to personal repo
+    - name: Setup authenticated remote and push notebooks
       run: |
+        # Remove any existing peptiline remote
+        git remote remove peptiline 2>/dev/null || true
+        
+        # Add remote with explicit token authentication
+        git remote add peptiline https://${{ secrets.PERSONAL_GITHUB_TOKEN }}@github.com/Kuhfeldrf/peptiline.git
+        
+        # Verify remote is added correctly
+        git remote -v
+        
+        # Push notebooks using subtree to main branch
+        echo "Pushing notebooks to main branch..."
         git subtree push --prefix=include/peptide/peptide/notebooks peptiline main
-      env:
-        PERSONAL_GITHUB_TOKEN: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
     
     - name: Verify sync success
       run: |
         echo "✅ Successfully synced notebooks to https://github.com/Kuhfeldrf/peptiline"
+        echo "📂 Notebooks are now available at: https://github.com/Kuhfeldrf/peptiline"
