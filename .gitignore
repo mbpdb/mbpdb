@@ -95,3 +95,11 @@ build.sh
 *.temp
 *~
 *.old
+
+# ==============================
+# Git Files (shouldn't be tracked)
+# ==============================
+FETCH_HEAD
+ORIG_HEAD
+MERGE_HEAD
+refs/

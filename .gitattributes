@@ -1,0 +1,48 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Python files
+*.py text diff=python
+*.pyx text diff=python
+*.pyi text diff=python
+
+# Web files
+*.html text diff=html
+*.css text diff=css
+*.js text diff=javascript
+*.json text
+
+# Documentation
+*.md text
+*.txt text
+*.rst text
+
+# Data files (mark as binary to prevent diff/merge issues)
+*.csv binary
+*.tsv binary
+*.xlsx binary
+*.xls binary
+*.fasta binary
+*.db binary
+*.sqlite3 binary
+
+# Images
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+
+# Archives
+*.zip binary
+*.tar binary
+*.gz binary
+*.7z binary
+
+# Jupyter Notebooks (treat as text but with custom diff)
+*.ipynb text
+
+# Django specific
+*.po text
+*.pot text
