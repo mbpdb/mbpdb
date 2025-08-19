@@ -21,6 +21,7 @@ jobs:
       run: |
         git config --global user.name "kuhfeldrf"
         git config --global user.email "kuhfeldrf@gmail.com"
+        git config --global url."https://${{ secrets.PERSONAL_GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
     
     - name: Add personal repo remote
       run: |
@@ -38,7 +39,7 @@ jobs:
       run: |
         git subtree push --prefix=include/peptide/peptide/notebooks peptiline main
       env:
-        GITHUB_TOKEN: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+        PERSONAL_GITHUB_TOKEN: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
     
     - name: Verify sync success
       run: |
