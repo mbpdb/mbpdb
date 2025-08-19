@@ -19,11 +19,11 @@
         </div>
         <p class="get-started-description">Jump right into analyzing your peptidomic data with our powerful tools</p>
         <div class="get-started-buttons">
-            <a href="{% url 'voila_data' %}" class="get-started-btn data-transform">
+            <a href="{% url 'voila_data_transformation' %}" class="get-started-btn data-transform">
                 <i class="fas fa-cogs"></i>
                 <span>Data Transformation</span>
             </a>
-            <a href="{% url 'voila_data_visualization' %}" class="get-started-btn data-analysis">
+            <a href="{% url 'voila_data_analysis' %}" class="get-started-btn data-analysis">
                 <i class="fas fa-chart-line"></i>
                 <span>Data Analysis</span>
             </a>
@@ -89,7 +89,7 @@
                         </ul>
                     </div>
                     
-                    <a href="{% url 'voila_data' %}" class="btn">Start Data Transformation</a>
+                    <a href="{% url 'voila_data_transformation' %}" class="btn">Start Data Transformation</a>
                 </div>
             </div>
             <div class="grid-child1" id="step2">
@@ -136,12 +136,12 @@
                         </ul>
                     </div>
                     
-                    <a href="{% url 'voila_data_visualization' %}" class="btn">Explore Data Analysis</a>
+                    <a href="{% url 'voila_data_analysis' %}" class="btn">Explore Data Analysis</a>
                 </div>
             </div>
             <div class="grid-child2" id="step3">
                 <div class="step-icon"><i class="fas fa-fire"></i></div>
-                <div class="step-title">Sequence Visualization</div>
+                <div class="step-title">Heatmap Visualization</div>
                 <div class="step-description">Generate customizable heatmaps for site-specific peptide-protein mapping</div>
                 <button class="learn-more-btn" onclick="toggleExpanded('step3')">Learn More</button>
                 
@@ -344,11 +344,11 @@
                 </h3>
                 <p class="bottom-get-started-description">Ready to dive deeper? Access our full suite of customizable interactive visualization tools</p>
                 <div class="bottom-get-started-buttons">
-                    <a href="{% url 'voila_data' %}" class="bottom-get-started-btn">
+                    <a href="{% url 'voila_data_transformation' %}" class="bottom-get-started-btn">
                         <i class="fas fa-cogs"></i>
                         <span>Data Transformation</span>
                     </a>
-                    <a href="{% url 'voila_data_visualization' %}" class="bottom-get-started-btn">
+                    <a href="{% url 'voila_data_analysis' %}" class="bottom-get-started-btn">
                         <i class="fas fa-chart-line"></i>
                         <span>Data Analysis</span>
                     </a>
