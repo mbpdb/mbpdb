@@ -1,0 +1,45 @@
+name: Sync Notebooks to Personal Repo
+
+on:
+  push:
+    branches: [ main ]
+    paths: 
+      - 'include/peptide/peptide/notebooks/**'
+
+jobs:
+  sync-notebooks:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout organization repo
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Need full history for subtree
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Configure git
+      run: |
+        git config --global user.name "MBPDB Sync Bot"
+        git config --global user.email "sync-bot@organization.com"
+    
+    - name: Add personal repo remote
+      run: |
+        git remote add peptiline https://${{ secrets.PERSONAL_GITHUB_TOKEN }}@github.com/Kuhfeldrf/peptiline.git
+    
+    - name: Verify notebooks directory exists
+      run: |
+        if [ ! -d "include/peptide/peptide/notebooks" ]; then
+          echo "Error: Notebooks directory not found"
+          exit 1
+        fi
+        echo "Found notebooks directory with $(find include/peptide/peptide/notebooks -name "*.ipynb" | wc -l) notebook files"
+    
+    - name: Push notebooks to personal repo
+      run: |
+        git subtree push --prefix=include/peptide/peptide/notebooks peptiline main
+      env:
+        GITHUB_TOKEN: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+    
+    - name: Verify sync success
+      run: |
+        echo "✅ Successfully synced notebooks to https://github.com/Kuhfeldrf/peptiline"
