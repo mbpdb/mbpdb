@@ -1,8 +1,0 @@
-# Directories to ignore
-protein_data_export/
-archive/
-__pycache__/
-
-# Files to ignore
-heatmap_compact.ipynb
-example_peptide_data_short.csv
