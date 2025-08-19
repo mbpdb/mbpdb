@@ -39,7 +39,7 @@ jobs:
         fi
         echo "Found notebooks directory with $(find include/peptide/peptide/notebooks -name "*.ipynb" | wc -l) notebook files"
     
-    - name: Setup authenticated remote and push notebooks
+    - name: Setup authenticated remote and push notebook contents
       run: |
         # Remove any existing peptiline remote
         git remote remove peptiline 2>/dev/null || true
@@ -50,17 +50,33 @@ jobs:
         # Verify remote is added correctly
         git remote -v
         
-        # Create branch name with timestamp
-        BRANCH_NAME="sync-notebooks-$(date +%Y%m%d-%H%M%S)"
-        echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
-        echo "Creating branch: $BRANCH_NAME"
+        # Clone the target repository to a temporary directory
+        git clone https://${{ secrets.PERSONAL_GITHUB_TOKEN }}@github.com/Kuhfeldrf/peptiline.git temp_repo
+        cd temp_repo
         
-        # Push notebooks using subtree to new branch
-        echo "Pushing notebooks to new branch: $BRANCH_NAME"
-        git subtree push --prefix=include/peptide/peptide/notebooks peptiline $BRANCH_NAME
+        # Switch to main branch (should already be on main, but being explicit)
+        git checkout main
+        
+        # Copy notebook files to root of target repo (contents only, not the folder)
+        cp -r ../include/peptide/peptide/notebooks/* . 2>/dev/null || echo "No files to copy"
+        
+        # Add and commit changes
+        git add .
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Sync notebook contents from $(date)"
+          echo "Pushing notebook contents to main branch"
+          git push origin main
+        fi
+        
+        # Return to original directory and cleanup
+        cd ..
+        rm -rf temp_repo
     
     - name: Verify sync success
       run: |
-        echo "✅ Successfully synced notebooks to new branch: $BRANCH_NAME"
-        echo "📂 Branch URL: https://github.com/Kuhfeldrf/peptiline/tree/$BRANCH_NAME"
-        echo "🔄 Create a pull request to merge the changes: https://github.com/Kuhfeldrf/peptiline/compare/$BRANCH_NAME"
+        echo "✅ Successfully synced notebook contents to main branch"
+        echo "📂 Repository URL: https://github.com/Kuhfeldrf/peptiline"
+        echo "📝 Note: Notebook files are now in the root of the repository (no notebooks folder)"
+        echo "🔄 Changes are now live on the main branch"
