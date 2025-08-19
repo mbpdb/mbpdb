@@ -58,3 +58,4 @@ jobs:
       run: |
         echo "✅ Successfully synced notebooks to https://github.com/Kuhfeldrf/peptiline"
         echo "📂 Notebooks are now available at: https://github.com/Kuhfeldrf/peptiline"
+        
