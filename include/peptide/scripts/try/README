@@ -1,0 +1,1 @@
+blastp -query try8.fasta -db pd2.fasta -task blastp-short -evalue 1000 -word_size 2 -matrix BLOSUM62

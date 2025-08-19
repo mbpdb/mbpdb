@@ -1,0 +1,77 @@
+{% extends 'peptide/base.html' %}
+{% load static %}
+{% block 'content' %}
+<h1> MBPDB add peptides (multiple entries)</h1>
+<h4>Add to Milk Bioactive Peptide database using TSV (tab-separated values) or Excel (.xlsx) file</h4>
+{% for e in errors %}
+<div class="alert alert-danger  alert-dismissible" role="alert">
+  <button type="button" class="close" data-dismiss="alert">
+  <span aria-hidden="true">&times;</span>
+  <span class="sr-only">Close</span>
+  </button>
+  <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+  <span class="sr-only">Error:</span>
+  {{e}}
+</div>
+{% endfor %}
+{% for m in messages %}
+<div class="alert alert-info  alert-dismissible" role="alert">
+  <button type="button" class="close" data-dismiss="alert">
+    <span aria-hidden="true">&times;</span>
+    <span class="sr-only">Close</span>
+  </button>
+  <span class="sr-only">Error:</span>
+  {{m}}
+</div>
+{% endfor %}
+
+<form method="POST" enctype="multipart/form-data" action="." role="form">
+{% csrf_token %}
+<div class="form-group">
+     <input type="file" name="csv_file" accept=".tsv,.xlsx" />
+     <p class="help-block">Use a correctly formatted TSV or Excel (.xlsx) file with UTF-8 encoding. For format requirements, view the <a href="{% static 'peptide/example/peptide_db_input_file_example.tsv'%}">example file</a>.</p>
+     <p class="help-block">Note that the additionals details, ic50, inhibition type, inhibited microrganisms, and abstract columns can be empty.</p>
+</div>
+
+<button class="btn btn-default">Add to DB</button>
+</form>
+</br>
+<a  href="#" id="toggleProteinList">Toggle list of cataloged protein IDs & descriptions</a>
+<div id="proteinList" style="display:none;"></div>
+<br/><br/><br/><br/>
+<script>
+let proteinDataFetched = false;  // This variable will track if we've already fetched the data
+
+document.getElementById("toggleProteinList").addEventListener("click", function(event) {
+    event.preventDefault(); // Prevents the default action of the hyperlink
+
+    const proteinListDiv = document.getElementById("proteinList");
+
+    // If we haven't fetched the protein data yet, fetch it now
+    if (!proteinDataFetched) {
+        fetch("/get_protein_list/")
+        .then(response => response.json())
+        .then(data => {
+            let content = "";
+            for (let desc of Object.keys(data)) {
+                for (let pid of data[desc]) {
+                    content += `<p>${desc} (${pid})</p>`;
+                }
+            }
+            proteinListDiv.innerHTML = content;
+            proteinDataFetched = true; // Mark data as fetched
+        })
+        .catch(error => {
+            console.error("There was an error fetching the protein data:", error);
+        });
+    }
+
+    // Toggle display based on current state
+    if (proteinListDiv.style.display === "none" || !proteinListDiv.style.display) {
+        proteinListDiv.style.display = "block";
+    } else {
+        proteinListDiv.style.display = "none";
+    }
+});
+</script>
+{% endblock 'content' %}

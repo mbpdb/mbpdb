@@ -1,0 +1,38 @@
+from django.urls import include, re_path, path
+from django.contrib import admin
+from . import views
+import uuid
+urlpatterns = [
+    re_path(r'^$', views.peptide_search, name='index'),
+    re_path(r'^pepex/$', views.pepex_tool, name='pepex'),
+    re_path(r'^add_proteins/$', views.add_proteins_tool, name='add_proteins'),
+    re_path(r'^download_fasta_file/$', views.download_fasta_file, name='download_fasta_file'),
+    re_path(r'^tsv_search_results/', views.tsv_search_results, name='tsv_search_results'),
+    re_path(r'^peptide_db_csv/$', views.peptide_db_csv, name='peptide_db_csv'),
+    re_path(r'^peptide_search/$', views.peptide_search, name='peptide_search'),
+    re_path(r'^about_us/$', views.about_us, name='about_us'),
+    path('results-section/<uuid:task_id>/', views.results_section, name='results_section'),
+    re_path(r'^test/$', views.test, name='test_page'),
+    re_path(r'^admin/', admin.site.urls),
+    re_path('get_protein_list/', views.get_protein_list_view, name='get_protein_list'),
+    path('start-work/', views.start_work, name='start_work'),
+    path('check-progress/<str:task_id>/', views.check_progress, name='check_progress'),
+    path('get-active-tasks/', views.get_active_tasks, name='get_active_tasks'),
+    path('return_render_results/<uuid:task_id>/', views.return_render_results, name='return_render_results'),
+    path('heatmap/', views.voila_heatmap_view, name='voila_heatmap'),
+    path('data_transform/', views.voila_data_view, name='voila_data'),
+    # Correlation view removed
+    #path('protein_bar_view/', views.voila_protein_bar_view, name='voila_protein_bar'),
+    #path('bioactive_bar_view/', views.voila_bioactive_bar_view, name='voila_bioactive_bar'),
+    #path('summed_bar_view/', views.voila_summed_bar_view, name='voila_summed_bar'),
+    path('data_visualization_view/', views.voila_data_visualization_view, name='voila_data_visualization'),
+    path('peptiline/', views.peptiline_landing, name='peptiline_landing'),
+    path('plots/scatter_plot_1/', views.serve_plot, {'plot_name': 'scatter_plot_1'}, name='scatter_plot_1'),
+    path('plots/scatter_plot_2/', views.serve_plot, {'plot_name': 'scatter_plot_2'}, name='scatter_plot_2'),
+    path('plots/protein_plot_1/', views.serve_plot, {'plot_name': 'protein_plot_1'}, name='protein_plot_1'),
+    path('plots/protein_plot_2/', views.serve_plot, {'plot_name': 'protein_plot_2'}, name='protein_plot_2'),
+    path('plots/protein_plot_3/', views.serve_plot, {'plot_name': 'protein_plot_3'}, name='protein_plot_3'),
+    path('plots/protein_plot_4/', views.serve_plot, {'plot_name': 'protein_plot_4'}, name='protein_plot_4'),
+    path('plots/protein_plot_5/', views.serve_plot, {'plot_name': 'protein_plot_5'}, name='protein_plot_5'),
+]
+
