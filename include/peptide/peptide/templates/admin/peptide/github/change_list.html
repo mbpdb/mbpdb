@@ -1,0 +1,13 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools %}
+    {{ block.super }}
+{% endblock %}
+
+{% block content %}
+    <h1>GitHub Actions</h1>
+    <form method="post">{% csrf_token %}
+        <button class="button" name="git_init" type="submit">Git Init</button>
+        <button class="button" name="git_push" type="submit">Git Push</button>
+    </form>
+{% endblock %} 
