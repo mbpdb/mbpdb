@@ -944,3 +944,4 @@
 >tr|E9NZN2|E9NZN2_BUBBU Alpha-S2-casein OS=Bubalus bubalis OX=89462 GN=CASA2 PE=2 SV=1
 >tr|I6UFY2|I6UFY2_BOSMU Kappa-casein OS=Bos mutus grunniens GN=CSN3 PE=2 SV=1
 >tr|L8I8G5|L8I8G5_9CETA Beta-casein (Fragment) OS=Bos mutus GN=M91_02162 PE=4 SV=1
+
