@@ -22,42 +22,24 @@ jobs:
         git config --global user.name "kuhfeldrf"
         git config --global user.email "kuhfeldrf@gmail.com"
     
-    - name: Checkout peptiline repo
-      uses: actions/checkout@v4
-      with:
-        repository: Kuhfeldrf/peptiline
-        token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
-        path: peptiline-repo
-        fetch-depth: 0
-    
-    - name: Create sync branch
+    - name: Add personal repo remote
       run: |
-        cd peptiline-repo
-        git checkout -b sync-notebooks-$(date +%Y%m%d-%H%M%S) || git checkout sync-notebooks-$(date +%Y%m%d-%H%M%S)
+        git remote add peptiline https://${{ secrets.PERSONAL_GITHUB_TOKEN }}@github.com/Kuhfeldrf/peptiline.git
     
-    - name: Copy notebook changes
+    - name: Verify notebooks directory exists
       run: |
-        # Remove existing notebooks in target repo (if any)
-        rm -rf peptiline-repo/notebooks || true
-        
-        # Copy notebooks from source to target
-        mkdir -p peptiline-repo/notebooks
-        cp -r include/peptide/peptide/notebooks/* peptiline-repo/notebooks/
-        
-        echo "Copied $(find peptiline-repo/notebooks -name "*.ipynb" | wc -l) notebook files"
-    
-    - name: Commit and push changes
-      run: |
-        cd peptiline-repo
-        git add .
-        
-        if git diff --staged --quiet; then
-          echo "No changes to commit"
-          exit 0
+        if [ ! -d "include/peptide/peptide/notebooks" ]; then
+          echo "Error: Notebooks directory not found"
+          exit 1
         fi
-        
-        git commit -m "Sync notebooks from MBPDB - $(date)"
-        git push origin HEAD
-        
-        echo "✅ Successfully pushed notebook changes to branch: $(git branch --show-current)"
-        echo "Branch URL: https://github.com/Kuhfeldrf/peptiline/tree/$(git branch --show-current)"
+        echo "Found notebooks directory with $(find include/peptide/peptide/notebooks -name "*.ipynb" | wc -l) notebook files"
+    
+    - name: Push notebooks to personal repo
+      run: |
+        git subtree push --prefix=include/peptide/peptide/notebooks peptiline main
+      env:
+        GITHUB_TOKEN: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+    
+    - name: Verify sync success
+      run: |
+        echo "✅ Successfully synced notebooks to https://github.com/Kuhfeldrf/peptiline"
