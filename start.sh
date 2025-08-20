@@ -59,7 +59,7 @@ voila \
     --port=8866 \
     --Voila.ip=127.0.0.1 \
     --template=lab \
-    --Voila.base_url='/voila/' \
+    --Voila.base_url='/voila/heatmap/' \
     --ServerApp.allow_origin='http://127.0.0.1:8000' \
     --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
     --ServerApp.token="${VOILA_TOKEN}" \
@@ -76,7 +76,7 @@ voila \
     --port=8867 \
     --Voila.ip=127.0.0.1 \
     --template=lab \
-    --Voila.base_url='/data_transformation/' \
+    --Voila.base_url='/voila/data_transformation/' \
     --ServerApp.allow_origin='http://127.0.0.1:8000' \
     --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
     --ServerApp.token="${VOILA_TOKEN}" \
@@ -92,7 +92,7 @@ voila \
     --port=8868 \
     --Voila.ip=127.0.0.1 \
     --template=lab \
-    --Voila.base_url='/data_analysis/' \
+    --Voila.base_url='/voila/data_analysis/' \
     --ServerApp.allow_origin='http://127.0.0.1:8000' \
     --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
     --ServerApp.token="${VOILA_TOKEN}" \
