@@ -67,7 +67,7 @@ jobs:
     
     - name: Verify sync success
       run: |
-        echo "✅ Successfully synced notebook contents to main branch"
+        echo "✅ Successfully synced notebooks with commit history preserved"
         echo "📂 Repository URL: https://github.com/Kuhfeldrf/peptiline"
-        echo "📝 Note: Notebook files are now in the root of the repository (no notebooks folder)"
+        echo "📝 Note: Full commit history from the notebooks directory is preserved"
         echo "🔄 Changes are now live on the main branch"
