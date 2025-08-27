@@ -49,3 +49,4 @@ env/
 lib/
 *.pyc
 __pycache__/
+lfg.sh
