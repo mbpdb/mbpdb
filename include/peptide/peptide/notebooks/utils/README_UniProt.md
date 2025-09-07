@@ -10,8 +10,8 @@ This module provides integration with the UniProt database for the peptide visua
 
 We provide two notebooks that demonstrate the UniProt integration:
 
-1. `Data_Visualization_with_UniProt.ipynb` - Integrates UniProt with the Data Visualization notebook
-2. `Heatmap_with_UniProt_Integration.ipynb` - Integrates UniProt with the Heatmap Visualization notebook
+1. `data_transformation.ipynb` - Integrates UniProt with the data transformation notebook
+2. `heatmap_visualization.ipynb` - Integrates UniProt with the heatmap visualization notebook
 
 ## How to Use
 
@@ -54,18 +54,18 @@ You can import multiple proteins at once either by:
 
 ### UniProtIntegration Class
 
-The main class for integrating UniProt with visualization notebooks.
+The main class for integrating UniProt with the peptide visualization notebooks.
 
 #### Methods:
 
 - `__init__(data_transformer)` - Initialize with a reference to your data transformer
-- `add_uniprot_ui([output_area])` - Add the UniProt UI components to the notebook
-- `check_missing_proteins()` - Check for proteins in the data that are missing from the protein dictionary
+- `add_uniprot_ui([output_area])` - Add the UniProt UI components to the notebook. Optionally accepts a custom output area.
+- `check_missing_proteins()` - Check for proteins in the merged data that are missing from the protein dictionary
 - `fetch_batch_from_uniprot()` - Fetch all missing proteins from UniProt in batch mode
 
 ### Utility Functions
 
-- `add_uniprot_integration_to_dataframe(df, uniprot_client=None)` - Add protein information to a DataFrame by querying UniProt
+- `add_uniprot_integration_to_dataframe(df, uniprot_client=None)` - Add protein name and species information to a DataFrame by querying UniProt. The DataFrame must have a 'Master Protein Accessions' column.
 
 ## Requirements
 
@@ -82,13 +82,14 @@ from utils.uniprot_integration import UniProtIntegration
 # Initialize with a reference to your data transformer
 uniprot_integration = UniProtIntegration(data_transformer)
 
-# Add the UI components
-uniprot_integration.add_uniprot_ui()
+# Add the UI components (optionally with a custom output area)
+uniprot_integration.add_uniprot_ui()  # or add_uniprot_ui(output_area=custom_output)
 
-# Whenever you want to check for missing proteins:
+# The integration will automatically check for missing proteins when enabled
+# You can also manually check:
 uniprot_integration.check_missing_proteins()
 
-# To fetch all missing proteins at once:
+# To fetch all missing proteins at once (after enabling UniProt integration):
 uniprot_integration.fetch_batch_from_uniprot()
 ```
 
