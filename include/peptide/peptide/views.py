@@ -501,9 +501,9 @@ def peptide_db_csv(request):
 
 def peptiline_landing(request):
     return render(request, 'peptide/peptiline_landing.html')
-
+"""
 def serve_plot(request, plot_name):
-    """Serve Plotly HTML files."""
+    #Serve Plotly HTML files.
     template_dir = os.path.join(os.path.dirname(__file__), 'templates', 'peptide')
     plot_path = os.path.join(template_dir, f'{plot_name}.html')
     
@@ -514,7 +514,6 @@ def serve_plot(request, plot_name):
     except FileNotFoundError:
         return HttpResponse(f"Plot {plot_name} not found", status=404)
 
-"""
 import logging
 
 logger = logging.getLogger(__name__)

@@ -27,12 +27,5 @@ urlpatterns = [
     #path('summed_bar_view/', views.voila_summed_bar_view, name='voila_summed_bar'),
     path('data_analysis/', views.voila_data_analysis_view, name='voila_data_analysis'),
     path('peptiline/', views.peptiline_landing, name='peptiline_landing'),
-    path('plots/scatter_plot_1/', views.serve_plot, {'plot_name': 'scatter_plot_1'}, name='scatter_plot_1'),
-    path('plots/scatter_plot_2/', views.serve_plot, {'plot_name': 'scatter_plot_2'}, name='scatter_plot_2'),
-    path('plots/protein_plot_1/', views.serve_plot, {'plot_name': 'protein_plot_1'}, name='protein_plot_1'),
-    path('plots/protein_plot_2/', views.serve_plot, {'plot_name': 'protein_plot_2'}, name='protein_plot_2'),
-    path('plots/protein_plot_3/', views.serve_plot, {'plot_name': 'protein_plot_3'}, name='protein_plot_3'),
-    path('plots/protein_plot_4/', views.serve_plot, {'plot_name': 'protein_plot_4'}, name='protein_plot_4'),
-    path('plots/protein_plot_5/', views.serve_plot, {'plot_name': 'protein_plot_5'}, name='protein_plot_5'),
 ]
 
