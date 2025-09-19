@@ -501,6 +501,39 @@ def peptide_db_csv(request):
 
 def peptiline_landing(request):
     return render(request, 'peptide/peptiline_landing.html')
+
+def download_supplemental_table(request):
+    """Serve the supplemental table file for download."""
+    file_path = os.path.join(os.path.dirname(__file__), 'notebooks', 'tables', 'correlation_analysis_pearson_log10_20250917_194233.xlsx')
+    
+    try:
+        response = FileResponse(open(file_path, 'rb'), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = 'attachment; filename="supplemental_table_1.xlsx"'
+        return response
+    except FileNotFoundError:
+        return HttpResponse("Supplemental table file not found", status=404)
+
+def serve_supplemental_figure_1(request):
+    """Serve scatter_plot_1.html as supplemental figure 1."""
+    file_path = os.path.join(os.path.dirname(__file__),  'notebooks', 'plots', 'scatter_plot_1.html')
+    
+    try:
+        with open(file_path, 'r') as f:
+            content = f.read()
+        return HttpResponse(content, content_type='text/html')
+    except FileNotFoundError:
+        return HttpResponse("Supplemental figure 1 not found", status=404)
+
+def serve_supplemental_figure_2(request):
+    """Serve scatter_plot_2.html as supplemental figure 2."""
+    file_path = os.path.join(os.path.dirname(__file__),  'notebooks', 'plots', 'scatter_plot_2.html')
+    
+    try:
+        with open(file_path, 'r') as f:
+            content = f.read()
+        return HttpResponse(content, content_type='text/html')
+    except FileNotFoundError:
+        return HttpResponse("Supplemental figure 2 not found", status=404)
 """
 def serve_plot(request, plot_name):
     #Serve Plotly HTML files.

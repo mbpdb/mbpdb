@@ -27,5 +27,8 @@ urlpatterns = [
     #path('summed_bar_view/', views.voila_summed_bar_view, name='voila_summed_bar'),
     path('data_analysis/', views.voila_data_analysis_view, name='voila_data_analysis'),
     path('peptiline/', views.peptiline_landing, name='peptiline_landing'),
+    path('supplemental_table_1/', views.download_supplemental_table, name='download_supplemental_table'),
+    path('supplemental_figure_1/', views.serve_supplemental_figure_1, name='supplemental_figure_1'),
+    path('supplemental_figure_2/', views.serve_supplemental_figure_2, name='supplemental_figure_2'),
 ]
 
