@@ -1,0 +1,283 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supplemental Figures and Tables</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+</head>
+<body class="p-8 bg-white">
+    <main class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-gray-800">Supplemental Figures and Tables</h1>
+
+        <!-- Comment out all existing figures -->
+        <!--
+        <section class="mb-16">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Figure S1: Venn Diagram of Shared Peptides Among Samples: </h2>
+            <div class="mb-6">
+                <iframe src="venn_diagrams.png" width="100%" height="450px" style="border: none;"></iframe>
+            </div>
+                <p class="text-gray-600"><b>A)</b> Comparison of Infant Formula and Human Milk Peptides <b>B)</b> Overlap Between Human Milk, Infant Formula A, and Infant Formula A1 Peptides</p>
+            <div class="mt-4 text-sm text-gray-500 border-t pt-4">
+        </section>
+
+        <br>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Figure S2: All Peptides Relative Protein Contribution:</h2>
+            <div class="mb-6">
+                <iframe src="Protein_plot_all_peptides.html" width="100%" height="825px" style="border: none;"></iframe>
+            </div>
+            <p class="text-gray-600">Stacked bar plots showing protein source contributions to the total peptidomic profile.</p>
+            <div class="mt-4 text-sm text-gray-500 border-t pt-4">
+                <p class="font-semibold mb-2">Relative Protein Contribution: Human β-casein: 32.22, Bovine β-lactoglobulin: 23.64, Bovine β-casein: 15.89, Bovine αS1-casein: 11.64, Shared α-lactalbumin: 4.29, Bovine κ-casein: 2.27, Human κ-casein: 1.17, Shared α-2 actin: 1.08, Human Osteopontin: 1.06, Bovine GLYCAM1: 0.91, Bovine α-lactalbumin: 0.72, Human αS1-casein: 0.61, Bovine αS2-casein: 0.55, Human Lactotransferrin: 0.40</p>
+            </div>
+        </section>
+        <br>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Figure S3: Distribution of Bioactive Peptides Across Digestive Phases:</h2>
+            <div class="mb-6">
+                <iframe src="bioactive_peptides.html" width="100%" height="800px" style="border: none;"></iframe>
+            </div>
+        </section>
+        <br>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Figure S4: Scatter Plots Highlighting the Correlation of the Within a Sample: </h2>
+            <div class="mb-6">
+                <iframe src="scatter_plots.png" width="100%" height="850px" style="border: none;"></iframe>
+            </div>
+                <p class="text-gray-600">Scatter plots highlighting the correlation of the log10 transformed peptide abundance within a sample between the different digestive phases of feed, gastric and intestinal for the following samples: <b>A)</b> Human Milk <b>B)</b> Infant Formulas.</p>
+            <div class="mt-4 text-sm text-gray-500 border-t pt-4">
+        </section>
+        <br>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Figure S5: Bioactive Peptide Relative Protein Contribution:</h2>
+            <div class="mb-6">
+                <iframe src="Protein_plot_bioactive_peptides_updated.html" width="100%" height="825px" style="border: none;"></iframe>
+            </div>
+            <p class="text-gray-600">Protein source contributions for bioactive peptides identified in the samples.</p>
+            <div class="mt-4 text-sm text-gray-500 border-t pt-4">
+                <p class="font-semibold mb-2">Relative Protein Contribution: Human β-casein: 48.95, Bovine β-casein: 31.49, Bovine β-lactoglobulin: 12.27, Bovine αS1-casein: 3.43, Bovine αS2-casein: 1.83, Bovine κ-casein: 1.55, Bovine α-lactalbumin: 0.27, Human Lactotransferrin: 0.11, Shared β-casein: 0.04, Shared α-lactalbumin: 0.02, Human κ-casein: 0.02, Bovine Lactotransferrin: 0.01</p>
+            </div>
+        </section>
+        <br>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Figure S6: Antimicrobial Peptide Sequence Heatmap for Human β-casein:</h2>
+            <div class="mb-6">
+                <iframe src="humanbcasein_anitmicrobial.png" width="100%" height="700px" style="border: none;"></iframe>
+            </div>
+            <p class="text-gray-600">Average abundance of antimicrobial peptides in human samples overlaid onto a heat map depicting the site-specific density of peptides according to species of β-casein.</p>
+        </section>
+        <br>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Figure S7: Increase Cellular Growth Peptides Relative Protein Contribution:</h2>
+            <div class="mb-6">
+                <iframe src="increasecelulargrowth.html" width="100%" height="825px" style="border: none;"></iframe>
+            </div>
+            <p class="text-gray-600">Protein source contributions for cellular growth-promoting peptides.</p>
+            <div class="mt-4 text-sm text-gray-500 border-t pt-4">
+                <p class="font-semibold mb-2">Relative Protein Contribution:
+                Human β-casein: 98.63, Bovine β-lactoglobulin: 1.25, Bovine Lactotransferrin: 0.12</p>
+            </div>
+        </section>
+        <br>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Figure S8: Antimicrobial Peptides Relative Protein Contribution:</h2>
+            <div class="mb-6">
+                <iframe src="antimicrobial.html" width="100%" height="825px" style="border: none;"></iframe>
+            </div>
+            <p class="text-gray-600">Protein source contributions for antimicrobial peptides.</p>
+            <div class="mt-4 text-sm text-gray-500 border-t pt-4">
+                <p class="font-semibold mb-2">Relative Protein Contribution:
+                Human β-casein: 73.61, Bovine β-lactoglobulin: 17.49, Bovine β-casein: 5.37, Bovine αS1-casein: 1.57, Bovine κ-casein: 1.45, Bovine αS2-casein: 0.26, Human Lactotransferrin: 0.18, Shared β-casein: 0.05, Bovine Lactotransferrin: 0.01</p>
+            </div>
+        </section>
+        <br>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Figure S9: Antimicrobial Peptide Sequence Heatmap for Bovine β-lactoglobulin:</h2>
+            <div class="mb-6">
+                <iframe src="bovine_blg_anitmicrobial.png" width="100%" height="700px" style="border: none;"></iframe>
+            </div>
+            <p class="text-gray-600">Average abundance of antimicrobial peptides in bovine samples overlaid onto a heat map depicting the site-specific density of peptides according to species of β-lactoglobulin.</p>
+        </section>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Figure S10: Immunoregulatory Peptides Relative Protein Contribution:</h2>
+            <div class="mb-6">
+                <iframe src="immuno.html" width="100%" height="825px" style="border: none;"></iframe>
+            </div>
+            <p class="text-gray-600">Protein source contributions for immunoregulatory peptides.</p>
+            <div class="mt-4 text-sm text-gray-500 border-t pt-4">
+                <p class="font-semibold mb-2">Relative Protein Contribution:
+                Bovine β-casein: 97.91, Bovine αS1-casein: 1.65, Human β-casein: 0.44</p>
+            </div>
+        </section>
+        <br>
+        <br>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Figure S11: Bioactive Peptide Sequence Heatmap for Human and Bovine β-casein:</h2>
+            <div class="mb-6">
+                <iframe src="human_bovine_bioactive_betacasein.png" width="100%" height="700px" style="border: none;"></iframe>
+            </div>
+            <p class="text-gray-600">Average abundance of bioactive peptides in human milk and bovine samples overlaid onto a heat map depicting the site-specific density of peptides according to species of β-casein.</p>
+        </section>
+        <br>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Figure S12: Increase Cellular Growth Peptide Sequence Heatmap for Human β-casein:</h2>
+            <div class="mb-6">
+                <iframe src="humanbcasein_increasecellular.png" width="100%" height="700px" style="border: none;"></iframe>
+            </div>
+            <p class="text-gray-600">Average abundance of Increase Cellular Growth  peptides in bovine samples overlaid onto a heat map depicting the site-specific density of peptides according to species of β-casein.</p>
+        </section>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Figure S13: <b>All</b> Peptide Sequence Heatmap for Human and Bovine α-lactalbumin:</h2>
+            <div class="mb-6">
+                <iframe src="alb_all_peptides.png" width="100%" height="700px" style="border: none;"></iframe>
+            </div>
+            <p class="text-gray-600">Average abundance of all peptides in bovine samples overlaid onto a heat map depicting the site-specific density of peptides according to species of α-lactalbumin.</p>
+        </section>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Figure S14: <b>Bioactive Only</b> Peptide Sequence Heatmap for Human and Bovine α-lactalbumin:</h2>
+            <div class="mb-6">
+                <iframe src="alb_bioactives_only.png" width="100%" height="700px" style="border: none;"></iframe>
+            </div>
+            <p class="text-gray-600">Average abundance of exclusively bioactive peptides in bovine samples overlaid onto a heat map depicting the site-specific density of peptides according to species of α-lactalbumin.</p>
+        </section>
+
+        <section class="mb-16">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Figure S9: Antihypertensive Peptides Relative Protein Contribution:</h2>
+            <div class="mb-6">
+                <iframe src="antihyper.html" width="100%" height="825px" style="border: none;"></iframe>
+            </div>
+            <p class="text-gray-600">Protein source contributions for antihypertensive peptides.</p>
+            <div class="mt-4 text-sm text-gray-500 border-t pt-4">
+                <p class="font-semibold mb-2">Relative Protein Contribution:     
+                Bovine αS1-casein: 58.84, Bovine β-lactoglobulin: 41.16</p>
+            </div>
+        </section>
+        -->
+
+        <!-- Display the 5 HTML plots -->
+        <section class="mb-16">
+            <div class="mb-6">
+                <iframe src="{% static 'peptide/notebooks/Supplementals/Supplemental_Figure_1_SPLOMs.html' %}" width="100%" height="1050px" style="border: none;"></iframe>
+            </div>
+        </section>
+
+        <section class="mb-16">
+            <div class="mb-6">
+                <iframe src="{% static 'peptide/notebooks/Supplementals/Supplemental_Figure_2_Functional Bar Plot.html' %}" width="100%" height="850px" style="border: none;"></iframe>
+            </div>
+        </section>
+
+        <section class="mb-16">
+            <div class="mb-6">
+                <iframe src="{% static 'peptide/notebooks/Supplementals/Supplemental_Figure_3_Protein Contrbution.html' %}" width="100%" height="850px" style="border: none;"></iframe>
+            </div>
+        </section>
+
+        <section class="mb-16">
+            <div class="mb-6">
+                <iframe src="{% static 'peptide/notebooks/Supplementals/Supplemental_Figure_4_Total Count.html' %}" width="100%" height="825px" style="border: none;"></iframe>
+            </div>
+        </section>
+
+        <section class="mb-16">
+            <div class="mb-6">
+                <iframe src="{% static 'peptide/notebooks/Supplementals/Supplemental_Figure_5_Summed Absorbancet.html' %}" width="100%" height="825px" style="border: none;"></iframe>
+            </div>
+        </section>
+
+        <!-- Formatted Figures and Tables Lists -->
+
+        <div class="mt-12 mb-8">
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Tables:</h2>
+            
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-gray-700 mb-2">Table S1. Data export specifications and file descriptions for supplemental datasets generated by the peptidomics analysis pipeline</h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-white border border-gray-300">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="px-6 py-2 border-b text-left font-semibold underline">Supplemental Table # <br> (Download Link)</th>
+                                <th class="px-6 py-2 border-b text-left font-semibold underline">Button Title</th>
+                                <th class="px-6 py-2 border-b text-left font-semibold underline">File Name</th>
+                                <th class="px-6 py-2 border-b text-left font-semibold underline">Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="px-6 py-2 border-b"><a href="{% static 'peptide/notebooks/Supplementals/Supplemental_Table_2_Merged_dataset.csv' %}" download class="text-blue-600 hover:text-blue-800 underline">S2</a></td>
+                                <td class="px-6 py-2 border-b">Merged Dataset</td>
+                                <td class="px-6 py-2 border-b">merged_dataframe.csv</td>
+                                <td class="px-6 py-2 border-b">Complete dataset with peptide identifications, abundances, and functional annotations</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-2 border-b"><a href="{% static 'peptide/notebooks/Supplementals/Supplemental_Table_3_MBPDB_SEARCH.tsv' %}" download class="text-blue-600 hover:text-blue-800 underline">S3</a></td>
+                                <td class="px-6 py-2 border-b">MBPDB Results</td>
+                                <td class="px-6 py-2 border-b">MBPDB_SEARCH.tsv</td>
+                                <td class="px-6 py-2 border-b">Bioactive peptide search results from MBPDB database or uploaded file</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-2 border-b"><a href="{% static 'peptide/notebooks/Supplementals/Supplemental_Table_4_Summed_functional_data.xlsx' %}" download class="text-blue-600 hover:text-blue-800 underline">S4</a></td>
+                                <td class="px-6 py-2 border-b">Summed Functional Data</td>
+                                <td class="px-6 py-2 border-b">Processed_mbpdb_results.xlsx</td>
+                                <td class="px-6 py-2 border-b">Aggregated functional data with abundance and count summaries</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-2 border-b"><a href="{% static 'peptide/notebooks/Supplementals/Supplemental_Table_5_Categorical_variable_definitions.json' %}" download class="text-blue-600 hover:text-blue-800 underline">S5</a></td>
+                                <td class="px-6 py-2 border-b">Group Definitions</td>
+                                <td class="px-6 py-2 border-b">categorical_variable_definitions.json</td>
+                                <td class="px-6 py-2 border-b">Sample grouping variables and experimental design definitions</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-2 border-b"><a href="{% static 'peptide/notebooks/Supplementals/Supplemental_Table_6_Group_correlations_pearson_log10.xlsx' %}" download class="text-blue-600 hover:text-blue-800 underline">S6</a></td>
+                                <td class="px-6 py-2 border-b">Sample-to-Sample Correlations</td>
+                                <td class="px-6 py-2 border-b">group_correlations_*.xlsx</td>
+                                <td class="px-6 py-2 border-b">Correlation coefficients <b>between</b> experimental groups</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-2 border-b"><a href="{% static 'peptide/notebooks/Supplementals/Supplemental_Table_7_Techinical_replicates_correlation_analysis_pearson_log10.xlsx' %}" download class="text-blue-600 hover:text-blue-800 underline">S7</a></td>
+                                <td class="px-6 py-2 border-b">Technical Replicate Correlations</td>
+                                <td class="px-6 py-2 border-b">correlation_analysis_*.xlsx</td>
+                                <td class="px-6 py-2 border-b">Correlation coefficients <b>within</b> experimental groups (technical replicates)</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-2 border-b"><a href="{% static 'peptide/notebooks/Supplementals/Supplemental_Table_8_Summed_peptide_results.xlsx' %}" download class="text-blue-600 hover:text-blue-800 underline">S8</a></td>
+                                <td class="px-6 py-2 border-b">Summed Peptide Results</td>
+                                <td class="px-6 py-2 border-b">summed_peptide_results.xlsx</td>
+                                <td class="px-6 py-2 border-b">Peptide abundance summaries (count and abundance) by experimental group</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-2 border-b"><a href="{% static 'peptide/notebooks/Supplementals/Supplemental_Table_9_Protein_absorbance_analysis.csv' %}" download class="text-blue-600 hover:text-blue-800 underline">S9</a></td>
+                                <td class="px-6 py-2 border-b">Protein Analysis Results</td>
+                                <td class="px-6 py-2 border-b">protein_absorbance_analysis.csv</td>
+                                <td class="px-6 py-2 border-b">Protein-level abundance distributions across groups</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-2 border-b"><a href="{% static 'peptide/notebooks/Supplementals/Supplemental_Table_10_List_of_Peptides_by_Sequences.csv' %}" download class="text-blue-600 hover:text-blue-800 underline">S10</a></td>
+                                <td class="px-6 py-2 border-b">List of Sequences</td>
+                                <td class="px-6 py-2 border-b">list_of_peptides_by_sequences.csv</td>
+                                <td class="px-6 py-2 border-b">Extracted list of unique peptide sequences detected per experimental group</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-sm text-gray-600 mt-2">*File names include correlation method ('_spearman' or '_pearson') and data transformation ('_log10' or '_raw') based on user selection</p>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

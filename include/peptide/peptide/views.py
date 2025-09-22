@@ -28,6 +28,9 @@ def voila_data_view(request):
 def voila_data_analysis_view(request):
     return render(request, 'peptide/data_analysis_plot.html')
 
+def supplementals_tables_and_figures(request):
+    return render(request, 'peptide/supplementals_tables_and_figures.html')
+
 #def voila_protein_bar_view(request):
 #    return render(request, 'peptide/protein_bar_plot.html')
 
