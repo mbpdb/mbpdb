@@ -39,26 +39,40 @@ jobs:
         fi
         echo "Found notebooks directory with $(find include/peptide/peptide/notebooks -name "*.ipynb" | wc -l) notebook files"
     
-    - name: Sync notebook contents (no history)
+    - name: Sync notebooks with commit info
       run: |
-        # Clone the target repository (shallow clone for efficiency)
-        git clone --depth 1 https://${{ secrets.PERSONAL_GITHUB_TOKEN }}@github.com/Kuhfeldrf/peptiline.git temp_repo
+        # Get commit info from the current push
+        COMMIT_MSG=$(git log --format=%s -n 1 ${{ github.sha }})
+        COMMIT_AUTHOR=$(git log --format="%an <%ae>" -n 1 ${{ github.sha }})
+        COMMIT_DATE=$(git log --format=%ad -n 1 ${{ github.sha }})
+        
+        # Clone the target repository
+        git clone https://${{ secrets.PERSONAL_GITHUB_TOKEN }}@github.com/Kuhfeldrf/peptiline.git temp_repo
         cd temp_repo
         
         # Remove all existing files except .git directory
         find . -maxdepth 1 -not -name '.git' -not -name '.' -exec rm -rf {} +
         
-        # Copy notebook files to root of target repo (contents only, not the folder)
+        # Copy current notebook files
         cp -r ../include/peptide/peptide/notebooks/* . 2>/dev/null || echo "No files to copy"
         
-        # Add and commit changes (this creates a new commit without preserving source history)
+        # Stage all changes
         git add .
+        
+        # Check if there are changes to commit
         if git diff --staged --quiet; then
           echo "No changes to commit"
         else
-          git commit -m "Sync notebook contents from MBPDB - $(date '+%Y-%m-%d %H:%M:%S')"
-          echo "Pushing notebook contents to main branch"
+          # Commit with original author info and enhanced message
+          git commit --author="$COMMIT_AUTHOR" --date="$COMMIT_DATE" -m "$COMMIT_MSG
+
+Synced from MBPDB notebooks directory
+Original commit: ${{ github.sha }}
+Repository: ${{ github.repository }}"
+          
+          echo "Pushing notebooks to main branch"
           git push origin main
+          echo "✅ Successfully synced with commit info preserved"
         fi
         
         # Return to original directory and cleanup
@@ -67,7 +81,7 @@ jobs:
     
     - name: Verify sync success
       run: |
-        echo "✅ Successfully synced notebooks with commit history preserved"
+        echo "✅ Successfully synced notebooks with commit info preserved"
         echo "📂 Repository URL: https://github.com/Kuhfeldrf/peptiline"
-        echo "📝 Note: Full commit history from the notebooks directory is preserved"
+        echo "📝 Note: Commit author, date, and message preserved from original MBPDB commit"
         echo "🔄 Changes are now live on the main branch"
