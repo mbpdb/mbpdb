@@ -64,11 +64,7 @@ jobs:
           echo "No changes to commit"
         else
           # Commit with original author info and enhanced message
-          git commit --author="$COMMIT_AUTHOR" --date="$COMMIT_DATE" -m "$COMMIT_MSG
-
-Synced from MBPDB notebooks directory
-Original commit: ${{ github.sha }}
-Repository: ${{ github.repository }}"
+          git commit --author="$COMMIT_AUTHOR" --date="$COMMIT_DATE" -m "$COMMIT_MSG"
           
           echo "Pushing notebooks to main branch"
           git push origin main
