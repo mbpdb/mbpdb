@@ -29,6 +29,9 @@ build.sh
 # Archive
 include/peptide/peptide/notebooks/archive/
 
+# Ignore needs_transformation folder
+include/peptide/peptide/notebooks/examples/needs_transformation/
+
 # Ignore any .venv folders
 .venv*/
 .env/
