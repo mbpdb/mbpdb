@@ -1,7 +1,7 @@
 # PeptiLine: An Interactive Platform for Customizable Functional Peptidomic Analysis
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 
 ## Overview
 PeptiLine transforms peptidomic mass spectrometry data into interactive visualizations and statistical summaries.
@@ -41,7 +41,7 @@ PeptiLine transforms peptidomic mass spectrometry data into interactive visualiz
 
 ## System Requirements
 - **OS:** Windows 10+, macOS 11+, Linux (Ubuntu 20.04+)
-- **Python:** 3.10+
+- **Python:** 3.12+
 - **Jupyter:** 7.4.5+
 - **RAM:** 4 GB minimum (8 GB for >5000 peptides)
 - **Storage:** 500 MB + user data
@@ -331,7 +331,7 @@ If API calls to UniProt time out:
 
 ### Python version compatibility
 If you experience import errors or unexpected behavior:
-- Verify Python version: `python --version` (should be 3.10 or higher)
+- Verify Python version: `python --version` (should be 3.12 or higher)
 - Ensure virtual environment is activated
 - Reinstall dependencies: `pip install -r notebook_requirements.txt --upgrade`
 
