@@ -53,3 +53,4 @@ lib/
 *.pyc
 __pycache__/
 lfg.sh
+include/peptide/peptide/notebooks/heatmap_visualization_backup copy.ipynb
