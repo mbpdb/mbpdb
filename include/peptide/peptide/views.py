@@ -139,15 +139,64 @@ def return_render_results(request, task_id):
         combined_results = []
         task_id_str = str(task_id)
         task_result = AsyncResult(task_id_str)
+        
+        # Initialize default values for template variables
+        peptide_option = []
+        matrix = []
+        description_to_pid = {}
+        unique_func = []
+        common_to_sci = {}
+        formated_header = ''
+        
         if task_result.ready():
+            # Check if task failed
+            if task_result.failed():
+                return render(request, 'peptide/results_section.html', {
+                    'errors': ['Task failed to complete. Please try again.'],
+                    'combined_results': [],
+                    'output_path': '',
+                    'data': request.POST,
+                    'peptide_option': peptide_option,
+                    'matrix': matrix,
+                    'latest_peptides': q,
+                    'description_to_pid': description_to_pid,
+                    'functions': unique_func,
+                    'common_to_sci_list': common_to_sci,
+                    'formated_header': formated_header,
+                    'table_headers': [],
+                    'function_counts': {},
+                    'species_counts': {},
+                    'protein_id_counts': {},
+                    'peptide_counts': {},
+                })
+            
             result_data = task_result.result
+            
+            # Handle case where result_data might be None
+            if result_data is None:
+                return render(request, 'peptide/results_section.html', {
+                    'errors': ['Results are not yet available. Please wait a moment and refresh.'],
+                    'combined_results': [],
+                    'output_path': '',
+                    'data': request.POST,
+                    'peptide_option': peptide_option,
+                    'matrix': matrix,
+                    'latest_peptides': q,
+                    'description_to_pid': description_to_pid,
+                    'functions': unique_func,
+                    'common_to_sci_list': common_to_sci,
+                    'formated_header': formated_header,
+                    'table_headers': [],
+                    'function_counts': {},
+                    'species_counts': {},
+                    'protein_id_counts': {},
+                    'peptide_counts': {},
+                })
 
             results = result_data.get('results', [])
-            formated_header = result_data.get('formated_header', [])
+            formated_header = result_data.get('formated_header', '')
             output_path = result_data.get('output_path', '')
             results_headers = result_data.get('results_headers', [])
-
-            FileResponse(open(output_path, 'rb'))
 
             # Given columns to check
             columns_to_check = [
@@ -240,7 +289,11 @@ def return_render_results(request, task_id):
                 'peptide_counts': peptide_counts,
             })
         else:
+            # Task not ready yet
             return render(request, 'peptide/results_section.html', {
+                'errors': ['Results are still being processed. Please wait...'],
+                'combined_results': [],
+                'output_path': '',
                 'data': request.POST,
                 'peptide_option': peptide_option,
                 'matrix': matrix,
@@ -248,6 +301,12 @@ def return_render_results(request, task_id):
                 'description_to_pid': description_to_pid,
                 'functions': unique_func,
                 'common_to_sci_list': common_to_sci,
+                'formated_header': formated_header,
+                'table_headers': [],
+                'function_counts': {},
+                'species_counts': {},
+                'protein_id_counts': {},
+                'peptide_counts': {},
             })
 
 def start_work(request):

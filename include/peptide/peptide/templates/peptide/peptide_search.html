@@ -356,35 +356,73 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
         });
     }
 
-    function renderResults(taskId) {
-        console.log('Rendering results for task ID:', taskId);
+    function renderResults(taskId, retryCount = 0) {
+        const MAX_RETRIES = 5;
+        const RETRY_DELAY = 1000; // 1 second
+        
+        console.log('Rendering results for task ID:', taskId, 'Retry:', retryCount);
         $.ajax({
             url: `/return_render_results/${taskId}/`,  // Pass taskId to fetch results specific to this task
             method: 'GET',
             success: function(data) {
                 console.log('Results data received, length:', data.length);
-                // Ensure that the results are rendered in a unique container for this task
-                let taskResultContainer = $(`#results-container-${taskId}`);
-                if (!taskResultContainer.length) {
-                    // If no container exists for this task, create one
-                    $('#results-container').append(`<div id="results-container-${taskId}" class="task-results"></div>`);
-                    taskResultContainer = $(`#results-container-${taskId}`);
-                } else {
-                    // If the container already exists, clear its content
-                    taskResultContainer.empty();
+                
+                // Check if we got valid HTML content
+                if (!data || data.trim().length === 0) {
+                    console.warn('Empty results data received');
+                    if (retryCount < MAX_RETRIES) {
+                        console.log('Retrying in', RETRY_DELAY, 'ms...');
+                        setTimeout(function() {
+                            renderResults(taskId, retryCount + 1);
+                        }, RETRY_DELAY);
+                        return;
+                    } else {
+                        $('#results-container').html('<p style="color: orange; padding: 20px;">Results are still being processed. Please wait a moment and refresh the page.</p>');
+                        return;
+                    }
                 }
-
-                taskResultContainer.html(data);  // Update the specific container with results
-
-                // Show the results container (if it was hidden before)
-                $('#results-container').show();
-                console.log('Results container shown, content length:', taskResultContainer.html().length);
-
-                attachToggleContentListeners();  // Re-attach event listeners if needed
+                
+                // Clear and prepare the main results container
+                let mainContainer = $('#results-container');
+                if (!mainContainer.length) {
+                    console.error('Results container not found!');
+                    return;
+                }
+                
+                // Clear any existing content
+                mainContainer.empty();
+                
+                // Insert the new results HTML
+                mainContainer.html(data);
+                
+                // Ensure the container is visible
+                mainContainer.show();
+                
+                console.log('Results container shown, content length:', mainContainer.html().length);
+                
+                // Re-attach event listeners for toggle buttons and filters
+                attachToggleContentListeners();
+                
+                // Re-attach filter checkbox handler
+                $('#filter-warnings').off('change').on('change', function() {
+                    if ($(this).is(':checked')) {
+                        $('.warning-row').hide();
+                    } else {
+                        $('.warning-row').show();
+                    }
+                });
             },
             error: function(err) {
                 console.error('Error rendering results:', err);
-                $('#task-progress').html('<p style="color: red;">Error loading results. Please try refreshing the page.</p>');
+                if (retryCount < MAX_RETRIES && err.status !== 404) {
+                    console.log('Retrying in', RETRY_DELAY, 'ms...');
+                    setTimeout(function() {
+                        renderResults(taskId, retryCount + 1);
+                    }, RETRY_DELAY);
+                } else {
+                    $('#task-progress').html('<p style="color: red;">Error loading results. Please try refreshing the page.</p>');
+                    $('#results-container').html('<p style="color: red; padding: 20px;">Failed to load results. Please try again or contact support if the problem persists.</p>');
+                }
             }
         });
     }
