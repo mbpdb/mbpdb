@@ -68,13 +68,15 @@ def check_progress(request, task_id):
     #print("elapsed_time_check_progress_in_progress",elapsed_time)
 
     if status == 'in_progress':
-        # Calculate estimated time remaining in seconds
-        if progress > 0:
+        # Calculate percent progress and estimated time remaining
+        if progress > 0 and size is not None and size > 0:
             percent_progress = progress / size * 100
-
-            total_estimated_time = elapsed_time / percent_progress
+            # Calculate estimated time remaining: (elapsed_time / percent_progress * 100) - elapsed_time
+            total_estimated_time = elapsed_time * 100 / percent_progress
+            estimated_time_remaining = total_estimated_time - elapsed_time
         else:
             percent_progress = 0.0
+            estimated_time_remaining = None
 
         return JsonResponse({
             'task_id': task_id,
@@ -82,6 +84,7 @@ def check_progress(request, task_id):
             'progress': progress,
             'size': size,
             'elapsed_time': elapsed_time,
+            'estimated_time_remaining': estimated_time_remaining,
             'status': status
         })
 

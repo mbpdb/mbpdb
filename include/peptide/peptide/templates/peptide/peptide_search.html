@@ -357,10 +357,12 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     }
 
     function renderResults(taskId) {
+        console.log('Rendering results for task ID:', taskId);
         $.ajax({
             url: `/return_render_results/${taskId}/`,  // Pass taskId to fetch results specific to this task
             method: 'GET',
             success: function(data) {
+                console.log('Results data received, length:', data.length);
                 // Ensure that the results are rendered in a unique container for this task
                 let taskResultContainer = $(`#results-container-${taskId}`);
                 if (!taskResultContainer.length) {
@@ -376,11 +378,13 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 
                 // Show the results container (if it was hidden before)
                 $('#results-container').show();
+                console.log('Results container shown, content length:', taskResultContainer.html().length);
 
                 attachToggleContentListeners();  // Re-attach event listeners if needed
             },
             error: function(err) {
                 console.error('Error rendering results:', err);
+                $('#task-progress').html('<p style="color: red;">Error loading results. Please try refreshing the page.</p>');
             }
         });
     }
@@ -490,8 +494,23 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
             success: function(data) {
                 console.log('Progress data:', data);
 
-                $('#task-progress').html('Progress: ' + data.percent_progress.toFixed(2) + '% (' + data.progress + ' processed out of ' + data.size + ').');
-                $('#elapsed-time').html('Elapsed time: ' + data.elapsed_time.toFixed(2) + ' seconds<br/>');
+                // Handle null/undefined size gracefully
+                var sizeDisplay = (data.size !== null && data.size !== undefined) ? data.size : 'unknown';
+                var progressText = 'Progress: ' + (data.percent_progress || 0).toFixed(2) + '% (' + (data.progress || 0) + ' processed out of ' + sizeDisplay + ').';
+                $('#task-progress').html(progressText);
+                
+                // Handle undefined elapsed_time gracefully
+                var elapsedTime = (data.elapsed_time !== null && data.elapsed_time !== undefined) ? data.elapsed_time.toFixed(2) : '0.00';
+                var timeInfo = 'Elapsed time: ' + elapsedTime + ' seconds';
+                
+                // Add estimated time remaining if available
+                if (data.estimated_time_remaining !== null && data.estimated_time_remaining !== undefined && data.estimated_time_remaining > 0) {
+                    var estimatedRemaining = data.estimated_time_remaining.toFixed(2);
+                    timeInfo += '<br/>Estimated time remaining: ' + estimatedRemaining + ' seconds';
+                }
+                
+                $('#elapsed-time').html(timeInfo + '<br/>');
+                
                 if (data.status == 'in_progress') {
                     setTimeout(function() {
                         pollProgress(taskId);
@@ -499,7 +518,11 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
                 } else if (data.status == 'complete') {
                     hideLoadingSpinner();
                     $('#task-progress').html('<p style="font-size: 1.5em;"><b>Search complete</b></p>');
-                    $('#elapsed-time').html('Elapsed time: ' + data.elapsed_time.toFixed(2) + ' seconds<br/>');
+                    var finalElapsedTime = (data.elapsed_time !== null && data.elapsed_time !== undefined) ? data.elapsed_time.toFixed(2) : '0.00';
+                    $('#elapsed-time').html('Elapsed time: ' + finalElapsedTime + ' seconds<br/>');
+                    
+                    // Ensure results container is visible before rendering
+                    $('#results-container').show();
                     renderResults(taskId);  // Pass taskId here
                     $('#search-db-btn').prop('disabled', false);
                     $('#search-db-btn').text('Search');
