@@ -33,7 +33,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     <td style="padding-left:0px">
         <label class="col-sm-6 col-form-label"><u>Homology&nbspSearch&nbspOptions:</u></label>
         <div class="col-sm-1">
-        <div class="mytooltip" style="z-index: {{ tooltip_counter }}">
+        <div class="mytooltip" data-z-index="{{ tooltip_counter }}">
                     <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
                     <div class="mytooltiptext" style="width:550px;">
                         To use the Homology Search Options, peptides must be entered above.
@@ -53,7 +53,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     </div>
 
     <div class="col-sm-1">
-        <div class="mytooltip" style="z-index: {{ tooltip_counter }}">
+        <div class="mytooltip" data-z-index="{{ tooltip_counter }}">
             <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
             <div class="mytooltiptext" style="width:580px;">
                 Sequence: Searches for peptides with a match to the above peptide sequence.<br/>
@@ -85,7 +85,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
      </div>
 
                 <div class="col-sm-1">
-                <div class="mytooltip" style="z-index: {{ tooltip_counter }}">
+                <div class="mytooltip" data-z-index="{{ tooltip_counter }}">
                     <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
                     <div class="mytooltiptext" style="width:550px;">
                         The similarity threshold is used with the search type in the following ways:
@@ -114,7 +114,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
             </div>
 
             <div class="col-sm-1">
-                <div class="mytooltip" style="z-index: {{ tooltip_counter }}">
+                <div class="mytooltip" data-z-index="{{ tooltip_counter }}">
                     <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
                     <div class="mytooltiptext" style="width:500px;">
                         The scoring matrix determines how the matches will occur:
@@ -132,7 +132,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 <tr><td style="padding-left:0px">
         <label class="col-sm-6 col-form-label"><u>Categorical&nbspSearch&nbspOptions:</u></label>
         <div class="col-sm-1">
-        <div class="mytooltip" style="z-index: {{ tooltip_counter }}">
+        <div class="mytooltip" data-z-index="{{ tooltip_counter }}">
                     <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
                     <div class="mytooltiptext" style="width:550px;">
                         <li>Without peptides inputed above, the system retrieves all matches for Protein ID, Function, and Species.</li>
@@ -159,7 +159,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
         </div>
 
         <div class="col-sm-1">
-            <div class="mytooltip" style="z-index: {{ tooltip_counter }}">
+            <div class="mytooltip" data-z-index="{{ tooltip_counter }}">
                 <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
                 <div class="mytooltiptext" style="width:550px;">
                     Search the database for UniProt accession numbers (protein IDs):
@@ -189,7 +189,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     </div>
 
     <div class="col-sm-1">
-        <div class="mytooltip" style="z-index: {{ tooltip_counter }}">
+        <div class="mytooltip" data-z-index="{{ tooltip_counter }}">
             <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
             <div class="mytooltiptext" style="width:550px;">
                 Search the database for the bioactivity function of peptides:
@@ -220,7 +220,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     </div>
 
     <div class="col-sm-1">
-        <div class="mytooltip" style="z-index: {{ tooltip_counter }}">
+        <div class="mytooltip" data-z-index="{{ tooltip_counter }}">
             <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
             <div class="mytooltiptext" style="width:550px;">
                 Search the database for the species of origin for each peptide:
@@ -554,6 +554,11 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             collapsibleDiv.style.maxHeight = maxHeight;
         }
+    });
+
+    // Set z-index values from data attributes to avoid CSS linter errors with Django template syntax
+    document.querySelectorAll('.mytooltip[data-z-index]').forEach(function(element) {
+        element.style.zIndex = element.getAttribute('data-z-index');
     });
 });
 
