@@ -55,7 +55,7 @@ def get_active_tasks(request):
     #print("active_taskID:",active_tasks)
     #print("i",i)
     return JsonResponse({'active_task_ids': task_ids,
-                         'errors': errors})
+                         'errors': []})
 
 #Polls progress of celery task and returns to website
 def check_progress(request, task_id):
@@ -118,11 +118,14 @@ def check_progress(request, task_id):
         })
         """
     else:
-        # Ensure task_result.info is a dictionary
+        # Handle any other status (e.g., 'failed', 'pending', etc.)
         response_data = {
-            'status': task_result.status,
-            'progress': task_result.info.get('progress', 0),
-            'elapsed_time': task_result.info.get('elapsed_time', 0),
+            'task_id': task_id,
+            'status': status,
+            'percent_progress': 0.0,
+            'progress': progress,
+            'size': size,
+            'elapsed_time': elapsed_time,
         }
         return JsonResponse(response_data)
 
@@ -245,12 +248,14 @@ def return_render_results(request, task_id):
             })
 
 def start_work(request):
-    #peptide_search(request)
-    #task = pepdb_multi_search_manual.delay('', '', '', '', '', '', '', '', '')
-    #task_id = task.id  # Extiract the task ID from the AsyncResult
-    print("task_result", task)  # This will print the AsyncResult object
-    print(f"Task ID: {task_id}")  # This will print the task ID
-
+    # Get the task_id from cache (set by peptide_search)
+    # Use a session-based key to track the most recent task for this user
+    session_key = request.session.session_key or 'anonymous'
+    task_id = cache.get(f'latest_task_{session_key}')
+    
+    if not task_id:
+        return JsonResponse({'error': 'No task found. Please submit a search first.'}, status=400)
+    
     return JsonResponse({'task_id': task_id})
 
 def get_request_parameter(request, param_name):
@@ -345,6 +350,12 @@ def peptide_search(request):
             global task, task_id
             task = pepdb_multi_search_manual.delay(pepfile_path,peptide_option,pid,function,seqsim,matrix,extra,species,no_pep)
             task_id = task.id
+            # Store task_id in cache for start_work to retrieve
+            session_key = request.session.session_key or 'anonymous'
+            cache.set(f'latest_task_{session_key}', task_id, timeout=3600)  # Store for 1 hour
+            # Return JSON for AJAX requests, HTML for regular requests
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'task_id': task_id, 'errors': []})
             return render(request, 'peptide/peptide_search.html', {
                 'errors': errors,
                 'data': request.POST,

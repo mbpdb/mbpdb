@@ -307,7 +307,11 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
             },
             error: function(err) {
                 console.error('Error submitting form data:', err);
-                displayErrors(data.errors);  // Display the errors
+                let errorMessages = ['An error occurred while fetching active tasks. Please try again.'];
+                if (err.responseJSON && err.responseJSON.errors) {
+                    errorMessages = err.responseJSON.errors;
+                }
+                displayErrors(errorMessages);
                 hideLoadingSpinner();
                 $('#search-db-btn').prop('disabled', false);
                 $('#search-db-btn').text('Search');
@@ -433,6 +437,9 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
         $.ajax({
             url: '/',  // Ensure the URL points to the correct view
             method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
             data: formData,
             success: function(data) {
                 if (data.errors && data.errors.length > 0) {
@@ -442,12 +449,25 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
                     $('#search-db-btn').text('Search');
                 } else {
                     console.log('Form data submitted successfully');
-                    fetchActiveTasks(startTask);  // Fetch active tasks and then start a new task
+                    // If task_id is in the response, use it directly
+                    if (data.task_id) {
+                        console.log('Task ID from response:', data.task_id);
+                        $('#task-progress').html('<p>Task started</p>');
+                        showLoadingSpinner();
+                        pollProgress(data.task_id);
+                    } else {
+                        // Otherwise, fetch active tasks and then start a new task
+                        fetchActiveTasks(startTask);
+                    }
                 }
             },
             error: function(err) {
                 console.error('Error submitting form data:', err);
-                displayErrors(data.errors);  // Display the errors
+                let errorMessages = ['An error occurred while submitting the search. Please try again.'];
+                if (err.responseJSON && err.responseJSON.errors) {
+                    errorMessages = err.responseJSON.errors;
+                }
+                displayErrors(errorMessages);
                 $('#search-db-btn').prop('disabled', false);
                 $('#search-db-btn').text('Search');
                 $('#task-progress').hide();
@@ -571,9 +591,16 @@ document.querySelector('input[name="inputfile"]').addEventListener('change', fun
 });
 
 
-document.getElementById('downloadLink').addEventListener('click', function() {
-    document.getElementById('hiddenButton').click();
-});
+// Only add event listener if downloadLink exists
+const downloadLink = document.getElementById('downloadLink');
+if (downloadLink) {
+    downloadLink.addEventListener('click', function() {
+        const hiddenButton = document.getElementById('hiddenButton');
+        if (hiddenButton) {
+            hiddenButton.click();
+        }
+    });
+}
 
 
 // This function checks if the input string has only allowed characters
