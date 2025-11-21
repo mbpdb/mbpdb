@@ -310,23 +310,23 @@ def pepdb_multi_search_manual(self, pepfile_path, peptide_option, pid, function,
     out = open(output_path, 'w', encoding='utf-8')
     writer = csv.writer(out, delimiter='\t')
 
-    # Create a variable for common CSV headers
-    common_csv_headers = ('Search&nbsppeptide',
-                          'Protein&nbspID',
-                          'Peptide&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp',
-                          'Protein&nbspdescription',
-                          'Species&nbsp&nbsp&nbsp&nbsp',
+    # Create a variable for common CSV headers (clean names without &nbsp)
+    common_csv_headers = ('Search peptide',
+                          'Protein ID',
+                          'Peptide',
+                          'Protein description',
+                          'Species',
                           'Intervals',
-                          'Function&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp',
-                          'Additional&nbspdetails',
-                          'IC50&nbsp(μM)&nbsp&nbsp&nbsp&nbsp',
-                          'Inhibition&nbsptype',
-                          'Inhibited&nbspmicroorganisms',
+                          'Function',
+                          'Additional details',
+                          'IC50 (μM)',
+                          'Inhibition type',
+                          'Inhibited microorganisms',
                           'PTM',
-                          "Title&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp",#107 whiteshapce characters
-                          "Authors&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp", #35 characters
-                          "Abstract&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp", #107 whiteshapce characters
-                          'DOI&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp',
+                          'Title',
+                          'Authors',
+                          'Abstract',
+                          'DOI',
                           'Search type',
                           'Scoring matrix')
 
@@ -334,7 +334,7 @@ def pepdb_multi_search_manual(self, pepfile_path, peptide_option, pid, function,
     blast_output_headers = ('% Alignment', 'Query start', 'Query end', 'Subject start', 'Subject end', 'e-value',
                             'Alignment length', 'Mismatches', 'Gap opens')
     if no_pep:
-        common_csv_headers = tuple(header for header in common_csv_headers if header not in {'Search&nbsppeptide', 'Search type', 'Scoring matrix'})
+        common_csv_headers = tuple(header for header in common_csv_headers if header not in {'Search peptide', 'Search type', 'Scoring matrix'})
 
 
     with open(input_pep_path, 'r') as pepfile:
@@ -346,12 +346,8 @@ def pepdb_multi_search_manual(self, pepfile_path, peptide_option, pid, function,
     cache.set(f'size_{self.request.id}', cont_size)
     #(f'size_{self.request.id} = {cont_size}')
     for header in common_csv_headers:
-        # Replace &nbsp when it's between two characters (word or non-word) with a space.
-        header = re.sub(r'(?<=[\w\W])&nbsp(?=[\w\W])', ' ', header)
-        # Replace &nbsp when it's not surrounded by characters with nothing.
-        cleaned_header = re.sub(r'&nbsp', '', header)
-        # Strip leading and trailing whitespace
-        cleaned_header = cleaned_header.strip()
+        # Headers are already clean, just strip whitespace
+        cleaned_header = header.strip()
         common_csv_headers_file.append(cleaned_header)
 
     if extra and seqsim != 100:

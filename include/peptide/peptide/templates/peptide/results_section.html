@@ -1,6 +1,7 @@
+{% load custom_filters %}
 <div class="results-content">
-      <style>
-        #summary_tcontainerable {
+    <style>
+        #summary_table {
             width: 720px;
             border-collapse: collapse;
             margin-bottom: 20px;
@@ -8,45 +9,126 @@
         #summary_table th, #summary_table td {
             padding: 10px;
             vertical-align: top;
-            text-align: center; /* Center align by default */
-            border-bottom: 1px solid black; /* Standard bottom border for all cells */
+            text-align: center;
+            border-bottom: 1px solid black;
         }
         #summary_table th.title {
-            font-size: 1.5em; /* Larger font size for the full results title */
-            text-align: left; /* Left align the text for the first column */
-            border-bottom: 3px solid black; /* Thick bottom border for the title row */
-            padding-bottom: 5px; /* Adjust this value as needed for whitespace */
-            margin-bottom: 20px; /* Adjust this value to match the space below the 'Full Results' title */
-           }
+            font-size: 1.5em;
+            text-align: left;
+            border-bottom: 3px solid black;
+            padding-bottom: 5px;
+            margin-bottom: 20px;
+        }
         #summary_table th:not(.title), #summary_table td {
-            border-bottom: 1px solid black; /* Standard bottom border for header and data cells */
+            border-bottom: 1px solid black;
         }
         #summary_table td.left-col {
-            text-align: left; /* Left align the text for the first column */
-            border-right: 1px solid black; /* Right border for the first column */
+            text-align: left;
+            border-right: 1px solid black;
         }
-         .count-cell {
-            display: inline; /* Ensure the count is on the same line */
+        .count-cell {
+            display: inline;
         }
-        #results_table .full-results-title {
-            padding: 10px;
-            font-size: 1.5em; /* Larger font size for the full results title */
+        
+        /* DataTables styling */
+        #results_table_wrapper {
+            margin-top: 20px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        #results_table {
+            width: 100% !important;
+            border-collapse: collapse;
+        }
+        #results_table thead tr:first-child th {
+            background-color: #f8f9fa;
             font-weight: bold;
-            text-align: center;;
-            border-bottom: 3px solid black; /* Thick bottom border for the full results title row */
-            border-top: 3px solid white;
-            border-left: 3px solid white;
-            border-right: 3px solid white;
-            padding-bottom: 5px; /* Adjust this value as needed for whitespace */
-            margin-bottom: 20px; /* Adjust this value to match the space below the 'Full Results' title */
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #dee2e6;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        #results_table thead .filter-row {
+            position: sticky;
+            top: 48px;
+            z-index: 99;
+            background-color: #f8f9fa;
+        }
+        #results_table thead .filter-row th {
+            background-color: #f8f9fa;
+        }
+        #results_table tbody td {
+            padding: 10px;
+            border-bottom: 1px solid #dee2e6;
+            word-wrap: break-word;
+        }
+        #results_table tbody tr:hover {
+            background-color: #f5f5f5;
+        }
+        .warning-row {
+            background-color: #fff3cd !important;
+        }
+        .warning-row td {
+            padding: 15px !important;
+        }
+        
+        /* Filter row styling */
+        thead .filter-row th {
+            padding: 8px !important;
+            border-bottom: 2px solid #dee2e6;
+        }
+        thead .filter-row input {
+            font-size: 12px;
+        }
+        
+        /* Warning message styling */
+        .warning-row-message {
+            background-color: #fff3cd;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: 1px solid #ffc107;
+        }
+        
+        /* Collapsible abstract */
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .toggle-content {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .toggle-content:hover {
+            background-color: #0056b3;
+        }
+        
+        /* DataTables search box styling */
+        .dataTables_filter {
+            margin-bottom: 15px;
+        }
+        .dataTables_filter input {
+            padding: 6px 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            margin-left: 10px;
         }
     </style>
+
 {% if not errors and combined_results or warnings %}
 
     <table id="summary_table">
         <thead>
             <tr>
-                <th colspan="5" class="title">Results Summary</th> <!-- Span the title across all columns -->
+                <th colspan="5" class="title">Results Summary</th>
             </tr>
             <tr class="header-row">
                 <th> </th>
@@ -59,7 +141,7 @@
         <tbody>
             <tr>
                 <td class="left-col"><b>Grouped Results:</b></td>
-                <td class = ".mid-col" >
+                <td class="mid-col">
                     <!--{% for peptide, count in peptide_counts.items %}
                         {{ peptide }}: {{ count }}<br>
                     {% endfor %}-->
@@ -90,48 +172,66 @@
         </tbody>
     </table>
     <br/><br/>
-    <a href="{% url 'tsv_search_results' %}{{output_path}}">Download full rsesults as a TSV file</a> | If you are referencing this database: <a href="{% url 'about_us' %}#Cite" style="font-size: 20px;"> <b>please cite</b></a>
+    <a href="{% url 'tsv_search_results' %}{{output_path}}">Download full results as a TSV file</a> | If you are referencing this database: <a href="{% url 'about_us' %}#Cite" style="font-size: 20px;"> <b>please cite</b></a>
     <br/><br/>
-    <label for="filter-warnings">
-        <input type="checkbox" id="filter-warnings"> Only show matching peptide results
-    </label>
-    <br/><br/>
-    <table border="1" id="results_table">
+    
+    <!-- Filter Controls -->
+    <div style="margin: 20px 0;">
+        <label for="filter-warnings">
+            <input type="checkbox" id="filter-warnings"> Only show matching peptide results
+        </label>
+    </div>
+    
+    <h3 style="margin-top: 20px; margin-bottom: 10px;">Full Results</h3>
+    
+    <!-- Warning messages displayed separately -->
+    <div id="warning-messages">
+        {% for item in combined_results %}
+            {% if item.type == "warning" %}
+                <div class="warning-row-message" style="background-color: #fff3cd; padding: 15px; margin-bottom: 10px; border-radius: 5px;">
+                    {{ item.data|safe }}
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+    
+    <table id="results_table" class="display" style="width:100%">
         <thead>
-        <!-- Full Results title row -->
-        <tr class="full-results-title">
-            <th colspan="{{ table_headers|length }}">&nbspFull Results</th>
-        </tr>
             <tr>
                 {% for header in table_headers %}
-                    <th style="padding:10px;" >
-                        {{ header | safe }}
+                    <th>{{ header }}</th>
+                {% endfor %}
+            </tr>
+            <tr class="filter-row">
+                {% for header in table_headers %}
+                    <th>
+                        {% if header == "Search peptide" or header == "Protein ID" or header == "Peptide" or header == "Protein description" or header == "Species" or header == "Intervals" or header == "Function" or header == "IC50 (μM)" or header == "Inhibition type" or header == "Inhibited microorganisms" or header == "Title" %}
+                            <input type="text" class="column-filter" data-column="{{ forloop.counter0 }}" placeholder="" style="width: 100%; padding: 4px; box-sizing: border-box; border: 1px solid #ced4da; border-radius: 3px;">
+                        {% endif %}
                     </th>
                 {% endfor %}
             </tr>
         </thead>
         <tbody>
             {% for item in combined_results %}
-                {% if item.type == "warning" %}
-                    <tr class="warning-row">
-                        <td colspan="{{ table_headers|length }}" style="padding:10px;">
-                            <div class="warning">
-                                {{ item.data|safe }}
-                            </div>
-                        </td>
-                    </tr>
-                {% else %}
+                {% if item.type != "warning" %}
                     <tr>
-                        {% for key, value in item.data.items %}
-                            <td style="padding:10px; max-width:125px; word-wrap:break-word;">
-                                {% if key == "Abstract&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp"%}
-                                    <button class="toggle-content">Show Abstract</button>
-                                    <div class="collapsible-content">
-                                        {{ value|safe }}
-                                    </div>
-                                {% else %}
-                                    {{ value|safe }}
-                                {% endif %}
+                        {% for header in table_headers %}
+                            <td>
+                                {% with value=item.data|get_item:header %}
+                                    {% if value %}
+                                        {% if header == "Abstract" %}
+                                            <button class="toggle-content">Show Abstract</button>
+                                            <div class="collapsible-content">
+                                                {{ value|safe }}
+                                            </div>
+                                        {% else %}
+                                            {{ value|safe }}
+                                        {% endif %}
+                                    {% else %}
+                                        &nbsp;
+                                    {% endif %}
+                                {% endwith %}
                             </td>
                         {% endfor %}
                     </tr>
@@ -140,18 +240,178 @@
         </tbody>
     </table>
 {% endif %}
+
+<!-- DataTables CSS -->
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css">
+
+<!-- DataTables JS -->
+<script type="text/javascript" src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+
 <script>
     $(document).ready(function() {
-        // Handle the filter checkbox
+        // Remove filter row temporarily for DataTables initialization
+        $('#results_table thead .filter-row').remove();
+        
+        // Initialize DataTable
+        var table = $('#results_table').DataTable({
+            responsive: true,
+            pageLength: 25,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
+            order: [],
+            columnDefs: [
+                { orderable: true, targets: '_all' }
+            ],
+            language: {
+                search: "Search all columns:",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                infoEmpty: "Showing 0 to 0 of 0 entries",
+                infoFiltered: "(filtered from _MAX_ total entries)"
+            },
+            initComplete: function() {
+                // Re-add filter row after initialization
+                var filterRow = $('<tr class="filter-row"></tr>');
+                var headerCount = $('#results_table thead tr:first th').length;
+                
+                for (var i = 0; i < headerCount; i++) {
+                    var headerText = $('#results_table thead tr:first th').eq(i).text().trim();
+                    var filterCell = $('<th></th>');
+                    
+                    // Add filter input for specified columns
+                    if (headerText == "Search peptide" || headerText == "Protein ID" || headerText == "Peptide" || 
+                        headerText == "Protein description" || headerText == "Species" || headerText == "Intervals" || 
+                        headerText == "Function" || headerText == "IC50 (μM)" || headerText == "Inhibition type" || 
+                        headerText == "Inhibited microorganisms" || headerText == "Title" || headerText == "Authors") {
+                        var input = $('<input>', {
+                            type: 'text',
+                            class: 'column-filter',
+                            'data-column': i,
+                            placeholder: '',
+                            style: 'width: 100%; padding: 4px; box-sizing: border-box; border: 1px solid #ced4da; border-radius: 3px;'
+                        });
+                        filterCell.append(input);
+                    }
+                    
+                    // Set wider widths for specific columns
+                    if (headerText == "Additional details") {
+                        filterCell.css('min-width', '200px');
+                        $('#results_table thead tr:first th').eq(i).css('min-width', '200px');
+                        $('#results_table tbody td:nth-child(' + (i + 1) + ')').css('min-width', '200px');
+                    } else if (headerText == "Title") {
+                        filterCell.css('min-width', '250px');
+                        $('#results_table thead tr:first th').eq(i).css('min-width', '250px');
+                        $('#results_table tbody td:nth-child(' + (i + 1) + ')').css('min-width', '250px');
+                    } else if (headerText == "Authors") {
+                        filterCell.css('min-width', '200px');
+                        $('#results_table thead tr:first th').eq(i).css('min-width', '200px');
+                        $('#results_table tbody td:nth-child(' + (i + 1) + ')').css('min-width', '200px');
+                    } else if (headerText == "Abstract") {
+                        filterCell.css('min-width', '300px');
+                        $('#results_table thead tr:first th').eq(i).css('min-width', '300px');
+                        $('#results_table tbody td:nth-child(' + (i + 1) + ')').css('min-width', '300px');
+                    }
+                    
+                    filterRow.append(filterCell);
+                }
+                
+                $('#results_table thead').append(filterRow);
+                
+                // Attach filter event handlers
+                $('.column-filter').on('keyup change', function() {
+                    table.draw();
+                });
+            }
+        });
+        
+        // Helper function to strip HTML and get text content
+        function getTextContent(html) {
+            if (!html) return '';
+            var tmp = $('<div>').html(html);
+            return tmp.text().trim();
+        }
+        
+        // Custom filter function for column filters and warnings
+        $.fn.dataTable.ext.search.push(
+            function(settings, data, dataIndex) {
+                // Only apply to our table
+                if (settings.nTable.id !== 'results_table') {
+                    return true;
+                }
+                
+                var showRow = true;
+                
+                // Filter warnings checkbox - hide warning messages
+                if ($('#filter-warnings').is(':checked')) {
+                    // Check if this row contains warning text (peptides that don't meet criteria or don't exist)
+                    var rowText = '';
+                    for (var i = 0; i < data.length; i++) {
+                        rowText += getTextContent(data[i] || '') + ' ';
+                    }
+                    rowText = rowText.toLowerCase();
+                    
+                    // Hide rows that contain warning messages
+                    if (rowText.indexOf('does not meet other search critera') !== -1 || 
+                        rowText.indexOf('does not exist in database') !== -1) {
+                        return false;
+                    }
+                }
+                
+                // Apply column-specific filters
+                $('.column-filter').each(function() {
+                    var columnIndex = parseInt($(this).data('column'));
+                    var filterValue = $(this).val().toLowerCase();
+                    
+                    if (filterValue !== '') {
+                        var cellValue = getTextContent(data[columnIndex] || '');
+                        if (cellValue.toLowerCase().indexOf(filterValue) === -1) {
+                            showRow = false;
+                            return false; // Break the loop
+                        }
+                    }
+                });
+                
+                return showRow;
+            }
+        );
+        
+        // Handle column filter inputs
+        $('.column-filter').on('keyup change', function() {
+            table.draw();
+        });
+        
+        // Handle filter warnings checkbox
         $('#filter-warnings').on('change', function() {
             if ($(this).is(':checked')) {
-                // Hide all warning rows
-                $('.warning-row').hide();
+                $('#warning-messages').hide();
             } else {
-                // Show all warning rows
-                $('.warning-row').show();
+                $('#warning-messages').show();
             }
+            table.draw();
+        });
+        
+        // Attach toggle content listeners for abstracts
+        function attachToggleContentListeners() {
+            $('.toggle-content').off('click').on('click', function() {
+                var content = $(this).next('.collapsible-content');
+                if (content.css('max-height') === '0px' || content.css('max-height') === 'none') {
+                    content.css('max-height', content[0].scrollHeight + 'px');
+                    $(this).text('Hide Abstract');
+                } else {
+                    content.css('max-height', '0px');
+                    $(this).text('Show Abstract');
+                }
+            });
+        }
+        
+        attachToggleContentListeners();
+        
+        // Re-attach listeners after DataTables redraw
+        table.on('draw', function() {
+            attachToggleContentListeners();
         });
     });
 </script>
-<br/><br/><br/><br/></div>
+<br/><br/><br/><br/>
+</div>

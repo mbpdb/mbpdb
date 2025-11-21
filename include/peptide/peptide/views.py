@@ -200,10 +200,10 @@ def return_render_results(request, task_id):
 
             # Given columns to check
             columns_to_check = [
-                'Additional&nbspdetails',
-                'IC50&nbsp(μM)&nbsp&nbsp&nbsp&nbsp',
-                'Inhibition&nbsptype',
-                'Inhibited&nbspmicroorganisms',
+                'Additional details',
+                'IC50 (μM)',
+                'Inhibition type',
+                'Inhibited microorganisms',
                 'PTM'
             ]
 
@@ -237,12 +237,10 @@ def return_render_results(request, task_id):
             for item in combined_results:
                 if item['type'] == 'result':
                     # Extracting and adding unique values
-                    peptide = item['data'].get('Peptide&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp', None)
-                    species = item['data'].get('Species&nbsp&nbsp&nbsp&nbsp', None)
-                    function = item['data'].get(
-                        'Function&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp',
-                        None)
-                    protein_id = item['data'].get('Protein&nbspID', None)
+                    peptide = item['data'].get('Peptide', None)
+                    species = item['data'].get('Species', None)
+                    function = item['data'].get('Function', None)
+                    protein_id = item['data'].get('Protein ID', None)
 
                     # Update counts in dictionaries
                     if peptide:
