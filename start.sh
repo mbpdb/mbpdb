@@ -52,54 +52,52 @@ CELERY_PID=$!
 # Change to notebooks directory
 cd /app/include/peptide/peptide/notebooks
 
-# Start Voilà instance for Heatmap
-echo "Starting Voilà for Heatmap..."
-voila \
-    --no-browser \
-    --port=8866 \
-    --Voila.ip=127.0.0.1 \
-    --template=lab \
-    --Voila.base_url='/voila/heatmap/' \
-    --ServerApp.allow_origin='http://127.0.0.1:8000' \
-    --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
-    --ServerApp.token="${VOILA_TOKEN}" \
-    --ServerApp.allow_credentials=True \
-    --Voila.tornado_settings allow_origin=* \
-    --debug \
-    heatmap_visualization.ipynb &
+# Function to run Voila with auto-restart on crash
+run_voila_with_restart() {
+    local name=$1
+    local port=$2
+    local base_url=$3
+    local notebook=$4
+    
+    while true; do
+        echo "Starting Voilà for $name on port $port..."
+        voila \
+            --no-browser \
+            --port=$port \
+            --Voila.ip=127.0.0.1 \
+            --template=lab \
+            --Voila.base_url="$base_url" \
+            --ServerApp.allow_origin='http://127.0.0.1:8000' \
+            --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
+            --ServerApp.token="${VOILA_TOKEN}" \
+            --ServerApp.allow_credentials=True \
+            --Voila.tornado_settings allow_origin=* \
+            --Voila.preheat_kernel=True \
+            --Voila.cull_idle_timeout=0 \
+            --MappingKernelManager.cull_idle_timeout=0 \
+            --MappingKernelManager.cull_interval=0 \
+            --VoilaExecutor.timeout=600 \
+            --debug \
+            "$notebook"
+        
+        exit_code=$?
+        echo "Voilà $name exited with code $exit_code. Restarting in 3 seconds..."
+        sleep 3
+    done
+}
+
+# Start Voilà instances with auto-restart in background
+run_voila_with_restart "Heatmap" 8866 "/voila/heatmap/" "heatmap_visualization.ipynb" &
 VOILA_HEATMAP_PID=$!
 
-# Start Voilà instance for Data Transformation
-echo "Starting Voilà for Data Transformation..."
-voila \
-    --no-browser \
-    --port=8867 \
-    --Voila.ip=127.0.0.1 \
-    --template=lab \
-    --Voila.base_url='/voila/data_transformation/' \
-    --ServerApp.allow_origin='http://127.0.0.1:8000' \
-    --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
-    --ServerApp.token="${VOILA_TOKEN}" \
-    --ServerApp.allow_credentials=True \
-    --Voila.tornado_settings allow_origin=* \
-    --debug \
-    data_transformation.ipynb &
+sleep 3
+
+run_voila_with_restart "Data Transformation" 8867 "/voila/data_transformation/" "data_transformation.ipynb" &
 VOILA_DATA_PID=$!
 
-echo "Starting Voilà for Data Analysis..."
-voila \
-    --no-browser \
-    --port=8868 \
-    --Voila.ip=127.0.0.1 \
-    --template=lab \
-    --Voila.base_url='/voila/data_analysis/' \
-    --ServerApp.allow_origin='http://127.0.0.1:8000' \
-    --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
-    --ServerApp.token="${VOILA_TOKEN}" \
-    --ServerApp.allow_credentials=True \
-    --Voila.tornado_settings allow_origin=* \
-    --debug \
-    data_analysis.ipynb &
+sleep 3
+
+run_voila_with_restart "Data Analysis" 8868 "/voila/data_analysis/" "data_analysis.ipynb" &
 VOILA_DATA_ANALYSIS_PID=$!
 
 # Wait for all background processes

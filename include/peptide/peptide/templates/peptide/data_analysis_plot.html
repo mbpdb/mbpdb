@@ -1,4 +1,5 @@
 {% extends 'peptide/base.html' %}
+{% load static %}
 
 {% block 'content' %}
 <!-- Font Awesome -->
@@ -25,8 +26,33 @@
         margin-top: 6px;
         font-size: 1.3rem;
         color: #777;
-        white-space: nowrap;
         display: block;
+    }
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #ffffff;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 10;
+    }
+    .retry-btn {
+        margin-top: 15px;
+        padding: 8px 20px;
+        background: #1976d2;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        display: none;
+    }
+    .retry-btn:hover {
+        background: #1565c0;
     }
 </style>
 
@@ -35,9 +61,14 @@
         <div class="col-lg-12" style="height: 100%;">
             <div class="dashboard-header">
                 <h1><i class="fas fa-chart-bar chart-blue"></i> Data Analysis Dashboard</h1>
-                <span class="help-note" title="If the notebook fails to load, press Ctrl+Shift+R (Cmd+Shift+R on Mac) to hard refresh.">Problems loading notebook? Please do a hard refresh (Ctrl+Shift+R)</span>
+                <span class="help-note" id="status-text">Loading notebook...</span>
             </div>
-            <div style="width: 100%; height: calc(100vh - 180px); margin: 0; padding-bottom: 20px;">
+            <div style="width: 100%; height: calc(100vh - 180px); margin: 0; padding-bottom: 20px; position: relative;">
+                <div class="loading-overlay" id="loading-overlay">
+                    <img src="{% static 'peptide/VI5N.gif' %}" alt="Loading..." style="width: 50px; height: 128px;">
+                    <p id="loading-text" style="margin-top: 15px; color: #666;">Initializing notebook...</p>
+                    <button class="retry-btn" id="retry-btn" onclick="reloadIframe()">Retry Loading</button>
+                </div>
                 <iframe
                     id="data-iframe"
                     src="/voila/data_analysis/"
@@ -48,4 +79,75 @@
         </div>
     </div>
 </div>
+
+<script>
+(function() {
+    const iframe = document.getElementById('data-iframe');
+    const overlay = document.getElementById('loading-overlay');
+    const loadingText = document.getElementById('loading-text');
+    const retryBtn = document.getElementById('retry-btn');
+    const statusText = document.getElementById('status-text');
+    
+    let loadAttempts = 0;
+    const maxAttempts = 3;
+    let loadTimeout = null;
+    
+    function hideOverlay() {
+        overlay.style.display = 'none';
+        statusText.textContent = 'Notebook loaded successfully';
+        statusText.style.color = '#4caf50';
+    }
+    
+    function showRetry(message) {
+        loadingText.textContent = message;
+        retryBtn.style.display = 'block';
+        statusText.textContent = 'Failed to load - click Retry or hard refresh (Ctrl+Shift+R)';
+        statusText.style.color = '#f44336';
+    }
+    
+    window.reloadIframe = function() {
+        loadAttempts++;
+        retryBtn.style.display = 'none';
+        loadingText.textContent = 'Retrying... (attempt ' + loadAttempts + '/' + maxAttempts + ')';
+        statusText.textContent = 'Retrying...';
+        statusText.style.color = '#777';
+        
+        // Add cache-busting timestamp
+        iframe.src = '/voila/data_analysis/?t=' + Date.now();
+        
+        // Set timeout for this attempt
+        clearTimeout(loadTimeout);
+        loadTimeout = setTimeout(function() {
+            if (loadAttempts < maxAttempts) {
+                reloadIframe();
+            } else {
+                showRetry('Notebook failed to load after ' + maxAttempts + ' attempts');
+            }
+        }, 30000);
+    };
+    
+    iframe.onload = function() {
+        clearTimeout(loadTimeout);
+        setTimeout(function() {
+            hideOverlay();
+        }, 2000);
+    };
+    
+    iframe.onerror = function() {
+        clearTimeout(loadTimeout);
+        if (loadAttempts < maxAttempts) {
+            setTimeout(reloadIframe, 2000);
+        } else {
+            showRetry('Connection error');
+        }
+    };
+    
+    loadTimeout = setTimeout(function() {
+        if (overlay.style.display !== 'none') {
+            loadingText.textContent = 'Taking longer than expected...';
+            retryBtn.style.display = 'block';
+        }
+    }, 20000);
+})();
+</script>
 {% endblock %}
