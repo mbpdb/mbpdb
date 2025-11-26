@@ -90,14 +90,16 @@
     const VOILA_URL = '/voila/heatmap/';
     
     let loadAttempts = 0;
-    const maxAttempts = 5;
+    const maxAttempts = 3;
     let loadTimeout = null;
     let contentCheckInterval = null;
     let isLoading = false;
     
     // Debounce rapid page loads - store last load time in sessionStorage
-    const DEBOUNCE_MS = 2000;
+    const DEBOUNCE_MS = 4000;
+    const COOLDOWN_AFTER_FAILURE_MS = 8000;
     const lastLoadKey = 'voila_heatmap_last_load';
+    const failureKey = 'voila_heatmap_last_failure';
     
     function hideOverlay() {
         overlay.style.display = 'none';
@@ -175,6 +177,9 @@
         
         iframe.src = 'about:blank';
         
+        // Longer delay between retries to let server recover
+        const retryDelay = loadAttempts > 1 ? 3000 : 1500;
+        
         setTimeout(function() {
             iframe.src = VOILA_URL + '?t=' + Date.now();
             sessionStorage.setItem(lastLoadKey, Date.now().toString());
@@ -188,12 +193,14 @@
                     loadingText.textContent = 'Taking longer than expected, retrying...';
                     reloadIframe();
                 } else {
-                    showRetry('Notebook failed to load after ' + maxAttempts + ' attempts');
+                    // Record failure time for cooldown
+                    sessionStorage.setItem(failureKey, Date.now().toString());
+                    showRetry('Notebook failed to load. Please wait a moment before retrying.');
                 }
-            }, 45000);
+            }, 60000);
             
             isLoading = false;
-        }, 1000);
+        }, retryDelay);
     };
     
     iframe.onload = function() {
@@ -239,11 +246,25 @@
     
     function initialLoad() {
         const lastLoad = parseInt(sessionStorage.getItem(lastLoadKey) || '0');
+        const lastFailure = parseInt(sessionStorage.getItem(failureKey) || '0');
         const timeSinceLastLoad = Date.now() - lastLoad;
-        const delay = timeSinceLastLoad < DEBOUNCE_MS ? (DEBOUNCE_MS - timeSinceLastLoad + 500) : 500;
+        const timeSinceFailure = Date.now() - lastFailure;
         
-        loadingText.textContent = 'Preparing notebook...';
+        // If there was a recent failure, add extra cooldown
+        let delay = 500;
+        if (timeSinceFailure < COOLDOWN_AFTER_FAILURE_MS) {
+            delay = COOLDOWN_AFTER_FAILURE_MS - timeSinceFailure + 1000;
+            loadingText.textContent = 'Cooling down after error...';
+        } else if (timeSinceLastLoad < DEBOUNCE_MS) {
+            delay = DEBOUNCE_MS - timeSinceLastLoad + 500;
+            loadingText.textContent = 'Preparing notebook...';
+        } else {
+            loadingText.textContent = 'Preparing notebook...';
+        }
+        
         setTimeout(function() {
+            // Reset attempts on fresh page load (not manual retry)
+            loadAttempts = 0;
             reloadIframe();
         }, delay);
     }
