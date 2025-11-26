@@ -71,7 +71,7 @@
                 </div>
                 <iframe
                     id="data-iframe"
-                    src="/voila/data_transformation/"
+                    src="about:blank"
                     style="width: 100%; height: 100%; border: none; overflow: hidden; display: block;"
                     allowfullscreen>
                 </iframe>
@@ -87,15 +87,28 @@
     const loadingText = document.getElementById('loading-text');
     const retryBtn = document.getElementById('retry-btn');
     const statusText = document.getElementById('status-text');
+    const VOILA_URL = '/voila/data_transformation/';
     
     let loadAttempts = 0;
-    const maxAttempts = 3;
+    const maxAttempts = 5;
     let loadTimeout = null;
+    let contentCheckInterval = null;
+    let isLoading = false;
+    
+    // Debounce rapid page loads - store last load time in sessionStorage
+    const DEBOUNCE_MS = 2000;
+    const lastLoadKey = 'voila_data_transform_last_load';
     
     function hideOverlay() {
         overlay.style.display = 'none';
         statusText.textContent = 'Notebook loaded successfully';
         statusText.style.color = '#4caf50';
+        clearInterval(contentCheckInterval);
+    }
+    
+    function showOverlay() {
+        overlay.style.display = 'flex';
+        retryBtn.style.display = 'none';
     }
     
     function showRetry(message) {
@@ -105,51 +118,162 @@
         statusText.style.color = '#f44336';
     }
     
+    function checkForRawCode() {
+        // Try to detect if raw code/text is being displayed instead of widgets
+        try {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            if (iframeDoc) {
+                const bodyText = iframeDoc.body ? iframeDoc.body.innerText : '';
+                const bodyHTML = iframeDoc.body ? iframeDoc.body.innerHTML : '';
+                
+                // Check for signs of raw code rendering (Python code patterns)
+                const codePatterns = [
+                    /^import\s+\w+/m,
+                    /^from\s+\w+\s+import/m,
+                    /^def\s+\w+\s*\(/m,
+                    /^class\s+\w+/m,
+                    /widgets\.VBox|widgets\.HBox|ipywidgets/,
+                    /display\s*\(\s*\w+\s*\)/
+                ];
+                
+                // If we see raw Python code in the body text, it's not rendered correctly
+                for (const pattern of codePatterns) {
+                    if (pattern.test(bodyText) && bodyText.length > 500) {
+                        // Make sure it's not just in a code output cell
+                        if (!bodyHTML.includes('jupyter-widgets') && !bodyHTML.includes('widget-subarea')) {
+                            return true; // Raw code detected
+                        }
+                    }
+                }
+                
+                // Check for 502 Bad Gateway
+                if (bodyText.includes('502 Bad Gateway') || bodyText.includes('503 Service')) {
+                    return true;
+                }
+            }
+        } catch (e) {
+            // Cross-origin - can't check, assume it's okay
+        }
+        return false;
+    }
+    
+    function checkContentRendered() {
+        try {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            if (iframeDoc && iframeDoc.body) {
+                const hasWidgets = iframeDoc.body.innerHTML.includes('jupyter-widgets') || 
+                                   iframeDoc.body.innerHTML.includes('widget-subarea') ||
+                                   iframeDoc.body.innerHTML.includes('jp-OutputArea');
+                return hasWidgets;
+            }
+        } catch (e) {
+            // Cross-origin, assume loaded after timeout
+        }
+        return false;
+    }
+    
     window.reloadIframe = function() {
+        if (isLoading) return;
+        isLoading = true;
+        
         loadAttempts++;
-        retryBtn.style.display = 'none';
-        loadingText.textContent = 'Retrying... (attempt ' + loadAttempts + '/' + maxAttempts + ')';
-        statusText.textContent = 'Retrying...';
+        showOverlay();
+        loadingText.textContent = loadAttempts > 1 ? 'Retrying... (attempt ' + loadAttempts + '/' + maxAttempts + ')' : 'Loading notebook...';
+        statusText.textContent = 'Loading notebook...';
         statusText.style.color = '#777';
         
-        // Add cache-busting timestamp
-        iframe.src = '/voila/data_transformation/?t=' + Date.now();
+        // Clear the iframe first
+        iframe.src = 'about:blank';
         
-        // Set timeout for this attempt
-        clearTimeout(loadTimeout);
-        loadTimeout = setTimeout(function() {
-            if (loadAttempts < maxAttempts) {
-                reloadIframe();
-            } else {
-                showRetry('Notebook failed to load after ' + maxAttempts + ' attempts');
-            }
-        }, 30000); // 30 second timeout per attempt
+        // Wait a moment for cleanup, then load
+        setTimeout(function() {
+            // Add cache-busting timestamp
+            iframe.src = VOILA_URL + '?t=' + Date.now();
+            sessionStorage.setItem(lastLoadKey, Date.now().toString());
+            
+            // Set timeout for this attempt
+            clearTimeout(loadTimeout);
+            clearInterval(contentCheckInterval);
+            
+            loadTimeout = setTimeout(function() {
+                isLoading = false;
+                if (loadAttempts < maxAttempts) {
+                    loadingText.textContent = 'Taking longer than expected, retrying...';
+                    reloadIframe();
+                } else {
+                    showRetry('Notebook failed to load after ' + maxAttempts + ' attempts');
+                }
+            }, 45000); // 45 second timeout per attempt
+            
+            isLoading = false;
+        }, 1000); // 1 second delay before loading
     };
     
     iframe.onload = function() {
         clearTimeout(loadTimeout);
-        // Give widgets a moment to initialize
-        setTimeout(function() {
-            hideOverlay();
-        }, 2000);
+        
+        // Check content after a delay to allow widgets to render
+        let checkCount = 0;
+        const maxChecks = 10;
+        
+        clearInterval(contentCheckInterval);
+        contentCheckInterval = setInterval(function() {
+            checkCount++;
+            
+            // Check for raw code (error condition)
+            if (checkForRawCode()) {
+                clearInterval(contentCheckInterval);
+                console.log('Raw code detected, reloading...');
+                if (loadAttempts < maxAttempts) {
+                    loadingText.textContent = 'Notebook not rendered correctly, retrying...';
+                    setTimeout(reloadIframe, 2000);
+                } else {
+                    showRetry('Notebook failed to render correctly');
+                }
+                return;
+            }
+            
+            // Check if widgets are rendered
+            if (checkContentRendered() || checkCount >= maxChecks) {
+                clearInterval(contentCheckInterval);
+                // Extra delay to ensure widgets are fully interactive
+                setTimeout(hideOverlay, 1500);
+            }
+        }, 500); // Check every 500ms
     };
     
     iframe.onerror = function() {
         clearTimeout(loadTimeout);
+        clearInterval(contentCheckInterval);
+        isLoading = false;
         if (loadAttempts < maxAttempts) {
-            setTimeout(reloadIframe, 2000);
+            loadingText.textContent = 'Connection error, retrying...';
+            setTimeout(reloadIframe, 3000);
         } else {
             showRetry('Connection error');
         }
     };
     
-    // Initial load timeout
-    loadTimeout = setTimeout(function() {
-        if (overlay.style.display !== 'none') {
-            loadingText.textContent = 'Taking longer than expected...';
-            retryBtn.style.display = 'block';
-        }
-    }, 20000);
+    // Initial load with debouncing
+    function initialLoad() {
+        const lastLoad = parseInt(sessionStorage.getItem(lastLoadKey) || '0');
+        const timeSinceLastLoad = Date.now() - lastLoad;
+        
+        // If page was loaded very recently, add extra delay
+        const delay = timeSinceLastLoad < DEBOUNCE_MS ? (DEBOUNCE_MS - timeSinceLastLoad + 500) : 500;
+        
+        loadingText.textContent = 'Preparing notebook...';
+        setTimeout(function() {
+            reloadIframe();
+        }, delay);
+    }
+    
+    // Start loading when DOM is ready
+    if (document.readyState === 'complete') {
+        initialLoad();
+    } else {
+        window.addEventListener('load', initialLoad);
+    }
 })();
 </script>
 {% endblock %}
