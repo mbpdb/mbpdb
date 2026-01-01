@@ -72,10 +72,10 @@ run_voila_with_restart() {
             --ServerApp.token="${VOILA_TOKEN}" \
             --ServerApp.allow_credentials=True \
             --Voila.tornado_settings allow_origin=* \
-            --Voila.preheat_kernel=True \
-            --Voila.cull_idle_timeout=0 \
-            --MappingKernelManager.cull_idle_timeout=0 \
-            --MappingKernelManager.cull_interval=0 \
+            --Voila.preheat_kernel=False \
+            --Voila.cull_idle_timeout=900 \
+            --MappingKernelManager.cull_idle_timeout=900 \
+            --MappingKernelManager.cull_interval=60 \
             --VoilaExecutor.timeout=600 \
             --debug \
             "$notebook"
