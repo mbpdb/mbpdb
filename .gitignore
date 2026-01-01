@@ -1,3 +1,24 @@
+# ===========================================
+# SECURITY - Database files (NEVER commit these)
+# ===========================================
+*.sqlite3
+db.sqlite3
+include/peptide/db.sqlite3
+
+# ===========================================
+# SECURITY - Environment and secret files
+# ===========================================
+.env
+*.env
+.env.*
+.env.local
+.env.production
+secrets.py
+local_settings.py
+
+# ===========================================
+# Original ignores
+# ===========================================
 *.pyc
 static_files/admin/js/vendor/select2/
 static_files/admin/css/vendor/select2/

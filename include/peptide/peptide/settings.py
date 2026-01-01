@@ -18,7 +18,15 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 # See https://docs.djangoproject.com/en/1.7/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = ')^j4*39ghmd&wz-@w2qwe!to989(#7*(0*v^(4kk1^!k@_t_y*'
+# SECRET_KEY must be set as an environment variable (DJANGO_SECRET_KEY)
+# Generate a new key with: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError(
+        "DJANGO_SECRET_KEY environment variable is not set. "
+        "Please set it in your environment or GitHub Secrets. "
+        "Generate a new key with: python -c \"from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())\""
+    )
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
