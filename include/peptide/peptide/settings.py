@@ -21,12 +21,29 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 # SECRET_KEY must be set as an environment variable (DJANGO_SECRET_KEY)
 # Generate a new key with: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+
+# Allow build-time operations (like collectstatic) without the real key
+# The real key MUST be set at runtime for the app to function securely
+_BUILDING = os.environ.get('BUILDING', 'false').lower() == 'true'
+
+# DEBUG: Print partial key to verify it's loaded (remove after debugging)
+if SECRET_KEY:
+    print(f"[DEBUG] DJANGO_SECRET_KEY loaded: {SECRET_KEY[:2]}...{SECRET_KEY[-2:]} (length: {len(SECRET_KEY)})")
+else:
+    print("[DEBUG] DJANGO_SECRET_KEY is NOT set or is empty!")
+    print(f"[DEBUG] Available env vars: {[k for k in os.environ.keys() if 'DJANGO' in k or 'SECRET' in k]}")
+
 if not SECRET_KEY:
-    raise ValueError(
-        "DJANGO_SECRET_KEY environment variable is not set. "
-        "Please set it in your environment or GitHub Secrets. "
-        "Generate a new key with: python -c \"from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())\""
-    )
+    if _BUILDING:
+        # Use a temporary key for build-time operations only (collectstatic, etc.)
+        SECRET_KEY = 'build-time-temporary-key-not-for-production'
+        print("[DEBUG] Using temporary build-time SECRET_KEY")
+    else:
+        raise ValueError(
+            "DJANGO_SECRET_KEY environment variable is not set. "
+            "Please set it in your environment or GitHub Secrets. "
+            "Generate a new key with: python -c \"from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())\""
+        )
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False

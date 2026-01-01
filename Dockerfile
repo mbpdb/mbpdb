@@ -89,8 +89,8 @@ ENV PYTHONPATH=/app/include/peptide:${BASE_PYTHONPATH}
 # Add these new commands for static files handling
 WORKDIR /app/include/peptide
 
-# Collect static files
-RUN python manage.py collectstatic --noinput
+# Collect static files (BUILDING=true allows this without SECRET_KEY)
+RUN BUILDING=true python manage.py collectstatic --noinput
 
 # Make sure static files are accessible
 RUN chmod -R 755 /app/include/peptide/static_files
