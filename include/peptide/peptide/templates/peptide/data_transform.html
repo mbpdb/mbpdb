@@ -66,7 +66,7 @@
             <div style="width: 100%; height: calc(100vh - 180px); margin: 0; padding-bottom: 20px; position: relative;">
                 <div class="loading-overlay" id="loading-overlay">
                     <img src="{% static 'peptide/VI5N.gif' %}" alt="Loading..." style="width: 50px; height: 128px;">
-                    <p id="loading-text" style="margin-top: 15px; color: #666;">Initializing notebook...</p>
+                    <p id="loading-text" style="margin-top: 15px; color: #666;">Starting new session...</p>
                     <button class="retry-btn" id="retry-btn" onclick="reloadIframe()">Retry Loading</button>
                 </div>
                 <iframe
@@ -180,8 +180,8 @@
         
         loadAttempts++;
         showOverlay();
-        loadingText.textContent = loadAttempts > 1 ? 'Retrying... (attempt ' + loadAttempts + '/' + maxAttempts + ')' : 'Loading notebook...';
-        statusText.textContent = 'Loading notebook...';
+        loadingText.textContent = loadAttempts > 1 ? 'Retrying... (attempt ' + loadAttempts + '/' + maxAttempts + ')' : 'Starting new session (this may take 15-30 seconds)...';
+        statusText.textContent = 'Starting new session...';
         statusText.style.color = '#777';
         
         // Clear the iframe first
@@ -210,7 +210,7 @@
                     sessionStorage.setItem(failureKey, Date.now().toString());
                     showRetry('Notebook failed to load. Please wait a moment before retrying.');
                 }
-            }, 60000); // 60 second timeout per attempt
+            }, 90000); // 90 second timeout per attempt (new kernels take longer to start)
             
             isLoading = false;
         }, retryDelay);
