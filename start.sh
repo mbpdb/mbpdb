@@ -67,16 +67,20 @@ run_voila_with_restart() {
             --Voila.ip=127.0.0.1 \
             --template=lab \
             --Voila.base_url="$base_url" \
-            --ServerApp.allow_origin='http://127.0.0.1:8000' \
-            --ServerApp.allow_websocket_origin='127.0.0.1:8000' \
+            --ServerApp.allow_origin='*' \
+            --ServerApp.allow_websocket_origin='*' \
             --ServerApp.token="${VOILA_TOKEN}" \
             --ServerApp.allow_credentials=True \
-            --Voila.tornado_settings allow_origin=* \
+            --ServerApp.disable_check_xsrf=True \
+            --Voila.tornado_settings="{'allow_origin': '*', 'xsrf_cookies': False}" \
             --Voila.preheat_kernel=False \
-            --Voila.cull_idle_timeout=900 \
-            --MappingKernelManager.cull_idle_timeout=900 \
-            --MappingKernelManager.cull_interval=60 \
+            --Voila.cull_idle_timeout=300 \
+            --MappingKernelManager.cull_idle_timeout=300 \
+            --MappingKernelManager.cull_interval=30 \
+            --MappingKernelManager.cull_connected=False \
             --VoilaExecutor.timeout=600 \
+            --VoilaConfiguration.file_whitelist="['.*']" \
+            --VoilaConfiguration.show_tracebacks=True \
             --debug \
             "$notebook"
         
