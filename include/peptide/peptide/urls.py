@@ -28,5 +28,6 @@ urlpatterns = [
     path('data_analysis/', views.voila_data_analysis_view, name='voila_data_analysis'),
     path('peptiline/', views.peptiline_landing, name='peptiline_landing'),
     path('supplementals_tables_and_figures/', views.supplementals_tables_and_figures, name='supplementals_tables_and_figures'),
+    path('interactive_figures/', views.interactive_figures, name='interactive_figures'),
 ]
 
