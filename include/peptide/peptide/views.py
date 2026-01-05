@@ -31,8 +31,8 @@ def voila_data_analysis_view(request):
 def supplementals_tables_and_figures(request):
     return render(request, 'peptide/supplementals_tables_and_figures.html')
 
-def interactive_figures(request):
-    return render(request, 'peptide/interactive_figures.html')
+def zukaitis_2026(request):
+    return render(request, 'peptide/zukaitis_2026.html')
 
 #def voila_protein_bar_view(request):
 #    return render(request, 'peptide/protein_bar_plot.html')
