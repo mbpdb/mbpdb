@@ -8,7 +8,7 @@ A comprehensive database of milk protein-derived bioactive peptides from any spe
 
 ## About
 
-The Milk Bioactive Peptide Database (MBPDB) includes all known bioactive peptides derived from milk proteins from any species. This platform allows inputting peptide sequences of interest, including the results of peptidomics analyses, to determine which have homology with known bioactive peptides.
+The Milk Bioactive Peptide Database (MBPDB) includes a curated list of bioactive peptides derived from milk proteins from any species, compiled from the scientific literature. This platform allows inputting peptide sequences of interest, including the results of peptidomics analyses, to determine which have homology with known bioactive peptides.
 
 ---
 
@@ -35,9 +35,10 @@ Explore and visualize peptide-protein relationships with an interactive interfac
 | Data Type | Records |
 |-----------|---------|
 | Bioactive Peptides | 712 |
-| Proteins | 120,538 |
-| Bioactive Functions | 916 |
+| Unique Bioactive Functions | 33 |
 | Literature References | 1,087 |
+
+*As of January 2026*
 
 ---
 
