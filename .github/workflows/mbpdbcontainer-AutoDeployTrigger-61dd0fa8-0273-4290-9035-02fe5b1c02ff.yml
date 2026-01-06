@@ -50,6 +50,12 @@ jobs:
           DATA_VIZ_PORT=8868
           GITHUB_PAT=${{ secrets.MY_GITHUB_PAT }}
           DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
+          DJANGO_ALLOWED_HOSTS=${{ secrets.DJANGO_ALLOWED_HOSTS }}
+          DJANGO_CORS_ORIGINS=${{ secrets.DJANGO_CORS_ORIGINS }}
+          DJANGO_CSRF_ORIGINS=${{ secrets.DJANGO_CSRF_ORIGINS }}
+          DJANGO_SUPERUSER_USERNAME=${{ secrets.DJANGO_SUPERUSER_USERNAME }}
+          DJANGO_SUPERUSER_EMAIL=${{ secrets.DJANGO_SUPERUSER_EMAIL }}
+          DJANGO_SUPERUSER_PASSWORD=${{ secrets.DJANGO_SUPERUSER_PASSWORD }}
           
     - name: Update environment variables
       run: |
@@ -66,4 +72,10 @@ jobs:
           DATA_PORT=8867 \
           DATA_VIZ_PORT=8868 \
           GITHUB_PAT=${{ secrets.MY_GITHUB_PAT }} \
-          DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }} 
+          DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }} \
+          DJANGO_ALLOWED_HOSTS="${{ secrets.DJANGO_ALLOWED_HOSTS }}" \
+          DJANGO_CORS_ORIGINS="${{ secrets.DJANGO_CORS_ORIGINS }}" \
+          DJANGO_CSRF_ORIGINS="${{ secrets.DJANGO_CSRF_ORIGINS }}" \
+          DJANGO_SUPERUSER_USERNAME="${{ secrets.DJANGO_SUPERUSER_USERNAME }}" \
+          DJANGO_SUPERUSER_EMAIL="${{ secrets.DJANGO_SUPERUSER_EMAIL }}" \
+          DJANGO_SUPERUSER_PASSWORD="${{ secrets.DJANGO_SUPERUSER_PASSWORD }}" 

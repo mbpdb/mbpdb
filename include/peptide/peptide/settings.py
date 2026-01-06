@@ -26,29 +26,26 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
 # The real key MUST be set at runtime for the app to function securely
 _BUILDING = os.environ.get('BUILDING', 'false').lower() == 'true'
 
-# DEBUG: Print partial key to verify it's loaded (remove after debugging)
-if SECRET_KEY:
-    print(f"[DEBUG] DJANGO_SECRET_KEY loaded: {SECRET_KEY[:2]}...{SECRET_KEY[-2:]} (length: {len(SECRET_KEY)})")
-else:
-    print("[DEBUG] DJANGO_SECRET_KEY is NOT set or is empty!")
-    print(f"[DEBUG] Available env vars: {[k for k in os.environ.keys() if 'DJANGO' in k or 'SECRET' in k]}")
 
 if not SECRET_KEY:
     if _BUILDING:
         # Use a temporary key for build-time operations only (collectstatic, etc.)
         SECRET_KEY = 'build-time-temporary-key-not-for-production'
-        print("[DEBUG] Using temporary build-time SECRET_KEY")
     else:
         raise ValueError(
             "DJANGO_SECRET_KEY environment variable is not set. "
-            "Please set it in your environment or GitHub Secrets. "
-            "Generate a new key with: python -c \"from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())\""
-        )
+       )
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['128.193.11.196', '127.0.0.1', 'localhost', '192.84.190.235', 'mbpdb.nws.oregonstate.edu','mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io']
+# ALLOWED_HOSTS loaded from environment variable (comma-separated)
+# Set DJANGO_ALLOWED_HOSTS in your environment or GitHub Secrets
+# Example: DJANGO_ALLOWED_HOSTS=mbpdb.nws.oregonstate.edu,localhost,127.0.0.1
+_default_hosts = ['127.0.0.1', 'localhost']
+_env_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '')
+_extra_hosts = [h.strip() for h in _env_hosts.split(',') if h.strip()] if _env_hosts else []
+ALLOWED_HOSTS = _default_hosts + _extra_hosts
 
 
 # Celery settings
@@ -94,21 +91,38 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     "whitenoise.middleware.WhiteNoiseMiddleware",
 ]
-CORS_ALLOWED_ORIGINS = [
-"https://mbpdb.nws.oregonstate.edu",
-    "https://mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io",
+# CORS and CSRF origins - production URLs loaded from environment
+# Set DJANGO_CORS_ORIGINS in your environment (comma-separated)
+# Example: DJANGO_CORS_ORIGINS=https://mbpdb.nws.oregonstate.edu,https://myapp.azurecontainerapps.io
+_default_cors = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
-    "http://localhost:8866",
-    "http://127.0.0.1:8866"
-]
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
+    # Voila instances (local)
     "http://localhost:8866",
     "http://127.0.0.1:8866",
-    'https://mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io',
-    'https://mbpdb.nws.oregonstate.edu']
+    "http://localhost:8867",
+    "http://127.0.0.1:8867",
+    "http://localhost:8868",
+    "http://127.0.0.1:8868",
+]
+_env_cors = os.environ.get('DJANGO_CORS_ORIGINS', '')
+_extra_cors = [h.strip() for h in _env_cors.split(',') if h.strip()] if _env_cors else []
+CORS_ALLOWED_ORIGINS = _default_cors + _extra_cors
+
+_default_csrf = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    # Voila instances (local)
+    "http://localhost:8866",
+    "http://127.0.0.1:8866",
+    "http://localhost:8867",
+    "http://127.0.0.1:8867",
+    "http://localhost:8868",
+    "http://127.0.0.1:8868",
+]
+_env_csrf = os.environ.get('DJANGO_CSRF_ORIGINS', '')
+_extra_csrf = [h.strip() for h in _env_csrf.split(',') if h.strip()] if _env_csrf else []
+CSRF_TRUSTED_ORIGINS = _default_csrf + _extra_csrf
 
 
 ROOT_URLCONF = 'peptide.urls'
