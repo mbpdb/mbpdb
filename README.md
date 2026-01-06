@@ -1,190 +1,160 @@
-# Milk Bioactive Peptide Database  
-## Current live version
-### https://mbpdb.nws.oregonstate.edu/  
+# Milk Bioactive Peptide Database (MBPDB)
 
-## Updated demo version 
-### https://mbpdbcontainer.lemonisland-71b15397.westus3.azurecontainerapps.io/
+[![Live Site](https://img.shields.io/badge/Live%20Site-mbpdb.nws.oregonstate.edu-blue)](https://mbpdb.nws.oregonstate.edu/)
+[![Django](https://img.shields.io/badge/Django-4.x-green)](https://www.djangoproject.com/)
+[![Python](https://img.shields.io/badge/Python-3.11-blue)](https://www.python.org/)
 
-# Database infromation:  
-### Database file: /include/peptide/db.sqlite3  
-### tables:
-sqlite> .tables   
-- auth_group                      
-- auth_group_permissions           
-- auth_permission                 
-- auth_user                       
-- auth_user_groups               
-- auth_user_user_permissions      
-- django_admin_log                
-- django_content_type             
-- django_migrations    
-- django_session   
-- peptide_counter  
-- peptide_function  
-- peptide_peptideinfo
-- peptide_proteininfo  
-- peptide_proteinvariant  
-- peptide_reference  
-- peptide_submission  
+A comprehensive database and analysis platform for milk protein-derived bioactive peptides from any species. MBPDB enables researchers to search, analyze, and visualize peptide sequences with known bioactivities.
 
+🔗 **Live Application**: [https://mbpdb.nws.oregonstate.edu/](https://mbpdb.nws.oregonstate.edu/)
 
-### auth_user
-sqlite> SELECT COUNT(*) FROM auth_user;  
-6  
+---
 
-sqlite> PRAGMA table_info(auth_user);  
-0|id|INTEGER|1||1  
-1|password|varchar(128)|1||0  
-2|last_login|datetime|0||0  
-3|is_superuser|bool|1||0  
-4|username|varchar(150)|1||0  
-5|last_name|varchar(150)|1||0  
-6|email|varchar(254)|1||0  
-7|is_staff|bool|1||0  
-8|is_active|bool|1||0  
-9|date_joined|datetime|1||0  
-10|first_name|varchar(150)|1||0  
+## 📋 Features
 
+### 🔍 Peptide Search
+Search the database for bioactive peptides using sequence homology, including results from peptidomics analyses.
 
-### auth_user_user_permissions
-sqlite> SELECT COUNT(*) FROM auth_user_user_permissions;  
-39  
+### 📊 PeptiLine
+Interactive visual mapping of peptides on their parent protein sequences, highlighting regions with high concentrations of bioactive peptides.
 
-sqlite> PRAGMA table_info(auth_user_user_permissions);  
-0|id|INTEGER|1||1  
-1|user_id|INTEGER|1||0  
-2|permission_id|INTEGER|1||0  
+### 🧬 PepEx (Peptide Explorer)
+Explore and visualize peptide-protein relationships with an interactive interface.
 
+### 🛠️ Analysis Tools
+- **Data Transformation** - Transform and prepare peptidomics data
+- **Data Analysis** - Statistical analysis of peptide datasets
+- **Heatmap Visualization** - Generate heatmaps for peptide abundance and activity patterns
 
-### django_admin_log
-sqlite> SELECT COUNT(*) FROM django_admin_log;  
-1055    
+---
 
-sqlite> PRAGMA table_info(django_admin_log);  
-0|id|INTEGER|1||1  
-1|object_id|TEXT|0||0  
-2|object_repr|varchar(200)|1||0  
-3|action_flag|smallint unsigned|1||0  
-4|change_message|TEXT|1||0  
-5|content_type_id|INTEGER|0||0  
-6|user_id|INTEGER|1||0  
-7|action_time|datetime|1||0  
+## 📊 Database Contents
 
+| Table | Records | Description |
+|-------|---------|-------------|
+| Peptides | 712 | Bioactive peptide sequences |
+| Proteins | 120,538 | Parent protein information |
+| Functions | 916 | Documented bioactive functions |
+| References | 1,087 | Literature citations |
+| Protein Variants | 26 | Protein sequence variants |
 
-### django_migrations
-sqlite> SELECT COUNT(*) FROM django_migrations;  
-62  
+---
 
-sqlite> PRAGMA table_info(django_migrations);  
-1|contenttypes|0001_initial|2014-11-24 22:46:12.044994  
-2|auth|0001_initial|2014-11-24 22:46:12.370643  
-3|admin|0001_initial|2014-11-24 22:46:12.638026  
+## 🏗️ Technology Stack
 
+- **Backend**: Django 4.x, Celery, Redis
+- **Interactive Notebooks**: Voila (Jupyter)
+- **Database**: SQLite
+- **Web Server**: Nginx, Gunicorn
+- **Containerization**: Docker
+- **Deployment**: Azure Container Apps
 
-### django_session
-sqlite> SELECT COUNT(*) FROM django_session;  
-127  
+---
 
-sqlite> PRAGMA table_info(django_session);  
-0|session_key|varchar(40)|1||1  
-1|session_data|TEXT|1||0  
-2|expire_date|datetime|1||0  
+## 🚀 Local Development
 
+### Prerequisites
+- Python 3.11+
+- Redis server
+- Docker (optional)
 
-### peptide_counter
-sqlite> SELECT COUNT(*) FROM peptide_counter;  
-2022 = 68414  
-2023 = 232186  
+### Setup
 
-sqlite> PRAGMA table_info(peptide_counter);  
-0|id|INTEGER|1||1  
-1|ip|varchar(40)|1||0  
-2|access_time|datetime|1||0  
-3|page|varchar(40)|1||0  
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/mbpdb/mbpdb.git
+   cd mbpdb
+   ```
 
+2. **Create virtual environment**
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # Linux/Mac
+   # or .venv\Scripts\activate  # Windows
+   ```
 
-### peptide_function
-sqlite> SELECT COUNT(*) FROM peptide_function;  
-916  
+3. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-sqlite> PRAGMA table_info(peptide_function);  
-0|id|INTEGER|1||1  
-1|function|varchar(400)|1||0  
-2|pep_id|INTEGER|1||0  
+4. **Set environment variables**
+   ```bash
+   export DJANGO_SECRET_KEY="your-secret-key-here"
+   export DJANGO_ALLOWED_HOSTS="localhost,127.0.0.1"
+   ```
 
+5. **Run migrations**
+   ```bash
+   cd include/peptide
+   python manage.py migrate
+   ```
 
-### peptide_peptideinfo
-sqlite> SELECT COUNT(*) FROM peptide_peptideinfo;  
-712  
+6. **Start the development server**
+   ```bash
+   python manage.py runserver
+   ```
 
-sqlite> PRAGMA table_info(peptide_peptideinfo);  
-0|id|INTEGER|1||1  
-1|peptide|varchar(300)|1||0  
-2|protein_id|INTEGER|1||0  
-3|length|INTEGER|1||0  
-4|intervals|varchar(100)|1||0  
-5|protein_variants|varchar(100)|1||0  
-6|time_approved|datetime|1||0  
+### Docker Deployment
 
+```bash
+docker build -t mbpdb .
+docker run -p 80:80 \
+  -e DJANGO_SECRET_KEY="your-secret-key" \
+  -e DJANGO_ALLOWED_HOSTS="localhost" \
+  mbpdb
+```
 
-### peptide_proteininfo
-sqlite> SELECT COUNT(*) FROM peptide_proteininfo;  
-120538  
+---
 
-sqlite> PRAGMA table_info(peptide_proteininfo);  
-0|id|INTEGER|1||1   
-1|pid|varchar(30)|1||0  
-2|desc|varchar(500)|1||0  
-3|species|varchar(70)|1||0  
-4|header|varchar(1000)|1||0  
-5|seq|varchar(5000)|1||0  
+## 📚 Citation
 
+If you use MBPDB in your research, please cite:
 
-### peptide_proteinvariant
-sqlite> SELECT COUNT(*) FROM peptide_proteinvariant;  
-26  
+> **Nielsen, S.D.**, Beverly, R.L., Qu, Y., & Dallas, D.C. (2017). Milk Bioactive Peptide Database: A Comprehensive Database of Milk Protein-Derived Bioactive Peptides and Novel Visualization. *Food Chemistry*, 232, 673–82. [DOI](http://www.sciencedirect.com/science/article/pii/S0308814617306222)
 
-sqlite> PRAGMA table_info(peptide_proteininfo);  
-0|id|INTEGER|1||1  
-1|pid|varchar(30)|1||0  
-2|desc|varchar(500)|1||0   
-3|species|varchar(70)|1||0  
-4|header|varchar(1000)|1||0  
-5|seq|varchar(5000)|1||0  
+> **Nielsen, S.D.**, Liang, N., Rathish, H., Kim, B.J., Lueangsakulthai, J., Koh, J., Qu, Y., Schulz, H.J., & Dallas, D.C. (2023). Bioactive milk peptides: an updated comprehensive overview and database. *Critical Reviews in Food Science and Nutrition*. [DOI](https://www.tandfonline.com/doi/full/10.1080/10408398.2023.2240396)
 
+---
 
-### peptide_reference
-sqlite> SELECT COUNT(*) FROM peptide_reference;  
-1087  
+## 👥 Contributors
 
-sqlite> PRAGMA table_info(peptide_reference);  
-0|id|INTEGER|1||1  
-1|authors|varchar(300)|1||0   
-2|abstract|varchar(1000)|1||0  
-3|func_id|INTEGER|1||0  
-4|doi|varchar(100)|1||0  
-5|title|varchar(300)|1||0  
-6|secondary_func|varchar(400)|1||0  
-7|ptm|varchar(200)|1||0  
+### Data Contributors
+- Søren Drud Nielsen
+- Robert L. Beverly
+- Yunyao Qu
+- Ningjian Liang
+- Harith Rathish
+- Bum Jin Kim
+- Jiraporn Lueangsakulthai
+- Jeewon Koh
+- Russell Kuhfeld
+- David C. Dallas ([Dallas Lab](http://www.dallaslab.org))
 
+### Web Development
+- Russell Kuhfeld
+- Nikhil Joshi
+- Adam Schaal
+- Søren Drud Nielsen
 
-### peptide_submission
-sqlite> SELECT COUNT(*) FROM peptide_submission;  
-0  
+---
 
-sqlite> PRAGMA table_info(peptide_submission);  
-0|id|INTEGER|0||1  
-1|protein_id|varchar(30)|1||0  
-2|peptide|varchar(300)|1||0  
-3|function|varchar(400)|1||0  
-4|secondary_function|varchar(400)|1||0  
-5|title|varchar(300)|1||0  
-6|authors|varchar(300)|1||0  
-7|abstract|varchar(1000)|1||0  
-8|doi|varchar(100)|1||0  
-9|time_submitted|datetime|1||0  
-10|length|INTEGER|1||0  
-11|intervals|varchar(100)|1||0  
-12|ptm|varchar(200)|1||0  
-13|protein_variants|varchar(30)|1||0  
+## 📧 Contact
 
+For inquiries, to submit new bioactive peptides, or to add new proteins:
+
+📬 **Email**: [Contact-MBPDB@oregonstate.edu](mailto:Contact-MBPDB@oregonstate.edu)
+
+🔬 **Lab Website**: [www.dallaslab.org](http://www.dallaslab.org)
+
+---
+
+## 🏛️ Affiliation
+
+Developed and maintained by the [Dallas Lab](http://www.dallaslab.org) at **Oregon State University**.
+
+---
+
+## 📄 License
+
+This project is intended for academic and research use. Please contact the maintainers for commercial licensing inquiries.
