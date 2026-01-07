@@ -222,6 +222,11 @@ TEMPLATES = [
         },
     },
 ]
+
+# Security headers
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'SAMEORIGIN'  # Allow iframes for embedded figures within the same origin
 """
 LOGGING = {
     'version': 1,

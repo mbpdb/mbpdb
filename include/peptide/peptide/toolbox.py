@@ -1,6 +1,7 @@
 import subprocess, os, shutil, time, csv, re, sys
 import pandas as pd
 from django.conf import settings
+from django.utils.text import get_valid_filename
 from .models import PeptideInfo, Reference, Function, ProteinInfo, Submission, ProteinVariant
 from datetime import datetime
 from django.contrib.auth.models import User
@@ -30,14 +31,18 @@ def handle_uploaded_file(request_file, path):
 def get_tsv_path(request_file,directory_path=None):
     if directory_path is None:
         directory_path = settings.WORK_DIRECTORY
-    path = os.path.join(directory_path, request_file.name).replace(' ','_')
+    # Sanitize filename to prevent path traversal attacks
+    safe_name = get_valid_filename(request_file.name).replace(' ','_')
+    path = os.path.join(directory_path, safe_name)
     handle_uploaded_file(request_file,path)
     return path
 
 #Uploads csv to sqsqlite3 database
 def pepdb_add_csv(csv_file, messages):
     work_path = create_work_directory(settings.WORK_DIRECTORY)
-    input_file_path = os.path.join(work_path, csv_file.name).replace(' ','_')
+    # Sanitize filename to prevent path traversal attacks
+    safe_name = get_valid_filename(csv_file.name).replace(' ','_')
+    input_file_path = os.path.join(work_path, safe_name)
     handle_uploaded_file(csv_file, input_file_path)
     records = 0
 
@@ -267,7 +272,9 @@ def get_latest_peptides(n):
 #Primary function referenced in blast search when extra information is requested
 def run_pepex(input_tsv, count_pep):
     work_path = create_work_directory(settings.WORK_DIRECTORY)
-    input_tsv_path = os.path.join(work_path, input_tsv.name).replace(' ','_')
+    # Sanitize filename to prevent path traversal attacks
+    safe_name = get_valid_filename(input_tsv.name).replace(' ','_')
+    input_tsv_path = os.path.join(work_path, safe_name)
     handle_uploaded_file(input_tsv,input_tsv_path)
     output_path = os.path.join(work_path, "pepex_output_%s.txt"%time.strftime('%Y-%m-%d_%H.%M.%S',time.localtime()))
 
@@ -287,7 +294,9 @@ def add_proteins(input_fasta_files, messages):
     work_path = create_work_directory(settings.WORK_DIRECTORY)
     count=0
     for input_fasta_file in input_fasta_files:
-        path = os.path.join(work_path, input_fasta_file.name).replace(' ','_')
+        # Sanitize filename to prevent path traversal attacks
+        safe_name = get_valid_filename(input_fasta_file.name).replace(' ','_')
+        path = os.path.join(work_path, safe_name)
         handle_uploaded_file(input_fasta_file,path)
 
         fd = open(path, "rU")
