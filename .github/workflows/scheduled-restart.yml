@@ -1,0 +1,24 @@
+name: Scheduled Container Restart
+
+on:
+  schedule:
+    # Runs every 6 hours (at 0:00, 6:00, 12:00, 18:00 UTC)
+    - cron: '0 */6 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  restart:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.MBPDBCONTAINER_AZURE_CREDENTIALS_UPDATED }}
+
+      - name: Restart Container App
+        run: |
+          az containerapp revision restart \
+            --name mbpdbcontainer \
+            --resource-group COH_MBPDB_RG \
+            --revision $(az containerapp revision list --name mbpdbcontainer --resource-group COH_MBPDB_RG --query "[0].name" -o tsv)
+
