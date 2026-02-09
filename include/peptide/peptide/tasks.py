@@ -246,12 +246,9 @@ def pepdb_multi_search_manual(self, pepfile_path, peptide_option, pid, function,
                 # Check if the selected value matches either the common name or scientific name (case-insensitive)
                 if spec.lower() == l[0].lower() or spec.lower() == l[1].lower():
                     spec_latin = (l[1])
-                    # Capitalize only the first letter of the entire string to match database format
-                    # Database stores: "Bos taurus" (not "Bos Taurus"), "Capra hircus", "Homo sapiens", etc.
-                    # Some entries have OX= suffixes: "Capra hircus OX=9925", "Homo sapiens OX=9606"
-                    spec_latin_capitalized = spec_latin.capitalize()  # "bos taurus" -> "Bos taurus"
-                    # Use case-insensitive startswith to match both base name and variants with suffixes
-                    q_obj = Q(species__istartswith=spec_latin_capitalized)
+                    # Use case-insensitive exact match for species name
+                    # Database stores: "Bos taurus", "Capra hircus", "Homo sapiens", etc.
+                    q_obj = Q(species__iexact=spec_latin)
 
                     proteins = ProteinInfo.objects.filter(q_obj)
                     protein_ids = [proobj.id for proobj in proteins]
