@@ -377,7 +377,6 @@ def pepdb_multi_search_manual(self, pepfile_path, peptide_option, pid, function,
         cache.set(f'elapsed_time_{self.request.id}', elapsed_time)  # Elapsed time in seconds
         #print(f'size_{self.request.id} = {cont_size}, Cache set: progress_{self.request.id} = {1}, elapsed_time_{self.request.id} = {elapsed_time}')
         results.extend(pepdb_search_tsv_line_manual(writer, q, "", peptide_option, seqsim, matrix, extra, pid, function, species, no_pep, results_headers))
-        cache.set(f'status_{self.request.id}', 'complete')
     else:
         for i, cont in enumerate(content.splitlines(), start=1):
             elapsed_time = time.time() - start_time
@@ -391,7 +390,6 @@ def pepdb_multi_search_manual(self, pepfile_path, peptide_option, pid, function,
             # Split the cont string into pep and peptide_option
             pep, peptide_option, matrix = cont.split(' ', 2)
             results.extend(pepdb_search_tsv_line_manual(writer, q, pep, peptide_option, seqsim, matrix, extra, pid, function, species,no_pep, results_headers))
-        cache.set(f'status_{self.request.id}', 'complete')
 
     params_list = []
     for cont in content.splitlines():
@@ -435,6 +433,9 @@ def pepdb_multi_search_manual(self, pepfile_path, peptide_option, pid, function,
         'output_path': output_path,
         'results_headers': results_headers,
     }
+    # Set complete status as the very last step before returning,
+    # so the frontend only sees 'complete' after results are fully built
+    cache.set(f'status_{self.request.id}', 'complete')
     return task_result
 
 #Primary function referenced in blast search when extra information is requested

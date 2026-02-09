@@ -357,8 +357,8 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     }
 
     function renderResults(taskId, retryCount = 0) {
-        const MAX_RETRIES = 5;
-        const RETRY_DELAY = 1000; // 1 second
+        const MAX_RETRIES = 10;
+        const RETRY_DELAY = 2000; // 2 seconds
         
         console.log('Rendering results for task ID:', taskId, 'Retry:', retryCount);
         $.ajax({
@@ -367,9 +367,13 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
             success: function(data) {
                 console.log('Results data received, length:', data.length);
                 
-                // Check if we got valid HTML content
-                if (!data || data.trim().length === 0) {
-                    console.warn('Empty results data received');
+                // Check if we got valid HTML content with actual results
+                // The response may contain HTML framework (styles/scripts) but no actual results
+                // if the task hasn't fully completed yet - retry in that case
+                var hasResults = data && data.indexOf('summary_table') !== -1;
+                
+                if (!data || data.trim().length === 0 || !hasResults) {
+                    console.warn('No results data in response yet, task may still be finishing');
                     if (retryCount < MAX_RETRIES) {
                         console.log('Retrying in', RETRY_DELAY, 'ms...');
                         setTimeout(function() {
