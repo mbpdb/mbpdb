@@ -375,9 +375,9 @@ def pepdb_multi_search_manual(self, pepfile_path, peptide_option, pid, function,
         cache.set(f'progress_{self.request.id}', 1)
         elapsed_time = time.time() - start_time
         cache.set(f'elapsed_time_{self.request.id}', elapsed_time)  # Elapsed time in seconds
-        cache.set(f'status_{self.request.id}', 'complete')
         #print(f'size_{self.request.id} = {cont_size}, Cache set: progress_{self.request.id} = {1}, elapsed_time_{self.request.id} = {elapsed_time}')
         results.extend(pepdb_search_tsv_line_manual(writer, q, "", peptide_option, seqsim, matrix, extra, pid, function, species, no_pep, results_headers))
+        cache.set(f'status_{self.request.id}', 'complete')
     else:
         for i, cont in enumerate(content.splitlines(), start=1):
             elapsed_time = time.time() - start_time
