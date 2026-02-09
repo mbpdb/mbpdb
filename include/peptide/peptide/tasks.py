@@ -240,9 +240,11 @@ def pepdb_multi_search_manual(self, pepfile_path, peptide_option, pid, function,
     if species:
         spec_search_ids = []
 
+        # Process each selected species (supports multiple species selection)
         for spec in species:
             for l in settings.SPEC_TRANSLATE_LIST:
-                if spec.lower() in l:
+                # Check if the selected value matches either the common name or scientific name (case-insensitive)
+                if spec.lower() == l[0].lower() or spec.lower() == l[1].lower():
                     spec_latin = (l[1])
                     q_obj = Q(species__iexact=spec_latin)
 
@@ -251,9 +253,11 @@ def pepdb_multi_search_manual(self, pepfile_path, peptide_option, pid, function,
                     tempids = PeptideInfo.objects.filter(protein__in=protein_ids)
                     search_ids = [pepobj.id for pepobj in tempids]
                     # Append the search IDs from this iteration to the final list
+                    # This accumulates matches from all selected species (OR logic)
                     spec_search_ids.extend(search_ids)
+                    break  # Exit inner loop once we find a match for this species, continue to next species
 
-        # Filter the query using the final list of search IDs
+        # Filter the query using the final list of search IDs (contains matches from all selected species)
         if spec_search_ids:
             q_spec = q.filter(id__in=spec_search_ids)
 
