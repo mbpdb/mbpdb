@@ -88,13 +88,14 @@ def upload_files(request):
 
         work_dir = _get_work_dir(request)
 
-        # Read peptidomic file content
+        # Pass the file object directly — avoids loading the entire file into
+        # memory. TemporaryUploadedFile (used for large files) is already on
+        # disk; InMemoryUploadedFile supports seek() too.
         pep_file = request.FILES['peptidomic_file']
-        pep_content = pep_file.read()
 
         # Load and validate
         df, status, error_msg, warning_msg = data_loader.load_and_validate_file(
-            pep_content, pep_file.name, 'Peptidomic'
+            pep_file, pep_file.name, 'Peptidomic'
         )
         if status == 'no':
             return JsonResponse({'error': error_msg}, status=400)
@@ -109,9 +110,8 @@ def upload_files(request):
         func_file = request.FILES.get('functional_file')
         func_warnings = []
         if func_file:
-            func_content = func_file.read()
             func_df, f_status, f_error, _ = data_loader.load_and_validate_file(
-                func_content, func_file.name, 'MBPDB'
+                func_file, func_file.name, 'MBPDB'
             )
             if f_status == 'no':
                 func_warnings.append(f'Functional data file warning: {f_error}')
@@ -127,8 +127,7 @@ def upload_files(request):
         # Handle optional FASTA file — merges on top of default dict
         fasta_file = request.FILES.get('fasta_file')
         if fasta_file:
-            fasta_content = fasta_file.read()
-            user_proteins = data_loader.parse_uploaded_fasta(fasta_content, fasta_file.name)
+            user_proteins = data_loader.parse_uploaded_fasta(fasta_file.read(), fasta_file.name)
             protein_dict.update(user_proteins)
 
         _save_json(work_dir, 'protein_dict', protein_dict)

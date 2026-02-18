@@ -350,7 +350,7 @@ def load_and_validate_file(file_content, filename, file_type, protein_dict=None)
     Load and validate uploaded data files.
 
     Args:
-        file_content: bytes of file content
+        file_content: bytes OR a file-like object (Django UploadedFile, BytesIO, etc.)
         filename: original filename
         file_type: 'Peptidomic' or 'MBPDB'
         protein_dict: optional dict to populate with protein info
@@ -363,7 +363,16 @@ def load_and_validate_file(file_content, filename, file_type, protein_dict=None)
         warning_msg = ""
         extension = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
 
-        file_stream = io.BytesIO(file_content)
+        # Accept either bytes or a seekable file-like object.
+        # Passing the file object directly avoids loading the whole file into
+        # memory (important for large Excel files already streamed to disk by
+        # Django's TemporaryFileUploadHandler).
+        if isinstance(file_content, (bytes, bytearray)):
+            file_stream = io.BytesIO(file_content)
+        else:
+            # File-like object — seek to start in case it was already read
+            file_content.seek(0)
+            file_stream = file_content
 
         # Load data based on file extension
         if extension == 'csv':

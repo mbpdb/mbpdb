@@ -148,6 +148,12 @@ FILE_UPLOAD_HANDLERS = (
                         "django.core.files.uploadhandler.TemporaryFileUploadHandler",
                         )
 
+# Allow large file uploads (Excel files can be 50MB+).
+# Files always go to disk via TemporaryFileUploadHandler above, so this
+# setting only guards the non-file POST fields (tiny in our case).
+DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600   # 100 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE  = 104857600  # 100 MB (threshold before disk)
+
 # Internationalization
 # https://docs.djangoproject.com/en/1.7/topics/i18n/
 
