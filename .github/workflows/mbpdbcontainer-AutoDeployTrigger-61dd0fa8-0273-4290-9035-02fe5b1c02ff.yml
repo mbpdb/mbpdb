@@ -64,18 +64,18 @@ jobs:
           --resource-group COH_MBPDB_RG \
           --container-name mbpdbcontainer \
           --set-env-vars \
-          DJANGO_SETTINGS_MODULE=peptide.settings \
-          PYTHONPATH=/app/include/peptide \
-          WEBSITES_PORT=8000 \
-          WEBSITES_CONTAINER_START_TIME_LIMIT=1800 \
-          VOILA_PORT=8866 \
-          DATA_PORT=8867 \
-          DATA_VIZ_PORT=8868 \
-          GITHUB_PAT=${{ secrets.MY_GITHUB_PAT }} \
-          DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }} \
-          DJANGO_ALLOWED_HOSTS="${{ secrets.DJANGO_ALLOWED_HOSTS }}" \
-          DJANGO_CORS_ORIGINS="${{ secrets.DJANGO_CORS_ORIGINS }}" \
-          DJANGO_CSRF_ORIGINS="${{ secrets.DJANGO_CSRF_ORIGINS }}" \
-          DJANGO_SUPERUSER_USERNAME="${{ secrets.DJANGO_SUPERUSER_USERNAME }}" \
-          DJANGO_SUPERUSER_EMAIL="${{ secrets.DJANGO_SUPERUSER_EMAIL }}" \
-          DJANGO_SUPERUSER_PASSWORD="${{ secrets.DJANGO_SUPERUSER_PASSWORD }}" 
+          "DJANGO_SETTINGS_MODULE=peptide.settings" \
+          "PYTHONPATH=/app/include/peptide" \
+          "WEBSITES_PORT=8000" \
+          "WEBSITES_CONTAINER_START_TIME_LIMIT=1800" \
+          "VOILA_PORT=8866" \
+          "DATA_PORT=8867" \
+          "DATA_VIZ_PORT=8868" \
+          "GITHUB_PAT=${{ secrets.MY_GITHUB_PAT }}" \
+          "DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}" \
+          "DJANGO_ALLOWED_HOSTS=${{ secrets.DJANGO_ALLOWED_HOSTS }}" \
+          "DJANGO_CORS_ORIGINS=${{ secrets.DJANGO_CORS_ORIGINS }}" \
+          "DJANGO_CSRF_ORIGINS=${{ secrets.DJANGO_CSRF_ORIGINS }}" \
+          "DJANGO_SUPERUSER_USERNAME=${{ secrets.DJANGO_SUPERUSER_USERNAME }}" \
+          "DJANGO_SUPERUSER_EMAIL=${{ secrets.DJANGO_SUPERUSER_EMAIL }}" \
+          "DJANGO_SUPERUSER_PASSWORD=${{ secrets.DJANGO_SUPERUSER_PASSWORD }}"
