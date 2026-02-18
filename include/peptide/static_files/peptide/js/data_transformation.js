@@ -491,33 +491,38 @@
     document.getElementById('fetch-uniprot-btn').addEventListener('click', function() {
         var btn = this;
         btn.disabled = true;
+
+        function afterFetch(savedCount) {
+            // Persist any fetched results then fully refresh the protein panel
+            ajax('POST', 'save-uniprot/', null, function(saveResp) {
+                var n = (saveResp && saveResp.saved) ? saveResp.saved : (savedCount || 0);
+                ajax('GET', 'step3/', null, function(r) {
+                    renderStep3Info(r);
+                    if (n > 0) {
+                        document.getElementById('protein-info').insertAdjacentHTML('afterbegin',
+                            '<div class="dt-alert dt-alert-success" style="margin-bottom:8px;">' +
+                            '<i class="fas fa-check-circle"></i> UniProt identified <strong>' +
+                            n + '</strong> protein(s). Protein map updated.</div>');
+                    }
+                    btn.disabled = false;
+                });
+            }, function() {
+                ajax('GET', 'step3/', null, function(r) { renderStep3Info(r); });
+                btn.disabled = false;
+            });
+        }
+
         ajax('POST', 'start-uniprot/', null, function(resp) {
             if (resp.skipped) {
-                document.getElementById('protein-info').innerHTML =
-                    '<div class="dt-alert dt-alert-info">' + resp.message + '</div>';
+                // No missing proteins — still refresh the panel in case a previous
+                // fetch left results that haven't been rendered yet
+                afterFetch(0);
                 return;
             }
             document.getElementById('uniprot-progress').classList.remove('hidden');
             pollProgress(resp.task_id, 'uniprot-progress-bar', 'uniprot-progress-text', function() {
                 document.getElementById('uniprot-progress').classList.add('hidden');
-                // Persist results into protein_dict on disk, then reload step 3
-                ajax('POST', 'save-uniprot/', null, function(saveResp) {
-                    ajax('GET', 'step3/', null, function(r) {
-                        renderStep3Info(r);
-                        if (saveResp && saveResp.saved > 0) {
-                            var info = document.getElementById('protein-info');
-                            info.insertAdjacentHTML('afterbegin',
-                                '<div class="dt-alert dt-alert-success" style="margin-bottom:8px;">' +
-                                '<i class="fas fa-check-circle"></i> UniProt: <strong>' +
-                                saveResp.saved + '</strong> protein(s) identified.</div>');
-                        }
-                        btn.disabled = false;
-                    });
-                }, function() {
-                    // save failed — still reload step 3
-                    ajax('GET', 'step3/', null, function(r) { renderStep3Info(r); });
-                    btn.disabled = false;
-                });
+                afterFetch(resp.count);
             });
         }, function(msg) { btn.disabled = false; showError(msg); });
     });
