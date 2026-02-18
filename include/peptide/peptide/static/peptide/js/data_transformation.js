@@ -296,8 +296,8 @@
         formData.append('group_file', this.files[0]);
         ajax('POST', 'upload-groups/', formData, function(resp) {
             definedGroups = [];
-            Object.keys(resp.groups).forEach(function(gid) {
-                definedGroups.push({name: resp.groups[gid], columns: []});
+            Object.keys(resp.groups).forEach(function(name) {
+                definedGroups.push({name: name, columns: resp.groups[name] || []});
             });
             renderGroups();
             document.getElementById('submit-groups-btn').disabled = false;

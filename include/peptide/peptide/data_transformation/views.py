@@ -264,11 +264,12 @@ def upload_group_json(request):
 
     _save_json(work_dir, 'group_data', group_data)
 
+    # Return name→columns mapping so JS can populate definedGroups correctly
     return JsonResponse({
         'success': True,
         'groups': {
-            gid: info['grouping_variable']
-            for gid, info in group_data.items()
+            info['grouping_variable']: info['abundance_columns']
+            for info in group_data.values()
         },
     })
 
@@ -505,47 +506,55 @@ def skip_protein_mapping(request):
 @require_POST
 def process_data(request):
     """Process all data and generate the merged dataset."""
-    work_dir = _get_work_dir(request)
+    try:
+        work_dir = _get_work_dir(request)
 
-    pd_results = _load_df(work_dir, 'pd_results')
-    pd_results_cleaned = _load_df(work_dir, 'pd_results_cleaned')
-    mbpdb_results = _load_df(work_dir, 'mbpdb_results')
-    group_data = _load_json(work_dir, 'group_data')
-    protein_dict = _load_json(work_dir, 'protein_dict') or {}
+        pd_results = _load_df(work_dir, 'pd_results')
+        pd_results_cleaned = _load_df(work_dir, 'pd_results_cleaned')
+        mbpdb_results = _load_df(work_dir, 'mbpdb_results')
+        group_data = _load_json(work_dir, 'group_data')
+        protein_dict = _load_json(work_dir, 'protein_dict') or {}
 
-    if pd_results is None:
-        return JsonResponse({'error': 'No peptidomic data loaded'}, status=400)
+        if pd_results is None:
+            return JsonResponse({'error': 'No peptidomic data loaded'}, status=400)
 
-    final_df = data_combiner.process_data(
-        pd_results, pd_results_cleaned, mbpdb_results, group_data, protein_dict
-    )
+        final_df = data_combiner.process_data(
+            pd_results, pd_results_cleaned, mbpdb_results, group_data, protein_dict
+        )
 
-    if final_df is None:
-        return JsonResponse({'error': 'Data processing failed'}, status=500)
+        if final_df is None:
+            return JsonResponse({'error': 'Data processing failed'}, status=500)
 
-    _save_df(work_dir, 'merged_df', final_df)
+        _save_df(work_dir, 'merged_df', final_df)
 
-    # Determine available exports
-    has_mbpdb = mbpdb_results is not None and not mbpdb_results.empty
-    has_groups = group_data is not None and len(group_data) > 0
-    has_function = 'function' in final_df.columns and final_df['function'].notna().any()
+        # Determine available exports
+        has_mbpdb = mbpdb_results is not None and not mbpdb_results.empty
+        has_groups = group_data is not None and len(group_data) > 0
+        has_function = 'function' in final_df.columns and final_df['function'].notna().any()
 
-    return JsonResponse({
-        'success': True,
-        'rows': len(final_df),
-        'columns': len(final_df.columns),
-        'exports': {
-            'mbpdb_results': has_mbpdb,
-            'group_definitions': has_groups,
-            'merged_dataset': True,
-            'sequence_list': has_groups,
-            'summed_peptide': has_groups,
-            'protein_analysis': has_groups,
-            'summed_function': has_function and has_groups,
-            'group_correlation': has_groups,
-            'replicate_correlation': has_groups,
-        }
-    })
+        return JsonResponse({
+            'success': True,
+            'rows': len(final_df),
+            'columns': len(final_df.columns),
+            'exports': {
+                'mbpdb_results': has_mbpdb,
+                'group_definitions': has_groups,
+                'merged_dataset': True,
+                'sequence_list': has_groups,
+                'summed_peptide': has_groups,
+                'protein_analysis': has_groups,
+                'summed_function': has_function and has_groups,
+                'group_correlation': has_groups,
+                'replicate_correlation': has_groups,
+            }
+        })
+    except Exception as exc:
+        import traceback
+        return JsonResponse(
+            {'error': f'Unexpected error during processing: {exc}',
+             'detail': traceback.format_exc()},
+            status=500
+        )
 
 
 @require_GET

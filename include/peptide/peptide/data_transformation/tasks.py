@@ -87,18 +87,23 @@ def fetch_uniprot_task(self, missing_protein_ids):
 
     client = UniProtClient()
     results = {}
+    BATCH_SIZE = 20
 
-    for i, protein_id in enumerate(missing_protein_ids):
+    for batch_start in range(0, total, BATCH_SIZE):
+        batch = missing_protein_ids[batch_start:batch_start + BATCH_SIZE]
+
         elapsed = time.time() - start_time
-        cache.set(f'progress_{task_id}', i)
+        cache.set(f'progress_{task_id}', batch_start)
         cache.set(f'elapsed_time_{task_id}', elapsed)
 
         try:
-            info = client.fetch_protein_info(protein_id)
-            if info:
-                results[protein_id] = info
-        except Exception:
-            pass
+            batch_results = client.fetch_proteins_batch(batch)
+            for pid, info_tuple in batch_results.items():
+                if info_tuple and len(info_tuple) >= 2:
+                    name, species = info_tuple[0], info_tuple[1]
+                    results[pid] = {'name': name, 'species': species}
+        except Exception as exc:
+            print(f'fetch_uniprot_task: batch error: {exc}')
 
     cache.set(f'progress_{task_id}', total)
     cache.set(f'elapsed_time_{task_id}', time.time() - start_time)

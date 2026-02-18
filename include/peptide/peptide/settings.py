@@ -198,25 +198,24 @@ FIX_WEIRD_CHARS = os.path.join(BASE_DIR, 'scripts/fix_weird_chars.pl')
 BLAST_DB = os.path.join(BASE_DIR,'peptide/blast_db')
 
 #for species search translation
+# Format: [display_name, search_term1, search_term2, ...]
+# search terms are compared case-insensitively via substring match
+# Include UniProt 5-letter organism codes (e.g. BOVIN, HUMAN) so that
+# protein IDs like sp|P02666|CASB_BOVIN are translated correctly.
 SPEC_TRANSLATE_LIST = [
-    ['human', 'homo sapiens'],
-    ['cow', 'bos taurus'],
-    ['sheep', 'ovis aries'],
-    ['goat', 'capra hircus'],
-    ['pig', 'sus scrofa'],
-    ['yak', 'bos mutus'],
-    ['rabbit', 'oryctolagus cuniculus'],
-    ['donkey', 'equus asinus'],
-    ['camel', 'camelus dromedarius'],
-    ['buffalo', 'bubalus bubalis']
-    #['horse', 'Equus caballus'], no records in db
-    #['rat', 'Rattus norvegicus'], no records in db
-    #['fallow deer', 'dama dama'], no records in db
-    #['red deer', 'cervus elaphus'], no records in db
-    #['reindeer', 'rangifer tarandus'], no records in db
-    #['american bison', 'bison bison'], no records in db
-    #['elephant', 'elephas maximus'], no records in db
-    #['mouse', 'mus musculus'], no records in db
+    ['Human', 'homo sapiens', 'human', 'HUMAN'],
+    ['Bovine', 'bos taurus', 'bovine', 'cow', 'bovin', 'BOVIN'],
+    ['Sheep', 'ovis aries', 'sheep', 'ovine', 'SHEEP'],
+    ['Goat', 'capra hircus', 'goat', 'caprine', 'caphi', 'CAPHI'],
+    ['Pig', 'sus scrofa', 'pig', 'porcine', 'sscro', 'SSCRO'],
+    ['Yak', 'bos mutus', 'yak', 'mutus', 'YACBA'],
+    ['Rabbit', 'oryctolagus cuniculus', 'rabbit', 'cunicu', 'RABIT'],
+    ['Donkey', 'equus asinus', 'donkey', 'asinus', 'EQUAS'],
+    ['Camel', 'camelus dromedarius', 'camel', 'camdr', 'CAMDR'],
+    ['Buffalo', 'bubalus bubalis', 'buffalo', 'bubbu', 'BUBBU'],
+    #['Horse', 'equus caballus', 'horse', 'HORSE'],  # no records in db
+    #['Rat', 'rattus norvegicus', 'rat', 'RATNO'],  # no records in db
+    #['Mouse', 'mus musculus', 'mouse', 'MOUSE'],  # no records in db
 ]
 
 TEMPLATES = [
