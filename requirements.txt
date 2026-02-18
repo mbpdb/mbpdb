@@ -37,3 +37,4 @@ statsmodels
 plotly
 openpyxl
 kaleido
+python-dotenv
