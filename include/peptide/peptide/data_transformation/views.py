@@ -527,15 +527,15 @@ def process_data(request):
 
         _save_df(work_dir, 'merged_df', final_df)
 
-        # Determine available exports
-        has_mbpdb = mbpdb_results is not None and not mbpdb_results.empty
-        has_groups = group_data is not None and len(group_data) > 0
-        has_function = 'function' in final_df.columns and final_df['function'].notna().any()
+        # Determine available exports (bool() converts numpy.bool_ to JSON-safe Python bool)
+        has_mbpdb = bool(mbpdb_results is not None and not mbpdb_results.empty)
+        has_groups = bool(group_data is not None and len(group_data) > 0)
+        has_function = bool('function' in final_df.columns and final_df['function'].notna().any())
 
         return JsonResponse({
             'success': True,
-            'rows': len(final_df),
-            'columns': len(final_df.columns),
+            'rows': int(len(final_df)),
+            'columns': int(len(final_df.columns)),
             'exports': {
                 'mbpdb_results': has_mbpdb,
                 'group_definitions': has_groups,

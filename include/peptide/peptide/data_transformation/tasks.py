@@ -1,6 +1,7 @@
 """
 Celery tasks for long-running data transformation operations.
 """
+import re
 import time
 import sys
 import os
@@ -85,12 +86,27 @@ def fetch_uniprot_task(self, missing_protein_ids):
         sys.path.insert(0, notebooks_dir)
     from utils.uniprot_client import UniProtClient
 
+    # UniProt accession IDs are 6 or 10 alphanumeric chars.
+    # IDs like "P02666A1" (isoform suffixes) are invalid and cause HTTP 400
+    # for the entire batch, so filter them out before querying.
+    _UNIPROT_ACC_RE = re.compile(
+        r'^[A-Z][0-9][A-Z][A-Z0-9]{2}[0-9]([A-Z][A-Z0-9]{2}[0-9])?$'
+    )
+
+    def _is_valid_uniprot_id(pid):
+        return bool(_UNIPROT_ACC_RE.match(pid.upper())) if pid else False
+
     client = UniProtClient()
     results = {}
     BATCH_SIZE = 20
 
-    for batch_start in range(0, total, BATCH_SIZE):
-        batch = missing_protein_ids[batch_start:batch_start + BATCH_SIZE]
+    valid_ids = [pid for pid in missing_protein_ids if _is_valid_uniprot_id(pid)]
+    skipped = len(missing_protein_ids) - len(valid_ids)
+    if skipped:
+        print(f'fetch_uniprot_task: skipping {skipped} non-standard IDs')
+
+    for batch_start in range(0, len(valid_ids), BATCH_SIZE):
+        batch = valid_ids[batch_start:batch_start + BATCH_SIZE]
 
         elapsed = time.time() - start_time
         cache.set(f'progress_{task_id}', batch_start)
