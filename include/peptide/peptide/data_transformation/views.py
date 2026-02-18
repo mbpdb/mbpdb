@@ -109,6 +109,8 @@ def upload_files(request):
         # Handle optional functional data file
         func_file = request.FILES.get('functional_file')
         func_warnings = []
+        has_mbpdb = False
+        mbpdb_rows = 0
         if func_file:
             func_df, f_status, f_error, _ = data_loader.load_and_validate_file(
                 func_file, func_file.name, 'MBPDB'
@@ -117,6 +119,8 @@ def upload_files(request):
                 func_warnings.append(f'Functional data file warning: {f_error}')
             elif func_df is not None:
                 _save_df(work_dir, 'functional_data', func_df)
+                has_mbpdb = True
+                mbpdb_rows = len(func_df)
 
         # Load default protein dictionary (bovine + human milk proteins)
         default_fasta_path = os.path.join(
@@ -145,6 +149,8 @@ def upload_files(request):
             'rows': len(df),
             'columns': len(df.columns),
             'sequences': len(sequences),
+            'has_mbpdb': has_mbpdb,
+            'mbpdb_rows': mbpdb_rows,
             'warning': '; '.join(all_warnings) if all_warnings else None,
         }
 

@@ -124,11 +124,28 @@
             var summary = '<div class="dt-alert dt-alert-success">' +
                 'Loaded <strong>' + resp.rows + '</strong> rows, <strong>' + resp.columns + '</strong> columns. ' +
                 'Found <strong>' + resp.sequences + '</strong> unique sequences to search.</div>';
+            if (resp.has_mbpdb) {
+                summary += '<div class="dt-alert dt-alert-success">' +
+                    '<i class="fas fa-check-circle"></i> MBPDB file loaded: <strong>' +
+                    resp.mbpdb_rows + '</strong> records. Skipping BLAST search.</div>';
+            }
             if (resp.warning) {
                 summary += '<div class="dt-alert dt-alert-warning">' + resp.warning + '</div>';
             }
             document.getElementById('upload-summary').innerHTML = summary;
             document.getElementById('upload-results').classList.remove('hidden');
+
+            // If MBPDB data was uploaded, auto-fire the BLAST step (which will skip
+            // immediately) so the user doesn't have to click "Search MBPDB".
+            if (resp.has_mbpdb) {
+                ajax('POST', 'start-blast/', null, function(blastResp) {
+                    document.getElementById('blast-results').classList.remove('hidden');
+                    document.getElementById('blast-summary').innerHTML =
+                        '<div class="dt-alert dt-alert-info">' +
+                        '<i class="fas fa-database"></i> ' + blastResp.message +
+                        ' (' + blastResp.count + ' records)</div>';
+                });
+            }
         }, function(msg) {
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-upload"></i> Upload & Validate';
