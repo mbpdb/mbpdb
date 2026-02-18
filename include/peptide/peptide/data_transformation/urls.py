@@ -15,6 +15,7 @@ urlpatterns = [
     path('skip-groups/', views.skip_groups, name='dt_skip_groups'),
     path('step3/', views.get_step3_form, name='dt_step3'),
     path('start-uniprot/', views.start_uniprot_fetch, name='dt_start_uniprot'),
+    path('save-uniprot/', views.save_uniprot_results, name='dt_save_uniprot'),
     path('submit-proteins/', views.submit_protein_decisions, name='dt_submit_proteins'),
     path('skip-proteins/', views.skip_protein_mapping, name='dt_skip_proteins'),
     path('process/', views.process_data, name='dt_process'),

@@ -411,6 +411,37 @@ def start_uniprot_fetch(request):
 
 
 @require_POST
+def save_uniprot_results(request):
+    """
+    Persist completed UniProt task results into protein_dict on disk.
+    Called by JS once the UniProt poll finishes, before re-rendering step 3.
+    """
+    work_dir = _get_work_dir(request)
+    uniprot_task_id = request.session.get('dt_uniprot_task_id')
+
+    if not uniprot_task_id:
+        return JsonResponse({'saved': 0})
+
+    task_result = AsyncResult(str(uniprot_task_id))
+    if not task_result.ready() or task_result.failed():
+        return JsonResponse({'saved': 0})
+
+    uniprot_results = task_result.result or {}
+    if not uniprot_results:
+        return JsonResponse({'saved': 0})
+
+    protein_dict = _load_json(work_dir, 'protein_dict') or {}
+    saved = 0
+    for pid, info in uniprot_results.items():
+        if pid not in protein_dict or not protein_dict[pid].get('name'):
+            protein_dict[pid] = info
+            saved += 1
+
+    _save_json(work_dir, 'protein_dict', protein_dict)
+    return JsonResponse({'saved': saved})
+
+
+@require_POST
 def submit_protein_decisions(request):
     """Submit protein combination decisions."""
     work_dir = _get_work_dir(request)

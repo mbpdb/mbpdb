@@ -483,9 +483,23 @@
             document.getElementById('uniprot-progress').classList.remove('hidden');
             pollProgress(resp.task_id, 'uniprot-progress-bar', 'uniprot-progress-text', function() {
                 document.getElementById('uniprot-progress').classList.add('hidden');
-                // Reload step 3 info to show newly fetched proteins
-                ajax('GET', 'step3/', null, function(r) {
-                    renderStep3Info(r);
+                // Persist results into protein_dict on disk, then reload step 3
+                ajax('POST', 'save-uniprot/', null, function(saveResp) {
+                    ajax('GET', 'step3/', null, function(r) {
+                        renderStep3Info(r);
+                        if (saveResp && saveResp.saved > 0) {
+                            var info = document.getElementById('protein-info');
+                            info.insertAdjacentHTML('afterbegin',
+                                '<div class="dt-alert dt-alert-success" style="margin-bottom:8px;">' +
+                                '<i class="fas fa-check-circle"></i> UniProt: <strong>' +
+                                saveResp.saved + '</strong> protein(s) identified.</div>');
+                        }
+                        btn.disabled = false;
+                    });
+                }, function() {
+                    // save failed — still reload step 3
+                    ajax('GET', 'step3/', null, function(r) { renderStep3Info(r); });
+                    btn.disabled = false;
                 });
             });
         }, function(msg) { btn.disabled = false; showError(msg); });
