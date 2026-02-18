@@ -270,9 +270,11 @@ def get_protein_combinations(df, protein_dict):
                         # treat empty/falsy species same as Unknown
                         sp = protein_dict[protein].get('species') or 'Unknown'
                         species_set.add(sp)
-                    else:
-                        # not in dict at all → needs lookup → treat as Unknown
+                    elif protein == 'Unknown':
                         species_set.add('Unknown')
+                    # proteins absent from protein_dict (but not the literal 'Unknown'
+                    # string) are not added here — they appear in the missing-proteins
+                    # warning instead of polluting the single-protein combinations list
                 if len(species_set) > 1 or 'Unknown' in species_set:
                     if position_proteins:
                         protein_combinations.add('; '.join(sorted(position_proteins)))

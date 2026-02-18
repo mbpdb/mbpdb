@@ -216,12 +216,9 @@ def fetch_uniprot_info_batch(protein_ids, max_retries=3, timeout=30):
                         protein_name = protein_data['alternativeNames'][0].get('fullName', {}).get('value')
                 # Extract species name
                 species = None
-                organism_data = entry.get('organism')
-                #{'scientificName': 'Bos taurus', 'commonName': 'Bovine', 'taxonId': 9913, 'lineage': ['Eukaryota', 'Metazoa', 'Chordata', 'Craniata', 'Vertebrata', 'Euteleostomi', 'Mammalia', 'Eutheria', 'Laurasiatheria', 'Artiodactyla', 'Ruminantia', 'Pecora', 'Bovidae', 'Bovinae', 'Bos']}
-                if 'commonName' in str(organism_data):
-                    protein_species = organism_data.get('commonName') 
-                else:
-                    protein_species = organism_data.get('scientificName') 
+                organism_data = entry.get('organism') or {}
+                #{'scientificName': 'Bos taurus', 'commonName': 'Bovine', 'taxonId': 9913, 'lineage': [...]}
+                protein_species = organism_data.get('commonName') or organism_data.get('scientificName')
 
                 # Clean up protein name if found
                 if protein_name:
