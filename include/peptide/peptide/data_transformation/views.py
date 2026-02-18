@@ -572,8 +572,14 @@ def view_export(request, export_type):
     MAX_ROWS = 500
 
     def safe_val(v):
+        import pandas as _pd
         if v is None:
             return None
+        try:
+            if _pd.isna(v):
+                return None
+        except (TypeError, ValueError):
+            pass
         if hasattr(v, 'item'):
             v = v.item()
         if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
