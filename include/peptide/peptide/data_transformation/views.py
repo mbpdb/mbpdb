@@ -1,0 +1,644 @@
+"""
+Django views for the data transformation wizard.
+"""
+import json
+import os
+import uuid
+
+import pandas as pd
+from django.conf import settings
+from django.core.cache import cache
+from django.http import JsonResponse, HttpResponse, FileResponse
+from django.shortcuts import render
+from django.views.decorators.http import require_POST, require_GET
+from celery.result import AsyncResult
+
+from .forms import PeptidomicUploadForm, GroupUploadForm
+from .services import data_loader, blast_search, group_processing, protein_handler, data_combiner, export_manager
+from .tasks import run_blast_search_task, fetch_uniprot_task
+from peptide.toolbox import handle_uploaded_file, clear_temp_directory
+
+
+def _get_work_dir(request):
+    """Get or create the work directory for this session."""
+    work_dir = request.session.get('dt_work_dir')
+    if work_dir and os.path.isdir(work_dir):
+        return work_dir
+    work_dir = blast_search.create_work_directory()
+    # Make work dir accessible to celery_user (runs as different user than gunicorn)
+    os.chmod(work_dir, 0o777)
+    request.session['dt_work_dir'] = work_dir
+    request.session['dt_session_id'] = str(uuid.uuid4())
+    return work_dir
+
+
+def _save_df(work_dir, name, df):
+    """Save a DataFrame as pickle in the work directory."""
+    path = os.path.join(work_dir, f'{name}.pkl')
+    df.to_pickle(path)
+    return path
+
+
+def _load_df(work_dir, name):
+    """Load a DataFrame from pickle in the work directory."""
+    path = os.path.join(work_dir, f'{name}.pkl')
+    if os.path.exists(path):
+        return pd.read_pickle(path)
+    return None
+
+
+def _save_json(work_dir, name, data):
+    """Save data as JSON in the work directory."""
+    path = os.path.join(work_dir, f'{name}.json')
+    with open(path, 'w') as f:
+        json.dump(data, f)
+
+
+def _load_json(work_dir, name):
+    """Load data from JSON in the work directory."""
+    path = os.path.join(work_dir, f'{name}.json')
+    if os.path.exists(path):
+        with open(path, 'r') as f:
+            return json.load(f)
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Main wizard page
+# ---------------------------------------------------------------------------
+
+def wizard_view(request):
+    """Render the single-page wizard template."""
+    return render(request, 'peptide/data_transformation.html')
+
+
+# ---------------------------------------------------------------------------
+# Step 1: Upload & BLAST
+# ---------------------------------------------------------------------------
+
+@require_POST
+def upload_files(request):
+    """Handle file uploads and validate peptidomic data."""
+    try:
+        form = PeptidomicUploadForm(request.POST, request.FILES)
+        if not form.is_valid():
+            return JsonResponse({'error': '; '.join(
+                e for errors in form.errors.values() for e in errors
+            )}, status=400)
+
+        work_dir = _get_work_dir(request)
+
+        # Read peptidomic file content
+        pep_file = request.FILES['peptidomic_file']
+        pep_content = pep_file.read()
+
+        # Load and validate
+        df, status, error_msg, warning_msg = data_loader.load_and_validate_file(
+            pep_content, pep_file.name, 'Peptidomic'
+        )
+        if status == 'no':
+            return JsonResponse({'error': error_msg}, status=400)
+
+        _save_df(work_dir, 'pd_results', df)
+
+        # Save column list for group processing
+        columns = df.columns.tolist()
+        _save_json(work_dir, 'columns', columns)
+
+        # Handle optional functional data file
+        func_file = request.FILES.get('functional_file')
+        func_warnings = []
+        if func_file:
+            func_content = func_file.read()
+            func_df, f_status, f_error, _ = data_loader.load_and_validate_file(
+                func_content, func_file.name, 'MBPDB'
+            )
+            if f_status == 'no':
+                func_warnings.append(f'Functional data file warning: {f_error}')
+            elif func_df is not None:
+                _save_df(work_dir, 'functional_data', func_df)
+
+        # Load default protein dictionary (bovine + human milk proteins)
+        default_fasta_path = os.path.join(
+            settings.FASTA_FILES_DIR, 'protein_database.fasta'
+        )
+        protein_dict = data_loader.parse_fasta_headers_file(default_fasta_path)
+
+        # Handle optional FASTA file — merges on top of default dict
+        fasta_file = request.FILES.get('fasta_file')
+        if fasta_file:
+            fasta_content = fasta_file.read()
+            user_proteins = data_loader.parse_uploaded_fasta(fasta_content, fasta_file.name)
+            protein_dict.update(user_proteins)
+
+        _save_json(work_dir, 'protein_dict', protein_dict)
+
+        # Store similarity threshold
+        threshold = form.cleaned_data['similarity_threshold']
+        _save_json(work_dir, 'threshold', threshold)
+
+        # Extract sequences for BLAST
+        sequences = data_loader.extract_sequences(df)
+
+        all_warnings = [w for w in [warning_msg] + func_warnings if w]
+        result = {
+            'success': True,
+            'rows': len(df),
+            'columns': len(df.columns),
+            'sequences': len(sequences),
+            'warning': '; '.join(all_warnings) if all_warnings else None,
+        }
+
+        # Store sequences for BLAST
+        _save_json(work_dir, 'sequences', sequences)
+
+        return JsonResponse(result)
+
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        # Return the actual exception details so the user can diagnose it
+        return JsonResponse({
+            'error': f'Upload failed: {type(e).__name__}: {str(e)}',
+            'detail': tb.split('\n')[-3] if tb else '',
+        }, status=500)
+
+
+@require_POST
+def start_blast_search(request):
+    """Launch BLAST search as a Celery task."""
+    work_dir = _get_work_dir(request)
+    sequences = _load_json(work_dir, 'sequences')
+    threshold = _load_json(work_dir, 'threshold') or 80
+
+    if not sequences:
+        return JsonResponse({'error': 'No sequences to search'}, status=400)
+
+    # Check for uploaded functional data (skip BLAST if provided)
+    func_df = _load_df(work_dir, 'functional_data')
+    if func_df is not None:
+        _save_df(work_dir, 'mbpdb_results', func_df)
+        return JsonResponse({
+            'skipped': True,
+            'message': 'Using uploaded functional data instead of BLAST search',
+            'count': len(func_df),
+        })
+
+    task = run_blast_search_task.delay(work_dir, sequences, threshold)
+    request.session['dt_blast_task_id'] = task.id
+
+    return JsonResponse({'task_id': task.id})
+
+
+@require_GET
+def get_blast_results(request, task_id):
+    """Get BLAST search results after task completes."""
+    task_result = AsyncResult(str(task_id))
+
+    if not task_result.ready():
+        return JsonResponse({'status': 'pending'})
+
+    if task_result.failed():
+        return JsonResponse({'status': 'failed', 'error': str(task_result.result)}, status=500)
+
+    result_data = task_result.result
+    work_dir = _get_work_dir(request)
+
+    # Load result pickle
+    result_path = result_data.get('result_path', '')
+    if os.path.exists(result_path):
+        mbpdb_df = pd.read_pickle(result_path)
+        _save_df(work_dir, 'mbpdb_results', mbpdb_df)
+        count = len(mbpdb_df)
+    else:
+        count = 0
+
+    return JsonResponse({
+        'status': 'complete',
+        'count': count,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Step 2: Study Variable Grouping
+# ---------------------------------------------------------------------------
+
+@require_GET
+def get_step2_form(request):
+    """Return data needed for Step 2 (grouping)."""
+    try:
+        work_dir = _get_work_dir(request)
+        columns = _load_json(work_dir, 'columns') or []
+
+        # Filter columns for abundance selection
+        df = _load_df(work_dir, 'pd_results')
+        if df is not None:
+            filtered = data_loader.get_filtered_columns(df)
+            # Fallback: if filter is too aggressive, return all non-metadata columns
+            if len(filtered) < 2:
+                filtered = data_loader.get_filtered_columns_fallback(df)
+        else:
+            filtered = columns
+
+        return JsonResponse({
+            'columns': filtered,
+            'all_columns': columns,
+        })
+    except Exception as e:
+        return JsonResponse({'error': f'Could not load step 2: {str(e)}', 'columns': [], 'all_columns': []}, status=500)
+
+
+@require_POST
+def upload_group_json(request):
+    """Upload and parse a group definition JSON file."""
+    work_dir = _get_work_dir(request)
+    columns = _load_json(work_dir, 'columns') or []
+
+    if 'group_file' not in request.FILES:
+        return JsonResponse({'error': 'No file provided'}, status=400)
+
+    content = request.FILES['group_file'].read()
+    group_data, error = group_processing.parse_group_json(content, columns)
+
+    if error:
+        return JsonResponse({'error': error}, status=400)
+
+    _save_json(work_dir, 'group_data', group_data)
+
+    return JsonResponse({
+        'success': True,
+        'groups': {
+            gid: info['grouping_variable']
+            for gid, info in group_data.items()
+        },
+    })
+
+
+@require_POST
+def submit_groups(request):
+    """Submit manually defined groups."""
+    work_dir = _get_work_dir(request)
+
+    try:
+        body = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    groups = body.get('groups', [])
+    if not groups:
+        return JsonResponse({'error': 'No groups provided'}, status=400)
+
+    group_data = {}
+    for group_def in groups:
+        group_data, error = group_processing.build_group_data(
+            group_def.get('columns', []),
+            group_def.get('name', ''),
+            group_data
+        )
+        if error:
+            return JsonResponse({'error': error}, status=400)
+
+    _save_json(work_dir, 'group_data', group_data)
+
+    return JsonResponse({
+        'success': True,
+        'groups': {
+            gid: info['grouping_variable']
+            for gid, info in group_data.items()
+        },
+    })
+
+
+@require_POST
+def skip_groups(request):
+    """Skip grouping - create individual groups for selected columns."""
+    work_dir = _get_work_dir(request)
+
+    try:
+        body = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    selected = body.get('columns', [])
+    if not selected:
+        # Use all filtered columns
+        df = _load_df(work_dir, 'pd_results')
+        if df is not None:
+            selected = data_loader.get_filtered_columns(df)
+
+    group_data, error = group_processing.build_no_group_data(selected)
+    if error:
+        return JsonResponse({'error': error}, status=400)
+
+    _save_json(work_dir, 'group_data', group_data)
+
+    return JsonResponse({'success': True, 'message': 'Individual column groups created'})
+
+
+# ---------------------------------------------------------------------------
+# Step 3: Protein Mapping
+# ---------------------------------------------------------------------------
+
+@require_GET
+def get_step3_form(request):
+    """Return data needed for Step 3 (protein mapping)."""
+    try:
+        work_dir = _get_work_dir(request)
+        df = _load_df(work_dir, 'pd_results')
+        protein_dict = _load_json(work_dir, 'protein_dict') or {}
+
+        if df is None:
+            return JsonResponse({'error': 'No data loaded'}, status=400)
+
+        missing_ids = list(data_loader.find_missing_proteins(df, protein_dict))
+
+        # Summarize known proteins found in the data
+        all_protein_ids = set()
+        if 'Protein' in df.columns:
+            for val in df['Protein'].dropna():
+                pid = data_loader.extract_protein_id(val)
+                if isinstance(pid, list):
+                    all_protein_ids.update(pid)
+                elif pid:
+                    all_protein_ids.add(pid)
+        known_proteins = [
+            {
+                'id': pid,
+                'name': protein_dict[pid].get('name', ''),
+                'species': protein_dict[pid].get('species', ''),
+            }
+            for pid in sorted(all_protein_ids)
+            if pid in protein_dict
+        ]
+
+        # Get protein combinations
+        combinations = protein_handler.get_protein_combinations(df, protein_dict)
+        combo_details = protein_handler.get_combination_details(
+            combinations, df, protein_dict
+        ) if combinations else []
+
+        return JsonResponse({
+            'missing_protein_count': len(missing_ids),
+            'missing_ids': missing_ids[:50],  # Limit for display
+            'known_protein_count': len(known_proteins),
+            'known_proteins': known_proteins[:50],
+            'combinations': combo_details,
+            'has_combinations': len(combo_details) > 0,
+        })
+    except Exception as e:
+        return JsonResponse({'error': f'Could not load step 3: {str(e)}'}, status=500)
+
+
+@require_POST
+def start_uniprot_fetch(request):
+    """Launch UniProt fetch as a Celery task."""
+    work_dir = _get_work_dir(request)
+    df = _load_df(work_dir, 'pd_results')
+    protein_dict = _load_json(work_dir, 'protein_dict') or {}
+
+    if df is None:
+        return JsonResponse({'error': 'No data loaded'}, status=400)
+
+    missing_ids = list(data_loader.find_missing_proteins(df, protein_dict))
+
+    if not missing_ids:
+        return JsonResponse({'skipped': True, 'message': 'No missing proteins to fetch'})
+
+    task = fetch_uniprot_task.delay(missing_ids)
+    request.session['dt_uniprot_task_id'] = task.id
+
+    return JsonResponse({'task_id': task.id, 'count': len(missing_ids)})
+
+
+@require_POST
+def submit_protein_decisions(request):
+    """Submit protein combination decisions."""
+    work_dir = _get_work_dir(request)
+
+    try:
+        body = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    raw_decisions = body.get('decisions', {})
+    protein_dict = _load_json(work_dir, 'protein_dict') or {}
+
+    # Translate simplified JS format {combo: {action, protein_id}}
+    # to backend format {combo: {protein_id: 'NEW'|'REMOVE'|'ASIS'|'CUSTOM:id'}}
+    decisions = {}
+    for combo, decision_data in raw_decisions.items():
+        if not isinstance(decision_data, dict) or 'action' not in decision_data:
+            # Already in backend format (legacy) — pass through
+            decisions[combo] = decision_data
+            continue
+        action = decision_data.get('action', 'ASIS').upper()
+        protein_id = decision_data.get('protein_id', '').strip()
+        all_proteins = [p.strip() for p in combo.split(';') if p.strip()]
+        if action == 'ASIS' or not all_proteins:
+            decisions[combo] = {p: 'ASIS' for p in all_proteins}
+        elif action == 'NEW' and protein_id:
+            decisions[combo] = {
+                p: ('NEW' if p == protein_id else 'REMOVE') for p in all_proteins
+            }
+        elif action == 'CUSTOM' and protein_id:
+            decisions[combo] = {all_proteins[0]: f'CUSTOM:{protein_id}'}
+            for p in all_proteins[1:]:
+                decisions[combo][p] = 'REMOVE'
+        else:
+            decisions[combo] = {p: 'ASIS' for p in all_proteins}
+
+    # Merge UniProt results if available
+    uniprot_task_id = request.session.get('dt_uniprot_task_id')
+    if uniprot_task_id:
+        task_result = AsyncResult(str(uniprot_task_id))
+        if task_result.ready() and not task_result.failed():
+            uniprot_results = task_result.result or {}
+            for pid, info in uniprot_results.items():
+                if pid not in protein_dict:
+                    protein_dict[pid] = info
+
+    # Apply decisions to the dataframe
+    df = _load_df(work_dir, 'pd_results')
+    if df is None:
+        return JsonResponse({'error': 'No data loaded'}, status=400)
+
+    processed_df, error = protein_handler.apply_protein_decisions(
+        df, decisions, protein_dict
+    )
+    if error:
+        return JsonResponse({'error': error}, status=400)
+
+    _save_df(work_dir, 'pd_results_cleaned', processed_df)
+    _save_json(work_dir, 'protein_dict', protein_dict)
+
+    return JsonResponse({'success': True})
+
+
+@require_POST
+def skip_protein_mapping(request):
+    """Skip protein mapping step."""
+    work_dir = _get_work_dir(request)
+
+    # Merge UniProt results if available
+    protein_dict = _load_json(work_dir, 'protein_dict') or {}
+    uniprot_task_id = request.session.get('dt_uniprot_task_id')
+    if uniprot_task_id:
+        task_result = AsyncResult(str(uniprot_task_id))
+        if task_result.ready() and not task_result.failed():
+            uniprot_results = task_result.result or {}
+            for pid, info in uniprot_results.items():
+                if pid not in protein_dict:
+                    protein_dict[pid] = info
+            _save_json(work_dir, 'protein_dict', protein_dict)
+
+    # Copy pd_results as pd_results_cleaned
+    df = _load_df(work_dir, 'pd_results')
+    if df is not None:
+        _save_df(work_dir, 'pd_results_cleaned', df)
+
+    return JsonResponse({'success': True})
+
+
+# ---------------------------------------------------------------------------
+# Step 4: Process & Export
+# ---------------------------------------------------------------------------
+
+@require_POST
+def process_data(request):
+    """Process all data and generate the merged dataset."""
+    work_dir = _get_work_dir(request)
+
+    pd_results = _load_df(work_dir, 'pd_results')
+    pd_results_cleaned = _load_df(work_dir, 'pd_results_cleaned')
+    mbpdb_results = _load_df(work_dir, 'mbpdb_results')
+    group_data = _load_json(work_dir, 'group_data')
+    protein_dict = _load_json(work_dir, 'protein_dict') or {}
+
+    if pd_results is None:
+        return JsonResponse({'error': 'No peptidomic data loaded'}, status=400)
+
+    final_df = data_combiner.process_data(
+        pd_results, pd_results_cleaned, mbpdb_results, group_data, protein_dict
+    )
+
+    if final_df is None:
+        return JsonResponse({'error': 'Data processing failed'}, status=500)
+
+    _save_df(work_dir, 'merged_df', final_df)
+
+    # Determine available exports
+    has_mbpdb = mbpdb_results is not None and not mbpdb_results.empty
+    has_groups = group_data is not None and len(group_data) > 0
+    has_function = 'function' in final_df.columns and final_df['function'].notna().any()
+
+    return JsonResponse({
+        'success': True,
+        'rows': len(final_df),
+        'columns': len(final_df.columns),
+        'exports': {
+            'mbpdb_results': has_mbpdb,
+            'group_definitions': has_groups,
+            'merged_dataset': True,
+            'sequence_list': has_groups,
+            'summed_peptide': has_groups,
+            'protein_analysis': has_groups,
+            'summed_function': has_function and has_groups,
+            'group_correlation': has_groups,
+            'replicate_correlation': has_groups,
+        }
+    })
+
+
+@require_GET
+def download_export(request, export_type):
+    """Download an export file."""
+    work_dir = _get_work_dir(request)
+    merged_df = _load_df(work_dir, 'merged_df')
+    group_data = _load_json(work_dir, 'group_data')
+    protein_dict = _load_json(work_dir, 'protein_dict') or {}
+    mbpdb_results = _load_df(work_dir, 'mbpdb_results')
+
+    correlation_type = request.GET.get('correlation_type', 'Pearson')
+    log_transform = request.GET.get('log_transform', 'true').lower() == 'true'
+
+    content = None
+    filename = ''
+    content_type = 'application/octet-stream'
+
+    if export_type == 'mbpdb_results':
+        content = export_manager.export_mbpdb_results(mbpdb_results)
+        filename = 'MBPDB_SEARCH.tsv'
+        content_type = 'text/tab-separated-values'
+
+    elif export_type == 'group_definitions':
+        content = export_manager.export_group_definitions(group_data)
+        filename = 'categorical_variable_definitions.json'
+        content_type = 'application/json'
+
+    elif export_type == 'merged_dataset':
+        content = export_manager.export_merged_dataset(merged_df)
+        filename = 'merged_dataframe.csv'
+        content_type = 'text/csv'
+
+    elif export_type == 'sequence_list':
+        content = export_manager.export_sequence_list(merged_df, group_data)
+        filename = 'list_of_peptides_by_sequences.csv'
+        content_type = 'text/csv'
+
+    elif export_type == 'summed_peptide':
+        content = export_manager.export_summed_peptide_data(merged_df, group_data)
+        filename = 'summed_peptide_results.xlsx'
+        content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+    elif export_type == 'protein_analysis':
+        content, _ = export_manager.export_protein_data(merged_df, group_data, protein_dict)
+        filename = 'protein_absorbance_analysis.csv'
+        content_type = 'text/csv'
+
+    elif export_type == 'summed_function':
+        content = export_manager.export_summed_function_data(merged_df, group_data)
+        filename = 'processed_mbpdb_results.xlsx'
+        content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+    elif export_type == 'group_correlation':
+        content = export_manager.export_group_correlation(
+            merged_df, group_data, correlation_type, log_transform
+        )
+        filename = f'group_correlations_{correlation_type.lower()}.xlsx'
+        content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+    elif export_type == 'replicate_correlation':
+        content = export_manager.export_replicate_correlation(
+            merged_df, group_data, correlation_type, log_transform
+        )
+        filename = f'replicate_correlations_{correlation_type.lower()}.xlsx'
+        content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+    if content is None:
+        return JsonResponse({'error': 'Export not available'}, status=404)
+
+    response = HttpResponse(content, content_type=content_type)
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
+
+@require_POST
+def cleanup(request):
+    """Clean up the current session's work directory."""
+    work_dir = request.session.get('dt_work_dir')
+    if work_dir and os.path.isdir(work_dir):
+        import shutil
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+    # Clear session keys
+    for key in ['dt_work_dir', 'dt_session_id', 'dt_blast_task_id', 'dt_uniprot_task_id']:
+        request.session.pop(key, None)
+
+    # Also clean old work directories
+    clear_temp_directory(settings.WORK_DIRECTORY)
+
+    return JsonResponse({'success': True})

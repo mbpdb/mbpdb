@@ -8,7 +8,13 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.7/ref/settings/
 """
 from celery import Celery
+from dotenv import load_dotenv
 import os, re
+
+# Load environment variables from a local .env file if it exists.
+# This does NOT override variables already set in the environment,
+# so GitHub Actions secrets / server env vars always take precedence.
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 

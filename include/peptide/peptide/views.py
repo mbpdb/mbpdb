@@ -22,8 +22,6 @@ from django.shortcuts import render
 def voila_heatmap_view(request):
     return render(request, 'peptide/heatmap.html')
 
-def voila_data_view(request):
-    return render(request, 'peptide/data_transform.html')
 
 def voila_data_analysis_view(request):
     return render(request, 'peptide/data_analysis_plot.html')
