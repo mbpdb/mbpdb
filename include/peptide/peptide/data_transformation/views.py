@@ -549,6 +549,149 @@ def process_data(request):
 
 
 @require_GET
+def view_export(request, export_type):
+    """Return tabular data for in-app viewing as JSON."""
+    import math
+    import io as _io
+
+    work_dir = _get_work_dir(request)
+    merged_df = _load_df(work_dir, 'merged_df')
+    group_data = _load_json(work_dir, 'group_data')
+    protein_dict = _load_json(work_dir, 'protein_dict') or {}
+    mbpdb_results = _load_df(work_dir, 'mbpdb_results')
+
+    MAX_ROWS = 500
+
+    def safe_val(v):
+        if v is None:
+            return None
+        if hasattr(v, 'item'):
+            v = v.item()
+        if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+            return None
+        if isinstance(v, (list, tuple)):
+            return str(v)
+        return v
+
+    def df_to_sheet(df, name):
+        truncated = len(df) > MAX_ROWS
+        rows = [[safe_val(v) for v in row] for row in df.head(MAX_ROWS).itertuples(index=False)]
+        return {
+            'name': name,
+            'columns': [str(c) for c in df.columns],
+            'rows': rows,
+            'total_rows': len(df),
+            'truncated': truncated,
+        }
+
+    try:
+        sheets = None
+
+        if export_type == 'mbpdb_results':
+            if mbpdb_results is None or mbpdb_results.empty:
+                return JsonResponse({'error': 'No MBPDB results available'}, status=404)
+            sheets = [df_to_sheet(mbpdb_results, 'MBPDB Results')]
+
+        elif export_type == 'group_definitions':
+            if not group_data:
+                return JsonResponse({'error': 'No group definitions'}, status=404)
+            rows = [[info['grouping_variable'], ', '.join(info['abundance_columns'])]
+                    for info in group_data.values()]
+            sheets = [{'name': 'Group Definitions',
+                       'columns': ['Group Name', 'Abundance Columns'],
+                       'rows': rows, 'total_rows': len(rows), 'truncated': False}]
+
+        elif export_type == 'merged_dataset':
+            if merged_df is None:
+                return JsonResponse({'error': 'No merged dataset'}, status=404)
+            sheets = [df_to_sheet(merged_df, 'Merged Dataset')]
+
+        elif export_type == 'sequence_list':
+            if merged_df is None or not group_data:
+                return JsonResponse({'error': 'No data available'}, status=404)
+            result_df = export_manager.extract_sequences_by_name(merged_df, group_data)
+            if result_df.empty:
+                return JsonResponse({'error': 'No sequence data'}, status=404)
+            sheets = [df_to_sheet(result_df, 'Sequence List')]
+
+        elif export_type == 'summed_peptide':
+            if merged_df is None or not group_data:
+                return JsonResponse({'error': 'No data available'}, status=404)
+            data = export_manager.summed_peptide_results(merged_df, group_data)
+            if not data:
+                return JsonResponse({'error': 'No summed peptide data'}, status=404)
+            summary_rows, rep_rows = [], []
+            for g, v in data.items():
+                summary_rows.append([g, safe_val(v['total_Absorbance']),
+                                      safe_val(v['abundance_sem']),
+                                      v['unique_peptides'], safe_val(v['count_sem'])])
+                ri = v['replicate_data']
+                for i, rep in enumerate(ri['abundance_columns']):
+                    ab = ri['replicate_abundances'][i] if i < len(ri['replicate_abundances']) else 0
+                    ct = ri['replicate_counts'][i] if i < len(ri['replicate_counts']) else 0
+                    rep_rows.append([g, rep, safe_val(ab), ct])
+            sheets = [
+                {'name': 'Summary',
+                 'columns': ['Group', 'Total Absorbance', 'Abundance SEM', 'Unique Peptides', 'Count SEM'],
+                 'rows': summary_rows, 'total_rows': len(summary_rows), 'truncated': False},
+                {'name': 'Replicate Details',
+                 'columns': ['Group', 'Replicate', 'Total Absorbance', 'Unique Peptides'],
+                 'rows': rep_rows, 'total_rows': len(rep_rows), 'truncated': False},
+            ]
+
+        elif export_type == 'protein_analysis':
+            if merged_df is None or not group_data:
+                return JsonResponse({'error': 'No data available'}, status=404)
+            csv_bytes, _ = export_manager.export_protein_data(merged_df, group_data, protein_dict)
+            if csv_bytes is None:
+                return JsonResponse({'error': 'No protein data'}, status=404)
+            df = pd.read_csv(_io.BytesIO(csv_bytes))
+            sheets = [df_to_sheet(df, 'Protein Analysis')]
+
+        elif export_type in ('summed_function', 'group_correlation', 'replicate_correlation'):
+            if merged_df is None or not group_data:
+                return JsonResponse({'error': 'No data available'}, status=404)
+            correlation_type = request.GET.get('correlation_type', 'Pearson')
+            log_transform = request.GET.get('log_transform', 'true').lower() == 'true'
+            if export_type == 'summed_function':
+                content = export_manager.export_summed_function_data(merged_df, group_data)
+            elif export_type == 'group_correlation':
+                content = export_manager.export_group_correlation(
+                    merged_df, group_data, correlation_type, log_transform)
+            else:
+                content = export_manager.export_replicate_correlation(
+                    merged_df, group_data, correlation_type, log_transform)
+            if content is None:
+                return JsonResponse({'error': 'No data available'}, status=404)
+            import openpyxl
+            wb = openpyxl.load_workbook(_io.BytesIO(content))
+            sheets = []
+            for sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+                all_rows = list(ws.values)
+                if not all_rows:
+                    sheets.append({'name': sheet_name, 'columns': [], 'rows': [],
+                                   'total_rows': 0, 'truncated': False})
+                    continue
+                cols = [str(c) if c is not None else '' for c in all_rows[0]]
+                data_rows = [[safe_val(c) for c in row] for row in all_rows[1:]]
+                sheets.append({'name': sheet_name, 'columns': cols,
+                               'rows': data_rows[:MAX_ROWS],
+                               'total_rows': len(data_rows),
+                               'truncated': len(data_rows) > MAX_ROWS})
+
+        if sheets is None:
+            return JsonResponse({'error': 'Unknown export type'}, status=404)
+
+        return JsonResponse({'sheets': sheets})
+
+    except Exception as e:
+        import traceback
+        return JsonResponse({'error': f'View failed: {str(e)}',
+                             'detail': traceback.format_exc().split('\n')[-3]}, status=500)
+
+
+@require_GET
 def download_export(request, export_type):
     """Download an export file."""
     work_dir = _get_work_dir(request)

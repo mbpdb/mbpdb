@@ -92,8 +92,8 @@ def make_mbpdb_df():
 
 def make_group_data():
     return {
-        '1': {'grouping_variable': 'GroupA', 'abundance_columns': ['Sample_A1', 'Sample_A2']},
-        '2': {'grouping_variable': 'GroupB', 'abundance_columns': ['Sample_B1', 'Sample_B2']},
+        'GroupA': {'grouping_variable': 'GroupA', 'abundance_columns': ['Sample_A1', 'Sample_A2']},
+        'GroupB': {'grouping_variable': 'GroupB', 'abundance_columns': ['Sample_B1', 'Sample_B2']},
     }
 
 
@@ -306,8 +306,8 @@ class TestParseGroupJson(unittest.TestCase):
         group_data, err = group_processing.parse_group_json(group_json, available)
         self.assertIsNone(err)
         self.assertEqual(len(group_data), 2)
-        self.assertEqual(group_data['1']['grouping_variable'], 'GroupA')
-        self.assertEqual(group_data['1']['abundance_columns'], ['Sample_A1', 'Sample_A2'])
+        self.assertEqual(group_data['GroupA']['grouping_variable'], 'GroupA')
+        self.assertEqual(group_data['GroupA']['abundance_columns'], ['Sample_A1', 'Sample_A2'])
 
     def test_missing_column_returns_error(self):
         group_json = json.dumps({'GroupA': ['Missing_Col']}).encode()
@@ -327,15 +327,15 @@ class TestBuildGroupData(unittest.TestCase):
             ['Sample_A1', 'Sample_A2'], 'GroupA'
         )
         self.assertIsNone(err)
-        self.assertEqual(gd['1']['grouping_variable'], 'GroupA')
-        self.assertEqual(gd['1']['abundance_columns'], ['Sample_A1', 'Sample_A2'])
+        self.assertEqual(gd['GroupA']['grouping_variable'], 'GroupA')
+        self.assertEqual(gd['GroupA']['abundance_columns'], ['Sample_A1', 'Sample_A2'])
 
     def test_appends_to_existing(self):
-        gd = {'1': {'grouping_variable': 'GroupA', 'abundance_columns': ['Sample_A1']}}
+        gd = {'GroupA': {'grouping_variable': 'GroupA', 'abundance_columns': ['Sample_A1']}}
         gd, err = group_processing.build_group_data(['Sample_B1'], 'GroupB', gd)
         self.assertIsNone(err)
-        self.assertIn('2', gd)
-        self.assertEqual(gd['2']['grouping_variable'], 'GroupB')
+        self.assertIn('GroupB', gd)
+        self.assertEqual(gd['GroupB']['grouping_variable'], 'GroupB')
 
     def test_empty_name_returns_error(self):
         _, err = group_processing.build_group_data(['Sample_A1'], '')
@@ -1039,8 +1039,8 @@ class TestRealData_Noom(unittest.TestCase):
         )
         self.assertIsNone(err)
         self.assertEqual(
-            gd['1']['abundance_columns'],
-            gd2['1']['abundance_columns']
+            gd['GroupA']['abundance_columns'],
+            gd2['GroupA']['abundance_columns']
         )
 
     def test_full_pipeline_produces_averages(self):

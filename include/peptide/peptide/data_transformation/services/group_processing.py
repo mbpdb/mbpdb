@@ -43,12 +43,11 @@ def parse_group_json(json_content, available_columns):
         missing_unique = sorted(set(missing_columns))
         return None, f"The following columns are not present in the current dataset: {', '.join(missing_unique)}"
 
-    # Convert to enumerated format
+    # Use the group name directly as the key (no numeric wrapping)
     group_data = {}
-    for i, (group_name, abundance_cols) in enumerate(simplified_data.items(), 1):
-        group_number = str(i)
+    for group_name, abundance_cols in simplified_data.items():
         if isinstance(abundance_cols, list):
-            group_data[group_number] = {
+            group_data[group_name] = {
                 'grouping_variable': group_name,
                 'abundance_columns': abundance_cols
             }
@@ -78,13 +77,7 @@ def build_group_data(selected_columns, group_name, existing_group_data=None):
     if existing_group_data is None:
         existing_group_data = {}
 
-    if existing_group_data:
-        existing_numbers = [int(k) for k in existing_group_data.keys()]
-        next_number = str(max(existing_numbers) + 1)
-    else:
-        next_number = "1"
-
-    existing_group_data[next_number] = {
+    existing_group_data[group_name] = {
         'grouping_variable': group_name,
         'abundance_columns': list(selected_columns)
     }
@@ -106,8 +99,8 @@ def build_no_group_data(selected_columns):
         return None, "Please select at least one absorbance column"
 
     group_data = {}
-    for i, column in enumerate(selected_columns, 1):
-        group_data[str(i)] = {
+    for column in selected_columns:
+        group_data[column] = {
             'grouping_variable': column,
             'abundance_columns': [column]
         }

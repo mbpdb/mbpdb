@@ -18,6 +18,7 @@ urlpatterns = [
     path('submit-proteins/', views.submit_protein_decisions, name='dt_submit_proteins'),
     path('skip-proteins/', views.skip_protein_mapping, name='dt_skip_proteins'),
     path('process/', views.process_data, name='dt_process'),
+    path('view/<str:export_type>/', views.view_export, name='dt_view'),
     path('download/<str:export_type>/', views.download_export, name='dt_download'),
     path('cleanup/', views.cleanup, name='dt_cleanup'),
 ]

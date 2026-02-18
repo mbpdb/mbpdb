@@ -58,11 +58,25 @@
     .dt-col-item.selected-item:hover { background: #dceeff; }
     .dt-col-remove { color: #dc3545; font-weight: bold; margin-left: 8px; flex-shrink: 0; cursor: pointer; }
     .dt-col-empty { padding: 8px 10px; color: #aaa; font-size: 0.85rem; font-style: italic; }
-    .dt-export-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .dt-export-btn { display: flex; align-items: center; padding: 10px 16px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer; text-decoration: none; color: #333; }
-    .dt-export-btn:hover { background: #e9ecef; text-decoration: none; color: #333; }
-    .dt-export-btn:disabled, .dt-export-btn.disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
-    .dt-export-btn i { margin-right: 8px; color: #1976d2; }
+    .dt-export-list { display: flex; flex-direction: column; gap: 6px; }
+    .dt-export-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; }
+    .dt-export-row.disabled { opacity: 0.45; }
+    .dt-export-label { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; color: #333; }
+    .dt-export-label i { color: #1976d2; width: 16px; text-align: center; }
+    .dt-export-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .dt-export-view-btn { padding: 5px 12px; font-size: 0.85rem; background: #fff; border: 1px solid #1976d2; color: #1976d2; border-radius: 4px; cursor: pointer; }
+    .dt-export-view-btn:hover { background: #e8f0fe; }
+    .dt-export-dl-btn { padding: 5px 12px; font-size: 0.85rem; background: #1976d2; border: none; color: #fff; border-radius: 4px; cursor: pointer; }
+    .dt-export-dl-btn:hover { background: #1565c0; }
+    /* Viewer */
+    .dt-viewer-tabs { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: -1px; }
+    .dt-viewer-tab { padding: 5px 14px; border: 1px solid #dee2e6; border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; background: #f8f9fa; font-size: 0.88rem; }
+    .dt-viewer-tab.active { background: #fff; color: #1976d2; font-weight: 600; }
+    .dt-viewer-wrap { max-height: 420px; overflow: auto; border: 1px solid #dee2e6; border-radius: 0 4px 4px 4px; }
+    .dt-viewer-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; white-space: nowrap; }
+    .dt-viewer-table th { position: sticky; top: 0; z-index: 1; background: #f0f4fa; border: 1px solid #dee2e6; padding: 5px 10px; text-align: left; font-weight: 600; }
+    .dt-viewer-table td { border: 1px solid #dee2e6; padding: 3px 10px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+    .dt-viewer-table tbody tr:hover { background: #f0f7ff; }
     .dt-combo-row { padding: 8px; border: 1px solid #dee2e6; border-radius: 4px; margin-bottom: 8px; }
     .dt-spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #dee2e6; border-top-color: #1976d2; border-radius: 50%; animation: dt-spin 0.6s linear infinite; margin-right: 8px; vertical-align: middle; }
     @keyframes dt-spin { to { transform: rotate(360deg); } }
@@ -295,7 +309,7 @@
         </div>
 
         <div id="export-section" class="dt-card hidden">
-            <h4>Download Results</h4>
+            <h4>Results</h4>
             <div id="process-summary" style="margin-bottom: 16px;"></div>
 
             <div id="correlation-options">
@@ -309,7 +323,22 @@
                 </label>
             </div>
 
-            <div class="dt-export-grid" id="export-buttons" style="margin-top: 16px;"></div>
+            <div class="dt-export-list" id="export-buttons" style="margin-top: 16px;"></div>
+        </div>
+
+        <!-- In-app data viewer -->
+        <div id="dt-viewer-panel" class="dt-card hidden" style="margin-top: 0; border-top: none; border-radius: 0 0 6px 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h5 id="dt-viewer-title" style="margin: 0; color: #1976d2;"></h5>
+                <button id="dt-viewer-close-btn" class="dt-btn dt-btn-secondary" style="padding: 3px 10px; font-size: 0.85rem;">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+            <div class="dt-viewer-tabs" id="dt-viewer-tabs"></div>
+            <div class="dt-viewer-wrap" id="dt-viewer-wrap">
+                <div id="dt-viewer-content"></div>
+            </div>
+            <div id="dt-viewer-info" style="font-size: 0.8rem; color: #888; margin-top: 6px;"></div>
         </div>
 
         <div style="margin-top: 16px;">
