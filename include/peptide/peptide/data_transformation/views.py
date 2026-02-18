@@ -657,11 +657,25 @@ def view_export(request, export_type):
         elif export_type == 'protein_analysis':
             if merged_df is None or not group_data:
                 return JsonResponse({'error': 'No data available'}, status=404)
-            csv_bytes, _ = export_manager.export_protein_data(merged_df, group_data, protein_dict)
-            if csv_bytes is None:
+            xlsx_bytes, _ = export_manager.export_protein_data(merged_df, group_data, protein_dict)
+            if xlsx_bytes is None:
                 return JsonResponse({'error': 'No protein data'}, status=404)
-            df = pd.read_csv(_io.BytesIO(csv_bytes))
-            sheets = [df_to_sheet(df, 'Protein Analysis')]
+            import openpyxl
+            wb = openpyxl.load_workbook(_io.BytesIO(xlsx_bytes))
+            sheets = []
+            for sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+                all_rows = list(ws.values)
+                if not all_rows:
+                    sheets.append({'name': sheet_name, 'columns': [], 'rows': [],
+                                   'total_rows': 0, 'truncated': False})
+                    continue
+                cols = [str(c) if c is not None else '' for c in all_rows[0]]
+                data_rows = [[safe_val(c) for c in row] for row in all_rows[1:]]
+                sheets.append({'name': sheet_name, 'columns': cols,
+                               'rows': data_rows[:MAX_ROWS],
+                               'total_rows': len(data_rows),
+                               'truncated': len(data_rows) > MAX_ROWS})
 
         elif export_type in ('summed_function', 'group_correlation', 'replicate_correlation'):
             if merged_df is None or not group_data:
@@ -749,8 +763,8 @@ def download_export(request, export_type):
 
     elif export_type == 'protein_analysis':
         content, _ = export_manager.export_protein_data(merged_df, group_data, protein_dict)
-        filename = 'protein_absorbance_analysis.csv'
-        content_type = 'text/csv'
+        filename = 'protein_analysis.xlsx'
+        content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
     elif export_type == 'summed_function':
         content = export_manager.export_summed_function_data(merged_df, group_data)

@@ -691,14 +691,15 @@ class TestSummedPeptideResults(unittest.TestCase):
 
 class TestExportProteinData(unittest.TestCase):
 
-    def test_returns_csv_bytes(self):
+    def test_returns_xlsx_bytes(self):
         merged = _make_merged_df()
         result, warnings = export_manager.export_protein_data(
             merged, make_group_data(), make_protein_dict()
         )
         if result is not None:
             self.assertIsInstance(result, bytes)
-            self.assertIn(b'Description', result)
+            # XLSX files start with PK (zip magic bytes)
+            self.assertEqual(result[:2], b'PK')
 
     def test_none_merged_returns_none(self):
         result, _ = export_manager.export_protein_data(None, make_group_data(), {})

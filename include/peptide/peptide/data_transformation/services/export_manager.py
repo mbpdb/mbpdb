@@ -439,7 +439,24 @@ def export_protein_data(merged_df, group_data, protein_dict):
     if 'Protein' in proteins_df.columns:
         proteins_df = proteins_df.drop(columns=['Protein'])
 
-    return proteins_df.to_csv(index=False).encode('utf-8'), warnings_list
+    # Split into four sheets by column type
+    all_cols = list(proteins_df.columns)
+    desc_cols = ['Description'] if 'Description' in all_cols else []
+
+    abs_abs_cols  = desc_cols + [c for c in all_cols if c.startswith('Avg_')] + \
+                    (['avg_absorbance_all'] if 'avg_absorbance_all' in all_cols else [])
+    abs_rel_cols  = desc_cols + [c for c in all_cols if c.startswith('Rel_Avg_')]
+    cnt_abs_cols  = desc_cols + [c for c in all_cols if c.startswith('Count_')]
+    cnt_rel_cols  = desc_cols + [c for c in all_cols if c.startswith('Rel_Count_')]
+
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+        proteins_df[abs_abs_cols].to_excel(writer, sheet_name='Absorbance Absolute', index=False)
+        proteins_df[abs_rel_cols].to_excel(writer, sheet_name='Absorbance Relative', index=False)
+        proteins_df[cnt_abs_cols].to_excel(writer, sheet_name='Count Absolute',      index=False)
+        proteins_df[cnt_rel_cols].to_excel(writer, sheet_name='Count Relative',       index=False)
+
+    return buf.getvalue(), warnings_list
 
 
 # ---------------------------------------------------------------------------
