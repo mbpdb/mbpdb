@@ -26,6 +26,10 @@
 
         input.addEventListener('change', function() {
             if (this.files.length) showFile(this.files[0].name);
+            // When functional file is selected, gray out BLAST threshold section
+            if (this.id === 'functional_file') {
+                updateBlastThresholdState();
+            }
         });
 
         zone.addEventListener('dragover', function(e) {
@@ -41,9 +45,22 @@
             if (e.dataTransfer.files.length) {
                 input.files = e.dataTransfer.files;
                 showFile(e.dataTransfer.files[0].name);
+                if (input.id === 'functional_file') {
+                    updateBlastThresholdState();
+                }
             }
         });
     });
+
+    function updateBlastThresholdState() {
+        var functionalFile = document.getElementById('functional_file');
+        var blastSection = document.getElementById('blast-threshold-section');
+        if (!blastSection) return;
+        var hasFile = functionalFile && functionalFile.files && functionalFile.files.length > 0;
+        // Only toggle the visual greyed-out state — never set disabled so the
+        // select value is still submitted and form validation passes.
+        blastSection.classList.toggle('disabled-section', hasFile);
+    }
 
     // Utility: AJAX helper
     function ajax(method, url, data, callback, errorCallback) {
@@ -409,37 +426,72 @@
         // Known proteins summary
         if (resp.known_protein_count > 0) {
             html += '<div class="dt-alert dt-alert-success" style="margin-bottom: 8px;">' +
-                '<strong>' + resp.known_protein_count + '</strong> protein(s) mapped from database.</div>';
+                '<strong>' + resp.known_protein_count + '</strong> protein(s) mapped.</div>';
             if (resp.known_proteins && resp.known_proteins.length > 0) {
                 html += '<div style="max-height: 120px; overflow-y: auto; font-size: 0.82rem; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px;">';
                 resp.known_proteins.forEach(function(p) {
                     html += '<span style="display:inline-block; margin-right:16px; margin-bottom:2px;">' +
-                        '<strong>' + p.id + '</strong>' +
-                        (p.name ? ' — ' + p.name.split(' ').slice(0,4).join(' ') : '') +
-                        (p.species ? ' <em>(' + p.species + ')</em>' : '') + '</span>';
+                        '<strong>' + escHtml(p.id) + '</strong>' +
+                        (p.name ? ' — ' + escHtml(p.name.split(' ').slice(0,4).join(' ')) : '') +
+                        (p.species ? ' <em>(' + escHtml(p.species) + ')</em>' : '') + '</span>';
                 });
-                if (resp.known_protein_count > 50) html += '...';
+                if (resp.known_protein_count > 50) html += '…';
                 html += '</div>';
             }
         }
 
-        // Missing proteins
+        // Proteins not yet looked up — user can fetch these
         if (resp.missing_protein_count > 0) {
-            html += '<div class="dt-alert dt-alert-warning">' +
-                '<strong>' + resp.missing_protein_count + '</strong> protein(s) not found in the dictionary. ' +
-                'Fetch from UniProt to get names and species, or skip.</div>';
+            html += '<div class="dt-alert dt-alert-warning" style="margin-bottom:4px;">' +
+                '<strong>' + resp.missing_protein_count + '</strong> protein(s) not yet identified — ' +
+                'click <strong>Fetch from UniProt</strong> to look them up.</div>';
             if (resp.missing_ids && resp.missing_ids.length > 0) {
-                html += '<div style="max-height: 100px; overflow-y: auto; font-size: 0.82rem; color: #666; margin-top: 4px;">' +
-                    resp.missing_ids.join(', ') + (resp.missing_protein_count > 50 ? ', ...' : '') + '</div>';
+                html += '<div style="max-height: 80px; overflow-y: auto; font-size: 0.82rem; ' +
+                    'color: #666; background:#fff8e1; border:1px solid #ffe082; border-radius:4px; ' +
+                    'padding:4px 8px; margin-bottom:8px;">' +
+                    resp.missing_ids.map(escHtml).join(', ') +
+                    (resp.missing_protein_count > 50 ? ', …' : '') + '</div>';
             }
-        } else if (resp.known_protein_count === 0) {
-            html += '<div class="dt-alert dt-alert-info">No protein identifiers found in the data. ' +
-                'Ensure your file has a protein/accession column.</div>';
-        } else {
-            html += '<div class="dt-alert dt-alert-success">All proteins are mapped.</div>';
+        }
+
+        // Proteins already tried in UniProt but could not be resolved
+        if (resp.unresolvable_count > 0) {
+            html += '<div class="dt-alert" style="background:#f5f5f5; border:1px solid #ccc; ' +
+                'color:#666; margin-bottom:4px;">' +
+                '<i class="fas fa-exclamation-circle" style="margin-right:4px;"></i>' +
+                '<strong>' + resp.unresolvable_count + '</strong> protein ID(s) could not be found in UniProt ' +
+                '(non-standard format or retired accession). These will remain unmapped.</div>';
+            if (resp.unresolvable_ids && resp.unresolvable_ids.length > 0) {
+                html += '<div style="max-height: 80px; overflow-y: auto; font-size: 0.82rem; ' +
+                    'color: #888; background:#fafafa; border:1px solid #e0e0e0; border-radius:4px; ' +
+                    'padding:4px 8px; margin-bottom:8px; text-decoration:line-through;">' +
+                    resp.unresolvable_ids.map(escHtml).join(', ') +
+                    (resp.unresolvable_count > 50 ? ', …' : '') + '</div>';
+            }
+        }
+
+        if (resp.missing_protein_count === 0 && resp.unresolvable_count === 0) {
+            if (resp.known_protein_count === 0) {
+                html += '<div class="dt-alert dt-alert-info">No protein identifiers found in the data. ' +
+                    'Ensure your file has a protein/accession column.</div>';
+            } else {
+                html += '<div class="dt-alert dt-alert-success">All proteins are mapped.</div>';
+            }
         }
 
         info.innerHTML = html;
+
+        // Show/hide the fetch button based on whether there's anything left to fetch
+        var fetchBtn = document.getElementById('fetch-uniprot-btn');
+        if (fetchBtn) {
+            if (resp.missing_protein_count > 0) {
+                fetchBtn.classList.remove('hidden');
+                fetchBtn.innerHTML = '<i class="fas fa-download"></i> Fetch from UniProt' +
+                    ' (' + resp.missing_protein_count + ')';
+            } else {
+                fetchBtn.classList.add('hidden');
+            }
+        }
 
         if (resp.has_combinations && resp.combinations.length > 0) {
             document.getElementById('protein-combinations').classList.remove('hidden');
@@ -492,17 +544,31 @@
         var btn = this;
         btn.disabled = true;
 
-        function afterFetch(savedCount) {
-            // Persist any fetched results then fully refresh the protein panel
-            ajax('POST', 'save-uniprot/', null, function(saveResp) {
+        function afterFetch(savedCount, taskId) {
+            // Persist any fetched results then fully refresh the protein panel.
+            // Pass task_id explicitly so the server doesn't have to rely on session state.
+            ajax('POST', 'save-uniprot/', {task_id: taskId || null}, function(saveResp) {
                 var n = (saveResp && saveResp.saved) ? saveResp.saved : (savedCount || 0);
+                var fetchedProteins = (saveResp && saveResp.proteins) ? saveResp.proteins : [];
                 ajax('GET', 'step3/', null, function(r) {
                     renderStep3Info(r);
                     if (n > 0) {
-                        document.getElementById('protein-info').insertAdjacentHTML('afterbegin',
-                            '<div class="dt-alert dt-alert-success" style="margin-bottom:8px;">' +
+                        var msg = '<div class="dt-alert dt-alert-success" style="margin-bottom:8px;">' +
                             '<i class="fas fa-check-circle"></i> UniProt identified <strong>' +
-                            n + '</strong> protein(s). Protein map updated.</div>');
+                            n + '</strong> protein(s). Protein map updated.';
+                        if (fetchedProteins.length > 0) {
+                            msg += '<div style="margin-top:6px; font-size:0.85rem;">';
+                            fetchedProteins.forEach(function(p) {
+                                msg += '<span style="display:inline-block; margin-right:16px; margin-bottom:2px;">' +
+                                    '<strong>' + escHtml(p.id) + '</strong>' +
+                                    (p.name ? ' — ' + escHtml(p.name) : '') +
+                                    (p.species ? ' <em>(' + escHtml(p.species) + ')</em>' : '') +
+                                    '</span>';
+                            });
+                            msg += '</div>';
+                        }
+                        msg += '</div>';
+                        document.getElementById('protein-info').insertAdjacentHTML('afterbegin', msg);
                     }
                     btn.disabled = false;
                 });
@@ -516,13 +582,14 @@
             if (resp.skipped) {
                 // No missing proteins — still refresh the panel in case a previous
                 // fetch left results that haven't been rendered yet
-                afterFetch(0);
+                afterFetch(0, null);
                 return;
             }
+            var taskId = resp.task_id;
             document.getElementById('uniprot-progress').classList.remove('hidden');
-            pollProgress(resp.task_id, 'uniprot-progress-bar', 'uniprot-progress-text', function() {
+            pollProgress(taskId, 'uniprot-progress-bar', 'uniprot-progress-text', function() {
                 document.getElementById('uniprot-progress').classList.add('hidden');
-                afterFetch(resp.count);
+                afterFetch(resp.count, taskId);
             });
         }, function(msg) { btn.disabled = false; showError(msg); });
     });
@@ -594,15 +661,24 @@
         container.innerHTML = '';
 
         var items = [
-            {key: 'mbpdb_results', icon: 'fa-database', label: 'MBPDB Results'},
-            {key: 'group_definitions', icon: 'fa-layer-group', label: 'Group Definitions'},
-            {key: 'merged_dataset', icon: 'fa-table', label: 'Merged Dataset'},
-            {key: 'sequence_list', icon: 'fa-list', label: 'Sequence List'},
-            {key: 'summed_peptide', icon: 'fa-chart-bar', label: 'Summed Peptide Results'},
-            {key: 'protein_analysis', icon: 'fa-dna', label: 'Protein Analysis'},
-            {key: 'summed_function', icon: 'fa-flask', label: 'Summed Functional Data'},
-            {key: 'group_correlation', icon: 'fa-chart-line', label: 'Sample-to-Sample Correlations'},
-            {key: 'replicate_correlation', icon: 'fa-chart-area', label: 'Replicate Correlations'},
+            {key: 'mbpdb_results', icon: 'fa-database', label: 'MBPDB Results',
+                desc: 'Peptides matched against the MBPDB database with biological function annotations (TSV)'},
+            {key: 'group_definitions', icon: 'fa-layer-group', label: 'Group Definitions',
+                desc: 'Categorical variable definitions mapping sample columns to experimental groups (JSON)'},
+            {key: 'merged_dataset', icon: 'fa-table', label: 'Merged Dataset',
+                desc: 'Complete processed dataset with all peptides, proteins, functions, and group averages (CSV)'},
+            {key: 'sequence_list', icon: 'fa-list', label: 'Sequence List',
+                desc: 'Unique peptide sequences detected in each study group (CSV)'},
+            {key: 'summed_peptide', icon: 'fa-chart-bar', label: 'Summed Peptide Results',
+                desc: 'Total absorbance and unique peptide count per group with replicate details and SEM (XLSX)'},
+            {key: 'protein_analysis', icon: 'fa-dna', label: 'Protein Analysis',
+                desc: 'Absorbance and peptide count by protein across groups with relative percentages — 4 sheets: absorbance absolute/relative, count absolute/relative (XLSX)'},
+            {key: 'summed_function', icon: 'fa-flask', label: 'Summed Functional Data',
+                desc: 'Bioactive function breakdown by absorbance and peptide count across groups — 5 sheets: combined, absorbance absolute/relative, count absolute/relative (XLSX)'},
+            {key: 'group_correlation', icon: 'fa-chart-line', label: 'Sample-to-Sample Correlations',
+                desc: 'Pearson or Spearman correlations between study groups (cross-group comparison) (XLSX)'},
+            {key: 'replicate_correlation', icon: 'fa-chart-area', label: 'Replicate Correlations',
+                desc: 'Pearson or Spearman correlations between technical replicates within each group (XLSX)'},
         ];
 
         items.forEach(function(item) {
@@ -610,9 +686,11 @@
             var row = document.createElement('div');
             row.className = 'dt-export-row' + (enabled ? '' : ' disabled');
 
-            var lbl = document.createElement('span');
+            var lbl = document.createElement('div');
             lbl.className = 'dt-export-label';
-            lbl.innerHTML = '<i class="fas ' + item.icon + '"></i> ' + item.label;
+            lbl.innerHTML = '<div class="dt-export-label-main">' +
+                '<i class="fas ' + item.icon + '"></i> ' + item.label + '</div>' +
+                (item.desc ? '<div class="dt-export-desc">' + item.desc + '</div>' : '');
             row.appendChild(lbl);
 
             if (enabled) {
@@ -712,7 +790,24 @@
         sheet.rows.forEach(function(row) {
             html += '<tr>';
             row.forEach(function(cell) {
-                var val = cell === null || cell === undefined ? '' : String(cell);
+                var val;
+                if (cell === null || cell === undefined) {
+                    val = '';
+                } else if (typeof cell === 'number' && isFinite(cell)) {
+                    var abs = Math.abs(cell);
+                    if (abs >= 10000 || (cell !== 0 && abs < 0.001)) {
+                        // Very large or very small — scientific notation
+                        val = cell.toExponential(3);
+                    } else if (cell % 1 === 0) {
+                        // Whole number — no decimal places
+                        val = String(Math.round(cell));
+                    } else {
+                        // Fractional (e.g. percentage) — max 2 decimal places
+                        val = parseFloat(cell.toFixed(2)).toString();
+                    }
+                } else {
+                    val = String(cell);
+                }
                 html += '<td title="' + escHtml(val) + '">' + escHtml(val.length > 80 ? val.substring(0, 80) + '…' : val) + '</td>';
             });
             html += '</tr>';
