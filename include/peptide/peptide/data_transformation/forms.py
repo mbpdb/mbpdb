@@ -35,6 +35,7 @@ class PeptidomicUploadForm(forms.Form):
     similarity_threshold = forms.IntegerField(
         label='BLAST Similarity Threshold',
         initial=80,
+        required=False,
         min_value=0,
         max_value=100,
         widget=forms.Select(

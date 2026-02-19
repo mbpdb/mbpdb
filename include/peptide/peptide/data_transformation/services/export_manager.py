@@ -449,12 +449,26 @@ def export_protein_data(merged_df, group_data, protein_dict):
     cnt_abs_cols  = desc_cols + [c for c in all_cols if c.startswith('Count_')]
     cnt_rel_cols  = desc_cols + [c for c in all_cols if c.startswith('Rel_Count_')]
 
+    # Round relative sheets to 2 dp; ensure absolute count columns are integers.
+    rel_num_cols_abs = [c for c in abs_rel_cols if c != 'Description']
+    rel_num_cols_cnt = [c for c in cnt_rel_cols if c != 'Description']
+    cnt_num_cols     = [c for c in cnt_abs_cols  if c != 'Description']
+
+    abs_rel_df = proteins_df[abs_rel_cols].copy()
+    abs_rel_df[rel_num_cols_abs] = abs_rel_df[rel_num_cols_abs].round(2)
+
+    cnt_rel_df = proteins_df[cnt_rel_cols].copy()
+    cnt_rel_df[rel_num_cols_cnt] = cnt_rel_df[rel_num_cols_cnt].round(2)
+
+    cnt_abs_df = proteins_df[cnt_abs_cols].copy()
+    cnt_abs_df[cnt_num_cols] = cnt_abs_df[cnt_num_cols].round(0).astype('Int64')
+
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine='openpyxl') as writer:
         proteins_df[abs_abs_cols].to_excel(writer, sheet_name='Absorbance Absolute', index=False)
-        proteins_df[abs_rel_cols].to_excel(writer, sheet_name='Absorbance Relative', index=False)
-        proteins_df[cnt_abs_cols].to_excel(writer, sheet_name='Count Absolute',      index=False)
-        proteins_df[cnt_rel_cols].to_excel(writer, sheet_name='Count Relative',       index=False)
+        abs_rel_df.to_excel(writer, sheet_name='Absorbance Relative', index=False)
+        cnt_abs_df.to_excel(writer, sheet_name='Count Absolute',      index=False)
+        cnt_rel_df.to_excel(writer, sheet_name='Count Relative',       index=False)
 
     return buf.getvalue(), warnings_list
 
@@ -589,18 +603,58 @@ def _process_functional_peptide_export_data(merged_df, group_data):
 
 
 def export_summed_function_data(merged_df, group_data):
-    """Export summed function data as Excel bytes."""
+    """Export summed function data as Excel bytes with absolute and relative sheets."""
     result = _process_functional_peptide_export_data(merged_df, group_data)
     if result is None:
         return None
 
     combined_df, combined_count_df, combined_absorbance_df = result
 
+    # --- Absorbance Relative ---
+    # Each function's % = function_absorbance / sum_of_all_function_absorbances * 100.
+    # Using the function-row sum (not the unique-peptide total) ensures percentages
+    # sum to exactly 100%, even when peptides carry multiple functions.
+    absorbance_rel_df = combined_absorbance_df.copy().astype(float)
+    _abs_total_label = 'Summed Absorbance'
+    _abs_func_rows = absorbance_rel_df.index[absorbance_rel_df.index != _abs_total_label]
+    if len(_abs_func_rows) > 0:
+        func_totals = absorbance_rel_df.loc[_abs_func_rows].sum(axis=0)
+        for col in absorbance_rel_df.columns:
+            denom = func_totals[col] if func_totals[col] != 0 else np.nan
+            absorbance_rel_df.loc[_abs_func_rows, col] = (
+                absorbance_rel_df.loc[_abs_func_rows, col] / denom * 100
+            )
+    if _abs_total_label in absorbance_rel_df.index:
+        absorbance_rel_df.loc[_abs_total_label] = 100.0
+
+    # --- Count Relative ---
+    # Each function's % = function_count / sum_of_all_function_counts * 100.
+    count_rel_df = combined_count_df.copy().astype(float)
+    _cnt_total_label = 'Counts of peptides'
+    _cnt_func_rows = count_rel_df.index[count_rel_df.index != _cnt_total_label]
+    if len(_cnt_func_rows) > 0:
+        func_totals = count_rel_df.loc[_cnt_func_rows].sum(axis=0)
+        for col in count_rel_df.columns:
+            denom = func_totals[col] if func_totals[col] != 0 else np.nan
+            count_rel_df.loc[_cnt_func_rows, col] = (
+                count_rel_df.loc[_cnt_func_rows, col] / denom * 100
+            )
+    if _cnt_total_label in count_rel_df.index:
+        count_rel_df.loc[_cnt_total_label] = 100.0
+
+    # Round relative sheets to 2 dp; count absolute should be whole numbers.
+    absorbance_rel_rounded = absorbance_rel_df.round(2)
+    count_rel_rounded = count_rel_df.round(2)
+    count_abs_rounded = combined_count_df.copy()
+    count_abs_rounded = count_abs_rounded.round(0)
+
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        combined_df.to_excel(writer, sheet_name='combined', index=True)
-        combined_count_df.to_excel(writer, sheet_name='count', index=True)
-        combined_absorbance_df.to_excel(writer, sheet_name='absorbance', index=True)
+        combined_df.to_excel(writer, sheet_name='Combined', index=True)
+        combined_absorbance_df.to_excel(writer, sheet_name='Absorbance Absolute', index=True)
+        absorbance_rel_rounded.to_excel(writer, sheet_name='Absorbance Relative', index=True)
+        count_abs_rounded.to_excel(writer, sheet_name='Count Absolute', index=True)
+        count_rel_rounded.to_excel(writer, sheet_name='Count Relative', index=True)
 
     return output.getvalue()
 

@@ -136,8 +136,8 @@ def upload_files(request):
 
         _save_json(work_dir, 'protein_dict', protein_dict)
 
-        # Store similarity threshold
-        threshold = form.cleaned_data['similarity_threshold']
+        # Store similarity threshold (may be None when functional data skips BLAST)
+        threshold = form.cleaned_data.get('similarity_threshold') or 80
         _save_json(work_dir, 'threshold', threshold)
 
         # Extract sequences for BLAST
@@ -356,7 +356,13 @@ def get_step3_form(request):
         if df is None:
             return JsonResponse({'error': 'No data loaded'}, status=400)
 
-        missing_ids = list(data_loader.find_missing_proteins(df, protein_dict))
+        all_missing_ids = list(data_loader.find_missing_proteins(df, protein_dict))
+
+        # Split missing IDs into those still fetchable and those already tried
+        # but not found (non-standard format or absent from UniProt).
+        unresolvable = set(_load_json(work_dir, 'unresolvable_proteins') or [])
+        missing_ids = [pid for pid in all_missing_ids if pid not in unresolvable]
+        unresolvable_ids = [pid for pid in all_missing_ids if pid in unresolvable]
 
         # Summarize known proteins found in the data
         all_protein_ids = set()
@@ -385,7 +391,9 @@ def get_step3_form(request):
 
         return JsonResponse({
             'missing_protein_count': len(missing_ids),
-            'missing_ids': missing_ids[:50],  # Limit for display
+            'missing_ids': missing_ids[:50],
+            'unresolvable_count': len(unresolvable_ids),
+            'unresolvable_ids': unresolvable_ids[:50],
             'known_protein_count': len(known_proteins),
             'known_proteins': known_proteins[:50],
             'combinations': combo_details,
@@ -421,30 +429,67 @@ def save_uniprot_results(request):
     """
     Persist completed UniProt task results into protein_dict on disk.
     Called by JS once the UniProt poll finishes, before re-rendering step 3.
+    The client passes the task_id explicitly so we never rely on session state.
     """
     work_dir = _get_work_dir(request)
-    uniprot_task_id = request.session.get('dt_uniprot_task_id')
+
+    # Prefer task_id from the request body; fall back to session for compatibility.
+    try:
+        body = json.loads(request.body)
+        uniprot_task_id = body.get('task_id')
+    except (json.JSONDecodeError, AttributeError):
+        uniprot_task_id = None
+
+    if not uniprot_task_id:
+        uniprot_task_id = request.session.get('dt_uniprot_task_id')
 
     if not uniprot_task_id:
         return JsonResponse({'saved': 0})
 
     task_result = AsyncResult(str(uniprot_task_id))
-    if not task_result.ready() or task_result.failed():
+    if task_result.ready() and not task_result.failed():
+        raw = task_result.result or {}
+    else:
+        # Celery backend unavailable — fall back to the Django cache copy stored
+        # by fetch_uniprot_task immediately before it returned.
+        cached_found = cache.get(f'uniprot_found_{uniprot_task_id}', {})
+        raw = {'found': cached_found} if cached_found else {}
+
+    if not raw:
         return JsonResponse({'saved': 0})
 
-    uniprot_results = task_result.result or {}
-    if not uniprot_results:
-        return JsonResponse({'saved': 0})
+    # Support both the new structured format {found, not_found, skipped}
+    # and the legacy flat format {pid: info} for backward compatibility.
+    if 'found' in raw:
+        uniprot_results = raw['found']
+        unresolvable_new = raw.get('not_found', []) + raw.get('skipped', [])
+    else:
+        uniprot_results = raw
+        unresolvable_new = []
 
     protein_dict = _load_json(work_dir, 'protein_dict') or {}
     saved = 0
+    saved_proteins = []
     for pid, info in uniprot_results.items():
         if pid not in protein_dict or not protein_dict[pid].get('name'):
             protein_dict[pid] = info
             saved += 1
+            saved_proteins.append({
+                'id': pid,
+                'name': info.get('name', ''),
+                'species': info.get('species', ''),
+            })
 
     _save_json(work_dir, 'protein_dict', protein_dict)
-    return JsonResponse({'saved': saved})
+
+    # Persist IDs that can never be resolved so the UI can distinguish them
+    # from proteins that simply haven't been fetched yet.
+    if unresolvable_new:
+        existing = _load_json(work_dir, 'unresolvable_proteins') or []
+        merged = list(set(existing + unresolvable_new))
+        _save_json(work_dir, 'unresolvable_proteins', merged)
+
+    return JsonResponse({'saved': saved, 'proteins': saved_proteins})
 
 
 @require_POST
@@ -484,15 +529,19 @@ def submit_protein_decisions(request):
         else:
             decisions[combo] = {p: 'ASIS' for p in all_proteins}
 
-    # Merge UniProt results if available
+    # Merge UniProt results if available (prefer Celery backend, fallback to cache)
     uniprot_task_id = request.session.get('dt_uniprot_task_id')
     if uniprot_task_id:
         task_result = AsyncResult(str(uniprot_task_id))
         if task_result.ready() and not task_result.failed():
-            uniprot_results = task_result.result or {}
-            for pid, info in uniprot_results.items():
-                if pid not in protein_dict:
-                    protein_dict[pid] = info
+            raw_uni = task_result.result or {}
+        else:
+            cached_found = cache.get(f'uniprot_found_{uniprot_task_id}', {})
+            raw_uni = {'found': cached_found} if cached_found else {}
+        uniprot_results = raw_uni.get('found', raw_uni) if raw_uni else {}
+        for pid, info in uniprot_results.items():
+            if pid not in protein_dict:
+                protein_dict[pid] = info
 
     # Apply decisions to the dataframe
     df = _load_df(work_dir, 'pd_results')
@@ -516,13 +565,18 @@ def skip_protein_mapping(request):
     """Skip protein mapping step."""
     work_dir = _get_work_dir(request)
 
-    # Merge UniProt results if available
+    # Merge UniProt results if available (prefer Celery backend, fallback to cache)
     protein_dict = _load_json(work_dir, 'protein_dict') or {}
     uniprot_task_id = request.session.get('dt_uniprot_task_id')
     if uniprot_task_id:
         task_result = AsyncResult(str(uniprot_task_id))
         if task_result.ready() and not task_result.failed():
-            uniprot_results = task_result.result or {}
+            raw_uni = task_result.result or {}
+        else:
+            cached_found = cache.get(f'uniprot_found_{uniprot_task_id}', {})
+            raw_uni = {'found': cached_found} if cached_found else {}
+        uniprot_results = raw_uni.get('found', raw_uni) if raw_uni else {}
+        if uniprot_results:
             for pid, info in uniprot_results.items():
                 if pid not in protein_dict:
                     protein_dict[pid] = info

@@ -97,19 +97,23 @@ def fetch_uniprot_task(self, missing_protein_ids):
         return bool(_UNIPROT_ACC_RE.match(pid.upper())) if pid else False
 
     client = UniProtClient()
-    results = {}
+    found = {}
     BATCH_SIZE = 20
 
     valid_ids = [pid for pid in missing_protein_ids if _is_valid_uniprot_id(pid)]
-    skipped = len(missing_protein_ids) - len(valid_ids)
-    if skipped:
-        print(f'fetch_uniprot_task: skipping {skipped} non-standard IDs')
+    skipped_ids = [pid for pid in missing_protein_ids if not _is_valid_uniprot_id(pid)]
+    if skipped_ids:
+        print(f'fetch_uniprot_task: skipping {len(skipped_ids)} non-standard IDs: {skipped_ids[:10]}')
 
+    # Use valid_ids count as the progress total so the bar reaches 100 %.
+    cache.set(f'size_{task_id}', max(len(valid_ids), 1))
+
+    processed = 0
     for batch_start in range(0, len(valid_ids), BATCH_SIZE):
         batch = valid_ids[batch_start:batch_start + BATCH_SIZE]
 
         elapsed = time.time() - start_time
-        cache.set(f'progress_{task_id}', batch_start)
+        cache.set(f'progress_{task_id}', processed)
         cache.set(f'elapsed_time_{task_id}', elapsed)
 
         try:
@@ -117,12 +121,28 @@ def fetch_uniprot_task(self, missing_protein_ids):
             for pid, info_tuple in batch_results.items():
                 if info_tuple and len(info_tuple) >= 2:
                     name, species = info_tuple[0], info_tuple[1]
-                    results[pid] = {'name': name, 'species': species}
+                    found[pid] = {'name': name, 'species': species}
         except Exception as exc:
             print(f'fetch_uniprot_task: batch error: {exc}')
 
-    cache.set(f'progress_{task_id}', total)
+        processed += len(batch)
+        cache.set(f'progress_{task_id}', processed)
+
+    # IDs that were valid UniProt format but returned no result
+    not_found_ids = [pid for pid in valid_ids if pid not in found]
+
+    cache.set(f'progress_{task_id}', max(len(valid_ids), 1))
     cache.set(f'elapsed_time_{task_id}', time.time() - start_time)
     cache.set(f'status_{task_id}', 'complete')
 
-    return results
+    # Store found proteins in Django cache as a fallback for views that cannot
+    # retrieve the Celery result from the result backend (e.g. Redis eviction or
+    # a race between the worker finishing and the web process polling).
+    if found:
+        cache.set(f'uniprot_found_{task_id}', found, 3600)
+
+    return {
+        'found': found,
+        'not_found': not_found_ids,
+        'skipped': skipped_ids,
+    }
