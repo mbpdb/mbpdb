@@ -1,4 +1,5 @@
 # Updated requirements.txt (combined both sets)
+Django>=4.2,<5.0
 gunicorn
 Unicodecsv
 chardet
