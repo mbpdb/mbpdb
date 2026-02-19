@@ -35,7 +35,7 @@
     .dt-file-input label { display: block; font-weight: 600; margin-bottom: 4px; }
     .dt-file-input .help-text { font-size: 0.85rem; color: #666; margin-top: 2px; }
     .dt-dropzone {
-        border: 2px dashed #ccc; border-radius: 6px; padding: 20px; text-align: center;
+        border: 2px dashed #ccc; border-radius: 6px; padding: 10px; text-align: center;
         cursor: pointer; transition: border-color 0.2s, background 0.2s; position: relative;
     }
     .dt-dropzone:hover, .dt-dropzone.dragover { border-color: #1976d2; background: #f0f7ff; }
@@ -44,7 +44,16 @@
         opacity: 0; cursor: pointer;
     }
     .dt-dropzone .drop-text { color: #888; pointer-events: none; }
-    .dt-dropzone .drop-text i { font-size: 1.5rem; display: block; margin-bottom: 6px; color: #aaa; }
+    .dt-dropzone .drop-text i { font-size: 1rem; display: block; margin-bottom: 4px; color: #aaa; }
+    .dt-or-divider {
+        display: flex; align-items: center; justify-content: center;
+        padding: 0 12px; color: #aaa; font-weight: 700; font-size: 0.9rem;
+        flex-shrink: 0;
+    }
+    .dt-or-row { display: flex; align-items: stretch; gap: 0; margin-bottom: 16px; }
+    .dt-or-row .dt-file-input { flex: 1; margin-bottom: 0; }
+    .dt-blast-inline { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+    .dt-blast-inline.disabled-section { opacity: 0.45; pointer-events: none; }
     .dt-dropzone .file-name { color: #1976d2; font-weight: 600; pointer-events: none; }
     .dt-columns-select { max-height: 250px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 4px; padding: 8px; }
     .dt-columns-select label { display: block; padding: 2px 0; cursor: pointer; }
@@ -59,10 +68,12 @@
     .dt-col-remove { color: #dc3545; font-weight: bold; margin-left: 8px; flex-shrink: 0; cursor: pointer; }
     .dt-col-empty { padding: 8px 10px; color: #aaa; font-size: 0.85rem; font-style: italic; }
     .dt-export-list { display: flex; flex-direction: column; gap: 6px; }
-    .dt-export-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; }
+    .dt-export-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 14px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; }
     .dt-export-row.disabled { opacity: 0.45; }
-    .dt-export-label { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; color: #333; }
-    .dt-export-label i { color: #1976d2; width: 16px; text-align: center; }
+    .dt-export-label { display: flex; flex-direction: column; gap: 2px; }
+    .dt-export-label-main { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; color: #333; }
+    .dt-export-label-main i { color: #1976d2; width: 16px; text-align: center; }
+    .dt-export-desc { font-size: 0.78rem; color: #888; padding-left: 24px; }
     .dt-export-actions { display: flex; gap: 6px; flex-shrink: 0; }
     .dt-export-view-btn { padding: 5px 12px; font-size: 0.85rem; background: #fff; border: 1px solid #1976d2; color: #1976d2; border-radius: 4px; cursor: pointer; }
     .dt-export-view-btn:hover { background: #e8f0fe; }
@@ -122,18 +133,40 @@
                     <div class="help-text">CSV, TSV, or XLSX file containing peptidomic results (Proteome Discoverer, MaxQuant, Skyline, etc.)</div>
                     <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_peptidomic_data.csv' %}" download>Download example file</a></div>
                 </div>
-                <div class="dt-file-input">
-                    <label>MBPDB Functional Data (Optional)</label>
-                    <div class="dt-dropzone" data-input="functional_file">
-                        <input type="file" name="functional_file" id="functional_file" accept=".csv,.tsv,.txt,.xlsx,.xls">
-                        <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag & drop or click to select</div>
-                        <div class="file-name hidden"></div>
+                <!-- Functional data OR BLAST threshold (side by side) -->
+                <div class="dt-or-row">
+                    <div class="dt-file-input">
+                        <label>MBPDB Functional Data <span style="color:#6c757d; font-weight:400;">(Optional)</span></label>
+                        <div class="dt-dropzone" data-input="functional_file">
+                            <input type="file" name="functional_file" id="functional_file" accept=".csv,.tsv,.txt,.xlsx,.xls">
+                            <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag & drop or click to select</div>
+                            <div class="file-name hidden"></div>
+                        </div>
+                        <div class="help-text">Pre-computed MBPDB results (columns: search_peptide, peptide, function) — skips BLAST search</div>
+                        <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_mbpdb_functional_data.csv' %}" download>Download example file</a></div>
                     </div>
-                    <div class="help-text">Skip BLAST search by providing pre-computed MBPDB results (columns: search_peptide, peptide, function)</div>
-                    <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_mbpdb_functional_data.csv' %}" download>Download example file</a></div>
+                    <div class="dt-or-divider">OR</div>
+                    <div class="dt-blast-inline" id="blast-threshold-section">
+                        <label style="font-weight:600; margin-bottom:4px; display:block;">BLAST Similarity Threshold</label>
+                        <select name="similarity_threshold" id="similarity_threshold" class="form-control" style="width: 100%; max-width: 220px;">
+                            <option value="100">100% (Exact match)</option>
+                            <option value="90">90%</option>
+                            <option value="80" selected>80%</option>
+                            <option value="70">70%</option>
+                            <option value="60">60%</option>
+                            <option value="50">50%</option>
+                            <option value="40">40%</option>
+                            <option value="30">30%</option>
+                            <option value="20">20%</option>
+                            <option value="10">10%</option>
+                            <option value="0">0%</option>
+                        </select>
+                        <div class="help-text" style="margin-top:4px;">Minimum sequence similarity for MBPDB matching</div>
+                    </div>
                 </div>
+
                 <div class="dt-file-input">
-                    <label>FASTA Protein Sequences (Optional)</label>
+                    <label>FASTA Protein Sequences <span style="color:#6c757d; font-weight:400;">(Optional)</span></label>
                     <div class="dt-dropzone" data-input="fasta_file">
                         <input type="file" name="fasta_file" id="fasta_file" accept=".fasta,.fa,.faa,.txt">
                         <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag & drop or click to select</div>
@@ -141,22 +174,6 @@
                     </div>
                     <div class="help-text">Additional FASTA protein sequences to supplement the default bovine/human milk protein database</div>
                     <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_protein_sequences.fasta' %}" download>Download example file</a></div>
-                </div>
-                <div class="dt-file-input">
-                    <label>BLAST Similarity Threshold</label>
-                    <select name="similarity_threshold" id="similarity_threshold" class="form-control" style="width: 200px;">
-                        <option value="100">100% (Exact match)</option>
-                        <option value="90">90%</option>
-                        <option value="80" selected>80%</option>
-                        <option value="70">70%</option>
-                        <option value="60">60%</option>
-                        <option value="50">50%</option>
-                        <option value="40">40%</option>
-                        <option value="30">30%</option>
-                        <option value="20">20%</option>
-                        <option value="10">10%</option>
-                        <option value="0">0%</option>
-                    </select>
                 </div>
                 <button type="submit" class="dt-btn dt-btn-primary" id="upload-btn">
                     <i class="fas fa-upload"></i> Upload & Validate
@@ -246,7 +263,7 @@
                     <i class="fas fa-arrow-left"></i> Back
                 </button>
                 <button class="dt-btn dt-btn-success" id="submit-groups-btn" disabled>
-                    Continue with Groups <i class="fas fa-arrow-right"></i>
+                    <i class="fas fa-save"></i> Save Groups &amp; Continue <i class="fas fa-arrow-right"></i>
                 </button>
                 <button class="dt-btn dt-btn-secondary" id="skip-groups-btn" style="margin-left: 8px;">
                     Skip Grouping <i class="fas fa-forward"></i>
@@ -354,5 +371,5 @@
 {% endblock %}
 
 {% block 'scripts' %}
-<script src="{% static 'peptide/js/data_transformation.js' %}?v=3"></script>
+<script src="{% static 'peptide/js/data_transformation.js' %}?v=7"></script>
 {% endblock %}
