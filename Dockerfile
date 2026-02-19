@@ -7,6 +7,7 @@ ENV JUPYTER_ENABLE_LAB=yes
 ENV JUPYTER_PLATFORM_DIRS=1
 ENV DJANGO_SETTINGS_MODULE=peptide.settings
 ENV BASE_PYTHONPATH=/app/include/peptide
+ENV PIP_ROOT_USER_ACTION=ignore
 
 # Generate a random token and save it as an environment variable
 RUN VOILA_TOKEN=$(openssl rand -hex 32) && \
