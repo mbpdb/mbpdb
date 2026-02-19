@@ -420,7 +420,8 @@ def func_list(request):
 def spec_list(request):
     common_to_sci = {}
     for entry in settings.SPEC_TRANSLATE_LIST:
-        common_name, sci_name = entry
+        common_name = entry[0]
+        sci_name = entry[1]
         if common_name in common_to_sci:
             common_to_sci[common_name].append(sci_name)
         else:
