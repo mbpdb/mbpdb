@@ -87,14 +87,11 @@ run_voila_with_restart() {
             --ServerApp.token="${VOILA_TOKEN}" \
             --ServerApp.allow_credentials=True \
             --ServerApp.disable_check_xsrf=True \
-            --Voila.tornado_settings="{'allow_origin': '*', 'xsrf_cookies': False}" \
-            --Voila.preheat_kernel=False \
-            --Voila.cull_idle_timeout=300 \
             --MappingKernelManager.cull_idle_timeout=300 \
             --MappingKernelManager.cull_interval=30 \
             --MappingKernelManager.cull_connected=False \
             --VoilaExecutor.timeout=600 \
-            --VoilaConfiguration.file_whitelist="['.*']" \
+            --VoilaConfiguration.file_allowlist='.*' \
             --VoilaConfiguration.show_tracebacks=True \
             --debug \
             "$notebook"
