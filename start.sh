@@ -26,6 +26,10 @@ nginx -t && service nginx start || { echo "Nginx failed to start: $(nginx -t 2>&
 # Change to Django app directory
 cd /app/include/peptide
 
+# Run database migrations (ensures schema is up to date on every deploy)
+echo "Running database migrations..."
+python manage.py migrate --run-syncdb --noinput || { echo "WARNING: Migrations failed"; }
+
 # Create superuser if credentials are provided and user doesn't exist
 if [ -n "$DJANGO_SUPERUSER_USERNAME" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ]; then
     echo "Checking for superuser..."
