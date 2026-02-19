@@ -7,9 +7,8 @@ https://docs.djangoproject.com/en/1.7/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.7/ref/settings/
 """
-from celery import Celery
 from dotenv import load_dotenv
-import os, re
+import os
 
 # Load environment variables from a local .env file if it exists.
 # This does NOT override variables already set in the environment,
@@ -51,6 +50,10 @@ DEBUG = False
 _default_hosts = ['127.0.0.1', 'localhost']
 _env_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '')
 _extra_hosts = [h.strip() for h in _env_hosts.split(',') if h.strip()] if _env_hosts else []
+# Azure Container Apps auto-sets WEBSITE_HOSTNAME; add it if present
+_azure_host = os.environ.get('WEBSITE_HOSTNAME', '')
+if _azure_host:
+    _extra_hosts.append(_azure_host)
 ALLOWED_HOSTS = _default_hosts + _extra_hosts
 
 
@@ -89,13 +92,14 @@ INSTALLED_APPS = (
     'django_celery_progress',
 )
 MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    "whitenoise.middleware.WhiteNoiseMiddleware",
 ]
 # CORS and CSRF origins - production URLs loaded from environment
 # Set DJANGO_CORS_ORIGINS in your environment (comma-separated)
@@ -113,6 +117,8 @@ _default_cors = [
 ]
 _env_cors = os.environ.get('DJANGO_CORS_ORIGINS', '')
 _extra_cors = [h.strip() for h in _env_cors.split(',') if h.strip()] if _env_cors else []
+if _azure_host:
+    _extra_cors.append(f'https://{_azure_host}')
 CORS_ALLOWED_ORIGINS = _default_cors + _extra_cors
 
 _default_csrf = [
@@ -128,6 +134,9 @@ _default_csrf = [
 ]
 _env_csrf = os.environ.get('DJANGO_CSRF_ORIGINS', '')
 _extra_csrf = [h.strip() for h in _env_csrf.split(',') if h.strip()] if _env_csrf else []
+# Azure Container Apps: auto-add the HTTPS origin if WEBSITE_HOSTNAME is set
+if _azure_host:
+    _extra_csrf.append(f'https://{_azure_host}')
 CSRF_TRUSTED_ORIGINS = _default_csrf + _extra_csrf
 
 
@@ -238,23 +247,39 @@ TEMPLATES = [
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'SAMEORIGIN'  # Allow iframes for embedded figures within the same origin
-"""
+
+# Azure / reverse-proxy: trust X-Forwarded-Proto so Django knows the
+# original request was HTTPS (Azure terminates SSL at the load balancer).
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Logging — write to stderr so Azure Container Apps logs capture errors.
+# This is CRITICAL for diagnosing 500 errors when DEBUG = False.
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
     'handlers': {
-        'file': {
-            'level': 'DEBUG',
-            'class': 'logging.FileHandler',
-            'filename': 'debug.log',  # Path to your log file
+        'console': {
+            'level': 'WARNING',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
         },
     },
     'loggers': {
         'django': {
-            'handlers': ['file'],
-            'level': 'DEBUG',
+            'handlers': ['console'],
+            'level': 'WARNING',
             'propagate': True,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
         },
     },
 }
-"""
