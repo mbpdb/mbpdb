@@ -278,7 +278,12 @@
     <!-- Step 3: Protein Mapping -->
     <div class="dt-step-content" data-step="3">
         <div class="dt-card">
-            <h4>Protein Mapping</h4>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h4 style="margin: 0;">Protein Mapping</h4>
+                <button class="dt-btn dt-btn-primary hidden" id="fetch-uniprot-btn">
+                    <i class="fas fa-download"></i> Fetch from UniProt
+                </button>
+            </div>
             <div id="protein-info"></div>
 
             <!-- UniProt fetch progress -->
@@ -299,10 +304,7 @@
                 <button class="dt-btn dt-btn-secondary" id="back-to-step2-btn" style="margin-right: 8px;">
                     <i class="fas fa-arrow-left"></i> Back
                 </button>
-                <button class="dt-btn dt-btn-primary" id="fetch-uniprot-btn">
-                    <i class="fas fa-download"></i> Fetch from UniProt
-                </button>
-                <button class="dt-btn dt-btn-success" id="submit-proteins-btn" style="margin-left: 8px;">
+                <button class="dt-btn dt-btn-success" id="submit-proteins-btn">
                     Continue <i class="fas fa-arrow-right"></i>
                 </button>
                 <button class="dt-btn dt-btn-secondary" id="skip-proteins-btn" style="margin-left: 8px;">
@@ -371,5 +373,5 @@
 {% endblock %}
 
 {% block 'scripts' %}
-<script src="{% static 'peptide/js/data_transformation.js' %}?v=7"></script>
+<script src="{% static 'peptide/js/data_transformation.js' %}?v=8"></script>
 {% endblock %}

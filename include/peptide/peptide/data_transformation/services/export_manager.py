@@ -12,6 +12,18 @@ import numpy as np
 from scipy.stats import pearsonr, spearmanr
 
 
+def _apply_scientific_notation(worksheet):
+    """Format cells with |value| > 10,000 as scientific notation in an openpyxl worksheet."""
+    for row in worksheet.iter_rows(min_row=2):  # Skip header row
+        for cell in row:
+            if isinstance(cell.value, (int, float)) and cell.value is not None:
+                try:
+                    if abs(cell.value) > 10000:
+                        cell.number_format = '0.00E+00'
+                except (TypeError, ValueError):
+                    pass
+
+
 def calculate_correlation(x, y, correlation_type='Pearson'):
     """Calculate correlation and return (correlation, p_value_string)."""
     if correlation_type == 'Pearson':
@@ -282,6 +294,7 @@ def export_summed_peptide_data(merged_df, group_data):
                 if column_cells:
                     max_length = max(len(str(cell.value)) for cell in column_cells)
                     sheet.column_dimensions[column_cells[0].column_letter].width = max_length + 2
+            _apply_scientific_notation(sheet)
 
     return output.getvalue()
 
@@ -375,8 +388,16 @@ def export_protein_data(merged_df, group_data, protein_dict):
     accession_to_description = {}
     for idx, row in proteins_df.iterrows():
         if 'Protein' in row and pd.notna(row['Protein']):
-            accession_to_idx[row['Protein']] = idx
-            accession_to_description[row['Protein']] = row['Description']
+            prot = str(row['Protein'])
+            accession_to_idx[prot] = idx
+            accession_to_description[prot] = row['Description']
+            # For combined proteins (e.g., 'P12345;P67890'), also index each
+            # individual accession so the counting loop can find them.
+            if ';' in prot:
+                for single_acc in [a.strip() for a in prot.split(';') if a.strip()]:
+                    if single_acc not in accession_to_idx:
+                        accession_to_idx[single_acc] = idx
+                        accession_to_description[single_acc] = row['Description']
 
     warnings_list = []
 
@@ -436,23 +457,27 @@ def export_protein_data(merged_df, group_data, protein_dict):
             'counted': len(counted_peptides)
         })
 
+    # Save Protein ID before dropping the Protein column so it appears in all sheets.
     if 'Protein' in proteins_df.columns:
+        proteins_df.insert(0, 'Protein ID', proteins_df['Protein'])
         proteins_df = proteins_df.drop(columns=['Protein'])
 
     # Split into four sheets by column type
     all_cols = list(proteins_df.columns)
-    desc_cols = ['Description'] if 'Description' in all_cols else []
+    id_cols   = ['Protein ID']   if 'Protein ID'   in all_cols else []
+    desc_cols = ['Description']  if 'Description'  in all_cols else []
+    meta_cols = id_cols + desc_cols
 
-    abs_abs_cols  = desc_cols + [c for c in all_cols if c.startswith('Avg_')] + \
+    abs_abs_cols  = meta_cols + [c for c in all_cols if c.startswith('Avg_')] + \
                     (['avg_absorbance_all'] if 'avg_absorbance_all' in all_cols else [])
-    abs_rel_cols  = desc_cols + [c for c in all_cols if c.startswith('Rel_Avg_')]
-    cnt_abs_cols  = desc_cols + [c for c in all_cols if c.startswith('Count_')]
-    cnt_rel_cols  = desc_cols + [c for c in all_cols if c.startswith('Rel_Count_')]
+    abs_rel_cols  = meta_cols + [c for c in all_cols if c.startswith('Rel_Avg_')]
+    cnt_abs_cols  = meta_cols + [c for c in all_cols if c.startswith('Count_')]
+    cnt_rel_cols  = meta_cols + [c for c in all_cols if c.startswith('Rel_Count_')]
 
     # Round relative sheets to 2 dp; ensure absolute count columns are integers.
-    rel_num_cols_abs = [c for c in abs_rel_cols if c != 'Description']
-    rel_num_cols_cnt = [c for c in cnt_rel_cols if c != 'Description']
-    cnt_num_cols     = [c for c in cnt_abs_cols  if c != 'Description']
+    rel_num_cols_abs = [c for c in abs_rel_cols if c not in meta_cols]
+    rel_num_cols_cnt = [c for c in cnt_rel_cols if c not in meta_cols]
+    cnt_num_cols     = [c for c in cnt_abs_cols  if c not in meta_cols]
 
     abs_rel_df = proteins_df[abs_rel_cols].copy()
     abs_rel_df[rel_num_cols_abs] = abs_rel_df[rel_num_cols_abs].round(2)
@@ -469,6 +494,8 @@ def export_protein_data(merged_df, group_data, protein_dict):
         abs_rel_df.to_excel(writer, sheet_name='Absorbance Relative', index=False)
         cnt_abs_df.to_excel(writer, sheet_name='Count Absolute',      index=False)
         cnt_rel_df.to_excel(writer, sheet_name='Count Relative',       index=False)
+        for ws in writer.sheets.values():
+            _apply_scientific_notation(ws)
 
     return buf.getvalue(), warnings_list
 
@@ -655,6 +682,8 @@ def export_summed_function_data(merged_df, group_data):
         absorbance_rel_rounded.to_excel(writer, sheet_name='Absorbance Relative', index=True)
         count_abs_rounded.to_excel(writer, sheet_name='Count Absolute', index=True)
         count_rel_rounded.to_excel(writer, sheet_name='Count Relative', index=True)
+        for ws in writer.sheets.values():
+            _apply_scientific_notation(ws)
 
     return output.getvalue()
 
