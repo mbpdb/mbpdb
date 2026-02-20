@@ -641,10 +641,20 @@
             document.getElementById('process-progress').classList.add('hidden');
             document.getElementById('export-section').classList.remove('hidden');
 
-            document.getElementById('process-summary').innerHTML =
-                '<div class="dt-alert dt-alert-success">Processing complete. ' +
+            var hasFunction = resp.exports && resp.exports.summed_function;
+            var hasGroups  = resp.exports && resp.exports.group_definitions;
+            var summaryHtml = '<div class="dt-alert dt-alert-success">Processing complete. ' +
                 'Result: <strong>' + resp.rows + '</strong> rows, <strong>' +
-                resp.columns + '</strong> columns.</div>';
+                resp.columns + '</strong> columns.</div>' +
+                '<p style="color:#555; font-size:0.9rem; margin:8px 0 0 0;">' +
+                'Your peptidomic data has been merged with MBPDB bioactive peptide annotations.' +
+                (hasGroups ? ' Group abundance averages have been calculated for each experimental condition.' : '') +
+                ' Protein identifications have been enriched from the protein database.' +
+                (hasFunction ? ' Bioactive function annotations are included from the MBPDB database.' : '') +
+                ' Use the exports below to explore protein-level abundance, functional distributions' +
+                (hasGroups ? ', and group correlations' : '') +
+                ' derived from your merged dataset.</p>';
+            document.getElementById('process-summary').innerHTML = summaryHtml;
 
             renderExportButtons(resp.exports);
         }, function(msg) {
