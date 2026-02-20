@@ -730,12 +730,12 @@ def view_export(request, export_type):
             for g, v in data.items():
                 summary_rows.append([g, safe_val(v['total_Absorbance']),
                                       safe_val(v['abundance_sem']),
-                                      v['unique_peptides'], safe_val(v['count_sem'])])
+                                      safe_val(v['unique_peptides']), safe_val(v['count_sem'])])
                 ri = v['replicate_data']
                 for i, rep in enumerate(ri['abundance_columns']):
                     ab = ri['replicate_abundances'][i] if i < len(ri['replicate_abundances']) else 0
                     ct = ri['replicate_counts'][i] if i < len(ri['replicate_counts']) else 0
-                    rep_rows.append([g, rep, safe_val(ab), ct])
+                    rep_rows.append([g, rep, safe_val(ab), safe_val(ct)])
             sheets = [
                 {'name': 'Summary',
                  'columns': ['Group', 'Total Absorbance', 'Abundance SEM', 'Unique Peptides', 'Count SEM'],

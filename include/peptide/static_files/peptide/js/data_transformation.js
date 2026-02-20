@@ -807,7 +807,7 @@
                     var abs = Math.abs(cell);
                     if (abs >= 10000 || (cell !== 0 && abs < 0.001)) {
                         // Very large or very small — scientific notation
-                        val = cell.toExponential(3);
+                        val = cell.toExponential(2);
                     } else if (cell % 1 === 0) {
                         // Whole number — no decimal places
                         val = String(Math.round(cell));
