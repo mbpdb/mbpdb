@@ -65,8 +65,8 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
-CELERY_TASK_SOFT_TIME_LIMIT = 600  # 10 minutes
-CELERY_TASK_TIME_LIMIT = 600  # 10 minutes
+CELERY_TASK_SOFT_TIME_LIMIT = 3600  # 60 minutes
+CELERY_TASK_TIME_LIMIT = 3900  # 65 minutes (hard limit slightly above soft)
 
 CACHES = {
     'default': {

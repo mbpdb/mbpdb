@@ -55,6 +55,10 @@ def run_blast_search(peptides, similarity_threshold=100, work_dir=None,
     """
     Search peptides against the MBPDB database using BLAST.
 
+    All peptides requiring BLAST (i.e. threshold < 100 and len >= 4) are
+    batched into a single blastp call rather than one call per peptide.
+    This is dramatically faster for large datasets.
+
     Args:
         peptides: list of peptide sequences
         similarity_threshold: minimum similarity percentage (0-100)
@@ -69,7 +73,6 @@ def run_blast_search(peptides, similarity_threshold=100, work_dir=None,
 
     fasta_db_path = os.path.join(work_dir, "db.fasta")
     results = []
-    extra_info = defaultdict(list)
 
     # Build BLAST database from all peptides in the database using Django ORM
     db_peptides = PeptideInfo.objects.values_list('id', 'peptide')
@@ -81,47 +84,69 @@ def run_blast_search(peptides, similarity_threshold=100, work_dir=None,
     make_blast_db(fasta_db_path)
 
     total = len(peptides)
+
+    # Partition into exact-match vs BLAST peptides
+    exact_peptides = []   # (original_index, peptide)
+    blast_peptides = []   # (original_index, peptide)
     for idx, peptide in enumerate(peptides):
-        if progress_callback:
-            progress_callback(idx, total, f"Searching peptide {idx+1}/{total}")
-
         if similarity_threshold == 100 or len(peptide) < 4:
-            # Exact match search using Django ORM
-            df = _fetch_exact_match(peptide)
-            if not df.empty:
-                results.append(df)
+            exact_peptides.append((idx, peptide))
         else:
-            # BLAST search
-            query_path = os.path.join(work_dir, "query.fasta")
-            with open(query_path, "w") as query_file:
-                query_file.write(f">pep_query\n{peptide}\n")
+            blast_peptides.append((idx, peptide))
 
-            output_path = os.path.join(work_dir, "blastp_short.out")
-            blast_args = [
-                "blastp",
-                "-query", query_path,
-                "-db", fasta_db_path,
-                "-outfmt", "6 std ppos qcovs qlen slen positive",
-                "-evalue", "1000",
-                "-word_size", "2",
-                "-matrix", "IDENTITY",
-                "-threshold", "1",
-                "-task", "blastp-short",
-                "-out", output_path
-            ]
+    # --- Exact match pass (ORM lookups, fast) ---
+    for i, (idx, peptide) in enumerate(exact_peptides):
+        if progress_callback:
+            progress_callback(i, total, f"Exact match {i+1}/{len(exact_peptides)}")
+        df = _fetch_exact_match(peptide)
+        if not df.empty:
+            results.append(df)
 
-            try:
-                subprocess.check_output(blast_args, stderr=subprocess.STDOUT)
-            except subprocess.CalledProcessError:
-                continue
+    # --- BLAST pass: single subprocess call for all remaining peptides ---
+    if blast_peptides:
+        if progress_callback:
+            progress_callback(len(exact_peptides), total,
+                              f"Running BLAST on {len(blast_peptides)} peptides...")
 
-            search_ids = _process_blast_results(output_path, similarity_threshold, extra_info)
+        # Build multi-query FASTA; query IDs are "q0", "q1", ... so we can
+        # map results back to the original peptide sequence.
+        query_path = os.path.join(work_dir, "query.fasta")
+        query_id_to_peptide = {}
+        with open(query_path, 'w') as qf:
+            for i, (orig_idx, peptide) in enumerate(blast_peptides):
+                query_id = f"q{i}"
+                query_id_to_peptide[query_id] = peptide
+                qf.write(f">{query_id}\n{peptide}\n")
 
-            if search_ids:
-                df = _fetch_peptide_data_by_ids(peptide, search_ids)
-                _add_blast_details(df, extra_info)
-                if not df.empty:
-                    results.append(df)
+        output_path = os.path.join(work_dir, "blastp_short.out")
+        blast_args = [
+            "blastp",
+            "-query", query_path,
+            "-db", fasta_db_path,
+            "-outfmt", "6 std ppos qcovs qlen slen positive",
+            "-evalue", "1000",
+            "-word_size", "2",
+            "-matrix", "IDENTITY",
+            "-threshold", "1",
+            "-task", "blastp-short",
+            "-out", output_path,
+        ]
+
+        try:
+            subprocess.check_output(blast_args, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError:
+            pass  # No hits or BLAST error — continue with whatever results we have
+        else:
+            # query_hits[query_id][subject_id] = extra_info list
+            query_hits = _process_blast_results_multi(output_path, similarity_threshold)
+
+            for query_id, peptide in query_id_to_peptide.items():
+                hits = query_hits.get(query_id, {})
+                if hits:
+                    df = _fetch_peptide_data_by_ids(peptide, list(hits.keys()))
+                    _add_blast_details(df, hits)
+                    if not df.empty:
+                        results.append(df)
 
     if progress_callback:
         progress_callback(total, total, "Search complete")
@@ -218,6 +243,41 @@ def _process_blast_results(output_path, similarity_threshold, extra_info):
         pass
 
     return search_ids
+
+
+def _process_blast_results_multi(output_path, similarity_threshold):
+    """
+    Parse a multi-query BLAST tabular output file.
+
+    Returns a dict: query_id -> {subject_id: extra_info_list}
+    """
+    query_hits = defaultdict(dict)
+    csv.register_dialect('blast_dialect', delimiter='\t')
+
+    try:
+        with open(output_path, 'r') as output_file:
+            blast_data = csv.DictReader(
+                output_file,
+                fieldnames=['query', 'subject', 'percid', 'align_len', 'mismatches',
+                            'gaps', 'qstart', 'qend', 'sstart', 'send', 'evalue',
+                            'bitscore', 'ppos', 'qcov', 'qlen', 'slen', 'numpos'],
+                dialect='blast_dialect'
+            )
+
+            for row in blast_data:
+                tlen = max(float(row['slen']), float(row['qlen']))
+                simcalc = 100 * ((float(row['numpos']) - float(row['gaps'])) / tlen)
+
+                if simcalc >= similarity_threshold:
+                    query_hits[row['query']][row['subject']] = [
+                        f"{simcalc:.2f}", row['qstart'], row['qend'], row['sstart'],
+                        row['send'], row['evalue'], row['align_len'], row['mismatches'],
+                        row['gaps']
+                    ]
+    except FileNotFoundError:
+        pass
+
+    return query_hits
 
 
 def _fetch_peptide_data_by_ids(peptide, search_ids):
