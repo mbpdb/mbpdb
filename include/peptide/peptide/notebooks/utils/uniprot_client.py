@@ -223,10 +223,11 @@ def fetch_uniprot_info_batch(protein_ids, max_retries=3, timeout=30):
                 # Clean up protein name if found
                 if protein_name:
                     protein_name = protein_name.split(' precursor')[0].split(' (')[0]
-                
-                # Store the results
-                if accession and protein_name and protein_species:
-                    results[accession] = (protein_name, protein_species)# or "Unknown")
+
+                # Store the results — species is optional; don't drop entries that
+                # have a name but no commonName/scientificName in UniProt.
+                if accession and protein_name:
+                    results[accession] = (protein_name, protein_species or '')
         
         return results
     
