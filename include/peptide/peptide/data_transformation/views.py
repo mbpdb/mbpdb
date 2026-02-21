@@ -492,6 +492,58 @@ def save_uniprot_results(request):
     return JsonResponse({'saved': saved, 'proteins': saved_proteins})
 
 
+def _translate_decisions(raw_decisions):
+    """
+    Translate simplified JS-format decisions to backend format.
+    {combo: {action, protein_ids?, protein_id?}} → {combo: {protein_id: decision_str}}
+    Handles both the simplified format and legacy backend format transparently.
+    """
+    decisions = {}
+    for combo, decision_data in raw_decisions.items():
+        if not isinstance(decision_data, dict) or 'action' not in decision_data:
+            # Already in backend format (legacy) — pass through
+            decisions[combo] = decision_data
+            continue
+        action = decision_data.get('action', 'ASIS').upper()
+        protein_id = decision_data.get('protein_id', '').strip()
+        all_proteins = [p.strip() for p in combo.split(';') if p.strip()]
+        if action == 'ASIS' or not all_proteins:
+            decisions[combo] = {p: 'ASIS' for p in all_proteins}
+        elif action == 'MULTI':
+            selected = set(decision_data.get('protein_ids', []))
+            decisions[combo] = {
+                p: ('NEW' if p in selected else 'REMOVE') for p in all_proteins
+            }
+        elif action == 'NEW' and protein_id:
+            decisions[combo] = {
+                p: ('NEW' if p == protein_id else 'REMOVE') for p in all_proteins
+            }
+        elif action == 'CUSTOM' and protein_id:
+            decisions[combo] = {all_proteins[0]: f'CUSTOM:{protein_id}'}
+            for p in all_proteins[1:]:
+                decisions[combo][p] = 'REMOVE'
+        else:
+            decisions[combo] = {p: 'ASIS' for p in all_proteins}
+    return decisions
+
+
+def _merge_uniprot_into_dict(request, protein_dict):
+    """Merge any completed UniProt task results into protein_dict in place."""
+    uniprot_task_id = request.session.get('dt_uniprot_task_id')
+    if not uniprot_task_id:
+        return
+    task_result = AsyncResult(str(uniprot_task_id))
+    if task_result.ready() and not task_result.failed():
+        raw_uni = task_result.result or {}
+    else:
+        cached_found = cache.get(f'uniprot_found_{uniprot_task_id}', {})
+        raw_uni = {'found': cached_found} if cached_found else {}
+    uniprot_results = raw_uni.get('found', raw_uni) if raw_uni else {}
+    for pid, info in uniprot_results.items():
+        if pid not in protein_dict:
+            protein_dict[pid] = info
+
+
 @require_POST
 def submit_protein_decisions(request):
     """Submit protein combination decisions."""
@@ -505,45 +557,13 @@ def submit_protein_decisions(request):
     raw_decisions = body.get('decisions', {})
     protein_dict = _load_json(work_dir, 'protein_dict') or {}
 
-    # Translate simplified JS format {combo: {action, protein_id}}
-    # to backend format {combo: {protein_id: 'NEW'|'REMOVE'|'ASIS'|'CUSTOM:id'}}
-    decisions = {}
-    for combo, decision_data in raw_decisions.items():
-        if not isinstance(decision_data, dict) or 'action' not in decision_data:
-            # Already in backend format (legacy) — pass through
-            decisions[combo] = decision_data
-            continue
-        action = decision_data.get('action', 'ASIS').upper()
-        protein_id = decision_data.get('protein_id', '').strip()
-        all_proteins = [p.strip() for p in combo.split(';') if p.strip()]
-        if action == 'ASIS' or not all_proteins:
-            decisions[combo] = {p: 'ASIS' for p in all_proteins}
-        elif action == 'NEW' and protein_id:
-            decisions[combo] = {
-                p: ('NEW' if p == protein_id else 'REMOVE') for p in all_proteins
-            }
-        elif action == 'CUSTOM' and protein_id:
-            decisions[combo] = {all_proteins[0]: f'CUSTOM:{protein_id}'}
-            for p in all_proteins[1:]:
-                decisions[combo][p] = 'REMOVE'
-        else:
-            decisions[combo] = {p: 'ASIS' for p in all_proteins}
+    # Persist raw decisions so they can be downloaded as a mapping key
+    _save_json(work_dir, 'protein_decisions', raw_decisions)
 
-    # Merge UniProt results if available (prefer Celery backend, fallback to cache)
-    uniprot_task_id = request.session.get('dt_uniprot_task_id')
-    if uniprot_task_id:
-        task_result = AsyncResult(str(uniprot_task_id))
-        if task_result.ready() and not task_result.failed():
-            raw_uni = task_result.result or {}
-        else:
-            cached_found = cache.get(f'uniprot_found_{uniprot_task_id}', {})
-            raw_uni = {'found': cached_found} if cached_found else {}
-        uniprot_results = raw_uni.get('found', raw_uni) if raw_uni else {}
-        for pid, info in uniprot_results.items():
-            if pid not in protein_dict:
-                protein_dict[pid] = info
+    decisions = _translate_decisions(raw_decisions)
 
-    # Apply decisions to the dataframe
+    _merge_uniprot_into_dict(request, protein_dict)
+
     df = _load_df(work_dir, 'pd_results')
     if df is None:
         return JsonResponse({'error': 'No data loaded'}, status=400)
@@ -560,27 +580,100 @@ def submit_protein_decisions(request):
     return JsonResponse({'success': True})
 
 
+@require_GET
+def download_protein_map(request):
+    """
+    Download the protein mapping decisions as a reusable JSON key.
+    If decisions have been submitted, returns those; otherwise generates a
+    template from current combinations using their default decisions.
+    """
+    work_dir = _get_work_dir(request)
+
+    saved = _load_json(work_dir, 'protein_decisions')
+    if saved:
+        output_data = {'version': 1, 'protein_decisions': saved}
+    else:
+        # Generate a template from current combination defaults
+        df = _load_df(work_dir, 'pd_results')
+        protein_dict = _load_json(work_dir, 'protein_dict') or {}
+        if df is None:
+            return JsonResponse({'error': 'No data loaded'}, status=400)
+
+        combinations = protein_handler.get_protein_combinations(df, protein_dict)
+        combo_details = (
+            protein_handler.get_combination_details(combinations, df, protein_dict)
+            if combinations else []
+        )
+        template = {}
+        for c in combo_details:
+            new_ids = [p['id'] for p in c['proteins'] if p.get('default_decision') == 'new']
+            all_ids = [p['id'] for p in c['proteins']]
+            if not new_ids or new_ids == all_ids:
+                template[c['combo']] = {'action': 'ASIS'}
+            else:
+                template[c['combo']] = {'action': 'MULTI', 'protein_ids': new_ids}
+        output_data = {'version': 1, 'protein_decisions': template}
+
+    content = json.dumps(output_data, indent=2)
+    response = HttpResponse(content, content_type='application/json')
+    response['Content-Disposition'] = 'attachment; filename="protein_mapping_key.json"'
+    return response
+
+
+@require_POST
+def upload_protein_map(request):
+    """
+    Upload a previously downloaded protein mapping key JSON and apply it,
+    replacing the need to manually configure combinations.
+    """
+    work_dir = _get_work_dir(request)
+
+    if 'map_file' not in request.FILES:
+        return JsonResponse({'error': 'No file provided'}, status=400)
+
+    try:
+        content = json.loads(request.FILES['map_file'].read())
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'error': 'Invalid JSON file'}, status=400)
+
+    # Accept both wrapped {version, protein_decisions} and flat {combo: decision}
+    if 'protein_decisions' in content and isinstance(content['protein_decisions'], dict):
+        raw_decisions = content['protein_decisions']
+    elif isinstance(content, dict) and content:
+        raw_decisions = content
+    else:
+        return JsonResponse({'error': 'Unrecognised mapping file format'}, status=400)
+
+    protein_dict = _load_json(work_dir, 'protein_dict') or {}
+    _merge_uniprot_into_dict(request, protein_dict)
+
+    _save_json(work_dir, 'protein_decisions', raw_decisions)
+    decisions = _translate_decisions(raw_decisions)
+
+    df = _load_df(work_dir, 'pd_results')
+    if df is None:
+        return JsonResponse({'error': 'No data loaded'}, status=400)
+
+    processed_df, error = protein_handler.apply_protein_decisions(
+        df, decisions, protein_dict
+    )
+    if error:
+        return JsonResponse({'error': error}, status=400)
+
+    _save_df(work_dir, 'pd_results_cleaned', processed_df)
+    _save_json(work_dir, 'protein_dict', protein_dict)
+
+    return JsonResponse({'success': True, 'applied': len(raw_decisions)})
+
+
 @require_POST
 def skip_protein_mapping(request):
     """Skip protein mapping step."""
     work_dir = _get_work_dir(request)
 
-    # Merge UniProt results if available (prefer Celery backend, fallback to cache)
     protein_dict = _load_json(work_dir, 'protein_dict') or {}
-    uniprot_task_id = request.session.get('dt_uniprot_task_id')
-    if uniprot_task_id:
-        task_result = AsyncResult(str(uniprot_task_id))
-        if task_result.ready() and not task_result.failed():
-            raw_uni = task_result.result or {}
-        else:
-            cached_found = cache.get(f'uniprot_found_{uniprot_task_id}', {})
-            raw_uni = {'found': cached_found} if cached_found else {}
-        uniprot_results = raw_uni.get('found', raw_uni) if raw_uni else {}
-        if uniprot_results:
-            for pid, info in uniprot_results.items():
-                if pid not in protein_dict:
-                    protein_dict[pid] = info
-            _save_json(work_dir, 'protein_dict', protein_dict)
+    _merge_uniprot_into_dict(request, protein_dict)
+    _save_json(work_dir, 'protein_dict', protein_dict)
 
     # Copy pd_results as pd_results_cleaned
     df = _load_df(work_dir, 'pd_results')

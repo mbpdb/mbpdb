@@ -87,10 +87,12 @@ def fetch_uniprot_task(self, missing_protein_ids):
     from utils.uniprot_client import UniProtClient
 
     # UniProt accession IDs are 6 or 10 alphanumeric chars.
-    # IDs like "P02666A1" (isoform suffixes) are invalid and cause HTTP 400
-    # for the entire batch, so filter them out before querying.
+    # IDs like "P02666A1" (isoform suffixes, 7-9 chars) are invalid and cause
+    # HTTP 400 for the entire batch, so filter them out before querying.
+    # Valid 6-char:  [A-Z][0-9][A-Z0-9]{3}[0-9]  (e.g. P02666, Q9UKV3)
+    # Valid 10-char: [A-Z][0-9][A-Z0-9]{7}[0-9]  (e.g. A0A023GPI8)
     _UNIPROT_ACC_RE = re.compile(
-        r'^[A-Z][0-9][A-Z][A-Z0-9]{2}[0-9]([A-Z][A-Z0-9]{2}[0-9])?$'
+        r'^[A-Z][0-9][A-Z0-9]{3}[0-9]([A-Z0-9]{4})?$'
     )
 
     def _is_valid_uniprot_id(pid):
