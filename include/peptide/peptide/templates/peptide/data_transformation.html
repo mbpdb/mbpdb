@@ -198,8 +198,6 @@
         <!-- BLAST progress -->
         <div id="blast-progress" class="dt-card hidden">
             <h4><span class="dt-spinner"></span>Searching MBPDB Database...</h4>
-            <div class="dt-progress"><div class="dt-progress-bar" id="blast-progress-bar" style="width: 0%;"></div></div>
-            <div id="blast-progress-text" style="color: #666; font-size: 0.9rem;">Starting search...</div>
         </div>
 
         <!-- BLAST results -->
@@ -218,15 +216,15 @@
             <h4>Define Study Variable Groups</h4>
             <p style="color: #666;">Group your abundance columns into experimental conditions, or upload a group definition file.</p>
 
-            <div style="margin-bottom: 16px;">
-                <button class="dt-btn dt-btn-secondary" id="upload-group-json-btn" style="margin-right: 8px;">
-                    <i class="fas fa-file-upload"></i> Upload Group JSON
-                </button>
-                <input type="file" id="group-json-input" accept=".json" class="hidden">
-                <span class="dt-example-links" style="display:inline; margin-left:8px;">
-                    <i class="fas fa-download" style="font-size:0.75rem;"></i>
-                    <a href="{% static 'peptide/examples/data_transformation/example_study_variables.json' %}" download>Example JSON</a>
-                </span>
+            <div class="dt-file-input" style="margin-bottom: 16px;">
+                <label>Upload Group Definition <span style="color:#6c757d; font-weight:400;">(Optional)</span></label>
+                <div class="dt-dropzone" data-input="group_file" style="width: 25%;">
+                    <input type="file" name="group_file" id="group-json-input" accept=".json">
+                    <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag & drop or click to select</div>
+                    <div class="file-name hidden"></div>
+                </div>
+                <div class="help-text">JSON file mapping group names to abundance columns</div>
+                <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_study_variables.json' %}" download>Example JSON</a></div>
             </div>
 
             <div id="manual-grouping">
@@ -280,10 +278,27 @@
         <div class="dt-card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <h4 style="margin: 0;">Protein Mapping</h4>
-                <button class="dt-btn dt-btn-primary" id="fetch-uniprot-btn">
-                    <i class="fas fa-download"></i> Fetch from UniProt
-                </button>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button class="dt-btn dt-btn-secondary" id="download-protein-map-btn" title="Download mapping key as JSON">
+                        <i class="fas fa-file-export"></i> Download Mapping Key
+                    </button>
+                    <button class="dt-btn dt-btn-primary" id="fetch-uniprot-btn">
+                        <i class="fas fa-download"></i> Fetch from UniProt
+                    </button>
+                </div>
             </div>
+
+            <!-- Mapping key upload -->
+            <div class="dt-file-input" style="margin-bottom: 16px;">
+                <label>Upload Mapping Key <span style="color:#6c757d; font-weight:400;">(Optional — re-apply a previously saved mapping)</span></label>
+                <div class="dt-dropzone" data-input="map_file" style="width: 25%;">
+                    <input type="file" name="map_file" id="protein-map-input" accept=".json">
+                    <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag & drop or click to select</div>
+                    <div class="file-name hidden"></div>
+                </div>
+                <div id="protein-map-upload-status"></div>
+            </div>
+
             <div id="protein-info"></div>
 
             <!-- UniProt fetch progress -->
@@ -373,5 +388,5 @@
 {% endblock %}
 
 {% block 'scripts' %}
-<script src="{% static 'peptide/js/data_transformation.js' %}?v=9"></script>
+<script src="{% static 'peptide/js/data_transformation.js' %}?v=14"></script>
 {% endblock %}
