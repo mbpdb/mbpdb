@@ -26,10 +26,6 @@
 
         input.addEventListener('change', function() {
             if (this.files.length) showFile(this.files[0].name);
-            // When functional file is selected, gray out BLAST threshold section
-            if (this.id === 'functional_file') {
-                updateBlastThresholdState();
-            }
         });
 
         zone.addEventListener('dragover', function(e) {
@@ -45,22 +41,12 @@
             if (e.dataTransfer.files.length) {
                 input.files = e.dataTransfer.files;
                 showFile(e.dataTransfer.files[0].name);
-                if (input.id === 'functional_file') {
-                    updateBlastThresholdState();
-                }
+                // Programmatically setting .files doesn't fire the change event,
+                // so dispatch it manually so any change listeners (e.g. group upload) run.
+                input.dispatchEvent(new Event('change'));
             }
         });
     });
-
-    function updateBlastThresholdState() {
-        var functionalFile = document.getElementById('functional_file');
-        var blastSection = document.getElementById('blast-threshold-section');
-        if (!blastSection) return;
-        var hasFile = functionalFile && functionalFile.files && functionalFile.files.length > 0;
-        // Only toggle the visual greyed-out state — never set disabled so the
-        // select value is still submitted and form validation passes.
-        blastSection.classList.toggle('disabled-section', hasFile);
-    }
 
     // Utility: AJAX helper
     function ajax(method, url, data, callback, errorCallback) {
@@ -183,7 +169,7 @@
                 return;
             }
             document.getElementById('blast-progress').classList.remove('hidden');
-            pollProgress(resp.task_id, 'blast-progress-bar', 'blast-progress-text', function() {
+            pollCompletion(resp.task_id, function() {
                 ajax('GET', 'blast-results/' + resp.task_id + '/', null, function(r) {
                     document.getElementById('blast-progress').classList.add('hidden');
                     document.getElementById('blast-results').classList.remove('hidden');
@@ -191,6 +177,10 @@
                         '<div class="dt-alert dt-alert-success">Search complete. Found <strong>' +
                         r.count + '</strong> matches.</div>';
                 });
+            }, function() {
+                document.getElementById('blast-progress').classList.add('hidden');
+                btn.disabled = false;
+                showError('BLAST search failed. Check server logs.');
             });
         }, function(msg) {
             btn.disabled = false;
@@ -211,6 +201,21 @@
     // -----------------------------------------------------------------------
     // Progress polling (reuses existing /check-progress/ endpoint)
     // -----------------------------------------------------------------------
+
+    // Lightweight poll — no progress bar, just waits for completion/failure.
+    function pollCompletion(taskId, onComplete, onFail) {
+        var interval = setInterval(function() {
+            ajax('GET', '/check-progress/' + taskId + '/', null, function(resp) {
+                if (resp.status === 'complete') {
+                    clearInterval(interval);
+                    onComplete();
+                } else if (resp.status === 'failed') {
+                    clearInterval(interval);
+                    if (onFail) onFail();
+                }
+            });
+        }, 2000);
+    }
 
     function pollProgress(taskId, barId, textId, onComplete) {
         var bar = document.getElementById(barId);
@@ -320,10 +325,6 @@
         renderColumnPanels(this.value);
     });
 
-    document.getElementById('upload-group-json-btn').addEventListener('click', function() {
-        document.getElementById('group-json-input').click();
-    });
-
     document.getElementById('group-json-input').addEventListener('change', function() {
         if (!this.files.length) return;
         var formData = new FormData();
@@ -426,72 +427,37 @@
         // Known proteins summary
         if (resp.known_protein_count > 0) {
             html += '<div class="dt-alert dt-alert-success" style="margin-bottom: 8px;">' +
-                '<strong>' + resp.known_protein_count + '</strong> protein(s) mapped.</div>';
+                '<strong>' + resp.known_protein_count + '</strong> protein(s) mapped from database.</div>';
             if (resp.known_proteins && resp.known_proteins.length > 0) {
                 html += '<div style="max-height: 120px; overflow-y: auto; font-size: 0.82rem; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px;">';
                 resp.known_proteins.forEach(function(p) {
                     html += '<span style="display:inline-block; margin-right:16px; margin-bottom:2px;">' +
-                        '<strong>' + escHtml(p.id) + '</strong>' +
-                        (p.name ? ' — ' + escHtml(p.name.split(' ').slice(0,4).join(' ')) : '') +
-                        (p.species ? ' <em>(' + escHtml(p.species) + ')</em>' : '') + '</span>';
+                        '<strong>' + p.id + '</strong>' +
+                        (p.name ? ' — ' + p.name.split(' ').slice(0,4).join(' ') : '') +
+                        (p.species ? ' <em>(' + p.species + ')</em>' : '') + '</span>';
                 });
-                if (resp.known_protein_count > 50) html += '…';
+                if (resp.known_protein_count > 50) html += '...';
                 html += '</div>';
             }
         }
 
-        // Proteins not yet looked up — user can fetch these
+        // Missing proteins
         if (resp.missing_protein_count > 0) {
-            html += '<div class="dt-alert dt-alert-warning" style="margin-bottom:4px;">' +
-                '<strong>' + resp.missing_protein_count + '</strong> protein(s) not yet identified — ' +
-                'click <strong>Fetch from UniProt</strong> to look them up.</div>';
+            html += '<div class="dt-alert dt-alert-warning">' +
+                '<strong>' + resp.missing_protein_count + '</strong> protein(s) not found in the dictionary. ' +
+                'Fetch from UniProt to get names and species, or skip.</div>';
             if (resp.missing_ids && resp.missing_ids.length > 0) {
-                html += '<div style="max-height: 80px; overflow-y: auto; font-size: 0.82rem; ' +
-                    'color: #666; background:#fff8e1; border:1px solid #ffe082; border-radius:4px; ' +
-                    'padding:4px 8px; margin-bottom:8px;">' +
-                    resp.missing_ids.map(escHtml).join(', ') +
-                    (resp.missing_protein_count > 50 ? ', …' : '') + '</div>';
+                html += '<div style="max-height: 100px; overflow-y: auto; font-size: 0.82rem; color: #666; margin-top: 4px;">' +
+                    resp.missing_ids.join(', ') + (resp.missing_protein_count > 50 ? ', ...' : '') + '</div>';
             }
-        }
-
-        // Proteins already tried in UniProt but could not be resolved
-        if (resp.unresolvable_count > 0) {
-            html += '<div class="dt-alert" style="background:#f5f5f5; border:1px solid #ccc; ' +
-                'color:#666; margin-bottom:4px;">' +
-                '<i class="fas fa-exclamation-circle" style="margin-right:4px;"></i>' +
-                '<strong>' + resp.unresolvable_count + '</strong> protein ID(s) could not be found in UniProt ' +
-                '(non-standard format or retired accession). These will remain unmapped.</div>';
-            if (resp.unresolvable_ids && resp.unresolvable_ids.length > 0) {
-                html += '<div style="max-height: 80px; overflow-y: auto; font-size: 0.82rem; ' +
-                    'color: #888; background:#fafafa; border:1px solid #e0e0e0; border-radius:4px; ' +
-                    'padding:4px 8px; margin-bottom:8px; text-decoration:line-through;">' +
-                    resp.unresolvable_ids.map(escHtml).join(', ') +
-                    (resp.unresolvable_count > 50 ? ', …' : '') + '</div>';
-            }
-        }
-
-        if (resp.missing_protein_count === 0 && resp.unresolvable_count === 0) {
-            if (resp.known_protein_count === 0) {
-                html += '<div class="dt-alert dt-alert-info">No protein identifiers found in the data. ' +
-                    'Ensure your file has a protein/accession column.</div>';
-            } else {
-                html += '<div class="dt-alert dt-alert-success">All proteins are mapped.</div>';
-            }
+        } else if (resp.known_protein_count === 0) {
+            html += '<div class="dt-alert dt-alert-info">No protein identifiers found in the data. ' +
+                'Ensure your file has a protein/accession column.</div>';
+        } else {
+            html += '<div class="dt-alert dt-alert-success">All proteins are mapped.</div>';
         }
 
         info.innerHTML = html;
-
-        // Show/hide the fetch button based on whether there's anything left to fetch
-        var fetchBtn = document.getElementById('fetch-uniprot-btn');
-        if (fetchBtn) {
-            if (resp.missing_protein_count > 0) {
-                fetchBtn.classList.remove('hidden');
-                fetchBtn.innerHTML = '<i class="fas fa-download"></i> Fetch from UniProt' +
-                    ' (' + resp.missing_protein_count + ')';
-            } else {
-                fetchBtn.classList.add('hidden');
-            }
-        }
 
         if (resp.has_combinations && resp.combinations.length > 0) {
             document.getElementById('protein-combinations').classList.remove('hidden');
@@ -507,29 +473,66 @@
         combos.forEach(function(combo, idx) {
             var div = document.createElement('div');
             div.className = 'dt-combo-row';
-            var html = '<strong>' + combo.combo + '</strong> (' + combo.occurrences + ' rows)<br>';
+            var html = '<strong>' + escHtml(combo.combo) + '</strong> (' + combo.occurrences + ' rows)<br>';
+            html += '<div class="combo-options" style="margin-top: 8px;">';
 
-            // Option: Leave As Is
+            // Mode 1: Keep combined (default)
             html += '<label style="display: block; margin: 4px 0;">' +
-                '<input type="radio" name="combo_' + idx + '" value="__ASIS__" checked> ' +
-                'Leave as is (keep combined ID)</label>';
+                '<input type="radio" name="combo_mode_' + idx + '" value="asis" checked> ' +
+                'Keep combined ID</label>';
 
-            // Option: each individual protein ID
+            // Mode 2: Split — checkboxes revealed when this radio is selected
+            html += '<label style="display: block; margin: 4px 0;">' +
+                '<input type="radio" name="combo_mode_' + idx + '" value="split"> ' +
+                'Split into individual proteins:</label>';
+            html += '<div class="combo-split-panel" id="split_panel_' + idx + '" ' +
+                'style="display:none; margin-left:24px; margin-top:4px; padding:8px; ' +
+                'background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px;">';
+            html += '<div style="font-size:0.8rem; color:#888; margin-bottom:6px;">' +
+                'Checked proteins will each get their own row; unchecked proteins are removed.</div>';
             combo.proteins.forEach(function(p) {
-                html += '<label style="display: block; margin: 4px 0;">' +
-                    '<input type="radio" name="combo_' + idx + '" value="' + p.id + '"> ' +
-                    p.id + (p.name ? ' — ' + p.name : '') +
-                    (p.species ? ' (' + p.species + ')' : '') + '</label>';
+                var chk = (p.default_decision === 'new') ? ' checked' : '';
+                html += '<label style="display:block; margin:3px 0; cursor:pointer;">' +
+                    '<input type="checkbox" class="combo-protein-cb" ' +
+                    'name="combo_proteins_' + idx + '" value="' + escHtml(p.id) + '"' + chk + '> ' +
+                    '<strong>' + escHtml(p.id) + '</strong>' +
+                    (p.name ? ' — ' + escHtml(p.name) : '') +
+                    (p.species ? ' <em>(' + escHtml(p.species) + ')</em>' : '') + '</label>';
+            });
+            html += '</div>';
+
+            // Mode 3: Custom ID
+            html += '<label style="display:block; margin:4px 0;">' +
+                '<input type="radio" name="combo_mode_' + idx + '" value="custom"> ' +
+                'Custom ID: <input type="text" id="custom_' + idx + '" ' +
+                'placeholder="Enter protein ID" ' +
+                'style="margin-left:6px; width:200px; display:inline;" ' +
+                'onfocus="this.previousElementSibling.checked=true;' +
+                'document.getElementById(\'split_panel_' + idx + '\').style.display=\'none\';"></label>';
+
+            html += '</div>';  // .combo-options
+            div.innerHTML = html;
+
+            // Show/hide split panel when mode changes
+            div.querySelectorAll('input[name="combo_mode_' + idx + '"]').forEach(function(radio) {
+                radio.addEventListener('change', function() {
+                    div.querySelector('#split_panel_' + idx).style.display =
+                        this.value === 'split' ? 'block' : 'none';
+                });
             });
 
-            // Option: Custom ID
-            html += '<label style="display: block; margin: 4px 0;">' +
-                '<input type="radio" name="combo_' + idx + '" value="__CUSTOM__"> ' +
-                'Custom ID: <input type="text" id="custom_' + idx + '" ' +
-                'placeholder="Enter protein ID" style="margin-left: 6px; width: 200px; display: inline;" ' +
-                'onfocus="this.parentElement.querySelector(\'input[type=radio]\').checked=true;"></label>';
+            // Checking any protein checkbox auto-activates "split" mode
+            div.querySelectorAll('.combo-protein-cb').forEach(function(cb) {
+                cb.addEventListener('change', function() {
+                    var splitRadio = div.querySelector(
+                        'input[name="combo_mode_' + idx + '"][value="split"]');
+                    if (splitRadio) {
+                        splitRadio.checked = true;
+                        div.querySelector('#split_panel_' + idx).style.display = 'block';
+                    }
+                });
+            });
 
-            div.innerHTML = html;
             list.appendChild(div);
         });
     }
@@ -544,31 +547,17 @@
         var btn = this;
         btn.disabled = true;
 
-        function afterFetch(savedCount, taskId) {
-            // Persist any fetched results then fully refresh the protein panel.
-            // Pass task_id explicitly so the server doesn't have to rely on session state.
-            ajax('POST', 'save-uniprot/', {task_id: taskId || null}, function(saveResp) {
+        function afterFetch(savedCount) {
+            // Persist any fetched results then fully refresh the protein panel
+            ajax('POST', 'save-uniprot/', null, function(saveResp) {
                 var n = (saveResp && saveResp.saved) ? saveResp.saved : (savedCount || 0);
-                var fetchedProteins = (saveResp && saveResp.proteins) ? saveResp.proteins : [];
                 ajax('GET', 'step3/', null, function(r) {
                     renderStep3Info(r);
                     if (n > 0) {
-                        var msg = '<div class="dt-alert dt-alert-success" style="margin-bottom:8px;">' +
+                        document.getElementById('protein-info').insertAdjacentHTML('afterbegin',
+                            '<div class="dt-alert dt-alert-success" style="margin-bottom:8px;">' +
                             '<i class="fas fa-check-circle"></i> UniProt identified <strong>' +
-                            n + '</strong> protein(s). Protein map updated.';
-                        if (fetchedProteins.length > 0) {
-                            msg += '<div style="margin-top:6px; font-size:0.85rem;">';
-                            fetchedProteins.forEach(function(p) {
-                                msg += '<span style="display:inline-block; margin-right:16px; margin-bottom:2px;">' +
-                                    '<strong>' + escHtml(p.id) + '</strong>' +
-                                    (p.name ? ' — ' + escHtml(p.name) : '') +
-                                    (p.species ? ' <em>(' + escHtml(p.species) + ')</em>' : '') +
-                                    '</span>';
-                            });
-                            msg += '</div>';
-                        }
-                        msg += '</div>';
-                        document.getElementById('protein-info').insertAdjacentHTML('afterbegin', msg);
+                            n + '</strong> protein(s). Protein map updated.</div>');
                     }
                     btn.disabled = false;
                 });
@@ -582,33 +571,69 @@
             if (resp.skipped) {
                 // No missing proteins — still refresh the panel in case a previous
                 // fetch left results that haven't been rendered yet
-                afterFetch(0, null);
+                afterFetch(0);
                 return;
             }
-            var taskId = resp.task_id;
             document.getElementById('uniprot-progress').classList.remove('hidden');
-            pollProgress(taskId, 'uniprot-progress-bar', 'uniprot-progress-text', function() {
+            pollProgress(resp.task_id, 'uniprot-progress-bar', 'uniprot-progress-text', function() {
                 document.getElementById('uniprot-progress').classList.add('hidden');
-                afterFetch(resp.count, taskId);
+                afterFetch(resp.count);
             });
         }, function(msg) { btn.disabled = false; showError(msg); });
+    });
+
+    // Download mapping key — navigates directly to the download endpoint
+    document.getElementById('download-protein-map-btn').addEventListener('click', function() {
+        var iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = 'download-protein-map/';
+        document.body.appendChild(iframe);
+        setTimeout(function() { document.body.removeChild(iframe); }, 10000);
+    });
+
+    // Upload mapping key — auto-apply on file selection or drop
+    document.getElementById('protein-map-input').addEventListener('change', function() {
+        if (!this.files.length) return;
+        var statusEl = document.getElementById('protein-map-upload-status');
+        statusEl.innerHTML = '<div class="dt-alert dt-alert-info" style="margin-top:6px;">' +
+            '<span class="dt-spinner"></span> Applying mapping key...</div>';
+
+        var formData = new FormData();
+        formData.append('map_file', this.files[0]);
+        ajax('POST', 'upload-protein-map/', formData, function(resp) {
+            statusEl.innerHTML = '<div class="dt-alert dt-alert-success" style="margin-top:6px;">' +
+                '<i class="fas fa-check-circle"></i> Mapping key applied — ' +
+                resp.applied + ' combination(s) processed. Continuing...</div>';
+            setTimeout(function() { goToStep(4); }, 800);
+        }, function(msg) {
+            statusEl.innerHTML = '<div class="dt-alert dt-alert-danger" style="margin-top:6px;">' +
+                msg + '</div>';
+        });
     });
 
     document.getElementById('submit-proteins-btn').addEventListener('click', function() {
         var decisions = {};
         document.querySelectorAll('#combinations-list .dt-combo-row').forEach(function(row, idx) {
-            var checked = row.querySelector('input[name="combo_' + idx + '"]:checked');
-            if (checked) {
-                var combo = row.querySelector('strong').textContent;
-                var val = checked.value;
-                if (val === '__ASIS__') {
+            var combo = row.querySelector('strong').textContent;
+            var modeRadio = row.querySelector('input[name="combo_mode_' + idx + '"]:checked');
+            var mode = modeRadio ? modeRadio.value : 'asis';
+
+            if (mode === 'asis') {
+                decisions[combo] = {action: 'ASIS'};
+            } else if (mode === 'split') {
+                var checkedBoxes = Array.prototype.slice.call(
+                    row.querySelectorAll('input[name="combo_proteins_' + idx + '"]:checked')
+                );
+                var selectedIds = checkedBoxes.map(function(cb) { return cb.value; });
+                if (selectedIds.length === 0) {
+                    // Nothing selected in split mode → treat as keep combined
                     decisions[combo] = {action: 'ASIS'};
-                } else if (val === '__CUSTOM__') {
-                    var customInput = row.querySelector('#custom_' + idx);
-                    decisions[combo] = {action: 'CUSTOM', protein_id: customInput ? customInput.value.trim() : ''};
                 } else {
-                    decisions[combo] = {action: 'NEW', protein_id: val};
+                    decisions[combo] = {action: 'MULTI', protein_ids: selectedIds};
                 }
+            } else if (mode === 'custom') {
+                var customInput = row.querySelector('#custom_' + idx);
+                decisions[combo] = {action: 'CUSTOM', protein_id: customInput ? customInput.value.trim() : ''};
             }
         });
         ajax('POST', 'submit-proteins/', {decisions: decisions}, function() {
@@ -641,20 +666,10 @@
             document.getElementById('process-progress').classList.add('hidden');
             document.getElementById('export-section').classList.remove('hidden');
 
-            var hasFunction = resp.exports && resp.exports.summed_function;
-            var hasGroups  = resp.exports && resp.exports.group_definitions;
-            var summaryHtml = '<div class="dt-alert dt-alert-success">Processing complete. ' +
+            document.getElementById('process-summary').innerHTML =
+                '<div class="dt-alert dt-alert-success">Processing complete. ' +
                 'Result: <strong>' + resp.rows + '</strong> rows, <strong>' +
-                resp.columns + '</strong> columns.</div>' +
-                '<p style="color:#555; font-size:0.9rem; margin:8px 0 0 0;">' +
-                'Your peptidomic data has been merged with MBPDB bioactive peptide annotations.' +
-                (hasGroups ? ' Group abundance averages have been calculated for each experimental condition.' : '') +
-                ' Protein identifications have been enriched from the protein database.' +
-                (hasFunction ? ' Bioactive function annotations are included from the MBPDB database.' : '') +
-                ' Use the exports below to explore protein-level abundance, functional distributions' +
-                (hasGroups ? ', and group correlations' : '') +
-                ' derived from your merged dataset.</p>';
-            document.getElementById('process-summary').innerHTML = summaryHtml;
+                resp.columns + '</strong> columns.</div>';
 
             renderExportButtons(resp.exports);
         }, function(msg) {
@@ -671,24 +686,15 @@
         container.innerHTML = '';
 
         var items = [
-            {key: 'mbpdb_results', icon: 'fa-database', label: 'MBPDB Results',
-                desc: 'Peptides matched against the MBPDB database with biological function annotations (TSV)'},
-            {key: 'group_definitions', icon: 'fa-layer-group', label: 'Group Definitions',
-                desc: 'Categorical variable definitions mapping sample columns to experimental groups (JSON)'},
-            {key: 'merged_dataset', icon: 'fa-table', label: 'Merged Dataset',
-                desc: 'Complete processed dataset with all peptides, proteins, functions, and group averages (CSV)'},
-            {key: 'sequence_list', icon: 'fa-list', label: 'Sequence List',
-                desc: 'Unique peptide sequences detected in each study group (CSV)'},
-            {key: 'summed_peptide', icon: 'fa-chart-bar', label: 'Summed Peptide Results',
-                desc: 'Total absorbance and unique peptide count per group with replicate details and SEM (XLSX)'},
-            {key: 'protein_analysis', icon: 'fa-dna', label: 'Protein Analysis',
-                desc: 'Absorbance and peptide count by protein across groups with relative percentages — 4 sheets: absorbance absolute/relative, count absolute/relative (XLSX)'},
-            {key: 'summed_function', icon: 'fa-flask', label: 'Summed Functional Data',
-                desc: 'Bioactive function breakdown by absorbance and peptide count across groups — 5 sheets: combined, absorbance absolute/relative, count absolute/relative (XLSX)'},
-            {key: 'group_correlation', icon: 'fa-chart-line', label: 'Sample-to-Sample Correlations',
-                desc: 'Pearson or Spearman correlations between study groups (cross-group comparison) (XLSX)'},
-            {key: 'replicate_correlation', icon: 'fa-chart-area', label: 'Replicate Correlations',
-                desc: 'Pearson or Spearman correlations between technical replicates within each group (XLSX)'},
+            {key: 'mbpdb_results', icon: 'fa-database', label: 'MBPDB Results'},
+            {key: 'group_definitions', icon: 'fa-layer-group', label: 'Group Definitions'},
+            {key: 'merged_dataset', icon: 'fa-table', label: 'Merged Dataset'},
+            {key: 'sequence_list', icon: 'fa-list', label: 'Sequence List'},
+            {key: 'summed_peptide', icon: 'fa-chart-bar', label: 'Summed Peptide Results'},
+            {key: 'protein_analysis', icon: 'fa-dna', label: 'Protein Analysis'},
+            {key: 'summed_function', icon: 'fa-flask', label: 'Summed Functional Data'},
+            {key: 'group_correlation', icon: 'fa-chart-line', label: 'Sample-to-Sample Correlations'},
+            {key: 'replicate_correlation', icon: 'fa-chart-area', label: 'Replicate Correlations'},
         ];
 
         items.forEach(function(item) {
@@ -696,11 +702,9 @@
             var row = document.createElement('div');
             row.className = 'dt-export-row' + (enabled ? '' : ' disabled');
 
-            var lbl = document.createElement('div');
+            var lbl = document.createElement('span');
             lbl.className = 'dt-export-label';
-            lbl.innerHTML = '<div class="dt-export-label-main">' +
-                '<i class="fas ' + item.icon + '"></i> ' + item.label + '</div>' +
-                (item.desc ? '<div class="dt-export-desc">' + item.desc + '</div>' : '');
+            lbl.innerHTML = '<i class="fas ' + item.icon + '"></i> ' + item.label;
             row.appendChild(lbl);
 
             if (enabled) {
@@ -800,24 +804,7 @@
         sheet.rows.forEach(function(row) {
             html += '<tr>';
             row.forEach(function(cell) {
-                var val;
-                if (cell === null || cell === undefined) {
-                    val = '';
-                } else if (typeof cell === 'number' && isFinite(cell)) {
-                    var abs = Math.abs(cell);
-                    if (abs >= 10000 || (cell !== 0 && abs < 0.001)) {
-                        // Very large or very small — scientific notation
-                        val = cell.toExponential(2);
-                    } else if (cell % 1 === 0) {
-                        // Whole number — no decimal places
-                        val = String(Math.round(cell));
-                    } else {
-                        // Fractional (e.g. percentage) — max 2 decimal places
-                        val = parseFloat(cell.toFixed(2)).toString();
-                    }
-                } else {
-                    val = String(cell);
-                }
+                var val = cell === null || cell === undefined ? '' : String(cell);
                 html += '<td title="' + escHtml(val) + '">' + escHtml(val.length > 80 ? val.substring(0, 80) + '…' : val) + '</td>';
             });
             html += '</tr>';
