@@ -41,6 +41,9 @@
             if (e.dataTransfer.files.length) {
                 input.files = e.dataTransfer.files;
                 showFile(e.dataTransfer.files[0].name);
+                // Programmatically setting .files doesn't fire the change event,
+                // so dispatch it manually so any change listeners (e.g. group upload) run.
+                input.dispatchEvent(new Event('change'));
             }
         });
     });
@@ -166,7 +169,7 @@
                 return;
             }
             document.getElementById('blast-progress').classList.remove('hidden');
-            pollProgress(resp.task_id, 'blast-progress-bar', 'blast-progress-text', function() {
+            pollCompletion(resp.task_id, function() {
                 ajax('GET', 'blast-results/' + resp.task_id + '/', null, function(r) {
                     document.getElementById('blast-progress').classList.add('hidden');
                     document.getElementById('blast-results').classList.remove('hidden');
@@ -174,6 +177,10 @@
                         '<div class="dt-alert dt-alert-success">Search complete. Found <strong>' +
                         r.count + '</strong> matches.</div>';
                 });
+            }, function() {
+                document.getElementById('blast-progress').classList.add('hidden');
+                btn.disabled = false;
+                showError('BLAST search failed. Check server logs.');
             });
         }, function(msg) {
             btn.disabled = false;
@@ -194,6 +201,21 @@
     // -----------------------------------------------------------------------
     // Progress polling (reuses existing /check-progress/ endpoint)
     // -----------------------------------------------------------------------
+
+    // Lightweight poll — no progress bar, just waits for completion/failure.
+    function pollCompletion(taskId, onComplete, onFail) {
+        var interval = setInterval(function() {
+            ajax('GET', '/check-progress/' + taskId + '/', null, function(resp) {
+                if (resp.status === 'complete') {
+                    clearInterval(interval);
+                    onComplete();
+                } else if (resp.status === 'failed') {
+                    clearInterval(interval);
+                    if (onFail) onFail();
+                }
+            });
+        }, 2000);
+    }
 
     function pollProgress(taskId, barId, textId, onComplete) {
         var bar = document.getElementById(barId);
@@ -301,10 +323,6 @@
 
     document.getElementById('column-search').addEventListener('input', function() {
         renderColumnPanels(this.value);
-    });
-
-    document.getElementById('upload-group-json-btn').addEventListener('click', function() {
-        document.getElementById('group-json-input').click();
     });
 
     document.getElementById('group-json-input').addEventListener('change', function() {
@@ -455,29 +473,66 @@
         combos.forEach(function(combo, idx) {
             var div = document.createElement('div');
             div.className = 'dt-combo-row';
-            var html = '<strong>' + combo.combo + '</strong> (' + combo.occurrences + ' rows)<br>';
+            var html = '<strong>' + escHtml(combo.combo) + '</strong> (' + combo.occurrences + ' rows)<br>';
+            html += '<div class="combo-options" style="margin-top: 8px;">';
 
-            // Option: Leave As Is
+            // Mode 1: Keep combined (default)
             html += '<label style="display: block; margin: 4px 0;">' +
-                '<input type="radio" name="combo_' + idx + '" value="__ASIS__" checked> ' +
-                'Leave as is (keep combined ID)</label>';
+                '<input type="radio" name="combo_mode_' + idx + '" value="asis" checked> ' +
+                'Keep combined ID</label>';
 
-            // Option: each individual protein ID
+            // Mode 2: Split — checkboxes revealed when this radio is selected
+            html += '<label style="display: block; margin: 4px 0;">' +
+                '<input type="radio" name="combo_mode_' + idx + '" value="split"> ' +
+                'Split into individual proteins:</label>';
+            html += '<div class="combo-split-panel" id="split_panel_' + idx + '" ' +
+                'style="display:none; margin-left:24px; margin-top:4px; padding:8px; ' +
+                'background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px;">';
+            html += '<div style="font-size:0.8rem; color:#888; margin-bottom:6px;">' +
+                'Checked proteins will each get their own row; unchecked proteins are removed.</div>';
             combo.proteins.forEach(function(p) {
-                html += '<label style="display: block; margin: 4px 0;">' +
-                    '<input type="radio" name="combo_' + idx + '" value="' + p.id + '"> ' +
-                    p.id + (p.name ? ' — ' + p.name : '') +
-                    (p.species ? ' (' + p.species + ')' : '') + '</label>';
+                var chk = (p.default_decision === 'new') ? ' checked' : '';
+                html += '<label style="display:block; margin:3px 0; cursor:pointer;">' +
+                    '<input type="checkbox" class="combo-protein-cb" ' +
+                    'name="combo_proteins_' + idx + '" value="' + escHtml(p.id) + '"' + chk + '> ' +
+                    '<strong>' + escHtml(p.id) + '</strong>' +
+                    (p.name ? ' — ' + escHtml(p.name) : '') +
+                    (p.species ? ' <em>(' + escHtml(p.species) + ')</em>' : '') + '</label>';
+            });
+            html += '</div>';
+
+            // Mode 3: Custom ID
+            html += '<label style="display:block; margin:4px 0;">' +
+                '<input type="radio" name="combo_mode_' + idx + '" value="custom"> ' +
+                'Custom ID: <input type="text" id="custom_' + idx + '" ' +
+                'placeholder="Enter protein ID" ' +
+                'style="margin-left:6px; width:200px; display:inline;" ' +
+                'onfocus="this.previousElementSibling.checked=true;' +
+                'document.getElementById(\'split_panel_' + idx + '\').style.display=\'none\';"></label>';
+
+            html += '</div>';  // .combo-options
+            div.innerHTML = html;
+
+            // Show/hide split panel when mode changes
+            div.querySelectorAll('input[name="combo_mode_' + idx + '"]').forEach(function(radio) {
+                radio.addEventListener('change', function() {
+                    div.querySelector('#split_panel_' + idx).style.display =
+                        this.value === 'split' ? 'block' : 'none';
+                });
             });
 
-            // Option: Custom ID
-            html += '<label style="display: block; margin: 4px 0;">' +
-                '<input type="radio" name="combo_' + idx + '" value="__CUSTOM__"> ' +
-                'Custom ID: <input type="text" id="custom_' + idx + '" ' +
-                'placeholder="Enter protein ID" style="margin-left: 6px; width: 200px; display: inline;" ' +
-                'onfocus="this.parentElement.querySelector(\'input[type=radio]\').checked=true;"></label>';
+            // Checking any protein checkbox auto-activates "split" mode
+            div.querySelectorAll('.combo-protein-cb').forEach(function(cb) {
+                cb.addEventListener('change', function() {
+                    var splitRadio = div.querySelector(
+                        'input[name="combo_mode_' + idx + '"][value="split"]');
+                    if (splitRadio) {
+                        splitRadio.checked = true;
+                        div.querySelector('#split_panel_' + idx).style.display = 'block';
+                    }
+                });
+            });
 
-            div.innerHTML = html;
             list.appendChild(div);
         });
     }
@@ -527,21 +582,58 @@
         }, function(msg) { btn.disabled = false; showError(msg); });
     });
 
+    // Download mapping key — navigates directly to the download endpoint
+    document.getElementById('download-protein-map-btn').addEventListener('click', function() {
+        var iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = 'download-protein-map/';
+        document.body.appendChild(iframe);
+        setTimeout(function() { document.body.removeChild(iframe); }, 10000);
+    });
+
+    // Upload mapping key — auto-apply on file selection or drop
+    document.getElementById('protein-map-input').addEventListener('change', function() {
+        if (!this.files.length) return;
+        var statusEl = document.getElementById('protein-map-upload-status');
+        statusEl.innerHTML = '<div class="dt-alert dt-alert-info" style="margin-top:6px;">' +
+            '<span class="dt-spinner"></span> Applying mapping key...</div>';
+
+        var formData = new FormData();
+        formData.append('map_file', this.files[0]);
+        ajax('POST', 'upload-protein-map/', formData, function(resp) {
+            statusEl.innerHTML = '<div class="dt-alert dt-alert-success" style="margin-top:6px;">' +
+                '<i class="fas fa-check-circle"></i> Mapping key applied — ' +
+                resp.applied + ' combination(s) processed. Continuing...</div>';
+            setTimeout(function() { goToStep(4); }, 800);
+        }, function(msg) {
+            statusEl.innerHTML = '<div class="dt-alert dt-alert-danger" style="margin-top:6px;">' +
+                msg + '</div>';
+        });
+    });
+
     document.getElementById('submit-proteins-btn').addEventListener('click', function() {
         var decisions = {};
         document.querySelectorAll('#combinations-list .dt-combo-row').forEach(function(row, idx) {
-            var checked = row.querySelector('input[name="combo_' + idx + '"]:checked');
-            if (checked) {
-                var combo = row.querySelector('strong').textContent;
-                var val = checked.value;
-                if (val === '__ASIS__') {
+            var combo = row.querySelector('strong').textContent;
+            var modeRadio = row.querySelector('input[name="combo_mode_' + idx + '"]:checked');
+            var mode = modeRadio ? modeRadio.value : 'asis';
+
+            if (mode === 'asis') {
+                decisions[combo] = {action: 'ASIS'};
+            } else if (mode === 'split') {
+                var checkedBoxes = Array.prototype.slice.call(
+                    row.querySelectorAll('input[name="combo_proteins_' + idx + '"]:checked')
+                );
+                var selectedIds = checkedBoxes.map(function(cb) { return cb.value; });
+                if (selectedIds.length === 0) {
+                    // Nothing selected in split mode → treat as keep combined
                     decisions[combo] = {action: 'ASIS'};
-                } else if (val === '__CUSTOM__') {
-                    var customInput = row.querySelector('#custom_' + idx);
-                    decisions[combo] = {action: 'CUSTOM', protein_id: customInput ? customInput.value.trim() : ''};
                 } else {
-                    decisions[combo] = {action: 'NEW', protein_id: val};
+                    decisions[combo] = {action: 'MULTI', protein_ids: selectedIds};
                 }
+            } else if (mode === 'custom') {
+                var customInput = row.querySelector('#custom_' + idx);
+                decisions[combo] = {action: 'CUSTOM', protein_id: customInput ? customInput.value.trim() : ''};
             }
         });
         ajax('POST', 'submit-proteins/', {decisions: decisions}, function() {
