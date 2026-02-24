@@ -39,3 +39,8 @@ plotly
 openpyxl
 kaleido
 python-dotenv
+
+# Pin to avoid RequestsDependencyWarning from pre-release versions
+requests>=2.28.0,<3.0.0
+urllib3>=1.26.0,<3.0.0
+chardet>=4.0.0,<6.0.0
