@@ -143,6 +143,11 @@ def upload_files(request):
         # Extract sequences for BLAST
         sequences = data_loader.extract_sequences(df)
 
+        # Auto-detect embedded function column in peptidomic data (re-uploaded transformed file)
+        if not has_mbpdb and 'function' in df.columns and df['function'].notna().any():
+            has_mbpdb = True
+            mbpdb_rows = int(df['function'].notna().sum())
+
         all_warnings = [w for w in [warning_msg] + func_warnings if w]
         result = {
             'success': True,
@@ -187,6 +192,25 @@ def start_blast_search(request):
             'skipped': True,
             'message': 'Using uploaded functional data instead of BLAST search',
             'count': len(func_df),
+        })
+
+    # Check if peptidomic data has an embedded function column (re-uploaded transformed file)
+    pd_df = _load_df(work_dir, 'pd_results')
+    if pd_df is not None and 'function' in pd_df.columns and pd_df['function'].notna().any():
+        id_col = next((c for c in ['Sequence', 'sequence'] if c in pd_df.columns), None)
+        if id_col:
+            synth = pd_df[[id_col, 'function']].dropna(subset=[id_col, 'function']).copy()
+            synth = synth[synth['function'].astype(str).str.strip() != '']
+            synth = synth.rename(columns={id_col: 'search_peptide'})
+            synth = synth.drop_duplicates(subset=['search_peptide', 'function'])
+            _save_df(work_dir, 'mbpdb_results', synth)
+            count = len(synth)
+        else:
+            count = int(pd_df['function'].notna().sum())
+        return JsonResponse({
+            'skipped': True,
+            'message': 'Using function data embedded in uploaded file',
+            'count': count,
         })
 
     task = run_blast_search_task.delay(work_dir, sequences, threshold)
