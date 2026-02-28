@@ -2,58 +2,17 @@
 {% load static %}
 
 {% block 'content' %}
-<!-- Font Awesome -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
 <style>
-    .dashboard-header {
-        margin-bottom: 0.5rem;
-    }
-    .dashboard-header h1 {
-        font-size: 2rem;
-        margin: 0;
-        font-weight: 500;
-        display: flex;
-        align-items: center;
-    }
-    .dashboard-header .chart-blue {
-        margin-right: 8px;
-        font-size: 1.6rem;
-        color: #1976d2;
-    }
-    .help-note {
-        margin-left: 0;
-        margin-top: 6px;
-        font-size: 1.3rem;
-        color: #777;
-        display: block;
-    }
-    .loading-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: #ffffff;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        z-index: 10;
-    }
-    .retry-btn {
-        margin-top: 15px;
-        padding: 8px 20px;
-        background: #1976d2;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        display: none;
-    }
-    .retry-btn:hover {
-        background: #1565c0;
-    }
+    .dashboard-header { margin-bottom: 0.5rem; }
+    .dashboard-header h1 { font-size: 2rem; margin: 0; font-weight: 500; display: flex; align-items: center; }
+    .dashboard-header .chart-blue { margin-right: 8px; font-size: 1.6rem; color: #1976d2; }
+    .help-note { margin-left: 0; margin-top: 6px; font-size: 1.3rem; color: #777; display: block; }
+    .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #ffffff;
+        display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; }
+    .retry-btn { margin-top: 15px; padding: 8px 20px; background: #1976d2; color: white;
+        border: none; border-radius: 4px; cursor: pointer; display: none; }
+    .retry-btn:hover { background: #1565c0; }
 </style>
 
 <div class="container-fluid" style="height: 100vh; padding: 0;">
@@ -63,217 +22,22 @@
                 <h1><i class="fas fa-chart-bar chart-blue"></i> Sequence Heatmap Dashboard</h1>
                 <span class="help-note" id="status-text">Loading notebook...</span>
             </div>
-            <div style="width: 100%; height: calc(100vh - 180px); margin: 0; padding-bottom: 20px; position: relative;">
+            <div id="voila-container" style="width:100%; height:calc(100vh - 180px); margin:0; padding-bottom:20px; position:relative;">
                 <div class="loading-overlay" id="loading-overlay">
-                    <img src="{% static 'peptide/VI5N.gif' %}" alt="Loading..." style="width: 50px; height: 128px;">
-                    <p id="loading-text" style="margin-top: 15px; color: #666;">Starting new session...</p>
-                    <button class="retry-btn" id="retry-btn" onclick="reloadIframe()">Retry Loading</button>
+                    <img src="{% static 'peptide/VI5N.gif' %}" alt="Loading..." style="width:50px; height:128px;">
+                    <p id="loading-text" style="margin-top:15px; color:#666;">Starting new session...</p>
+                    <button class="retry-btn" id="retry-btn">Retry Loading</button>
                 </div>
-                <iframe
-                    id="data-iframe"
-                    src="about:blank"
-                    style="width: 100%; height: 100%; border: none; overflow: hidden; display: block;"
-                    allowfullscreen>
-                </iframe>
+                <iframe id="data-iframe" src="about:blank"
+                        style="width:100%; height:100%; border:none; overflow:hidden; display:block;"
+                        allowfullscreen></iframe>
             </div>
         </div>
     </div>
 </div>
 
+<script src="{% static 'peptide/js/voila_loader.js' %}"></script>
 <script>
-(function() {
-    const iframe = document.getElementById('data-iframe');
-    const overlay = document.getElementById('loading-overlay');
-    const loadingText = document.getElementById('loading-text');
-    const retryBtn = document.getElementById('retry-btn');
-    const statusText = document.getElementById('status-text');
-    const VOILA_URL = '/voila/heatmap/';
-    
-    let loadAttempts = 0;
-    const maxAttempts = 3;
-    let loadTimeout = null;
-    let contentCheckInterval = null;
-    let isLoading = false;
-    
-    // Debounce rapid page loads - store last load time in sessionStorage
-    const DEBOUNCE_MS = 4000;
-    const COOLDOWN_AFTER_FAILURE_MS = 8000;
-    const lastLoadKey = 'voila_heatmap_last_load';
-    const failureKey = 'voila_heatmap_last_failure';
-    
-    function hideOverlay() {
-        overlay.style.display = 'none';
-        statusText.textContent = 'Notebook loaded successfully';
-        statusText.style.color = '#4caf50';
-        clearInterval(contentCheckInterval);
-    }
-    
-    function showOverlay() {
-        overlay.style.display = 'flex';
-        retryBtn.style.display = 'none';
-    }
-    
-    function showRetry(message) {
-        loadingText.textContent = message;
-        retryBtn.style.display = 'block';
-        statusText.textContent = 'Failed to load - click Retry or hard refresh (Ctrl+Shift+R)';
-        statusText.style.color = '#f44336';
-    }
-    
-    function checkForRawCode() {
-        try {
-            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-            if (iframeDoc) {
-                const bodyText = iframeDoc.body ? iframeDoc.body.innerText : '';
-                const bodyHTML = iframeDoc.body ? iframeDoc.body.innerHTML : '';
-                
-                const codePatterns = [
-                    /^import\s+\w+/m,
-                    /^from\s+\w+\s+import/m,
-                    /^def\s+\w+\s*\(/m,
-                    /^class\s+\w+/m,
-                    /widgets\.VBox|widgets\.HBox|ipywidgets/,
-                    /display\s*\(\s*\w+\s*\)/
-                ];
-                
-                for (const pattern of codePatterns) {
-                    if (pattern.test(bodyText) && bodyText.length > 500) {
-                        if (!bodyHTML.includes('jupyter-widgets') && !bodyHTML.includes('widget-subarea')) {
-                            return true;
-                        }
-                    }
-                }
-                
-                if (bodyText.includes('502 Bad Gateway') || bodyText.includes('503 Service')) {
-                    return true;
-                }
-            }
-        } catch (e) {}
-        return false;
-    }
-    
-    function checkContentRendered() {
-        try {
-            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-            if (iframeDoc && iframeDoc.body) {
-                const hasWidgets = iframeDoc.body.innerHTML.includes('jupyter-widgets') || 
-                                   iframeDoc.body.innerHTML.includes('widget-subarea') ||
-                                   iframeDoc.body.innerHTML.includes('jp-OutputArea');
-                return hasWidgets;
-            }
-        } catch (e) {}
-        return false;
-    }
-    
-    window.reloadIframe = function() {
-        if (isLoading) return;
-        isLoading = true;
-        
-        loadAttempts++;
-        showOverlay();
-        loadingText.textContent = loadAttempts > 1 ? 'Retrying... (attempt ' + loadAttempts + '/' + maxAttempts + ')' : 'Starting new session (this may take 15-30 seconds)...';
-        statusText.textContent = 'Starting new session...';
-        statusText.style.color = '#777';
-        
-        iframe.src = 'about:blank';
-        
-        // Longer delay between retries to let server recover
-        const retryDelay = loadAttempts > 1 ? 3000 : 1500;
-        
-        setTimeout(function() {
-            iframe.src = VOILA_URL + '?t=' + Date.now();
-            sessionStorage.setItem(lastLoadKey, Date.now().toString());
-            
-            clearTimeout(loadTimeout);
-            clearInterval(contentCheckInterval);
-            
-            loadTimeout = setTimeout(function() {
-                isLoading = false;
-                if (loadAttempts < maxAttempts) {
-                    loadingText.textContent = 'Taking longer than expected, retrying...';
-                    reloadIframe();
-                } else {
-                    // Record failure time for cooldown
-                    sessionStorage.setItem(failureKey, Date.now().toString());
-                    showRetry('Notebook failed to load. Please wait a moment before retrying.');
-                }
-            }, 90000); // 90 second timeout per attempt (new kernels take longer to start)
-            
-            isLoading = false;
-        }, retryDelay);
-    };
-    
-    iframe.onload = function() {
-        clearTimeout(loadTimeout);
-        
-        let checkCount = 0;
-        const maxChecks = 10;
-        
-        clearInterval(contentCheckInterval);
-        contentCheckInterval = setInterval(function() {
-            checkCount++;
-            
-            if (checkForRawCode()) {
-                clearInterval(contentCheckInterval);
-                console.log('Raw code detected, reloading...');
-                if (loadAttempts < maxAttempts) {
-                    loadingText.textContent = 'Notebook not rendered correctly, retrying...';
-                    setTimeout(reloadIframe, 2000);
-                } else {
-                    showRetry('Notebook failed to render correctly');
-                }
-                return;
-            }
-            
-            if (checkContentRendered() || checkCount >= maxChecks) {
-                clearInterval(contentCheckInterval);
-                setTimeout(hideOverlay, 1500);
-            }
-        }, 500);
-    };
-    
-    iframe.onerror = function() {
-        clearTimeout(loadTimeout);
-        clearInterval(contentCheckInterval);
-        isLoading = false;
-        if (loadAttempts < maxAttempts) {
-            loadingText.textContent = 'Connection error, retrying...';
-            setTimeout(reloadIframe, 3000);
-        } else {
-            showRetry('Connection error');
-        }
-    };
-    
-    function initialLoad() {
-        const lastLoad = parseInt(sessionStorage.getItem(lastLoadKey) || '0');
-        const lastFailure = parseInt(sessionStorage.getItem(failureKey) || '0');
-        const timeSinceLastLoad = Date.now() - lastLoad;
-        const timeSinceFailure = Date.now() - lastFailure;
-        
-        // If there was a recent failure, add extra cooldown
-        let delay = 500;
-        if (timeSinceFailure < COOLDOWN_AFTER_FAILURE_MS) {
-            delay = COOLDOWN_AFTER_FAILURE_MS - timeSinceFailure + 1000;
-            loadingText.textContent = 'Cooling down after error...';
-        } else if (timeSinceLastLoad < DEBOUNCE_MS) {
-            delay = DEBOUNCE_MS - timeSinceLastLoad + 500;
-            loadingText.textContent = 'Preparing notebook...';
-        } else {
-            loadingText.textContent = 'Preparing notebook...';
-        }
-        
-        setTimeout(function() {
-            // Reset attempts on fresh page load (not manual retry)
-            loadAttempts = 0;
-            reloadIframe();
-        }, delay);
-    }
-    
-    if (document.readyState === 'complete') {
-        initialLoad();
-    } else {
-        window.addEventListener('load', initialLoad);
-    }
-})();
+    initVoilaLoader({ voilaUrl: '/voila/heatmap/', cacheKey: 'voila_heatmap' });
 </script>
 {% endblock %}
