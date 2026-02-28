@@ -269,6 +269,10 @@ def get_step2_form(request):
         else:
             filtered = columns
 
+        # Save raw (pre-collapse) columns for Phase 1 manual tech rep assignment
+        raw_columns = list(filtered)
+        _save_json(work_dir, 'raw_columns', raw_columns)
+
         # Detect and collapse technical duplicates before showing group assignment UI.
         # Biological replicate column names (post-collapse) are what the user assigns to groups.
         tech_dup_mapping = {}
@@ -280,10 +284,80 @@ def get_step2_form(request):
         return JsonResponse({
             'columns': filtered,
             'all_columns': columns,
+            'raw_columns': raw_columns,
             'tech_dup_mapping': tech_dup_mapping,
         })
     except Exception as e:
         return JsonResponse({'error': f'Could not load step 2: {str(e)}', 'columns': [], 'all_columns': []}, status=500)
+
+
+@require_POST
+def submit_tech_reps(request):
+    """
+    Submit manually defined technical replicate groups.
+
+    Merges manual groups with any auto-detected groups, saves the combined mapping,
+    and returns the collapsed bio-rep column list for use in Phase 2 group assignment.
+    """
+    work_dir = _get_work_dir(request)
+
+    try:
+        body = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    manual_groups = body.get('tech_reps', [])
+
+    # Start from any auto-detected mapping saved by get_step2_form
+    tech_dup_mapping = _load_json(work_dir, 'tech_dup_mapping') or {}
+    raw_columns = _load_json(work_dir, 'raw_columns') or []
+
+    # Merge manual groups: name must be non-empty and at least 2 columns required
+    for group in manual_groups:
+        name = group.get('name', '').strip()
+        cols = group.get('columns', [])
+        if name and len(cols) >= 2:
+            tech_dup_mapping[name] = cols
+
+    _save_json(work_dir, 'tech_dup_mapping', tech_dup_mapping)
+
+    # Compute the post-collapse column list for Phase 2
+    bio_rep_columns = group_processing.compute_bio_rep_columns(raw_columns, tech_dup_mapping)
+
+    return JsonResponse({
+        'success': True,
+        'columns': bio_rep_columns,
+        'tech_dup_mapping': tech_dup_mapping,
+    })
+
+
+@require_POST
+def upload_tech_rep_json(request):
+    """Upload and parse a technical replicate definition JSON file."""
+    if 'tech_rep_file' not in request.FILES:
+        return JsonResponse({'error': 'No file provided'}, status=400)
+
+    try:
+        content = request.FILES['tech_rep_file'].read()
+        data = json.loads(content)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'error': 'Invalid JSON file'}, status=400)
+
+    if not isinstance(data, dict):
+        return JsonResponse({'error': 'File must be a JSON object mapping bio replicate names to lists of column names'}, status=400)
+
+    groups = []
+    errors = []
+    for name, cols in data.items():
+        if not isinstance(cols, list) or len(cols) < 2:
+            errors.append(f'"{name}" must map to a list of at least 2 column names')
+            continue
+        groups.append({'name': str(name), 'columns': [str(c) for c in cols]})
+
+    if errors:
+        return JsonResponse({'error': '; '.join(errors)}, status=400)
+
+    return JsonResponse({'success': True, 'groups': groups})
 
 
 @require_POST
@@ -542,7 +616,7 @@ def _translate_decisions(raw_decisions):
         all_proteins = [p.strip() for p in combo.split(';') if p.strip()]
         if action == 'ASIS' or not all_proteins:
             decisions[combo] = {p: 'ASIS' for p in all_proteins}
-        elif action == 'MULTI':
+        elif action in ('SPLIT', 'MULTI'):
             selected = set(decision_data.get('protein_ids', []))
             decisions[combo] = {
                 p: ('NEW' if p in selected else 'REMOVE') for p in all_proteins
@@ -750,7 +824,19 @@ def process_data(request):
         )
 
         if final_df is None:
-            return JsonResponse({'error': 'Data processing failed'}, status=500)
+            diag = []
+            if pd_results is not None:
+                diag.append(f'Input rows: {len(pd_results)}, columns: {list(pd_results.columns[:10])}')
+            if group_data:
+                for gid, ginfo in group_data.items():
+                    missing = [c for c in ginfo.get('abundance_columns', [])
+                               if c not in (pd_results.columns if pd_results is not None else [])]
+                    if missing:
+                        diag.append(f'Group "{ginfo["grouping_variable"]}" references missing columns: {missing}')
+            return JsonResponse({
+                'error': 'Data processing failed',
+                'detail': '\n'.join(diag) if diag else 'process_data() returned None with no exception.',
+            }, status=500)
 
         _save_df(work_dir, 'merged_df', final_df)
 
@@ -778,6 +864,7 @@ def process_data(request):
                 'group_correlation': has_groups,
                 'replicate_correlation': has_groups,
                 'tech_rep_correlation': has_tech_rep_correlation,
+                'protein_map': True,
             }
         })
     except Exception as exc:
@@ -968,6 +1055,48 @@ def view_export(request, export_type):
                                'rows': data_rows[:MAX_ROWS],
                                'total_rows': len(data_rows),
                                'truncated': len(data_rows) > MAX_ROWS})
+
+        elif export_type == 'protein_map':
+            saved = _load_json(work_dir, 'protein_decisions')
+            if saved:
+                raw_mapping = saved
+            else:
+                # Generate template from current combinations (mirrors download_protein_map)
+                df = _load_df(work_dir, 'pd_results')
+                if df is None:
+                    return JsonResponse({'error': 'No data loaded'}, status=404)
+                combinations = protein_handler.get_protein_combinations(df, protein_dict)
+                combo_details = (
+                    protein_handler.get_combination_details(combinations, df, protein_dict)
+                    if combinations else []
+                )
+                raw_mapping = {}
+                for c in combo_details:
+                    new_ids = [p['id'] for p in c['proteins'] if p.get('default_decision') == 'new']
+                    all_ids = [p['id'] for p in c['proteins']]
+                    if not new_ids or new_ids == all_ids:
+                        raw_mapping[c['combo']] = {'action': 'ASIS'}
+                    else:
+                        raw_mapping[c['combo']] = {'action': 'MULTI', 'protein_ids': new_ids}
+
+            rows = []
+            for combo, decision in raw_mapping.items():
+                if isinstance(decision, dict):
+                    action = decision.get('action', 'ASIS')
+                    if action == 'MULTI':
+                        details = ', '.join(decision.get('protein_ids', []))
+                    elif action in ('NEW', 'CUSTOM'):
+                        details = decision.get('protein_id', '')
+                    else:
+                        details = ''
+                else:
+                    action = str(decision)
+                    details = ''
+                rows.append([combo, action, details])
+
+            sheets = [{'name': 'Protein Mapping Key',
+                       'columns': ['Protein Combination', 'Action', 'Selected Protein(s)'],
+                       'rows': rows, 'total_rows': len(rows), 'truncated': False}]
 
         if sheets is None:
             return JsonResponse({'error': 'Unknown export type'}, status=404)
