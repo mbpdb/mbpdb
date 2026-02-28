@@ -1,5 +1,3 @@
-import matplotlib.pyplot as plt
-
 # Single color options with category headers
 single_color_options = [
     '--- SINGLE COLORS OPTIONS ---',
@@ -162,3 +160,39 @@ SPEC_TRANSLATE_LIST = [
     ['American bison', 'bison bison', 'b. bison', '9901'],
     ['Elephant', 'elephas maximus', 'asian elephant', 'e. maximus', '9783']
 ]
+
+# ---------------------------------------------------------------------------
+# Heatmap defaults (color strings — no matplotlib objects, safe to import)
+# ---------------------------------------------------------------------------
+default_hm_color = 'RdYlGn_r'
+default_lp_color = 'Set3'
+default_avglp_color = 'Dark2'
+
+# Heatmap constants
+chuck_size = 78
+plot_heatmap = 'yes'
+plot_zero = 'no'
+
+legend_title = [
+    'Sample Type:',
+    'Peptide Counts:',
+    'Bioactivity Function:',
+    'Peptide Interval:',
+    'Average Abundance:',
+]
+
+# Portrait heatmap layout settings: {num_variables: (lineplot_height, scale_factor)}
+port_hm_settings = {
+    1:  (35, 0.075),
+    2:  (20, 0.125),
+    3:  (20, 0.15),
+    4:  (20, 0.175),
+    5:  (20, 0.225),
+    6:  (20, 0.25),
+    7:  (20, 0.275),
+    8:  (20, 0.3),
+    9:  (20, 0.325),
+    10: (20, 0.36),
+    11: (20, 0.38),
+    12: (20, 0.41),
+}
