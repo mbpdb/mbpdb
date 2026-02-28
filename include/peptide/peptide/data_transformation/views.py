@@ -294,10 +294,11 @@ def get_step2_form(request):
 @require_POST
 def submit_tech_reps(request):
     """
-    Submit manually defined technical replicate groups.
+    Submit technical replicate groups (auto-detected and/or manually defined).
 
-    Merges manual groups with any auto-detected groups, saves the combined mapping,
-    and returns the collapsed bio-rep column list for use in Phase 2 group assignment.
+    The submitted groups are the source of truth — they fully replace any previously
+    saved mapping. Auto-detected groups are pre-populated on the frontend so the user
+    can review, remove, or add to them before submitting.
     """
     work_dir = _get_work_dir(request)
 
@@ -306,14 +307,12 @@ def submit_tech_reps(request):
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-    manual_groups = body.get('tech_reps', [])
-
-    # Start from any auto-detected mapping saved by get_step2_form
-    tech_dup_mapping = _load_json(work_dir, 'tech_dup_mapping') or {}
+    submitted_groups = body.get('tech_reps', [])
     raw_columns = _load_json(work_dir, 'raw_columns') or []
 
-    # Merge manual groups: name must be non-empty and at least 2 columns required
-    for group in manual_groups:
+    # Build mapping entirely from submitted groups (name non-empty, at least 2 columns)
+    tech_dup_mapping = {}
+    for group in submitted_groups:
         name = group.get('name', '').strip()
         cols = group.get('columns', [])
         if name and len(cols) >= 2:
@@ -616,7 +615,7 @@ def _translate_decisions(raw_decisions):
         all_proteins = [p.strip() for p in combo.split(';') if p.strip()]
         if action == 'ASIS' or not all_proteins:
             decisions[combo] = {p: 'ASIS' for p in all_proteins}
-        elif action in ('SPLIT', 'MULTI'):
+        elif action == 'SPLIT':
             selected = set(decision_data.get('protein_ids', []))
             decisions[combo] = {
                 p: ('NEW' if p in selected else 'REMOVE') for p in all_proteins
@@ -718,7 +717,7 @@ def download_protein_map(request):
             if not new_ids or new_ids == all_ids:
                 template[c['combo']] = {'action': 'ASIS'}
             else:
-                template[c['combo']] = {'action': 'MULTI', 'protein_ids': new_ids}
+                template[c['combo']] = {'action': 'SPLIT', 'protein_ids': new_ids}
         output_data = {'version': 1, 'protein_decisions': template}
 
     content = json.dumps(output_data, indent=2)
@@ -864,6 +863,7 @@ def process_data(request):
                 'group_correlation': has_groups,
                 'replicate_correlation': has_groups,
                 'tech_rep_correlation': has_tech_rep_correlation,
+                'tech_rep_key': bool(tech_dup_mapping),
                 'protein_map': True,
             }
         })
@@ -1056,6 +1056,18 @@ def view_export(request, export_type):
                                'total_rows': len(data_rows),
                                'truncated': len(data_rows) > MAX_ROWS})
 
+        elif export_type == 'tech_rep_key':
+            tech_dup_mapping = _load_json(work_dir, 'tech_dup_mapping')
+            if not tech_dup_mapping:
+                return JsonResponse({'error': 'No technical replicate mapping available'}, status=404)
+            rows = [
+                [bio_rep, ', '.join(tech_cols)]
+                for bio_rep, tech_cols in tech_dup_mapping.items()
+            ]
+            sheets = [{'name': 'Technical Replicate Key',
+                       'columns': ['Bio Replicate Name', 'Technical Replicate Columns'],
+                       'rows': rows, 'total_rows': len(rows), 'truncated': False}]
+
         elif export_type == 'protein_map':
             saved = _load_json(work_dir, 'protein_decisions')
             if saved:
@@ -1077,13 +1089,13 @@ def view_export(request, export_type):
                     if not new_ids or new_ids == all_ids:
                         raw_mapping[c['combo']] = {'action': 'ASIS'}
                     else:
-                        raw_mapping[c['combo']] = {'action': 'MULTI', 'protein_ids': new_ids}
+                        raw_mapping[c['combo']] = {'action': 'SPLIT', 'protein_ids': new_ids}
 
             rows = []
             for combo, decision in raw_mapping.items():
                 if isinstance(decision, dict):
                     action = decision.get('action', 'ASIS')
-                    if action == 'MULTI':
+                    if action == 'SPLIT':
                         details = ', '.join(decision.get('protein_ids', []))
                     elif action in ('NEW', 'CUSTOM'):
                         details = decision.get('protein_id', '')
@@ -1173,6 +1185,13 @@ def download_export(request, export_type):
         )
         filename = f'replicate_correlations_{correlation_type.lower()}.xlsx'
         content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+    elif export_type == 'tech_rep_key':
+        tech_dup_mapping = _load_json(work_dir, 'tech_dup_mapping')
+        if tech_dup_mapping:
+            content = json.dumps(tech_dup_mapping, indent=2).encode('utf-8')
+        filename = 'technical_replicate_key.json'
+        content_type = 'application/json'
 
     elif export_type == 'tech_rep_correlation':
         pd_results = _load_df(work_dir, 'pd_results')

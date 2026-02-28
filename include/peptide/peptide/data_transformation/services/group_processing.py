@@ -17,7 +17,12 @@ from .data_loader import get_filtered_columns
 
 def _get_base_name(col):
     """Strip technical duplicate markers from a column name to get the biological replicate name."""
-    # Suffix _repN patterns: _rep1, _rep2, _rep_1, _Rep2, etc.
+    # Suffix ( repN) parenthetical patterns: ( rep1), (rep2), ( rep 1), ( Rep2), etc.
+    cleaned = re.sub(r'\s*\(\s*rep\s*\d+\s*\)$', '', col, flags=re.IGNORECASE)
+    if cleaned != col:
+        return cleaned.strip()
+
+    # Suffix _repN underscore patterns: _rep1, _rep2, _rep_1, _Rep2, etc.
     cleaned = re.sub(r'[\s_\-]+rep[\s_\-]*\d+$', '', col, flags=re.IGNORECASE)
     if cleaned != col:
         return cleaned.strip()
@@ -46,8 +51,9 @@ def detect_technical_duplicates(columns):
 
     Criteria:
     - A column name appears more than once (exact duplicate column names)
-    - A column name ends with a _repN suffix (_rep1, _rep2, _rep_1, etc.)
-    - A column name contains a _dup pattern (_dup, _dup1, _duplicate, etc.)
+    - A column name ends with a ( repN) suffix: ( rep1), ( rep2), (rep1), etc.
+    - A column name ends with a _repN suffix: _rep1, _rep2, _rep_1, etc.
+    - A column name contains a _dup pattern: _dup, _dup1, _duplicate, etc.
 
     Returns:
         dict: {biological_replicate_name: [original_col_names]}
@@ -115,7 +121,7 @@ def collapse_technical_duplicates(df, columns):
         temp.insert(insert_at, base, avg.values)
         collapsed_df = temp
 
-        dup_mapping[base] = list(dict.fromkeys(orig_cols))
+        dup_mapping[base] = list(orig_cols)
 
     # Build ordered new column list (first occurrence wins)
     seen = set()

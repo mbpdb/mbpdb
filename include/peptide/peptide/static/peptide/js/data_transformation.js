@@ -251,16 +251,16 @@
     // -----------------------------------------------------------------------
 
     var rawAvailableColumns = [];  // pre-collapse columns (for tech rep panel)
-    var autoTechDupMapping = {};   // auto-detected tech rep mapping from backend
+    var autoTechDupMapping = {};   // always {}: kept for computeBioRepColumns signature only
     var trAvailableColumns = [];   // raw columns available in tech rep panel
     var trSelectedColumns = [];    // columns selected for the current tech rep group being built
-    var manualTechReps = [];       // [{name, columns}] manually defined by the user
+    var manualTechReps = [];       // [{name, columns}] — includes both auto-detected (pre-populated) and manually added groups
 
-    // Compute bio rep columns from raw columns + combined tech dup mapping
-    // (auto-detected + manual). These are shown in the categorical group panel.
+    // Compute bio rep columns from raw columns + manualTechReps mapping.
+    // autoTechDupMapping is always empty; all groups live in manualTechReps.
     function computeBioRepColumns() {
         var colToBioRep = {};
-        // Auto-detected
+        // (autoTechDupMapping is always {}, kept for historical compat)
         Object.keys(autoTechDupMapping).forEach(function(bioRep) {
             autoTechDupMapping[bioRep].forEach(function(col) { colToBioRep[col] = bioRep; });
         });
@@ -285,12 +285,19 @@
     function loadStep2() {
         ajax('GET', 'step2/', null, function(resp) {
             rawAvailableColumns = resp.raw_columns || resp.columns || [];
-            autoTechDupMapping = resp.tech_dup_mapping || {};
+            var detectedMapping = resp.tech_dup_mapping || {};
             trAvailableColumns = rawAvailableColumns;
             trSelectedColumns = [];
-            manualTechReps = [];
 
-            // Group panel uses bio rep columns
+            // Pre-populate manualTechReps with any auto-detected groups so the
+            // user can review, remove, or add to them. autoTechDupMapping is
+            // cleared to avoid double-counting in computeBioRepColumns().
+            autoTechDupMapping = {};
+            manualTechReps = Object.keys(detectedMapping).map(function(bioRep) {
+                return {name: bioRep, columns: detectedMapping[bioRep]};
+            });
+
+            // Group panel uses bio rep columns (post-collapse)
             availableColumns = computeBioRepColumns();
             selectedColumns = [];
             definedGroups = [];
@@ -306,26 +313,13 @@
             renderGroups();
             renderColumnPanels('');
             document.getElementById('submit-groups-btn').disabled = true;
-
-            // Show auto-detected tech rep info
-            var techDupEl = document.getElementById('tech-dup-info');
-            var dupBases = Object.keys(autoTechDupMapping);
-            if (dupBases.length > 0) {
-                var html = '<strong><i class="fas fa-info-circle"></i> ' + dupBases.length +
-                    ' technical replicate(s) automatically detected and averaged:</strong>' +
-                    '<ul style="margin:6px 0 0 0; padding-left:20px;">';
-                dupBases.forEach(function(base) {
-                    var origCols = autoTechDupMapping[base];
-                    html += '<li><strong>' + base + '</strong> &larr; averaged from: ' +
-                        origCols.map(function(c) { return '<em>' + c + '</em>'; }).join(', ') + '</li>';
-                });
-                html += '</ul>';
-                techDupEl.innerHTML = html;
-                techDupEl.classList.remove('hidden');
-            } else {
-                techDupEl.classList.add('hidden');
-            }
         });
+    }
+
+    // Format a column name for display: _repN suffix → (repN)
+    // e.g. "Sample_A_rep1" → "Sample_A (rep1)". Raw name is preserved as tooltip.
+    function fmtRepCol(col) {
+        return col.replace(/_rep(\d+)$/i, ' (rep$1)');
     }
 
     // Tech rep dual-panel: shows raw columns minus those already in a manual group
@@ -349,7 +343,7 @@
             var div = document.createElement('div');
             div.className = 'dt-col-item';
             div.title = col;
-            div.textContent = col;
+            div.textContent = fmtRepCol(col);
             div.addEventListener('click', function() {
                 if (trSelectedColumns.indexOf(col) === -1) {
                     trSelectedColumns.push(col);
@@ -370,7 +364,7 @@
                 div.className = 'dt-col-item selected-item';
                 div.title = col;
                 var txt = document.createElement('span');
-                txt.textContent = col;
+                txt.textContent = fmtRepCol(col);
                 txt.style.overflow = 'hidden';
                 txt.style.textOverflow = 'ellipsis';
                 var rm = document.createElement('span');
@@ -402,8 +396,19 @@
         manualTechReps.forEach(function(g, i) {
             var div = document.createElement('div');
             div.className = 'dt-group-item';
+            // Count occurrences so duplicate column names are numbered in the display
+            var colCounts = {};
+            g.columns.forEach(function(c) { colCounts[c] = (colCounts[c] || 0) + 1; });
+            var colInstances = {};
+            var colLabels = g.columns.map(function(c) {
+                if (colCounts[c] > 1) {
+                    colInstances[c] = (colInstances[c] || 0) + 1;
+                    return escHtml(fmtRepCol(c)) + ' <span style="color:#888;font-size:0.8em;">[' + colInstances[c] + ']</span>';
+                }
+                return '<em>' + escHtml(fmtRepCol(c)) + '</em>';
+            });
             div.innerHTML = '<span><strong>' + g.name + '</strong> &larr; ' +
-                g.columns.map(function(c) { return '<em>' + c + '</em>'; }).join(', ') + '</span>' +
+                colLabels.join(', ') + '</span>' +
                 '<span class="remove-group" data-idx="' + i + '"><i class="fas fa-times"></i></span>';
             list.appendChild(div);
         });
@@ -669,17 +674,17 @@
             var html = '<strong>' + escHtml(combo.combo) + '</strong> (' + combo.occurrences + ' rows)<br>';
             html += '<div class="combo-options" style="margin-top: 8px;">';
 
-            // Mode 1: Keep combined (default)
+            // Mode 1: Keep combined
             html += '<label style="display: block; margin: 4px 0;">' +
-                '<input type="radio" name="combo_mode_' + idx + '" value="asis" checked> ' +
+                '<input type="radio" name="combo_mode_' + idx + '" value="asis"> ' +
                 'Keep combined ID</label>';
 
-            // Mode 2: Split — checkboxes revealed when this radio is selected
+            // Mode 2: Split — default selected, panel expanded
             html += '<label style="display: block; margin: 4px 0;">' +
-                '<input type="radio" name="combo_mode_' + idx + '" value="split"> ' +
+                '<input type="radio" name="combo_mode_' + idx + '" value="split" checked> ' +
                 'Split into individual proteins:</label>';
             html += '<div class="combo-split-panel" id="split_panel_' + idx + '" ' +
-                'style="display:none; margin-left:24px; margin-top:4px; padding:8px; ' +
+                'style="display:block; margin-left:24px; margin-top:4px; padding:8px; ' +
                 'background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px;">';
             html += '<div style="font-size:0.8rem; color:#888; margin-bottom:6px;">' +
                 'Checked proteins will each get their own row; unchecked proteins are removed.</div>';
@@ -813,7 +818,7 @@
                     // Nothing selected in split mode → treat as keep combined
                     decisions[combo] = {action: 'ASIS'};
                 } else {
-                    decisions[combo] = {action: 'MULTI', protein_ids: selectedIds};
+                    decisions[combo] = {action: 'SPLIT', protein_ids: selectedIds};
                 }
             } else if (mode === 'custom') {
                 var customInput = row.querySelector('#custom_' + idx);
@@ -891,6 +896,7 @@
             {key: 'group_correlation', icon: 'fa-chart-line', label: 'Sample-to-Sample Correlations'},
             {key: 'replicate_correlation', icon: 'fa-chart-area', label: 'Replicate Correlations'},
             {key: 'tech_rep_correlation', icon: 'fa-vials', label: 'Technical Replicate Correlations'},
+            {key: 'tech_rep_key', icon: 'fa-key', label: 'Technical Replicate Key'},
             {key: 'protein_map', icon: 'fa-file-export', label: 'Protein Mapping Key',
              download_url: 'download-protein-map/'},
         ];
