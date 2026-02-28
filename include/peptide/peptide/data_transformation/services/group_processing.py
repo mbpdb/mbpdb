@@ -175,6 +175,39 @@ def apply_tech_dup_mapping(df, tech_dup_mapping):
     return collapsed_df
 
 
+def compute_bio_rep_columns(raw_columns, tech_dup_mapping):
+    """
+    Compute the post-collapse column list given raw columns and a tech dup mapping.
+
+    Each tech rep group's columns are replaced by a single bio rep name (inserted at
+    the position of the first tech rep in the list).
+
+    Args:
+        raw_columns: list of column names before collapse
+        tech_dup_mapping: {bio_rep_name: [tech_rep_col_names]}
+
+    Returns:
+        list of column names with tech rep groups collapsed to their bio rep names
+    """
+    col_to_bio_rep = {}
+    for bio_rep, tech_rep_cols in tech_dup_mapping.items():
+        for tc in tech_rep_cols:
+            col_to_bio_rep[tc] = bio_rep
+
+    result = []
+    bio_rep_inserted = set()
+    for col in raw_columns:
+        bio_rep = col_to_bio_rep.get(col)
+        if bio_rep is not None:
+            if bio_rep not in bio_rep_inserted:
+                result.append(bio_rep)
+                bio_rep_inserted.add(bio_rep)
+            # else: skip — already inserted as part of the same bio rep group
+        else:
+            result.append(col)
+    return result
+
+
 def parse_group_json(json_content, available_columns):
     """
     Parse a group definition JSON file.
