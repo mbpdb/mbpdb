@@ -293,30 +293,35 @@ def process_data(pd_results, pd_results_cleaned, mbpdb_results, group_data, prot
     if pd_results is None or pd_results.empty:
         return None
 
+    step = 'initializing'
     try:
+        step = 'extracting bioactive peptides'
         mbpdb_results_cleaned, mbpdb_results_grouped = extract_bioactive_peptides(mbpdb_results)
 
         if pd_results_cleaned is None or pd_results_cleaned.empty:
             pd_results_cleaned = pd_results.copy()
 
+        step = 'merging peptidomic results with MBPDB data'
         merged_df = process_pd_results(pd_results_cleaned, mbpdb_results_grouped, protein_dict)
 
         if group_data:
+            step = 'calculating group abundance averages'
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", UserWarning)
                 merged_df = calculate_group_abundance_averages(merged_df, group_data)
+                step = 'renaming columns with group labels'
                 merged_df = update_column_names_with_groups(merged_df, group_data)
 
-        # Add protein info
+        step = 'adding protein species/name info'
         final_df = add_protein_info(merged_df, protein_dict)
 
-        # Clean protein IDs
+        step = 'cleaning protein IDs'
         if 'Protein' in final_df.columns:
             final_df['Protein'] = final_df['Protein'].apply(
                 lambda x: extract_protein_id(x, protein_dict)
             )
 
-        # Clean up Unknown values
+        step = 'cleaning up placeholder values'
         for col in ['Protein', 'Positions in Proteins', 'protein_name', 'protein_species']:
             if col in final_df.columns:
                 final_df[col] = final_df[col].replace(
@@ -325,5 +330,7 @@ def process_data(pd_results, pd_results_cleaned, mbpdb_results, group_data, prot
                 )
 
         return final_df
-    except Exception:
-        return None
+    except Exception as exc:
+        raise RuntimeError(
+            f'Data processing failed at step "{step}": {type(exc).__name__}: {exc}'
+        ) from exc
