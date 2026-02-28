@@ -255,6 +255,26 @@
             availableColumns = resp.columns || [];
             selectedColumns = [];
             renderColumnPanels('');
+
+            // Show technical duplicate info if any were detected and collapsed
+            var techDupEl = document.getElementById('tech-dup-info');
+            var techDupMapping = resp.tech_dup_mapping || {};
+            var dupBases = Object.keys(techDupMapping);
+            if (dupBases.length > 0) {
+                var html = '<strong><i class="fas fa-info-circle"></i> ' + dupBases.length +
+                    ' technical duplicate group(s) detected and averaged into biological replicates:</strong>' +
+                    '<ul style="margin: 6px 0 0 0; padding-left: 20px;">';
+                dupBases.forEach(function(base) {
+                    var origCols = techDupMapping[base];
+                    html += '<li><strong>' + base + '</strong> &larr; averaged from: ' +
+                        origCols.map(function(c) { return '<em>' + c + '</em>'; }).join(', ') + '</li>';
+                });
+                html += '</ul>';
+                techDupEl.innerHTML = html;
+                techDupEl.classList.remove('hidden');
+            } else {
+                techDupEl.classList.add('hidden');
+            }
         });
     }
 
@@ -695,6 +715,7 @@
             {key: 'summed_function', icon: 'fa-flask', label: 'Summed Functional Data'},
             {key: 'group_correlation', icon: 'fa-chart-line', label: 'Sample-to-Sample Correlations'},
             {key: 'replicate_correlation', icon: 'fa-chart-area', label: 'Replicate Correlations'},
+            {key: 'tech_rep_correlation', icon: 'fa-vials', label: 'Technical Replicate Correlations'},
         ];
 
         items.forEach(function(item) {

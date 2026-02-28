@@ -413,6 +413,7 @@ def load_and_validate_file(file_content, filename, file_type, protein_dict=None)
 
         # Clean
         df.columns = df.columns.str.strip()
+        df = _normalize_duplicate_column_names(df)
         df = df.dropna(how='all')
         df = df[~df.astype(str).apply(lambda row: row.str.strip().eq('').all(), axis=1)]
 
@@ -438,6 +439,37 @@ def _try_delimiters(file_stream, delimiters):
         except Exception:
             continue
     return None
+
+
+def _normalize_duplicate_column_names(df):
+    """
+    Rename pandas auto-generated duplicate column suffixes to _repN notation.
+
+    When a file has duplicate column names, pandas appends .1, .2, etc. to make
+    them unique (e.g., Sample1, Sample1 → Sample1, Sample1.1).  This function
+    converts the .N-suffixed variants to _rep{N+1} so they are detected as
+    technical replicates downstream (e.g., Sample1.1 → Sample1_rep2).
+
+    The original base column (Sample1) keeps its name and implicitly acts as
+    rep1; each suffixed duplicate is renamed to rep{suffix+1}.  Only columns
+    whose base name also exists in the DataFrame are touched.
+    """
+    cols = list(df.columns)
+    base_to_suffixed = {}  # base → [(col_name, numeric_suffix)]
+
+    for col in cols:
+        m = re.match(r'^(.*?)\.(\d+)$', col)
+        if m:
+            base, n = m.group(1), int(m.group(2))
+            if base in cols:  # base column must also exist
+                base_to_suffixed.setdefault(base, []).append((col, n))
+
+    rename_map = {}
+    for base, entries in base_to_suffixed.items():
+        for col_name, n in entries:
+            rename_map[col_name] = f"{base}_rep{n + 1}"
+
+    return df.rename(columns=rename_map) if rename_map else df
 
 
 def _validate_mbpdb_file(df, filename):

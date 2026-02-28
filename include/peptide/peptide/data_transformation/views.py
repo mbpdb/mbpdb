@@ -269,9 +269,18 @@ def get_step2_form(request):
         else:
             filtered = columns
 
+        # Detect and collapse technical duplicates before showing group assignment UI.
+        # Biological replicate column names (post-collapse) are what the user assigns to groups.
+        tech_dup_mapping = {}
+        if df is not None and filtered:
+            _, tech_dup_mapping, filtered = group_processing.collapse_technical_duplicates(df, filtered)
+            if tech_dup_mapping:
+                _save_json(work_dir, 'tech_dup_mapping', tech_dup_mapping)
+
         return JsonResponse({
             'columns': filtered,
             'all_columns': columns,
+            'tech_dup_mapping': tech_dup_mapping,
         })
     except Exception as e:
         return JsonResponse({'error': f'Could not load step 2: {str(e)}', 'columns': [], 'all_columns': []}, status=500)
@@ -722,9 +731,19 @@ def process_data(request):
         mbpdb_results = _load_df(work_dir, 'mbpdb_results')
         group_data = _load_json(work_dir, 'group_data')
         protein_dict = _load_json(work_dir, 'protein_dict') or {}
+        tech_dup_mapping = _load_json(work_dir, 'tech_dup_mapping')
 
         if pd_results is None:
             return JsonResponse({'error': 'No peptidomic data loaded'}, status=400)
+
+        # Apply technical duplicate collapsing so biological replicate columns exist
+        # in the dataframe before group averaging runs.
+        if tech_dup_mapping:
+            pd_results = group_processing.apply_tech_dup_mapping(pd_results, tech_dup_mapping)
+            if pd_results_cleaned is not None:
+                pd_results_cleaned = group_processing.apply_tech_dup_mapping(
+                    pd_results_cleaned, tech_dup_mapping
+                )
 
         final_df = data_combiner.process_data(
             pd_results, pd_results_cleaned, mbpdb_results, group_data, protein_dict
@@ -739,6 +758,10 @@ def process_data(request):
         has_mbpdb = bool(mbpdb_results is not None and not mbpdb_results.empty)
         has_groups = bool(group_data is not None and len(group_data) > 0)
         has_function = bool('function' in final_df.columns and final_df['function'].notna().any())
+        has_tech_rep_correlation = bool(
+            tech_dup_mapping and
+            any(len(v) >= 2 for v in tech_dup_mapping.values())
+        )
 
         return JsonResponse({
             'success': True,
@@ -754,6 +777,7 @@ def process_data(request):
                 'summed_function': has_function and has_groups,
                 'group_correlation': has_groups,
                 'replicate_correlation': has_groups,
+                'tech_rep_correlation': has_tech_rep_correlation,
             }
         })
     except Exception as exc:
@@ -917,6 +941,34 @@ def view_export(request, export_type):
                                'total_rows': len(data_rows),
                                'truncated': len(data_rows) > MAX_ROWS})
 
+        elif export_type == 'tech_rep_correlation':
+            pd_results = _load_df(work_dir, 'pd_results')
+            tech_dup_mapping = _load_json(work_dir, 'tech_dup_mapping')
+            if pd_results is None or not tech_dup_mapping:
+                return JsonResponse({'error': 'No technical replicate data available'}, status=404)
+            correlation_type = request.GET.get('correlation_type', 'Pearson')
+            log_transform = request.GET.get('log_transform', 'true').lower() == 'true'
+            content = export_manager.export_tech_rep_correlation(
+                pd_results, tech_dup_mapping, correlation_type, log_transform)
+            if content is None:
+                return JsonResponse({'error': 'No valid technical replicate pairs'}, status=404)
+            import openpyxl
+            wb = openpyxl.load_workbook(_io.BytesIO(content))
+            sheets = []
+            for sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+                all_rows = list(ws.values)
+                if not all_rows:
+                    sheets.append({'name': sheet_name, 'columns': [], 'rows': [],
+                                   'total_rows': 0, 'truncated': False})
+                    continue
+                cols = [str(c) if c is not None else '' for c in all_rows[0]]
+                data_rows = [[safe_val(c) for c in row] for row in all_rows[1:]]
+                sheets.append({'name': sheet_name, 'columns': cols,
+                               'rows': data_rows[:MAX_ROWS],
+                               'total_rows': len(data_rows),
+                               'truncated': len(data_rows) > MAX_ROWS})
+
         if sheets is None:
             return JsonResponse({'error': 'Unknown export type'}, status=404)
 
@@ -991,6 +1043,15 @@ def download_export(request, export_type):
             merged_df, group_data, correlation_type, log_transform
         )
         filename = f'replicate_correlations_{correlation_type.lower()}.xlsx'
+        content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+    elif export_type == 'tech_rep_correlation':
+        pd_results = _load_df(work_dir, 'pd_results')
+        tech_dup_mapping = _load_json(work_dir, 'tech_dup_mapping')
+        content = export_manager.export_tech_rep_correlation(
+            pd_results, tech_dup_mapping, correlation_type, log_transform
+        )
+        filename = f'tech_rep_correlations_{correlation_type.lower()}.xlsx'
         content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
     if content is None:

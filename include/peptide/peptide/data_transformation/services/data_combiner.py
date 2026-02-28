@@ -200,7 +200,10 @@ def process_pd_results(pd_results_cleaned, mbpdb_results_grouped, protein_dict):
 
     # Merge with MBPDB results
     if mbpdb_results_grouped is not None and not mbpdb_results_grouped.empty:
-        merged_df = pd.merge(df, mbpdb_results_grouped,
+        # Drop any pre-existing function column to avoid pandas merge suffix conflicts;
+        # the mbpdb function column takes priority.
+        df_to_merge = df.drop(columns=['function'], errors='ignore')
+        merged_df = pd.merge(df_to_merge, mbpdb_results_grouped,
                             right_on='search_peptide', left_on='Unique Peptide ID', how='left')
 
         # Handle comma-separated IDs
@@ -215,7 +218,10 @@ def process_pd_results(pd_results_cleaned, mbpdb_results_grouped, protein_dict):
                     merged_df.loc[idx, col] = match[col]
     else:
         merged_df = df.copy()
-        merged_df['function'] = np.nan
+        if 'function' not in df.columns:
+            # No MBPDB results and no embedded function column — add empty placeholder
+            merged_df['function'] = np.nan
+        # else: preserve the existing function column from the uploaded file
 
     final_column_order = columns_order + [col for col in merged_df.columns if col not in columns_order]
     merged_df = merged_df[final_column_order]

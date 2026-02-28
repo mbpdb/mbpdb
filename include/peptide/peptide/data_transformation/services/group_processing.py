@@ -3,8 +3,176 @@ Group variable assignment logic.
 Extracted from notebook GroupProcessing class (Cell 2).
 """
 import json
+import re
+from collections import defaultdict
+
+import pandas as pd
 
 from .data_loader import get_filtered_columns
+
+
+# ---------------------------------------------------------------------------
+# Technical duplicate detection and collapsing
+# ---------------------------------------------------------------------------
+
+def _get_base_name(col):
+    """Strip technical duplicate markers from a column name to get the biological replicate name."""
+    # Suffix _repN patterns: _rep1, _rep2, _rep_1, _Rep2, etc.
+    cleaned = re.sub(r'[\s_\-]+rep[\s_\-]*\d+$', '', col, flags=re.IGNORECASE)
+    if cleaned != col:
+        return cleaned.strip()
+
+    # Suffix _dup patterns: _dup, _dup1, _dup_1, _duplicate, _duplicates
+    cleaned = re.sub(r'[\s_\-]+dup(?:licate[s]?)?[\s_\-]*\d*$', '', col, flags=re.IGNORECASE)
+    if cleaned != col:
+        return cleaned.strip()
+
+    # Prefix rep patterns: rep1_, rep2_, rep_1_
+    cleaned = re.sub(r'^rep[\s_\-]*\d+[\s_\-]+', '', col, flags=re.IGNORECASE)
+    if cleaned != col:
+        return cleaned.strip()
+
+    # Prefix dup patterns: dup_, dup1_, duplicate_
+    cleaned = re.sub(r'^dup(?:licate[s]?)?[\s_\-]+\d*', '', col, flags=re.IGNORECASE)
+    if cleaned != col:
+        return cleaned.strip()
+
+    return col
+
+
+def detect_technical_duplicates(columns):
+    """
+    Detect technical duplicates in a list of column names.
+
+    Criteria:
+    - A column name appears more than once (exact duplicate column names)
+    - A column name ends with a _repN suffix (_rep1, _rep2, _rep_1, etc.)
+    - A column name contains a _dup pattern (_dup, _dup1, _duplicate, etc.)
+
+    Returns:
+        dict: {biological_replicate_name: [original_col_names]}
+        Only includes groups where >1 columns map to the same base, or where
+        the column name differs from its base (i.e. a rename is needed).
+    """
+    groups = defaultdict(list)
+    for col in columns:
+        groups[_get_base_name(col)].append(col)
+    return {
+        base: orig_cols
+        for base, orig_cols in groups.items()
+        if len(orig_cols) > 1 or orig_cols[0] != base
+    }
+
+
+def collapse_technical_duplicates(df, columns):
+    """
+    Average technical duplicate abundance columns into single biological replicate columns.
+
+    Detects duplicates using detect_technical_duplicates() then collapses them
+    by averaging. Uses positional indexing throughout to handle exact duplicate
+    column names safely.
+
+    Args:
+        df: source DataFrame
+        columns: list of abundance column names to check for duplicates
+
+    Returns:
+        (collapsed_df, dup_mapping, new_columns)
+        - collapsed_df: DataFrame with technical duplicates averaged
+        - dup_mapping: {bio_rep_name: [original_col_names]} (only dups/renames)
+        - new_columns: ordered list of abundance column names after collapsing
+    """
+    dup_groups = detect_technical_duplicates(columns)
+    if not dup_groups:
+        return df.copy(), {}, list(columns)
+
+    collapsed_df = df.copy()
+    dup_mapping = {}
+
+    for base, orig_cols in dup_groups.items():
+        cur_cols = list(collapsed_df.columns)
+        used_positions = set()
+        series_list = []
+
+        # Positional indexing: each occurrence in orig_cols gets a distinct position
+        for col_name in orig_cols:
+            for pos, c in enumerate(cur_cols):
+                if c == col_name and pos not in used_positions:
+                    series_list.append(pd.to_numeric(collapsed_df.iloc[:, pos], errors='coerce'))
+                    used_positions.add(pos)
+                    break
+
+        if not series_list:
+            continue
+
+        avg = pd.concat(series_list, axis=1).mean(axis=1) if len(series_list) > 1 else series_list[0]
+
+        # Rebuild df: drop all original positions, insert the averaged column at the first position
+        keep = [i for i in range(len(cur_cols)) if i not in used_positions]
+        insert_at = min(used_positions, default=len(keep))
+        insert_at = min(insert_at, len(keep))
+        temp = collapsed_df.iloc[:, keep].copy()
+        temp.insert(insert_at, base, avg.values)
+        collapsed_df = temp
+
+        dup_mapping[base] = list(dict.fromkeys(orig_cols))
+
+    # Build ordered new column list (first occurrence wins)
+    seen = set()
+    new_columns = []
+    for col in columns:
+        base = _get_base_name(col)
+        target = base if base in dup_mapping else col
+        if target not in seen:
+            new_columns.append(target)
+            seen.add(target)
+
+    return collapsed_df, dup_mapping, new_columns
+
+
+def apply_tech_dup_mapping(df, tech_dup_mapping):
+    """
+    Apply a pre-computed technical duplicate mapping to a DataFrame.
+
+    Used during final processing to collapse technical duplicates in the
+    peptidomic data (pd_results / pd_results_cleaned) before group averaging.
+
+    Args:
+        df: source DataFrame
+        tech_dup_mapping: {base_name: [original_col_names]}
+
+    Returns:
+        DataFrame with technical duplicates collapsed
+    """
+    if not tech_dup_mapping:
+        return df.copy()
+
+    collapsed_df = df.copy()
+    for base, orig_cols in tech_dup_mapping.items():
+        cur_cols = list(collapsed_df.columns)
+        used_positions = set()
+        series_list = []
+
+        for col_name in orig_cols:
+            for pos, c in enumerate(cur_cols):
+                if c == col_name and pos not in used_positions:
+                    series_list.append(pd.to_numeric(collapsed_df.iloc[:, pos], errors='coerce'))
+                    used_positions.add(pos)
+                    break
+
+        if not series_list:
+            continue
+
+        avg = pd.concat(series_list, axis=1).mean(axis=1) if len(series_list) > 1 else series_list[0]
+
+        keep = [i for i in range(len(cur_cols)) if i not in used_positions]
+        insert_at = min(used_positions, default=len(keep))
+        insert_at = min(insert_at, len(keep))
+        temp = collapsed_df.iloc[:, keep].copy()
+        temp.insert(insert_at, base, avg.values)
+        collapsed_df = temp
+
+    return collapsed_df
 
 
 def parse_group_json(json_content, available_columns):

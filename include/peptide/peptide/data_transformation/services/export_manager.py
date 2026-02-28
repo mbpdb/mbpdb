@@ -689,6 +689,110 @@ def export_summed_function_data(merged_df, group_data):
 
 
 # ---------------------------------------------------------------------------
+# Export: Technical replicate (within-biological-replicate) correlation (Excel)
+# ---------------------------------------------------------------------------
+
+def export_tech_rep_correlation(pd_results_df, tech_dup_mapping,
+                                correlation_type='Pearson', log_transform=True):
+    """
+    Calculate and export pairwise correlations between technical replicates.
+
+    For each biological replicate produced by collapsing technical duplicates,
+    computes pairwise Pearson/Spearman correlations between the original
+    technical replicate columns in the pre-collapsed peptidomic data.
+
+    Args:
+        pd_results_df: original peptidomic DataFrame (pre-collapse) containing
+                       the raw technical replicate columns
+        tech_dup_mapping: {biological_replicate_name: [tech_rep_col1, tech_rep_col2, ...]}
+        correlation_type: 'Pearson' or 'Spearman'
+        log_transform: apply log10 transform before correlating
+
+    Returns:
+        Excel bytes or None if no valid pairs exist
+    """
+    if not tech_dup_mapping or pd_results_df is None:
+        return None
+
+    df = pd_results_df.copy()
+    within_rep_correlations = {}
+
+    for bio_rep, tech_rep_cols in tech_dup_mapping.items():
+        valid_cols = [c for c in tech_rep_cols if c in df.columns]
+        if len(valid_cols) < 2:
+            continue
+
+        data = df[valid_cols].copy()
+        for col in valid_cols:
+            data[col] = pd.to_numeric(data[col], errors='coerce')
+        data = data[data.gt(0).all(axis=1)]
+
+        if len(data) < 2:
+            continue
+
+        data = prepare_data(data, log_transform)
+        pairs, correlations, p_values = [], [], []
+
+        for i in range(len(valid_cols)):
+            for j in range(i):
+                col1, col2 = valid_cols[j], valid_cols[i]
+                mask = data[[col1, col2]].notnull().all(axis=1) & \
+                       (data[[col1, col2]] > 0).all(axis=1)
+                x, y = data.loc[mask, col1], data.loc[mask, col2]
+                if len(x) > 1:
+                    corr, pval = calculate_correlation(x, y, correlation_type)
+                    correlations.append(round(corr, 3))
+                    p_values.append(pval)
+                else:
+                    correlations.append(np.nan)
+                    p_values.append(np.nan)
+                pairs.append(f"{col1} vs {col2}")
+
+        within_rep_correlations[bio_rep] = pd.DataFrame({
+            'Pair': pairs,
+            'Correlation': correlations,
+            'P-Value': p_values,
+        })
+
+    if not within_rep_correlations:
+        return None
+
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        # All Correlations sheet
+        combined_rows = []
+        for bio_rep, df_corr in within_rep_correlations.items():
+            temp = df_corr.copy()
+            temp.insert(0, 'Biological Replicate', bio_rep)
+            combined_rows.append(temp)
+        pd.concat(combined_rows, ignore_index=True).to_excel(
+            writer, sheet_name='All Correlations', index=False
+        )
+
+        # Summary sheet
+        summary_list = []
+        for bio_rep, df_corr in within_rep_correlations.items():
+            valid_corrs = df_corr['Correlation'].dropna()
+            summary_list.append({
+                'Biological Replicate': bio_rep,
+                'Technical Replicates': ', '.join(tech_dup_mapping[bio_rep]),
+                'N Technical Replicates': len(tech_dup_mapping[bio_rep]),
+                'Avg Correlation': round(valid_corrs.mean(), 3) if not valid_corrs.empty else np.nan,
+                'Min Correlation': round(valid_corrs.min(), 3) if not valid_corrs.empty else np.nan,
+                'Max Correlation': round(valid_corrs.max(), 3) if not valid_corrs.empty else np.nan,
+                'N Comparisons': len(valid_corrs),
+            })
+        pd.DataFrame(summary_list).to_excel(writer, sheet_name='Summary', index=False)
+
+        # One sheet per biological replicate
+        for bio_rep, df_corr in within_rep_correlations.items():
+            sheet_name = bio_rep[:31]  # Excel sheet name limit
+            df_corr.to_excel(writer, sheet_name=sheet_name, index=False)
+
+    return buffer.getvalue()
+
+
+# ---------------------------------------------------------------------------
 # Export: Group (sample-to-sample) correlation (Excel)
 # ---------------------------------------------------------------------------
 
