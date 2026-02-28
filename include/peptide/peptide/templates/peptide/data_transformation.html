@@ -125,7 +125,7 @@
                 {% csrf_token %}
                 <div class="dt-file-input">
                     <label>Peptidomic Data File <span style="color: #dc3545;">*</span></label>
-                    <div class="dt-dropzone" data-input="peptidomic_file">
+                    <div class="dt-dropzone" data-input="peptidomic_file" style="width:33%;">
                         <input type="file" name="peptidomic_file" id="peptidomic_file" accept=".csv,.tsv,.txt,.xlsx,.xls" required>
                         <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag & drop or click to select</div>
                         <div class="file-name hidden"></div>
@@ -133,11 +133,11 @@
                     <div class="help-text">CSV, TSV, or XLSX file containing peptidomic results (Proteome Discoverer, MaxQuant, Skyline, etc.)</div>
                     <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_peptidomic_data.csv' %}" download>Download example file</a></div>
                 </div>
-                <!-- Functional data OR BLAST threshold (side by side) -->
+                <!-- Functional data OR BLAST threshold (same row) -->
                 <div class="dt-or-row">
-                    <div class="dt-file-input">
+                    <div class="dt-file-input" style="flex:none; width:33%;">
                         <label>MBPDB Functional Data <span style="color:#6c757d; font-weight:400;">(Optional)</span></label>
-                        <div class="dt-dropzone" data-input="functional_file">
+                        <div class="dt-dropzone" data-input="functional_file" style="width:100%;">
                             <input type="file" name="functional_file" id="functional_file" accept=".csv,.tsv,.txt,.xlsx,.xls">
                             <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag & drop or click to select</div>
                             <div class="file-name hidden"></div>
@@ -167,7 +167,7 @@
 
                 <div class="dt-file-input">
                     <label>FASTA Protein Sequences <span style="color:#6c757d; font-weight:400;">(Optional)</span></label>
-                    <div class="dt-dropzone" data-input="fasta_file">
+                    <div class="dt-dropzone" data-input="fasta_file" style="width:33%;">
                         <input type="file" name="fasta_file" id="fasta_file" accept=".fasta,.fa,.faa,.txt">
                         <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag & drop or click to select</div>
                         <div class="file-name hidden"></div>
@@ -214,31 +214,74 @@
     <div class="dt-step-content" data-step="2">
         <div class="dt-card">
             <h4>Define Study Variable Groups</h4>
-            <p style="color: #666;">Group your abundance columns into experimental conditions, or upload a group definition file.</p>
+            <p style="color:#666;">Group your abundance columns into experimental conditions. If any columns are technical replicates, define them below first — they will be averaged into a single biological replicate and become available in the group selector.</p>
 
-            <div class="dt-file-input" style="margin-bottom: 16px;">
+            <!-- Technical Replicate Assignment (optional sub-section) -->
+            <div style="margin-bottom:20px; padding-bottom:20px; border-bottom:2px solid #dee2e6;">
+                <h5 style="margin-top:0;"><i class="fas fa-vials" style="color:#1976d2; margin-right:6px;"></i>Technical Replicate Assignment <span style="font-weight:400; font-size:0.85rem; color:#6c757d;">(Optional)</span></h5>
+
+                <div id="tech-dup-info" class="dt-alert dt-alert-info hidden" style="margin-bottom:12px;">
+                    <!-- Populated by JS when auto-detected tech reps exist -->
+                </div>
+
+                <div class="dt-file-input" style="margin-bottom:14px;">
+                    <label>Upload Technical Replicate Definition <span style="color:#6c757d; font-weight:400;">(Optional)</span></label>
+                    <div class="dt-dropzone" data-input="tech_rep_file" style="width:25%;">
+                        <input type="file" name="tech_rep_file" id="tech-rep-json-input" accept=".json">
+                        <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag &amp; drop or click to select</div>
+                        <div class="file-name hidden"></div>
+                    </div>
+                    <div class="help-text">JSON file mapping bio replicate names to lists of technical replicate columns</div>
+                    <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_technical_replicates.json' %}" download>Example JSON</a></div>
+                </div>
+
+                <div style="margin-bottom:8px;">
+                    <label><strong>Bio Replicate Name:</strong></label>
+                    <input type="text" id="tr-bio-rep-name-input" class="form-control" style="width:260px; display:inline-block; margin-left:8px;" placeholder="e.g., Sample_A">
+                </div>
+                <div style="margin-bottom:8px;">
+                    <input type="text" id="tr-column-search" class="form-control" style="width:300px; margin-bottom:6px;" placeholder="Search columns...">
+                    <div class="dt-col-panel">
+                        <div class="dt-col-available">
+                            <div class="dt-col-panel-header">Available <span id="tr-avail-count"></span></div>
+                            <div class="dt-col-list" id="tr-column-available-list"></div>
+                        </div>
+                        <div class="dt-col-selected">
+                            <div class="dt-col-panel-header">Selected <span id="tr-selected-count"></span></div>
+                            <div class="dt-col-list" id="tr-column-selected-list"></div>
+                        </div>
+                    </div>
+                </div>
+                <button class="dt-btn dt-btn-primary" id="tr-add-group-btn" style="margin-bottom:10px;">
+                    <i class="fas fa-plus"></i> Add Technical Replicate Group
+                </button>
+
+                <div id="tr-defined-groups" class="hidden">
+                    <strong>Technical Replicate Groups:</strong>
+                    <div id="tr-groups-list" style="margin-top:6px;"></div>
+                </div>
+            </div>
+
+            <!-- Categorical Group Assignment -->
+            <div class="dt-file-input" style="margin-bottom:16px;">
                 <label>Upload Group Definition <span style="color:#6c757d; font-weight:400;">(Optional)</span></label>
-                <div class="dt-dropzone" data-input="group_file" style="width: 25%;">
+                <div class="dt-dropzone" data-input="group_file" style="width:25%;">
                     <input type="file" name="group_file" id="group-json-input" accept=".json">
-                    <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag & drop or click to select</div>
+                    <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag &amp; drop or click to select</div>
                     <div class="file-name hidden"></div>
                 </div>
                 <div class="help-text">JSON file mapping group names to abundance columns</div>
                 <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_study_variables.json' %}" download>Example JSON</a></div>
             </div>
 
-            <div id="tech-dup-info" class="dt-alert dt-alert-info hidden" style="margin-bottom: 16px;">
-                <!-- Populated by JS when technical duplicates are detected -->
-            </div>
-
             <div id="manual-grouping">
-                <div style="margin-bottom: 12px;">
+                <div style="margin-bottom:12px;">
                     <label><strong>Group Name:</strong></label>
-                    <input type="text" id="group-name-input" class="form-control" style="width: 300px; display: inline-block;" placeholder="e.g., Control">
+                    <input type="text" id="group-name-input" class="form-control" style="width:300px; display:inline-block;" placeholder="e.g., Control">
                 </div>
-                <div style="margin-bottom: 12px;">
+                <div style="margin-bottom:12px;">
                     <label><strong>Select Abundance Columns:</strong></label>
-                    <input type="text" id="column-search" class="form-control" style="width: 300px; margin-bottom: 8px;" placeholder="Search columns...">
+                    <input type="text" id="column-search" class="form-control" style="width:300px; margin-bottom:8px;" placeholder="Search columns...">
                     <div class="dt-col-panel">
                         <div class="dt-col-available">
                             <div class="dt-col-panel-header">Available <span id="avail-count"></span></div>
@@ -250,27 +293,27 @@
                         </div>
                     </div>
                 </div>
-                <button class="dt-btn dt-btn-primary" id="add-group-btn" style="margin-bottom: 12px;">
+                <button class="dt-btn dt-btn-primary" id="add-group-btn" style="margin-bottom:12px;">
                     <i class="fas fa-plus"></i> Add Group
                 </button>
             </div>
 
-            <div id="defined-groups" class="hidden" style="margin-bottom: 12px;">
+            <div id="defined-groups" class="hidden" style="margin-bottom:12px;">
                 <h5>Defined Groups:</h5>
                 <div id="groups-list"></div>
             </div>
 
-            <div style="margin-top: 16px; border-top: 1px solid #dee2e6; padding-top: 16px;">
-                <button class="dt-btn dt-btn-secondary" id="back-to-step1-btn" style="margin-right: 8px;">
+            <div style="margin-top:16px; border-top:1px solid #dee2e6; padding-top:16px;">
+                <button class="dt-btn dt-btn-secondary" id="back-to-step1-btn" style="margin-right:8px;">
                     <i class="fas fa-arrow-left"></i> Back
                 </button>
                 <button class="dt-btn dt-btn-success" id="submit-groups-btn" disabled>
                     <i class="fas fa-save"></i> Save Groups &amp; Continue <i class="fas fa-arrow-right"></i>
                 </button>
-                <button class="dt-btn dt-btn-secondary" id="skip-groups-btn" style="margin-left: 8px;">
+                <button class="dt-btn dt-btn-secondary" id="skip-groups-btn" style="margin-left:8px;">
                     Skip Grouping <i class="fas fa-forward"></i>
                 </button>
-                <button class="dt-btn dt-btn-secondary" id="reset-groups-btn" style="margin-left: 8px;">
+                <button class="dt-btn dt-btn-secondary" id="reset-groups-btn" style="margin-left:8px;">
                     <i class="fas fa-trash"></i> Reset Groups
                 </button>
             </div>
@@ -283,9 +326,6 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <h4 style="margin: 0;">Protein Mapping</h4>
                 <div style="display: flex; gap: 8px; align-items: center;">
-                    <button class="dt-btn dt-btn-secondary" id="download-protein-map-btn" title="Download mapping key as JSON">
-                        <i class="fas fa-file-export"></i> Download Mapping Key
-                    </button>
                     <button class="dt-btn dt-btn-primary" id="fetch-uniprot-btn">
                         <i class="fas fa-download"></i> Fetch from UniProt
                     </button>
