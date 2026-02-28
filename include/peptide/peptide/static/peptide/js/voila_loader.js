@@ -41,6 +41,7 @@
         var COOLDOWN_AFTER_FAILURE  = 8000;
         var LOAD_TIMEOUT_MS         = 90000;   // 90 s — new kernels are slow
         var MAX_ATTEMPTS            = 3;
+        var HEARTBEAT_MS            = 20000;   // kernel health check every 20 s
 
         // ---- DOM references ---------------------------------------------------
         var iframe      = document.getElementById('data-iframe');
@@ -52,6 +53,7 @@
         var loadAttempts         = 0;
         var loadTimeout          = null;
         var contentCheckInterval = null;
+        var heartbeatInterval    = null;
         var isLoading            = false;
 
         // ---- Overlay helpers --------------------------------------------------
@@ -62,6 +64,7 @@
                 statusText.style.color = '#4caf50';
             }
             clearInterval(contentCheckInterval);
+            startHeartbeat();
         }
 
         function showOverlay() {
@@ -76,6 +79,61 @@
                 statusText.textContent = 'Failed to load — click Retry or hard refresh (Ctrl+Shift+R)';
                 statusText.style.color = '#f44336';
             }
+        }
+
+        // ---- Kernel heartbeat -------------------------------------------------
+        // After the notebook loads successfully, poll for JupyterLab's kernel-death
+        // dialog.  When detected, reload the iframe immediately — this kills the
+        // zombie Voilà frontend JS that would otherwise keep spamming 404 requests
+        // to the dead kernel.
+        function checkKernelDead() {
+            try {
+                var doc = iframe.contentDocument || iframe.contentWindow.document;
+                if (!doc || !doc.body) return false;
+                var html = doc.body.innerHTML || '';
+                var text = (doc.body.innerText  || '').toLowerCase();
+
+                // JupyterLab kernel-death dialog / banner patterns
+                var kernelDeadPhrases = [
+                    'no kernel',
+                    'kernel died',
+                    'kernel is dead',
+                    'session has been interrupted',
+                    'kernel restarting',
+                    'kernel has been killed',
+                ];
+                for (var i = 0; i < kernelDeadPhrases.length; i++) {
+                    if (text.indexOf(kernelDeadPhrases[i]) !== -1) return true;
+                }
+
+                // JupyterLab renders a modal dialog (jp-Dialog) for kernel actions;
+                // if that dialog is visible alongside any restart/accept button, the
+                // kernel is likely dead.
+                if (html.indexOf('jp-Dialog') !== -1 &&
+                    (html.indexOf('jp-mod-accept') !== -1 || html.indexOf('jp-mod-warn') !== -1)) {
+                    return true;
+                }
+
+                return false;
+            } catch (e) { /* cross-origin — ignore */ }
+            return false;
+        }
+
+        function startHeartbeat() {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = setInterval(function () {
+                if (checkKernelDead()) {
+                    clearInterval(heartbeatInterval);
+                    if (statusText) {
+                        statusText.textContent = 'Kernel died — restarting session…';
+                        statusText.style.color = '#f44336';
+                    }
+                    // Reset attempt counter so a heartbeat-triggered reload gets
+                    // a fresh MAX_ATTEMPTS budget.
+                    loadAttempts = 0;
+                    setTimeout(window.reloadIframe, 1000);
+                }
+            }, HEARTBEAT_MS);
         }
 
         // ---- Content detection ------------------------------------------------
@@ -129,6 +187,9 @@
             if (isLoading) return;
             isLoading = true;
             loadAttempts++;
+
+            // Stop any running heartbeat — the iframe is being replaced.
+            clearInterval(heartbeatInterval);
 
             showOverlay();
             loadingText.textContent = loadAttempts > 1
@@ -205,7 +266,10 @@
 
         // Wire up the retry button (may be added by the template)
         if (retryBtn) {
-            retryBtn.addEventListener('click', window.reloadIframe);
+            retryBtn.addEventListener('click', function () {
+                loadAttempts = 0;   // manual retry always gets a fresh budget
+                window.reloadIframe();
+            });
         }
 
         // ---- Initial load with debounce / cooldown ----------------------------
