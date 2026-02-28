@@ -69,7 +69,7 @@
             if (xhr.status >= 200 && xhr.status < 300) {
                 callback(resp);
             } else {
-                (errorCallback || showError)(resp.error || 'Request failed');
+                (errorCallback || showError)(resp.error || 'Request failed', resp);
             }
         };
         xhr.onerror = function() {
@@ -247,25 +247,75 @@
     }
 
     // -----------------------------------------------------------------------
-    // Step 2: Study Variable Grouping
+    // Step 2: Tech Replicate Assignment + Study Variable Grouping (combined)
     // -----------------------------------------------------------------------
+
+    var rawAvailableColumns = [];  // pre-collapse columns (for tech rep panel)
+    var autoTechDupMapping = {};   // auto-detected tech rep mapping from backend
+    var trAvailableColumns = [];   // raw columns available in tech rep panel
+    var trSelectedColumns = [];    // columns selected for the current tech rep group being built
+    var manualTechReps = [];       // [{name, columns}] manually defined by the user
+
+    // Compute bio rep columns from raw columns + combined tech dup mapping
+    // (auto-detected + manual). These are shown in the categorical group panel.
+    function computeBioRepColumns() {
+        var colToBioRep = {};
+        // Auto-detected
+        Object.keys(autoTechDupMapping).forEach(function(bioRep) {
+            autoTechDupMapping[bioRep].forEach(function(col) { colToBioRep[col] = bioRep; });
+        });
+        // Manual
+        manualTechReps.forEach(function(g) {
+            g.columns.forEach(function(col) { colToBioRep[col] = g.name; });
+        });
+
+        var result = [];
+        var inserted = {};
+        rawAvailableColumns.forEach(function(col) {
+            var bioRep = colToBioRep[col];
+            if (bioRep) {
+                if (!inserted[bioRep]) { result.push(bioRep); inserted[bioRep] = true; }
+            } else {
+                result.push(col);
+            }
+        });
+        return result;
+    }
 
     function loadStep2() {
         ajax('GET', 'step2/', null, function(resp) {
-            availableColumns = resp.columns || [];
-            selectedColumns = [];
-            renderColumnPanels('');
+            rawAvailableColumns = resp.raw_columns || resp.columns || [];
+            autoTechDupMapping = resp.tech_dup_mapping || {};
+            trAvailableColumns = rawAvailableColumns;
+            trSelectedColumns = [];
+            manualTechReps = [];
 
-            // Show technical duplicate info if any were detected and collapsed
+            // Group panel uses bio rep columns
+            availableColumns = computeBioRepColumns();
+            selectedColumns = [];
+            definedGroups = [];
+
+            // Reset inputs
+            document.getElementById('tr-bio-rep-name-input').value = '';
+            document.getElementById('tr-column-search').value = '';
+            document.getElementById('group-name-input').value = '';
+            document.getElementById('column-search').value = '';
+
+            renderTrColumnPanels('');
+            renderDefinedTechReps();
+            renderGroups();
+            renderColumnPanels('');
+            document.getElementById('submit-groups-btn').disabled = true;
+
+            // Show auto-detected tech rep info
             var techDupEl = document.getElementById('tech-dup-info');
-            var techDupMapping = resp.tech_dup_mapping || {};
-            var dupBases = Object.keys(techDupMapping);
+            var dupBases = Object.keys(autoTechDupMapping);
             if (dupBases.length > 0) {
                 var html = '<strong><i class="fas fa-info-circle"></i> ' + dupBases.length +
-                    ' technical duplicate group(s) detected and averaged into biological replicates:</strong>' +
-                    '<ul style="margin: 6px 0 0 0; padding-left: 20px;">';
+                    ' technical replicate(s) automatically detected and averaged:</strong>' +
+                    '<ul style="margin:6px 0 0 0; padding-left:20px;">';
                 dupBases.forEach(function(base) {
-                    var origCols = techDupMapping[base];
+                    var origCols = autoTechDupMapping[base];
                     html += '<li><strong>' + base + '</strong> &larr; averaged from: ' +
                         origCols.map(function(c) { return '<em>' + c + '</em>'; }).join(', ') + '</li>';
                 });
@@ -278,7 +328,133 @@
         });
     }
 
-    // Render the dual-panel column selector
+    // Tech rep dual-panel: shows raw columns minus those already in a manual group
+    function renderTrColumnPanels(filter) {
+        var f = (filter || '').toLowerCase();
+        var availList = document.getElementById('tr-column-available-list');
+        var selList = document.getElementById('tr-column-selected-list');
+        var availCount = document.getElementById('tr-avail-count');
+        var selCount = document.getElementById('tr-selected-count');
+
+        var usedInGroups = {};
+        manualTechReps.forEach(function(g) { g.columns.forEach(function(c) { usedInGroups[c] = true; }); });
+
+        availList.innerHTML = '';
+        var shown = 0;
+        trAvailableColumns.forEach(function(col) {
+            if (trSelectedColumns.indexOf(col) !== -1) return;
+            if (usedInGroups[col]) return;
+            if (f && col.toLowerCase().indexOf(f) === -1) return;
+            shown++;
+            var div = document.createElement('div');
+            div.className = 'dt-col-item';
+            div.title = col;
+            div.textContent = col;
+            div.addEventListener('click', function() {
+                if (trSelectedColumns.indexOf(col) === -1) {
+                    trSelectedColumns.push(col);
+                    renderTrColumnPanels(document.getElementById('tr-column-search').value);
+                }
+            });
+            availList.appendChild(div);
+        });
+        if (!shown) availList.innerHTML = '<div class="dt-col-empty">No columns available</div>';
+        availCount.textContent = '(' + shown + ')';
+
+        selList.innerHTML = '';
+        if (!trSelectedColumns.length) {
+            selList.innerHTML = '<div class="dt-col-empty">Click columns to add</div>';
+        } else {
+            trSelectedColumns.forEach(function(col) {
+                var div = document.createElement('div');
+                div.className = 'dt-col-item selected-item';
+                div.title = col;
+                var txt = document.createElement('span');
+                txt.textContent = col;
+                txt.style.overflow = 'hidden';
+                txt.style.textOverflow = 'ellipsis';
+                var rm = document.createElement('span');
+                rm.className = 'dt-col-remove';
+                rm.textContent = '×';
+                rm.title = 'Remove';
+                rm.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var idx = trSelectedColumns.indexOf(col);
+                    if (idx !== -1) trSelectedColumns.splice(idx, 1);
+                    renderTrColumnPanels(document.getElementById('tr-column-search').value);
+                });
+                div.appendChild(txt);
+                div.appendChild(rm);
+                selList.appendChild(div);
+            });
+        }
+        selCount.textContent = '(' + trSelectedColumns.length + ')';
+    }
+
+    function renderDefinedTechReps() {
+        var list = document.getElementById('tr-groups-list');
+        list.innerHTML = '';
+        if (!manualTechReps.length) {
+            document.getElementById('tr-defined-groups').classList.add('hidden');
+            return;
+        }
+        document.getElementById('tr-defined-groups').classList.remove('hidden');
+        manualTechReps.forEach(function(g, i) {
+            var div = document.createElement('div');
+            div.className = 'dt-group-item';
+            div.innerHTML = '<span><strong>' + g.name + '</strong> &larr; ' +
+                g.columns.map(function(c) { return '<em>' + c + '</em>'; }).join(', ') + '</span>' +
+                '<span class="remove-group" data-idx="' + i + '"><i class="fas fa-times"></i></span>';
+            list.appendChild(div);
+        });
+        list.querySelectorAll('.remove-group').forEach(function(el) {
+            el.addEventListener('click', function() {
+                manualTechReps.splice(parseInt(this.getAttribute('data-idx')), 1);
+                renderDefinedTechReps();
+                renderTrColumnPanels(document.getElementById('tr-column-search').value);
+                // Refresh group panel to reflect removed tech rep group
+                availableColumns = computeBioRepColumns();
+                renderColumnPanels(document.getElementById('column-search').value);
+            });
+        });
+    }
+
+    document.getElementById('tech-rep-json-input').addEventListener('change', function() {
+        if (!this.files.length) return;
+        var formData = new FormData();
+        formData.append('tech_rep_file', this.files[0]);
+        ajax('POST', 'upload-tech-reps/', formData, function(resp) {
+            manualTechReps = resp.groups || [];
+            renderDefinedTechReps();
+            renderTrColumnPanels(document.getElementById('tr-column-search').value);
+            availableColumns = computeBioRepColumns();
+            renderColumnPanels(document.getElementById('column-search').value);
+        });
+    });
+
+    document.getElementById('tr-column-search').addEventListener('input', function() {
+        renderTrColumnPanels(this.value);
+    });
+
+    document.getElementById('tr-add-group-btn').addEventListener('click', function() {
+        var name = document.getElementById('tr-bio-rep-name-input').value.trim();
+        if (!name) { showError('Please enter a biological replicate name'); return; }
+        if (trSelectedColumns.length < 2) { showError('Please select at least 2 columns to form a technical replicate group'); return; }
+        manualTechReps.push({name: name, columns: trSelectedColumns.slice()});
+        document.getElementById('tr-bio-rep-name-input').value = '';
+        trSelectedColumns = [];
+        renderDefinedTechReps();
+        renderTrColumnPanels(document.getElementById('tr-column-search').value);
+        // Refresh group panel so the new bio rep name appears in available columns
+        availableColumns = computeBioRepColumns();
+        renderColumnPanels(document.getElementById('column-search').value);
+    });
+
+    document.getElementById('back-to-step1-btn').addEventListener('click', function() {
+        goToStep(1);
+    });
+
+    // Categorical group dual-panel
     function renderColumnPanels(filter) {
         var f = (filter || '').toLowerCase();
         var availList = document.getElementById('column-available-list');
@@ -286,11 +462,10 @@
         var availCount = document.getElementById('avail-count');
         var selCount = document.getElementById('selected-count');
 
-        // Available panel: columns not yet selected, filtered by search
         availList.innerHTML = '';
         var shown = 0;
         availableColumns.forEach(function(col) {
-            if (selectedColumns.indexOf(col) !== -1) return;  // already selected
+            if (selectedColumns.indexOf(col) !== -1) return;
             if (f && col.toLowerCase().indexOf(f) === -1) return;
             shown++;
             var div = document.createElement('div');
@@ -305,12 +480,9 @@
             });
             availList.appendChild(div);
         });
-        if (!shown) {
-            availList.innerHTML = '<div class="dt-col-empty">No columns available</div>';
-        }
+        if (!shown) availList.innerHTML = '<div class="dt-col-empty">No columns available</div>';
         availCount.textContent = '(' + shown + ')';
 
-        // Selected panel
         selList.innerHTML = '';
         if (!selectedColumns.length) {
             selList.innerHTML = '<div class="dt-col-empty">Click columns to add</div>';
@@ -356,7 +528,6 @@
             });
             renderGroups();
             document.getElementById('submit-groups-btn').disabled = false;
-            // Note: do NOT auto-advance — let the user review and continue manually
         });
     });
 
@@ -364,7 +535,6 @@
         var name = document.getElementById('group-name-input').value.trim();
         if (!name) { showError('Please enter a group name'); return; }
         if (!selectedColumns.length) { showError('Please select at least one column'); return; }
-
         definedGroups.push({name: name, columns: selectedColumns.slice()});
         renderGroups();
         document.getElementById('group-name-input').value = '';
@@ -407,26 +577,29 @@
         document.getElementById('submit-groups-btn').disabled = true;
     });
 
-    document.getElementById('back-to-step1-btn').addEventListener('click', function() {
-        goToStep(1);
-    });
-
+    // Save Groups: submit tech reps first (to save mapping), then submit groups
     document.getElementById('submit-groups-btn').addEventListener('click', function() {
         var btn = this;
         btn.disabled = true;
-        ajax('POST', 'submit-groups/', {groups: definedGroups}, function() {
-            goToStep(3);
-            loadStep3();
+        ajax('POST', 'submit-tech-reps/', {tech_reps: manualTechReps}, function() {
+            ajax('POST', 'submit-groups/', {groups: definedGroups}, function() {
+                goToStep(3);
+                loadStep3();
+            }, function(msg) { btn.disabled = false; showError(msg); });
         }, function(msg) { btn.disabled = false; showError(msg); });
     });
 
+    // Skip Grouping: still save tech reps, then skip groups using bio rep columns
     document.getElementById('skip-groups-btn').addEventListener('click', function() {
         var btn = this;
         btn.disabled = true;
-        ajax('POST', 'skip-groups/', {columns: selectedColumns}, function() {
-            btn.disabled = false;
-            goToStep(3);
-            loadStep3();
+        ajax('POST', 'submit-tech-reps/', {tech_reps: manualTechReps}, function(resp) {
+            var bioRepCols = resp.columns || availableColumns;
+            ajax('POST', 'skip-groups/', {columns: bioRepCols}, function() {
+                btn.disabled = false;
+                goToStep(3);
+                loadStep3();
+            }, function(msg) { btn.disabled = false; showError(msg); });
         }, function(msg) { btn.disabled = false; showError(msg); });
     });
 
@@ -602,15 +775,6 @@
         }, function(msg) { btn.disabled = false; showError(msg); });
     });
 
-    // Download mapping key — navigates directly to the download endpoint
-    document.getElementById('download-protein-map-btn').addEventListener('click', function() {
-        var iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = 'download-protein-map/';
-        document.body.appendChild(iframe);
-        setTimeout(function() { document.body.removeChild(iframe); }, 10000);
-    });
-
     // Upload mapping key — auto-apply on file selection or drop
     document.getElementById('protein-map-input').addEventListener('change', function() {
         if (!this.files.length) return;
@@ -692,10 +856,21 @@
                 resp.columns + '</strong> columns.</div>';
 
             renderExportButtons(resp.exports);
-        }, function(msg) {
+        }, function(msg, resp) {
             btn.disabled = false;
             document.getElementById('process-progress').classList.add('hidden');
             showError(msg);
+            var detail = (resp && (resp.detail || resp.traceback)) ? (resp.detail || resp.traceback) : null;
+            if (detail) {
+                document.getElementById('export-section').classList.remove('hidden');
+                document.getElementById('process-summary').innerHTML =
+                    '<div class="dt-alert dt-alert-danger">' +
+                    '<strong>Error:</strong> ' + escHtml(msg) +
+                    '<pre style="margin-top:8px;font-size:0.75rem;white-space:pre-wrap;' +
+                    'word-break:break-all;max-height:220px;overflow-y:auto;' +
+                    'background:#fff3;border-radius:3px;padding:6px;">' +
+                    escHtml(detail) + '</pre></div>';
+            }
         });
     });
 
@@ -716,6 +891,8 @@
             {key: 'group_correlation', icon: 'fa-chart-line', label: 'Sample-to-Sample Correlations'},
             {key: 'replicate_correlation', icon: 'fa-chart-area', label: 'Replicate Correlations'},
             {key: 'tech_rep_correlation', icon: 'fa-vials', label: 'Technical Replicate Correlations'},
+            {key: 'protein_map', icon: 'fa-file-export', label: 'Protein Mapping Key',
+             download_url: 'download-protein-map/'},
         ];
 
         items.forEach(function(item) {
@@ -732,20 +909,34 @@
                 var actions = document.createElement('div');
                 actions.className = 'dt-export-actions';
 
-                var viewBtn = document.createElement('button');
-                viewBtn.className = 'dt-export-view-btn';
-                viewBtn.innerHTML = '<i class="fas fa-eye"></i> View';
-                (function(key, label) {
-                    viewBtn.addEventListener('click', function() { viewExport(key, label); });
-                })(item.key, item.label);
-                actions.appendChild(viewBtn);
+                if (!item.no_view) {
+                    var viewBtn = document.createElement('button');
+                    viewBtn.className = 'dt-export-view-btn';
+                    viewBtn.innerHTML = '<i class="fas fa-eye"></i> View';
+                    (function(key, label) {
+                        viewBtn.addEventListener('click', function() { viewExport(key, label); });
+                    })(item.key, item.label);
+                    actions.appendChild(viewBtn);
+                }
 
                 var dlBtn = document.createElement('button');
                 dlBtn.className = 'dt-export-dl-btn';
                 dlBtn.innerHTML = '<i class="fas fa-download"></i> Download';
-                (function(key) {
-                    dlBtn.addEventListener('click', function() { downloadExport(key); });
-                })(item.key);
+                if (item.download_url) {
+                    (function(url) {
+                        dlBtn.addEventListener('click', function() {
+                            var iframe = document.createElement('iframe');
+                            iframe.style.display = 'none';
+                            iframe.src = url;
+                            document.body.appendChild(iframe);
+                            setTimeout(function() { document.body.removeChild(iframe); }, 10000);
+                        });
+                    })(item.download_url);
+                } else {
+                    (function(key) {
+                        dlBtn.addEventListener('click', function() { downloadExport(key); });
+                    })(item.key);
+                }
                 actions.appendChild(dlBtn);
 
                 row.appendChild(actions);
