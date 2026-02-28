@@ -120,3 +120,21 @@ include/peptide/peptide/notebooks/examples/results_from_data_transformation/summ
 include/peptide/peptide/notebooks/examples/results_from_data_transformation/
 *:Zone.Identifier
 *:sec.endpointdlp
+include/peptide/peptide/notebooks/examples/abbott_merged_dataexploration_R01.csv
+include/peptide/peptide/notebooks/examples/abbott_merged_dataexploration.csv
+include/peptide/peptide/notebooks/examples/merged_dataframe_20260217_082336.csv
+include/peptide/peptide/notebooks/examples/merged_dataframe_gastric_intest.csv
+include/peptide/peptide/notebooks/examples/New Text Document.txt
+include/peptide/peptide/notebooks/examples/replicate scheme.txt
+include/peptide/peptide/notebooks/examples/rob/Gastric_peptides_123.xlsx
+include/peptide/peptide/notebooks/examples/rob/intestinal_peptides.xlsx
+include/peptide/peptide/notebooks/examples/rob/list_of_peptides_by_sequences (2).csv
+include/peptide/peptide/notebooks/examples/rob/merge_gastric_intestinal.ipynb
+include/peptide/peptide/notebooks/examples/rob/merged_dataframe (3).csv
+include/peptide/peptide/notebooks/examples/rob/merged_dataframe_species_avg (1).csv
+include/peptide/peptide/notebooks/examples/rob/merged_dataframe_species_preterm_gastric_intestinal.csv
+include/peptide/peptide/notebooks/examples/rob/merged_gastric_intestinal.csv
+include/peptide/peptide/notebooks/examples/rob/merged_species_split_gastric_intestinal.csv
+include/peptide/peptide/notebooks/examples/rob/robs_preterm_term_peptiline.xlsx
+include/peptide/peptide/notebooks/examples/rob/unique_peptides_part1.csv
+include/peptide/peptide/notebooks/examples/rob/unique_peptides_part2.csv
