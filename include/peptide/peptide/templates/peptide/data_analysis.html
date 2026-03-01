@@ -299,10 +299,22 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             </div>
         </div>
 
-        <div style="display:flex; gap:20px; margin-top:4px; flex-wrap:wrap;">
+        <div style="display:flex; gap:20px; margin-top:4px; flex-wrap:wrap; align-items:center;">
             <label class="checkbox-row">
                 <input type="checkbox" id="log-transform" checked disabled> Log₁₀ transform y-axis
             </label>
+            <!-- Y-axis tick format: shown only when log transform is on -->
+            <div id="yaxis-format-block" style="display:flex; align-items:center; gap:8px; font-size:.82rem;">
+                <span style="color:#555; font-weight:600;">Y-axis labels:</span>
+                <div class="radio-group rg-disabled" id="rg-yaxis-format">
+                    <label class="rg-checked" title="Tick shows the raw log₁₀ value (e.g. 5 means log₁₀ = 5)">
+                        <input type="radio" name="yaxis-format" value="linear" checked disabled> Log value (5)
+                    </label>
+                    <label title="Tick shows the actual magnitude as a power of 10 (e.g. 5 → 10⁵)">
+                        <input type="radio" name="yaxis-format" value="power" disabled> Power of 10 (10⁵)
+                    </label>
+                </div>
+            </div>
             <label class="checkbox-row">
                 <input type="checkbox" id="plot-minor" disabled> Show minor groups
             </label>
@@ -392,6 +404,7 @@ function enableStep2() {
         rg.querySelectorAll('input[type=radio]').forEach(r => r.disabled = false);
     });
     document.getElementById('generate-btn').disabled = false;
+    syncYaxisFormatVisibility();
 }
 
 // ── Upload ────────────────────────────────────────────────────────
@@ -482,6 +495,16 @@ document.getElementById('rg-plot-type').addEventListener('click', function() {
         val === 'Corr. Scatter Plots' ? '' : 'none';
 });
 
+// ── Dynamic UI: show/hide y-axis format when log-transform changes ─
+function syncYaxisFormatVisibility() {
+    const isLog = document.getElementById('log-transform').checked;
+    const block = document.getElementById('yaxis-format-block');
+    block.style.display = isLog ? '' : 'none';
+}
+document.getElementById('log-transform').addEventListener('change', syncYaxisFormatVisibility);
+// Run once on load to match the default checked state
+syncYaxisFormatVisibility();
+
 // ── Generate Plot ─────────────────────────────────────────────────
 document.getElementById('generate-btn').addEventListener('click', generatePlot);
 document.getElementById('download-btn').addEventListener('click', downloadPlot);
@@ -510,6 +533,7 @@ async function generatePlot() {
         metric_type:      getRadioValue('metric-type'),
         color_scheme:     document.getElementById('color-scheme').value,
         log_transform:    document.getElementById('log-transform').checked,
+        y_axis_format:    getRadioValue('yaxis-format'),
         plot_minor:       document.getElementById('plot-minor').checked,
         correlation_type: getRadioValue('correlation-type'),
         xlabel:       document.getElementById('xlabel').value,
