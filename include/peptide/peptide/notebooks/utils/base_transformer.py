@@ -41,7 +41,7 @@ class BaseDataTransformation:
 
     def _load_data(self, file_obj, required_columns, file_type):
         """
-        Load a CSV, TSV, or XLSX file from an ipywidgets FileUpload file object.
+        Load a CSV, TSV, XLSX, or Parquet file from an ipywidgets FileUpload file object.
 
         Parameters
         ----------
@@ -63,7 +63,9 @@ class BaseDataTransformation:
             extension = filename.split('.')[-1].lower()
             file_stream = io.BytesIO(content)
 
-            if extension == 'csv':
+            if extension == 'parquet':
+                df = pd.read_parquet(file_stream)
+            elif extension == 'csv':
                 df = pd.read_csv(file_stream)
             elif extension in ('txt', 'tsv'):
                 df = pd.read_csv(file_stream, delimiter='\t')
