@@ -280,6 +280,7 @@ class DataAnalysisState:
         self.legend_title: str = params.get('legend_title', '')
         self.plot_title: str = params.get('plot_title', '')
         self.correlation_type: str = params.get('correlation_type', 'Pearson')
+        self.y_axis_format: str = params.get('y_axis_format', 'linear')  # 'linear' | 'power'
 
         # Derived
         self.avg_columns = [c for c in self.merged_df.columns if c.startswith('Avg_')]

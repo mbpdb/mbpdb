@@ -130,6 +130,8 @@ def plot_total_peptides(state: DataAnalysisState):
                        title_font=dict(size=18, color='black'),
                        tickfont=dict(size=16, color='black'), **AXIS_STYLE),
         )
+    if use_log and getattr(state, 'y_axis_format', 'linear') == 'power':
+        _power_ticks(fig)
     return fig
 
 
@@ -204,6 +206,8 @@ def create_grouped_bar_plot(state: DataAnalysisState):
             legend=dict(title=dict(text=state.legend_title or 'Item'),
                         font=dict(size=12)),
         )
+        if use_log and getattr(state, 'y_axis_format', 'linear') == 'power':
+            _power_ticks(fig)
         return fig
 
     elif orientation == 'By Protein' or (orientation == 'By Sample' and plot_filter == 'Selected Protein(s)'):
@@ -263,6 +267,8 @@ def create_grouped_bar_plot(state: DataAnalysisState):
             barmode='group',
             legend=dict(title=dict(text=state.legend_title or 'Item'), font=dict(size=12)),
         )
+        if use_log and getattr(state, 'y_axis_format', 'linear') == 'power':
+            _power_ticks(fig)
         return fig
 
     elif plot_filter in ('No Filter', 'Both') and orientation == 'By Sample':
@@ -365,6 +371,8 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
         yaxis=dict(title=state.ylabel or y_title, **_axis_style()),
         legend=dict(title=dict(text=state.legend_title or 'Item'), font=dict(size=12)),
     )
+    if use_log and getattr(state, 'y_axis_format', 'linear') == 'power':
+        _power_ticks(fig)
     return fig
 
 
@@ -573,6 +581,8 @@ def create_correlation_plot(state: DataAnalysisState):
                     font=dict(size=13)),
         margin=dict(t=100, b=80, l=80, r=50),
     )
+    if use_log and getattr(state, 'y_axis_format', 'linear') == 'power':
+        _power_ticks(fig, y_axis='yaxis', x_axis='xaxis')
     return fig
 
 
@@ -684,6 +694,45 @@ def create_correlation_splom(state: DataAnalysisState):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _power_ticks(fig, y_axis='yaxis', x_axis=None):
+    """
+    Replace numeric tick labels on log-transformed axes with 10^n HTML superscript format.
+    Scans all trace y (and optionally x) values to determine integer tick range.
+    """
+    import math
+
+    def _vals_from_traces(attr):
+        out = []
+        for trace in fig.data:
+            raw = getattr(trace, attr, None)
+            if raw is None:
+                continue
+            try:
+                out.extend(v for v in raw if v is not None and not (isinstance(v, float) and math.isnan(v)))
+            except TypeError:
+                pass
+        return out
+
+    def _make_ticks(vals):
+        if not vals:
+            return None, None
+        mn, mx = math.floor(min(vals)), math.ceil(max(vals))
+        tv = list(range(mn, mx + 1))
+        tt = [f'10<sup>{v}</sup>' if v >= 0 else f'10<sup>−{abs(v)}</sup>' for v in tv]
+        return tv, tt
+
+    y_vals = _vals_from_traces('y')
+    tv, tt = _make_ticks(y_vals)
+    if tv:
+        fig.update_layout({y_axis: dict(tickvals=tv, ticktext=tt)})
+
+    if x_axis:
+        x_vals = _vals_from_traces('x')
+        tv, tt = _make_ticks(x_vals)
+        if tv:
+            fig.update_layout({x_axis: dict(tickvals=tv, ticktext=tt)})
+
 
 def _common_layout(state: DataAnalysisState) -> dict:
     return dict(
