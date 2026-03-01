@@ -16,10 +16,12 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 
 def load_file(file_obj, filename: str):
-    """Load a CSV/TSV/XLSX file, return (df, error_message)."""
+    """Load a CSV/TSV/XLSX/Parquet file, return (df, error_message)."""
     name_lower = filename.lower()
     try:
-        if name_lower.endswith('.xlsx'):
+        if name_lower.endswith('.parquet'):
+            df = pd.read_parquet(file_obj)
+        elif name_lower.endswith('.xlsx'):
             df = pd.read_excel(file_obj)
         elif name_lower.endswith('.tsv') or name_lower.endswith('.txt'):
             df = pd.read_csv(file_obj, sep='\t')
@@ -280,7 +282,6 @@ class DataAnalysisState:
         self.legend_title: str = params.get('legend_title', '')
         self.plot_title: str = params.get('plot_title', '')
         self.correlation_type: str = params.get('correlation_type', 'Pearson')
-        self.y_axis_format: str = params.get('y_axis_format', 'linear')  # 'linear' | 'power'
 
         # Derived
         self.avg_columns = [c for c in self.merged_df.columns if c.startswith('Avg_')]
