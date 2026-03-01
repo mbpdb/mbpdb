@@ -1,0 +1,456 @@
+"""
+Data processing service for the Heatmap Visualization web app.
+Extracted from heatmap_visualization.ipynb DataTransformation and HeatmapDataHandler classes.
+"""
+import io
+import re
+import sys
+import os
+import traceback
+
+import numpy as np
+import pandas as pd
+
+# Add notebook dir to path so we can import heatmap_renderer and _settings
+_NOTEBOOK_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'notebooks')
+if _NOTEBOOK_DIR not in sys.path:
+    sys.path.insert(0, _NOTEBOOK_DIR)
+
+
+# ---------------------------------------------------------------------------
+# File loading helpers
+# ---------------------------------------------------------------------------
+
+def load_merged_file(file_obj, filename: str) -> tuple:
+    """
+    Load and basic-validate a merged data CSV/TSV/XLSX file.
+    Returns (df, group_data_dict, protein_dict, col_order, error_msg)
+    """
+    name_lower = filename.lower()
+    try:
+        content = file_obj.read()
+        if name_lower.endswith('.xlsx'):
+            df = pd.read_excel(io.BytesIO(content))
+        elif name_lower.endswith('.tsv') or name_lower.endswith('.txt'):
+            df = pd.read_csv(io.BytesIO(content), sep='\t')
+        else:
+            df = pd.read_csv(io.BytesIO(content))
+    except Exception as exc:
+        return None, {}, {}, [], str(exc)
+
+    df.columns = df.columns.str.strip()
+
+    # Standardize columns
+    df, err = _validate_and_standardize_columns(df)
+    if err:
+        return None, {}, {}, [], err
+
+    # Required columns
+    if 'Protein' not in df.columns:
+        return None, {}, {}, [], "Missing required column 'Protein'."
+
+    # Build group_data_dict from Avg_ columns
+    avg_columns = [col for col in df.columns if col.startswith('Avg_')]
+    if not avg_columns:
+        return None, {}, {}, [], "No abundance columns (Avg_*) found in file."
+
+    col_order = [col.replace('Avg_', '') for col in avg_columns]
+    group_data_dict = {}
+    for i, col in enumerate(avg_columns, 1):
+        group_name = col.replace('Avg_', '')
+        group_data_dict[str(i)] = {
+            'grouping_variable': group_name,
+            'abundance_columns': [col],
+        }
+
+    # Build protein_dict from data
+    protein_dict = _build_protein_dict_from_df(df)
+
+    return df, group_data_dict, protein_dict, col_order, None
+
+
+def _validate_and_standardize_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, str | None]:
+    """Standardize start/end/Protein columns. Returns (df, error_str_or_None)."""
+    START_STOP_MAP = {
+        'Start position': 'start', 'End position': 'end',
+        'Peptide start': 'start', 'Peptide end': 'end',
+        'Start': 'start', 'End': 'end',
+        'protein_start': 'start', 'protein_end': 'end',
+        'start': 'start', 'end': 'end',
+        'StartPosition': 'start', 'EndPosition': 'end',
+        'Peptide Start': 'start', 'Peptide End': 'end',
+        'Peptide start position': 'start', 'Peptide end position': 'end',
+    }
+    PROTEIN_ID_COLUMNS = [
+        'Protein', 'Leading proteins', 'Protein Name', 'Protein Accession',
+        'Accession Number', 'ProteinGroupId', 'Protein ID', 'Accession',
+        'protein_accession',
+    ]
+
+    if 'start' not in df.columns or 'end' not in df.columns:
+        for col in list(df.columns):
+            if col in START_STOP_MAP:
+                new_name = START_STOP_MAP[col]
+                if new_name not in df.columns:
+                    df = df.rename(columns={col: new_name})
+
+    if 'Protein' not in df.columns:
+        for col in PROTEIN_ID_COLUMNS:
+            if col in df.columns:
+                df = df.rename(columns={col: 'Protein'})
+                break
+
+    if 'Protein' not in df.columns:
+        return df, "Missing required column 'Protein'."
+
+    # Normalise protein IDs (strip FASTA pipe notation)
+    df = df.copy()
+    df['Protein'] = df['Protein'].astype(str)
+
+    def extract_uniprot(x: str) -> str:
+        if '|' in x:
+            m = re.search(r'\|([A-Z0-9]+)\|', x)
+            if m:
+                return m.group(1)
+        return x
+
+    df['Protein'] = df['Protein'].apply(extract_uniprot)
+    return df, None
+
+
+def _build_protein_dict_from_df(df: pd.DataFrame) -> dict:
+    """Build {protein_id: {name, species, sequence}} from DataFrame columns."""
+    protein_dict = {}
+    if 'Protein' not in df.columns:
+        return protein_dict
+
+    group_cols = ['protein_name', 'protein_species']
+    has_info = all(c in df.columns for c in group_cols)
+
+    for protein_id, group in df.groupby('Protein'):
+        if not protein_id or pd.isna(protein_id):
+            continue
+        name = group['protein_name'].iloc[0] if has_info else str(protein_id)
+        species = group['protein_species'].iloc[0] if has_info else 'Unknown'
+        protein_dict[protein_id] = {
+            'name': str(name) if pd.notna(name) else str(protein_id),
+            'species': str(species) if pd.notna(species) else 'Unknown',
+            'sequence': '',
+        }
+    return protein_dict
+
+
+# ---------------------------------------------------------------------------
+# FASTA loading
+# ---------------------------------------------------------------------------
+
+def load_fasta_file(file_obj, merged_protein_ids: set | None = None) -> tuple[dict, str | None]:
+    """
+    Parse an uploaded FASTA file and return (protein_dict, error_msg).
+    If merged_protein_ids is provided, only include proteins that match.
+    """
+    try:
+        from utils.fasta_utils import validate_fasta_format, parse_fasta
+        from utils.uniprot_client import UniProtClient
+        _SPEC_TRANSLATE_LIST = []
+        try:
+            import _settings as settings
+            _SPEC_TRANSLATE_LIST = settings.SPEC_TRANSLATE_LIST
+        except Exception:
+            pass
+    except ImportError:
+        pass
+
+    content = file_obj.read()
+    if isinstance(content, bytes):
+        content = content.decode('utf-8', errors='ignore')
+
+    # Simple FASTA parser fallback
+    protein_dict = _parse_fasta_simple(content)
+
+    if merged_protein_ids:
+        protein_dict = {k: v for k, v in protein_dict.items() if k in merged_protein_ids}
+
+    return protein_dict, None
+
+
+def _parse_fasta_simple(content: str) -> dict:
+    """Simple FASTA parser returning {protein_id: {name, species, sequence}}."""
+    proteins = {}
+    current_id = None
+    current_name = ''
+    current_seq = []
+
+    for line in content.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith('>'):
+            if current_id and current_seq:
+                proteins[current_id] = {
+                    'name': current_name or current_id,
+                    'species': '',
+                    'sequence': ''.join(current_seq),
+                }
+            header = line[1:]
+            # Try UniProt format: >sp|P12345|NAME_HUMAN ...
+            m = re.match(r'(?:sp|tr)\|([A-Z0-9]+)\|(\S+)\s*(.*)', header)
+            if m:
+                current_id = m.group(1)
+                current_name = m.group(3).strip() or m.group(2)
+            else:
+                parts = header.split(None, 1)
+                current_id = parts[0]
+                current_name = parts[1] if len(parts) > 1 else current_id
+            current_seq = []
+        else:
+            current_seq.append(line)
+
+    if current_id and current_seq:
+        proteins[current_id] = {
+            'name': current_name or current_id,
+            'species': '',
+            'sequence': ''.join(current_seq),
+        }
+    return proteins
+
+
+# ---------------------------------------------------------------------------
+# UniProt sequence fetching
+# ---------------------------------------------------------------------------
+
+def fetch_sequence_from_uniprot(protein_id: str) -> str | None:
+    """Fetch protein sequence from UniProt API. Returns sequence string or None."""
+    try:
+        from utils.uniprot_client import UniProtClient
+        client = UniProtClient()
+        result = client.fetch_protein_info_with_sequence(protein_id)
+        if result:
+            _, _, seq = result
+            return seq if seq else None
+    except Exception:
+        pass
+    try:
+        import urllib.request
+        url = f'https://www.uniprot.org/uniprot/{protein_id}.fasta'
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            lines = resp.read().decode('utf-8').splitlines()
+            return ''.join(l for l in lines if not l.startswith('>'))
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Get selector options for the UI
+# ---------------------------------------------------------------------------
+
+def get_selector_options(merged_df: pd.DataFrame, group_data_dict: dict, protein_dict: dict, col_order: list) -> dict:
+    """Return options for the frontend selectors."""
+    # Proteins sorted by occurrence in data
+    protein_counts = merged_df['Protein'].value_counts() if 'Protein' in merged_df.columns else pd.Series()
+    sorted_proteins = list(protein_counts.index)
+
+    protein_options = []
+    for pid in sorted_proteins:
+        name = protein_dict.get(pid, {}).get('name', pid)
+        has_seq = bool(protein_dict.get(pid, {}).get('sequence', ''))
+        protein_options.append({'id': pid, 'label': f"{pid} – {name}", 'has_sequence': has_seq})
+
+    # Variable keys (grouping variables)
+    var_key_options = col_order if col_order else [
+        v['grouping_variable'] for v in group_data_dict.values()
+    ]
+
+    # Check if function data exists
+    has_functions = 'function' in merged_df.columns and not merged_df['function'].isna().all()
+
+    return {
+        'proteins': protein_options,
+        'var_keys': var_key_options,
+        'has_functions': has_functions,
+    }
+
+
+def get_specific_options(merged_df: pd.DataFrame, bio_or_pep: str, selected_proteins: list = None) -> list:
+    """
+    Return options for the specific_select_multiple widget.
+    bio_or_pep '2' → unique function values (filtered by selected_proteins if given).
+    bio_or_pep '1' → unique 'Unique Peptide ID' values (filtered by selected_proteins if given).
+    """
+    df = merged_df.copy()
+    if selected_proteins:
+        df = df[df['Protein'].isin(selected_proteins)]
+
+    if bio_or_pep == '2':
+        if 'function' not in df.columns:
+            return []
+        funcs = df['function'].dropna().unique().tolist()
+        return sorted([str(f) for f in funcs if str(f).strip()])
+
+    if bio_or_pep == '1':
+        pid_col = next((c for c in ('Unique Peptide ID', 'peptide_id', 'PeptideID') if c in df.columns), None)
+        if pid_col:
+            ids = df[pid_col].dropna().unique().tolist()
+            return sorted([str(i) for i in ids if str(i).strip()])
+        # Fallback: build interval strings from start/end columns
+        if 'start' in df.columns and 'end' in df.columns:
+            intervals = (df['start'].astype(str) + '-' + df['end'].astype(str)).unique().tolist()
+            return sorted(intervals)
+
+    return []
+
+
+# ---------------------------------------------------------------------------
+# Build available_data_variables_dict
+# ---------------------------------------------------------------------------
+
+def build_available_data_variables(
+    merged_df: pd.DataFrame,
+    protein_dict: dict,
+    group_data_dict: dict,
+    selected_proteins: list,
+    selected_var_keys: list,
+) -> tuple[dict, list]:
+    """
+    Build the available_data_variables_dict for the heatmap renderer.
+    Returns (available_data_variables_dict, messages).
+    """
+    # Import from heatmap_renderer (in notebooks/utils)
+    try:
+        from utils.heatmap_renderer import export_heatmap_data_to_dict
+    except ImportError:
+        return {}, ['Could not import heatmap_renderer. Check notebook utils path.']
+
+    # Build grouping_var → group_info lookup
+    gvar_to_info = {v['grouping_variable']: (k, v) for k, v in group_data_dict.items()}
+
+    available = {}
+    messages = []
+
+    for protein_id in selected_proteins:
+        # Get protein info
+        pinfo = protein_dict.get(protein_id, {})
+        protein_name = pinfo.get('name', protein_id)
+        protein_species = pinfo.get('species', 'Unknown')
+        protein_sequence = pinfo.get('sequence', '')
+
+        # If no sequence, try UniProt
+        if not protein_sequence:
+            messages.append(f"No sequence found for {protein_id} in protein dictionary or FASTA file.")
+            continue
+
+        # Filter merged_df for this protein
+        protein_df = merged_df[merged_df['Protein'] == protein_id].copy()
+        if protein_df.empty:
+            messages.append(f"No data found for protein {protein_id} in merged data.")
+            continue
+
+        is_all_null = (
+            'function' not in protein_df.columns
+            or protein_df['function'].isna().all()
+        )
+
+        for var_key in selected_var_keys:
+            if var_key not in gvar_to_info:
+                messages.append(f"Variable key '{var_key}' not found in group data.")
+                continue
+
+            group_key, group_info = gvar_to_info[var_key]
+
+            try:
+                heatmap_data = export_heatmap_data_to_dict(
+                    protein_id, group_key, group_info,
+                    protein_sequence, protein_species, protein_name,
+                    protein_df, is_all_null,
+                )
+            except Exception as exc:
+                messages.append(f"Error processing {protein_id}/{var_key}: {exc}")
+                continue
+
+            combo_key = f"{protein_id}_{var_key}"
+            available[combo_key] = {
+                'protein_id': protein_id,
+                'protein_sequence': protein_sequence,
+                'protein_name': protein_name,
+                'protein_species': protein_species,
+                'heatmap_df': heatmap_data.get('heatmap_df'),
+                'function_heatmap_df': heatmap_data.get('func_heatmap_df'),
+                'filtered_heatmap_df': heatmap_data.get('filtered_heatmap_df'),
+                'label': var_key if len(selected_proteins) > 1 or len(selected_var_keys) > 1 else var_key,
+                'is_func_df_all_none': (
+                    heatmap_data.get('func_heatmap_df') is None
+                    or (isinstance(heatmap_data.get('func_heatmap_df'), pd.DataFrame)
+                        and heatmap_data['func_heatmap_df'].isnull().all().all())
+                ),
+            }
+
+    return available, messages
+
+
+# ---------------------------------------------------------------------------
+# Generate heatmap plot
+# ---------------------------------------------------------------------------
+
+def generate_heatmap(
+    available_data_variables_dict: dict,
+    plot_params: dict,
+) -> tuple[bytes | None, bytes | None, list]:
+    """
+    Call heatmap_renderer.update_plot() and return (portrait_png, landscape_png, messages).
+    PNG bytes are base64-encoded strings for JSON transport.
+    """
+    import base64
+
+    try:
+        from utils.heatmap_renderer import update_plot
+    except ImportError:
+        return None, None, ['Could not import heatmap_renderer.']
+
+    if not available_data_variables_dict:
+        return None, None, ['No data available for plotting.']
+
+    pp = plot_params
+    try:
+        fig_port, fig_land, errors, notifications = update_plot(
+            available_data_variables_dict,
+            ms_average_choice=pp.get('ms_average_choice', 'yes'),
+            bio_or_pep=pp.get('bio_or_pep', 'no'),
+            selected_peptides=pp.get('selected_peptides', []),
+            selected_functions=pp.get('selected_functions', []),
+            hm_selected_color=pp.get('hm_selected_color', 'RdYlGn_r'),
+            lp_selected_color=pp.get('lp_selected_color', 'Set3'),
+            avglp_selected_color=pp.get('avglp_selected_color', 'Dark2'),
+            xaxis_label=pp.get('xaxis_label', ''),
+            yaxis_label=pp.get('yaxis_label', ''),
+            yaxis_position=pp.get('yaxis_position', 5),
+            legend_title_input_1=pp.get('legend_title_1', 'Sample Type:'),
+            legend_title_input_2=pp.get('legend_title_2', 'Peptide Counts:'),
+            legend_title_input_3=pp.get('legend_title_3', 'Abundance:'),
+            plot_land=pp.get('plot_landscape', False),
+            plot_port=pp.get('plot_portrait', True),
+            filter_type=pp.get('filter_type', 'All'),
+            log_transform=pp.get('log_transform', False),
+            manual_y_axis=pp.get('manual_y_axis', False),
+            y_min_manual=pp.get('y_min', 0.0),
+            y_max_manual=pp.get('y_max', 1.0),
+        )
+    except Exception as exc:
+        return None, None, [f'Error generating heatmap: {exc}\n{traceback.format_exc()}']
+
+    messages = list(errors or []) + list(notifications or [])
+
+    def fig_to_b64(fig) -> str | None:
+        if fig is None:
+            return None
+        import matplotlib
+        matplotlib.use('Agg')
+        import io as _io
+        buf = _io.BytesIO()
+        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        buf.seek(0)
+        return base64.b64encode(buf.read()).decode()
+
+    portrait_b64 = fig_to_b64(fig_port) if fig_port is not None else None
+    landscape_b64 = fig_to_b64(fig_land) if fig_land is not None else None
+
+    return portrait_b64, landscape_b64, messages
