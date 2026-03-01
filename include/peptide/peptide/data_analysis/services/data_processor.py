@@ -1,0 +1,773 @@
+"""
+Data processing service for the Data Analysis web app.
+Extracted from data_analysis.ipynb DataTransformation and DataHandler classes.
+"""
+import re
+import io
+import traceback
+from collections import defaultdict
+
+import numpy as np
+import pandas as pd
+
+
+# ---------------------------------------------------------------------------
+# File loading
+# ---------------------------------------------------------------------------
+
+def load_file(file_obj, filename: str):
+    """Load a CSV/TSV/XLSX file, return (df, error_message)."""
+    name_lower = filename.lower()
+    try:
+        if name_lower.endswith('.xlsx'):
+            df = pd.read_excel(file_obj)
+        elif name_lower.endswith('.tsv') or name_lower.endswith('.txt'):
+            df = pd.read_csv(file_obj, sep='\t')
+        else:
+            df = pd.read_csv(file_obj)
+        return df, None
+    except Exception as exc:
+        return None, str(exc)
+
+
+# ---------------------------------------------------------------------------
+# Group data extraction
+# ---------------------------------------------------------------------------
+
+def process_group_data(df: pd.DataFrame):
+    """
+    Extract group data from DataFrame columns.
+    Handles both 'Grouped:' pattern and plain 'Avg_*' columns.
+    Returns (group_data_dict, renamed_df, warning).
+      group_data_dict = {group_name: [col1, col2, ...]}  (list of replicate cols)
+                     OR {group_name: 'Avg_GroupName'}    (no-replicate form)
+    """
+    group_data_dict = {}
+    renamed_columns = {}
+    warning = None
+
+    grouped_columns = [col for col in df.columns if " 'Grouped:" in str(col)]
+
+    if not grouped_columns:
+        avg_columns = [col for col in df.columns if col.startswith('Avg_')]
+        if not avg_columns:
+            return {}, df, "No group columns (Avg_* or Grouped:) found in file."
+        for col in avg_columns:
+            group_name = col.replace('Avg_', '')
+            group_data_dict[group_name] = col
+        warning = "No replicate data found. Some features (error bars, correlation) will be unavailable."
+        return group_data_dict, df, warning
+
+    for col in grouped_columns:
+        base_col_name = col.split(" 'Grouped:")[0].strip()
+        match = re.search(r"\((.*?)\)", col)
+        if match:
+            groups_str = match.group(1)
+            groups = [g.strip() for g in groups_str.split(";")]
+            for group in groups:
+                if group not in group_data_dict:
+                    group_data_dict[group] = []
+                group_data_dict[group].append(base_col_name)
+            renamed_columns[col] = base_col_name
+
+    df_renamed = df.rename(columns=renamed_columns)
+    return group_data_dict, df_renamed, warning
+
+
+# ---------------------------------------------------------------------------
+# Protein info extraction
+# ---------------------------------------------------------------------------
+
+def extract_protein_dict(df: pd.DataFrame) -> dict:
+    """Build {protein_id: {name, species, description}} from DataFrame."""
+    protein_dict = {}
+    if 'Protein' not in df.columns:
+        return protein_dict
+
+    for _, row in df.iterrows():
+        protein_str = str(row.get('Protein', ''))
+        for protein_id in protein_str.split(';'):
+            protein_id = protein_id.strip()
+            if not protein_id or protein_id in protein_dict:
+                continue
+            name = str(row.get('protein_name', protein_id))
+            species = str(row.get('protein_species', 'Unknown'))
+            protein_dict[protein_id] = {'name': name, 'species': species}
+    return protein_dict
+
+
+# ---------------------------------------------------------------------------
+# Validate / standardize columns
+# ---------------------------------------------------------------------------
+
+def validate_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, list]:
+    """Ensure required columns exist. Returns (df, list_of_warnings)."""
+    warnings = []
+    required = ['Unique Peptide ID']
+    for col in required:
+        if col not in df.columns:
+            for existing in df.columns:
+                if existing.lower() == col.lower():
+                    df = df.rename(columns={existing: col})
+                    break
+            else:
+                warnings.append(f"Required column '{col}' not found.")
+    # Ensure protein_name column (may come from different source)
+    if 'protein_name' not in df.columns and 'Protein' in df.columns:
+        df['protein_name'] = df['Protein']
+    return df, warnings
+
+
+# ---------------------------------------------------------------------------
+# Selector options for the UI
+# ---------------------------------------------------------------------------
+
+def get_selector_options(merged_df: pd.DataFrame, group_data_dict: dict, protein_dict: dict) -> dict:
+    """
+    Compute options for the frontend selectors.
+    Returns dict with groups, proteins, functions, has_functions.
+    """
+    groups = list(group_data_dict.keys())
+    avg_columns = [col for col in merged_df.columns if col.startswith('Avg_')]
+
+    # Proteins – sorted by total abundance
+    protein_abundance: dict[str, float] = {}
+    if 'Protein' in merged_df.columns and avg_columns:
+        for _, row in merged_df.iterrows():
+            protein_str = str(row.get('Protein', ''))
+            parts = [p.strip() for p in protein_str.split(';') if p.strip()]
+            total_ab = sum(
+                float(row.get(col, 0) or 0)
+                for col in avg_columns
+                if pd.notna(row.get(col))
+            )
+            per_protein = total_ab / max(1, len(parts))
+            for pid in parts:
+                protein_abundance[pid] = protein_abundance.get(pid, 0) + per_protein
+
+    all_proteins_sorted = sorted(
+        protein_dict.keys(),
+        key=lambda p: protein_abundance.get(p, 0),
+        reverse=True,
+    )
+    protein_options = [
+        {'id': pid, 'label': protein_dict[pid].get('name', pid)}
+        for pid in all_proteins_sorted
+    ]
+
+    # Functions
+    has_functions = (
+        'function' in merged_df.columns
+        and not merged_df['function'].isna().all()
+    )
+    broader = {'Functional Peptides', 'Non-Functional Peptides', 'All Functional Peptides', 'Minor Functions'}
+    function_totals: dict[str, float] = defaultdict(float)
+    if has_functions:
+        for func_str in merged_df['function'].dropna():
+            if isinstance(func_str, str):
+                for func in [f.strip() for f in func_str.split(';')]:
+                    if func and func not in broader:
+                        function_totals[func] += 1
+
+    functions = [f for f, _ in sorted(function_totals.items(), key=lambda x: x[1], reverse=True)]
+
+    return {
+        'groups': groups,
+        'proteins': protein_options,
+        'protein_ids': all_proteins_sorted,
+        'functions': functions,
+        'has_functions': has_functions,
+        'avg_columns': avg_columns,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Colour helpers
+# ---------------------------------------------------------------------------
+
+def get_color_sequence(n_colors: int, scheme: str = 'HSV') -> list:
+    """Generate n_colors colours from the given plotly/custom scheme."""
+    import plotly.express as px
+
+    if n_colors <= 0:
+        return []
+
+    single_colors = {
+        'red', 'green', 'blue', 'yellow', 'purple', 'orange', 'cyan',
+        'magenta', 'pink', 'brown', 'black', 'white', 'gray', 'darkblue',
+        'darkgreen', 'darkred', 'darkorange', 'darkpurple', 'lightblue',
+        'lightgreen', 'lightred', 'gold', 'silver', 'teal', 'navy', 'maroon',
+        'olive', 'lime', 'aqua', 'indigo', 'violet', 'turquoise', 'coral',
+        'crimson', 'salmon', 'sienna', 'tan', 'khaki', 'plum', 'orchid',
+    }
+
+    try:
+        if scheme.startswith('---') or scheme.lower() in single_colors:
+            scheme = 'HSV'
+
+        if scheme.lower() in ('rainbow', 'hsv'):
+            return [f'hsl({h},70%,60%)' for h in np.linspace(0, 330, n_colors)]
+
+        for palette_group in (
+            px.colors.qualitative,
+            px.colors.sequential,
+            px.colors.diverging,
+            px.colors.cyclical,
+        ):
+            color_sequence = getattr(palette_group, scheme, None)
+            if color_sequence:
+                if n_colors >= len(color_sequence):
+                    indices = np.linspace(0, len(color_sequence) - 1, n_colors)
+                    return [color_sequence[int(i)] for i in indices]
+                indices = np.linspace(0, len(color_sequence) - 1, n_colors, dtype=int)
+                return [color_sequence[i] for i in indices]
+
+        return [f'hsl({h},70%,60%)' for h in np.linspace(0, 330, n_colors)]
+    except Exception:
+        return [f'hsl({h},70%,60%)' for h in np.linspace(0, 330, n_colors)]
+
+
+def get_single_color(scheme: str = 'HSV') -> str:
+    """Return a single representative colour for the scheme."""
+    colors = get_color_sequence(3, scheme)
+    return colors[0] if colors else '#4285F4'
+
+
+# ---------------------------------------------------------------------------
+# Core: contains_function helper
+# ---------------------------------------------------------------------------
+
+def contains_function(func_string, target_function: str) -> bool:
+    if not isinstance(func_string, str) or pd.isna(func_string):
+        return False
+    return target_function in [f.strip() for f in func_string.split(';')]
+
+
+def redact_string_descriptions(input_str: str, max_length: int = 30) -> str:
+    if not isinstance(input_str, str):
+        return str(input_str)
+    if len(input_str) <= max_length:
+        return input_str
+    return input_str[:max_length - 3] + '...'
+
+
+# ---------------------------------------------------------------------------
+# DataAnalysisState – holds all computed intermediate data
+# ---------------------------------------------------------------------------
+
+class DataAnalysisState:
+    """Holds all intermediate computation results (replaces widget state)."""
+
+    def __init__(self, merged_df, group_data_dict, protein_dict, params: dict):
+        self.merged_df = merged_df.copy()
+        self.group_data_dict = group_data_dict
+        self.protein_dict = protein_dict
+
+        # Widget-state equivalents from params
+        self.selected_groups: list = params.get('selected_groups', list(group_data_dict.keys()))
+        self.selected_proteins_raw: list = params.get('selected_proteins', ['All Proteins (No Filter)'])
+        self.selected_functions_raw: list = params.get('selected_functions', ['All Functional Peptides'])
+        self.plot_type: str = params.get('plot_type', 'Grouped Bar Plots')
+        self.plot_filter: str = params.get('plot_filter', 'No Filter')
+        self.abs_or_count: str = params.get('abs_or_count', 'Abundance')
+        self.metric_type: str = params.get('metric_type', 'Absolute')
+        self.orientation: str = params.get('orientation', 'By Sample')
+        self.log_transform: bool = params.get('log_transform', False)
+        self.plot_minor: bool = params.get('plot_minor', False)
+        self.color_scheme: str = params.get('color_scheme', 'HSV')
+        self.xlabel: str = params.get('xlabel', '')
+        self.ylabel: str = params.get('ylabel', '')
+        self.legend_title: str = params.get('legend_title', '')
+        self.plot_title: str = params.get('plot_title', '')
+        self.correlation_type: str = params.get('correlation_type', 'Pearson')
+
+        # Derived
+        self.avg_columns = [c for c in self.merged_df.columns if c.startswith('Avg_')]
+        self.stripped_columns = [c.replace('Avg_', '') for c in self.avg_columns]
+        self.use_count = self.abs_or_count == 'Count'
+        self.is_relative = 'relative' in self.metric_type.lower()
+
+        if self.use_count:
+            self.value_prefix = 'Count_'
+            self.rel_prefix = 'Rel_Count_'
+            self.metric_name = 'Unique Peptide Count'
+            self.num_format = ',.0f'
+        else:
+            self.value_prefix = 'Avg_'
+            self.rel_prefix = 'Rel_Avg_'
+            self.metric_name = 'Summed Abundance'
+            self.num_format = ',.2e'
+
+        self.value_cols = {g: f'{self.value_prefix}{g}' for g in self.selected_groups}
+        self.rel_cols = {g: f'{self.rel_prefix}{g}' for g in self.selected_groups}
+
+        # Computed by pipeline steps
+        self.filtered_df: pd.DataFrame | None = None
+        self.total_peptide_results_dict: dict = {}
+        self.protein_df: pd.DataFrame | None = None
+        self.sum_df: pd.DataFrame | None = None
+        self.protein_sample_distribution_dict: dict = {}
+        self.protein_count_bysample_dict: dict = {}
+        self.function_df: pd.DataFrame | None = None
+        self.function_distribution_dict: dict = {}
+        self.function_abundance_totals_dict: dict = {}
+        self.function_count_totals_dict: dict = {}
+        self.unique_function_abundance_dict: dict = {}
+        self.unique_function_counts_dict: dict = {}
+        self.function_group_metrics_dict: dict = {}
+        self.abundance_count_by_sample_dict: dict = {}
+        self.selected_proteins: list = []
+        self.selected_functions: list = []
+        self.all_proteins: list = []
+        self.all_functions: list = []
+        self.function_color_map: dict = {}
+
+    # ------------------------------------------------------------------
+    # Step 1: Resolve selected proteins / functions
+    # ------------------------------------------------------------------
+
+    def _resolve_all_proteins(self):
+        """Build all_proteins list sorted by abundance."""
+        protein_abundance: dict[str, float] = {}
+        if 'Protein' in self.merged_df.columns and self.avg_columns:
+            for _, row in self.merged_df.iterrows():
+                protein_str = str(row.get('Protein', ''))
+                parts = [p.strip() for p in protein_str.split(';') if p.strip()]
+                total_ab = sum(
+                    float(row.get(col, 0) or 0)
+                    for col in self.avg_columns
+                    if pd.notna(row.get(col))
+                )
+                per_protein = total_ab / max(1, len(parts))
+                for pid in parts:
+                    protein_abundance[pid] = protein_abundance.get(pid, 0) + per_protein
+
+        self.all_proteins = sorted(
+            self.protein_dict.keys(),
+            key=lambda p: protein_abundance.get(p, 0),
+            reverse=True,
+        )
+
+    def _resolve_selected_proteins(self):
+        """Determine which proteins are actually selected."""
+        self._resolve_all_proteins()
+        names_to_ids = {self.protein_dict[pid].get('name', pid): pid for pid in self.protein_dict}
+
+        if 'All Proteins (No Filter)' in self.selected_proteins_raw:
+            self.selected_proteins = list(self.all_proteins)
+            return
+
+        resolved = []
+        for sel in self.selected_proteins_raw:
+            if sel in self.protein_dict:
+                resolved.append(sel)
+            elif sel in names_to_ids:
+                resolved.append(names_to_ids[sel])
+            else:
+                resolved.append(sel)
+        self.selected_proteins = resolved or list(self.all_proteins)
+
+    def _resolve_all_functions(self):
+        broader = {'Functional Peptides', 'Non-Functional Peptides', 'All Functional Peptides', 'Minor Functions'}
+        function_totals: dict[str, float] = defaultdict(float)
+        if 'function' in self.merged_df.columns:
+            for func_str in self.merged_df['function'].dropna():
+                if isinstance(func_str, str):
+                    for func in [f.strip() for f in func_str.split(';')]:
+                        if func and func not in broader:
+                            function_totals[func] += 1
+        self.all_functions = [
+            f for f, _ in sorted(function_totals.items(), key=lambda x: x[1], reverse=True)
+        ]
+
+    def _resolve_selected_functions(self):
+        self._resolve_all_functions()
+        broader = {'Functional Peptides', 'Non-Functional Peptides', 'Minor Functions'}
+
+        if self.plot_filter == 'Functional vs Non-Functional Peptides':
+            self.selected_functions = ['Functional Peptides', 'Non-Functional Peptides']
+        elif 'All Functional Peptides' in self.selected_functions_raw:
+            self.selected_functions = [f for f in self.all_functions if f not in broader]
+        else:
+            self.selected_functions = [f for f in self.selected_functions_raw if f not in broader]
+
+        # Generate function color map
+        colors = get_color_sequence(len(self.all_functions), self.color_scheme)
+        self.function_color_map = {func: color for func, color in zip(self.all_functions, colors)}
+        self.function_color_map.setdefault('Functional Peptides', '#4CAF50')
+        self.function_color_map.setdefault('Non-Functional Peptides', '#9E9E9E')
+        self.function_color_map.setdefault('Minor Functions', '#808080')
+
+    # ------------------------------------------------------------------
+    # Step 2: Filter dataframe + total peptide results
+    # ------------------------------------------------------------------
+
+    def filter_dataframe(self):
+        df = self.merged_df.copy()
+        protein_mask = pd.Series(True, index=df.index)
+        function_mask = pd.Series(True, index=df.index)
+
+        protein_col = 'protein_name' if 'protein_name' in df.columns else None
+
+        # Protein filter
+        if self.plot_filter in ('Selected Protein(s)', 'Both') and protein_col:
+            if 'All Proteins (No Filter)' not in self.selected_proteins_raw:
+                protein_mask = df[protein_col].fillna('').apply(
+                    lambda x: any(p == x for p in self.selected_proteins)
+                )
+                if protein_mask.sum() == 0:
+                    protein_mask = df[protein_col].fillna('').apply(
+                        lambda x: any(p in x for p in self.selected_proteins)
+                    )
+
+        # Function filter
+        has_function = 'function' in df.columns and not df['function'].isna().all()
+        if has_function and self.plot_filter in ('Selected Function(s)', 'Both', 'Functional vs Non-Functional Peptides'):
+            if self.plot_filter == 'Functional vs Non-Functional Peptides':
+                pass  # don't filter here
+            elif 'All Functional Peptides' in self.selected_functions_raw:
+                function_mask = df['function'].notna() & (df['function'] != '')
+            elif 'Non-Functional Peptides' in self.selected_functions_raw:
+                function_mask = df['function'].isna()
+            else:
+                sel_funcs = self.selected_functions
+                function_mask = df['function'].apply(
+                    lambda x: any(contains_function(x, f) for f in sel_funcs)
+                )
+
+        if self.plot_filter == 'Both':
+            combined = protein_mask & function_mask
+        elif self.plot_filter == 'Selected Protein(s)':
+            combined = protein_mask
+        elif self.plot_filter in ('Selected Function(s)', 'Functional vs Non-Functional Peptides'):
+            combined = function_mask
+        else:
+            combined = pd.Series(True, index=df.index)
+
+        self.filtered_df = df[combined]
+
+        # Build total_peptide_results_dict
+        total_results = {}
+        for group_name in self.selected_groups:
+            col = f'Avg_{group_name}'
+            if col not in self.filtered_df.columns:
+                continue
+            temp = self.filtered_df[['Unique Peptide ID', col]].copy()
+            temp[col] = pd.to_numeric(temp[col], errors='coerce')
+            nonzero = temp[(temp[col].notna()) & (temp[col] != 0)]
+            total_abundance = nonzero[col].sum()
+            unique_count = nonzero['Unique Peptide ID'].nunique()
+
+            # SEM calculation (need replicate data if available)
+            gd = self.group_data_dict.get(group_name)
+            abundance_sem = 0.0
+            count_sem = 0.0
+            if isinstance(gd, list) and len(gd) > 1:
+                rep_vals = []
+                for rep_col in gd:
+                    if rep_col in self.filtered_df.columns:
+                        vals = pd.to_numeric(self.filtered_df[rep_col], errors='coerce').dropna()
+                        rep_vals.append(vals.sum())
+                if len(rep_vals) > 1:
+                    abundance_sem = float(np.std(rep_vals, ddof=1) / np.sqrt(len(rep_vals)))
+
+            total_results[group_name] = {
+                'total_Abundance': float(total_abundance),
+                'unique_peptides': int(unique_count),
+                'abundance_sem': abundance_sem,
+                'count_sem': count_sem,
+                'relative_Abundance': 0.0,
+                'relative_peptides': 0.0,
+            }
+
+        # Calculate relatives
+        total_ab = sum(v['total_Abundance'] for v in total_results.values())
+        total_pep = sum(v['unique_peptides'] for v in total_results.values())
+        for g, v in total_results.items():
+            v['relative_Abundance'] = v['total_Abundance'] / total_ab * 100 if total_ab else 0
+            v['relative_peptides'] = v['unique_peptides'] / total_pep * 100 if total_pep else 0
+
+        self.total_peptide_results_dict = total_results
+
+        # Also build abundance_count_by_sample_dict (same as total_results for now)
+        self.abundance_count_by_sample_dict = {
+            g: {
+                'total_Abundance': v['total_Abundance'],
+                'unique_peptides': v['unique_peptides'],
+                'relative_Abundance': v['relative_Abundance'],
+                'relative_peptides': v['relative_peptides'],
+            }
+            for g, v in total_results.items()
+        }
+
+    # ------------------------------------------------------------------
+    # Step 3: Calculate bioactive function data
+    # ------------------------------------------------------------------
+
+    def calculate_bioactive_data(self):
+        df = self.filtered_df
+        if df is None or 'function' not in df.columns:
+            return
+
+        all_fns = (
+            ['Functional Peptides', 'Non-Functional Peptides']
+            if self.plot_filter == 'Functional vs Non-Functional Peptides'
+            else self.all_functions
+        )
+
+        unique_fn_ab: dict = {}
+        unique_fn_ct: dict = {}
+        fn_ab_totals: dict = {}
+        fn_ct_totals: dict = {}
+        fn_group_metrics: dict = {}
+
+        for group_name in self.selected_groups:
+            col = f'Avg_{group_name}'
+            if col not in df.columns:
+                continue
+            temp = df[['Unique Peptide ID', 'function', col]].copy()
+            temp[col] = pd.to_numeric(temp[col], errors='coerce')
+            nonzero = temp[(temp[col] != 0) & temp[col].notna()]
+            unique_fn_ab.setdefault(group_name, {})
+            unique_fn_ct.setdefault(group_name, {})
+
+            total_fn_ab = 0.0
+            total_fn_ct = 0
+
+            for fn in all_fns:
+                if self.plot_filter == 'Functional vs Non-Functional Peptides':
+                    mask = nonzero['function'].notna() if fn == 'Functional Peptides' else nonzero['function'].isna()
+                else:
+                    mask = nonzero['function'].apply(lambda x: contains_function(x, fn))
+
+                fn_rows = nonzero[mask]
+                ab = float(fn_rows[col].sum())
+                ct = int(fn_rows['Unique Peptide ID'].nunique())
+                unique_fn_ab[group_name][fn] = ab
+                unique_fn_ct[group_name][fn] = ct
+                total_fn_ab += ab
+                total_fn_ct += ct
+
+                fn_group_metrics.setdefault(fn, {})
+                fn_group_metrics[fn][group_name] = {
+                    'Abundance': ab,
+                    'count': ct,
+                    'rel_Abundance': 0.0,
+                    'rel_count': 0.0,
+                }
+
+            fn_ab_totals[group_name] = total_fn_ab
+            fn_ct_totals[group_name] = total_fn_ct
+
+        # Relative values
+        for fn, gdict in fn_group_metrics.items():
+            for gname, vals in gdict.items():
+                tot_ab = fn_ab_totals.get(gname, 0)
+                tot_ct = fn_ct_totals.get(gname, 0)
+                vals['rel_Abundance'] = vals['Abundance'] / tot_ab * 100 if tot_ab else 0
+                vals['rel_count'] = vals['count'] / tot_ct * 100 if tot_ct else 0
+
+        self.unique_function_abundance_dict = unique_fn_ab
+        self.unique_function_counts_dict = unique_fn_ct
+        self.function_abundance_totals_dict = fn_ab_totals
+        self.function_count_totals_dict = fn_ct_totals
+        self.function_group_metrics_dict = fn_group_metrics
+
+    # ------------------------------------------------------------------
+    # Step 4: Build function DataFrame
+    # ------------------------------------------------------------------
+
+    def create_function_df(self):
+        if self.filtered_df is None:
+            return
+
+        if self.plot_filter == 'Functional vs Non-Functional Peptides':
+            all_fns = ['Functional Peptides', 'Non-Functional Peptides']
+        else:
+            broader = {'Functional Peptides', 'Non-Functional Peptides', 'Minor Functions'}
+            all_fns = [f for f in self.all_functions if f not in broader]
+
+        rows = []
+        for fn in all_fns:
+            row = {'Description': fn}
+            for g in self.selected_groups:
+                ab = self.unique_function_abundance_dict.get(g, {}).get(fn, 0)
+                ct = self.unique_function_counts_dict.get(g, {}).get(fn, 0)
+                row[f'Avg_{g}'] = ab
+                row[f'Rel_Avg_{g}'] = 0.0
+                row[f'Count_{g}'] = ct
+                row[f'Rel_Count_{g}'] = 0.0
+            rows.append(row)
+
+        if not rows:
+            self.function_df = pd.DataFrame()
+            return
+
+        self.function_df = pd.DataFrame(rows)
+
+        for g in self.selected_groups:
+            tot_ab = self.function_df[f'Avg_{g}'].sum()
+            tot_ct = self.function_df[f'Count_{g}'].sum()
+            if tot_ab > 0:
+                self.function_df[f'Rel_Avg_{g}'] = (self.function_df[f'Avg_{g}'] / tot_ab * 100).round(6)
+            if tot_ct > 0:
+                self.function_df[f'Rel_Count_{g}'] = (self.function_df[f'Count_{g}'] / tot_ct * 100).round(6)
+
+        ab_cols = [f'Avg_{g}' for g in self.selected_groups]
+        self.function_df['avg_abundance_all'] = (
+            self.function_df[ab_cols].sum(axis=1) /
+            max(self.function_df[ab_cols].sum().sum(), 1e-10) * 100
+        ).round(6)
+        self.function_df = self.function_df.sort_values('avg_abundance_all', ascending=False)
+
+        # Handle "Minor Functions"
+        if self.plot_minor and self.plot_filter not in ('Functional vs Non-Functional Peptides',):
+            selected_fn_set = set(self.selected_functions)
+            minor_rows = self.function_df[~self.function_df['Description'].isin(selected_fn_set)]
+            main_rows = self.function_df[self.function_df['Description'].isin(selected_fn_set)]
+
+            if not minor_rows.empty:
+                minor_row = {'Description': 'Minor Functions'}
+                for g in self.selected_groups:
+                    minor_row[f'Avg_{g}'] = minor_rows[f'Avg_{g}'].sum()
+                    minor_row[f'Rel_Avg_{g}'] = minor_rows[f'Rel_Avg_{g}'].sum()
+                    minor_row[f'Count_{g}'] = minor_rows[f'Count_{g}'].sum()
+                    minor_row[f'Rel_Count_{g}'] = minor_rows[f'Rel_Count_{g}'].sum()
+                minor_row['avg_abundance_all'] = minor_rows['avg_abundance_all'].sum()
+                self.function_df = pd.concat(
+                    [main_rows, pd.DataFrame([minor_row])],
+                    ignore_index=True,
+                )
+                if 'Minor Functions' not in self.selected_functions:
+                    self.selected_functions = list(self.selected_functions) + ['Minor Functions']
+
+    # ------------------------------------------------------------------
+    # Step 5: Build protein DataFrame
+    # ------------------------------------------------------------------
+
+    def process_protein_data(self):
+        if self.filtered_df is None or not self.protein_dict:
+            return
+
+        df = self.filtered_df.copy()
+        abundance_cols = [f'Avg_{g}' for g in self.selected_groups]
+        available_ab = [c for c in abundance_cols if c in df.columns]
+
+        if not available_ab or 'Protein' not in df.columns:
+            return
+
+        # Calculate protein totals
+        protein_data = {}
+        for _, row in df.iterrows():
+            proteins = [p.strip() for p in str(row.get('Protein', '')).split(';') if p.strip()]
+            pep_id = row.get('Unique Peptide ID', '')
+            for pid in proteins:
+                if pid not in protein_data:
+                    protein_data[pid] = {
+                        'peptides': set(),
+                        'abundance': {g: 0.0 for g in self.selected_groups},
+                    }
+                protein_data[pid]['peptides'].add(pep_id)
+                for g in self.selected_groups:
+                    col = f'Avg_{g}'
+                    if col in row:
+                        v = row[col]
+                        if pd.notna(v):
+                            protein_data[pid]['abundance'][g] += float(v)
+
+        rows = []
+        for pid, pdata in protein_data.items():
+            name = self.protein_dict.get(pid, {}).get('name', pid)
+            row = {'Protein': pid, 'Description': name}
+            for g in self.selected_groups:
+                ab = pdata['abundance'][g]
+                row[f'Avg_{g}'] = ab
+            row['unique_peptide_count'] = len(pdata['peptides'])
+            rows.append(row)
+
+        if not rows:
+            self.protein_df = pd.DataFrame()
+            return
+
+        self.protein_df = pd.DataFrame(rows)
+
+        # Relative abundances
+        for g in self.selected_groups:
+            col = f'Avg_{g}'
+            total = self.protein_df[col].sum()
+            self.protein_df[f'Rel_{col}'] = (self.protein_df[col] / total * 100).round(6) if total else 0.0
+
+        # sum_df
+        self.sum_df = pd.DataFrame({
+            'Sample': [f'Avg_{g}' for g in self.selected_groups],
+            'Total_Sum': [self.protein_df[f'Avg_{g}'].sum() for g in self.selected_groups],
+        })
+
+        # Sort by total abundance
+        ab_cols = [f'Avg_{g}' for g in self.selected_groups]
+        total_sum = max(self.protein_df[ab_cols].sum().sum(), 1e-10)
+        self.protein_df['avg_abundance_all'] = (
+            self.protein_df[ab_cols].sum(axis=1) / total_sum * 100
+        ).round(2)
+        self.protein_df = self.protein_df.sort_values('avg_abundance_all', ascending=False)
+
+        # Build protein_sample_distribution_dict
+        psdd = {}
+        for _, row in self.protein_df.iterrows():
+            pname = row['Description']
+            psdd[pname] = {
+                'Abundance': {g: row.get(f'Avg_{g}', 0) for g in self.selected_groups},
+                'counts': {g: 0 for g in self.selected_groups},
+                'abundance_relative': {g: row.get(f'Rel_Avg_{g}', 0) for g in self.selected_groups},
+                'count_relative': {g: 0 for g in self.selected_groups},
+                'unique_peptide_count': row.get('unique_peptide_count', 0),
+                'total_Abundance': sum(row.get(f'Avg_{g}', 0) for g in self.selected_groups),
+                'total_count': 0,
+            }
+        self.protein_sample_distribution_dict = psdd
+        self.protein_count_bysample_dict = {g: 0 for g in self.selected_groups}
+
+    # ------------------------------------------------------------------
+    # Step 6: Reorganize by function
+    # ------------------------------------------------------------------
+
+    def reorganize_by_function(self):
+        if self.function_df is None or self.function_df.empty:
+            return
+
+        fdd = {}
+        for _, row in self.function_df.iterrows():
+            fn = row['Description']
+            if fn not in (self.selected_functions + (['Minor Functions'] if self.plot_minor else [])):
+                continue
+            fdd[fn] = {
+                'Abundance': {g: float(row.get(f'Avg_{g}', 0)) for g in self.selected_groups},
+                'counts': {g: float(row.get(f'Count_{g}', 0)) for g in self.selected_groups},
+                'abundance_relative': {g: float(row.get(f'Rel_Avg_{g}', 0)) for g in self.selected_groups},
+                'count_relative': {g: float(row.get(f'Rel_Count_{g}', 0)) for g in self.selected_groups},
+                'total_Abundance': sum(float(row.get(f'Avg_{g}', 0)) for g in self.selected_groups),
+                'total_count': sum(float(row.get(f'Count_{g}', 0)) for g in self.selected_groups),
+                'unique_peptide_count': 0,
+                'values': {},
+            }
+            # 'values' alias for quick access
+            if self.use_count:
+                fdd[fn]['values'] = fdd[fn]['counts']
+            else:
+                fdd[fn]['values'] = fdd[fn]['Abundance']
+
+        self.function_distribution_dict = fdd
+
+    # ------------------------------------------------------------------
+    # Run full pipeline
+    # ------------------------------------------------------------------
+
+    def run_pipeline(self):
+        self._resolve_selected_proteins()
+        self._resolve_selected_functions()
+        self.filter_dataframe()
+        self.process_protein_data()
+        if 'function' in self.filtered_df.columns and not self.filtered_df['function'].isna().all():
+            self.calculate_bioactive_data()
+            self.create_function_df()
+            self.reorganize_by_function()
