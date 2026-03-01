@@ -90,48 +90,89 @@ def plot_total_peptides(state: DataAnalysisState):
     )
 
     if state.use_count:
+        count_label_text = [f"{c:.2f}" if use_log else f"{int(c):,}" for c in counts]
         fig = go.Figure()
         fig.add_trace(go.Bar(
             x=groups, y=counts, name='Peptide Count',
             marker=dict(color=first_color, line=dict(color='black', width=1)),
             error_y=dict(type='data', array=count_sems, visible=True,
                          thickness=1.5, width=4, color='#000000'),
+            hovertemplate=(
+                "Group: %{x}<br>"
+                "Unique Peptides: %{y:.0f}<br>"
+                "SEM: %{error_y.array:.1f}<br>"
+                "<extra></extra>"
+            ),
+        ))
+        fig.add_trace(go.Scatter(
+            x=groups,
+            y=[c + (s * 1.2) for c, s in zip(counts, count_sems)],
+            mode='text',
+            text=count_label_text,
+            textposition='top center',
+            textfont=dict(size=12),
+            showlegend=False,
+            hoverinfo='none',
         ))
         y_axis_title = f'{y_prefix}Unique Peptide Count'
-        ticksuffix = ''
+        if use_log:
+            yaxis_kw = dict(tickformat=tickfmt, title_font=dict(size=18, color='black'),
+                            tickfont=dict(size=16, color='black'), **AXIS_STYLE)
+        else:
+            yaxis_kw = dict(tickformat=',d', exponentformat='none',
+                            title_font=dict(size=18, color='black'),
+                            tickfont=dict(size=16, color='black'), **AXIS_STYLE)
         fig.update_layout(
             **COMMON_LAYOUT,
             title=dict(text=_make_title(state), y=0.95, x=0.5, xanchor='center',
                        yanchor='top', font=dict(size=18, color='black')),
-            xaxis=dict(title='Sample', **AXIS_STYLE, tickangle=-35,
+            xaxis=dict(title='Sample', **AXIS_STYLE, tickangle=45,
                        title_font=dict(size=18, color='black'),
                        tickfont=dict(size=16, color='black')),
-            yaxis=dict(title=y_axis_title, tickformat=tickfmt,
-                       title_font=dict(size=18, color='black'),
-                       tickfont=dict(size=16, color='black'), **AXIS_STYLE),
+            yaxis=dict(title=y_axis_title, **yaxis_kw),
         )
     else:
+        abundance_label_text = [f"{a:.2f}" if use_log else f"{a:.2e}" for a in abundances]
         fig = go.Figure()
         fig.add_trace(go.Bar(
             x=groups, y=abundances, name='Abundance',
             marker=dict(color=first_color, line=dict(color='black', width=1)),
             error_y=dict(type='data', array=abundance_sems, visible=True,
                          thickness=1.5, width=4, color='#000000'),
+            hovertemplate=(
+                "Group: %{x}<br>"
+                "Total Abundance: %{y:.2e}<br>"
+                "SEM: %{error_y.array:.2e}<br>"
+                "<extra></extra>"
+            ),
+        ))
+        fig.add_trace(go.Scatter(
+            x=groups,
+            y=[a + s for a, s in zip(abundances, abundance_sems)],
+            mode='text',
+            text=abundance_label_text,
+            textposition='top center',
+            textfont=dict(size=14),
+            showlegend=False,
+            hoverinfo='none',
         ))
         y_axis_title = f'{y_prefix}Summed Abundance'
+        if use_log:
+            yaxis_kw = dict(tickformat=tickfmt, title_font=dict(size=18, color='black'),
+                            tickfont=dict(size=16, color='black'), **AXIS_STYLE)
+        else:
+            yaxis_kw = dict(type='log', exponentformat='e',
+                            title_font=dict(size=18, color='black'),
+                            tickfont=dict(size=16, color='black'), **AXIS_STYLE)
         fig.update_layout(
             **COMMON_LAYOUT,
             title=dict(text=_make_title(state), y=0.95, x=0.5, xanchor='center',
                        yanchor='top', font=dict(size=18, color='black')),
-            xaxis=dict(title=state.xlabel or 'Sample', **AXIS_STYLE, tickangle=-35,
+            xaxis=dict(title=state.xlabel or 'Sample', **AXIS_STYLE, tickangle=45,
                        title_font=dict(size=18, color='black'),
                        tickfont=dict(size=16, color='black')),
-            yaxis=dict(title=state.ylabel or y_axis_title, tickformat=tickfmt,
-                       title_font=dict(size=18, color='black'),
-                       tickfont=dict(size=16, color='black'), **AXIS_STYLE),
+            yaxis=dict(title=state.ylabel or y_axis_title, **yaxis_kw),
         )
-    if use_log and getattr(state, 'y_axis_format', 'linear') == 'power':
-        _power_ticks(fig)
     return fig
 
 
@@ -179,14 +220,30 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                     item, group = cat, bar_group
 
                 entry = state.function_distribution_dict.get(item, {})
+                abs_value = entry.get('counts' if use_count else 'Abundance', {}).get(group, 0)
+                rel_value = entry.get('count_relative' if use_count else 'abundance_relative', {}).get(group, 0)
                 if state.is_relative:
-                    v = entry.get('count_relative' if use_count else 'abundance_relative', {}).get(group, 0)
+                    v = rel_value
                 else:
-                    v = entry.get('counts' if use_count else 'Abundance', {}).get(group, 0)
-                if use_log:
-                    v = _safe_log(v)
+                    v = abs_value
+                    if use_log:
+                        v = _safe_log(v)
                 values.append(v)
-                hover.append(f"{item} / {group}: {v:.4g}")
+                item_label = 'Function' if plot_filter in ('Selected Function(s)', 'Functional vs Non-Functional Peptides') else 'Protein'
+                if state.is_relative:
+                    hover.append(
+                        f"{item_label}: {item}<br>"
+                        f"Sample: {group}<br>"
+                        f"Relative Contribution: {rel_value:.1f}%<br>"
+                        f"{state.metric_name}: {abs_value:{state.num_format}}"
+                    )
+                else:
+                    hover.append(
+                        f"{item_label}: {item}<br>"
+                        f"Sample: {group}<br>"
+                        f"{state.metric_name}: {abs_value:{state.num_format}}<br>"
+                        f"Relative Contribution: {rel_value:.1f}%"
+                    )
 
             fig.add_trace(go.Bar(
                 x=x_pos, y=values, name=disp_bg,
@@ -195,19 +252,20 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                 hovertext=hover, hoverinfo='text',
             ))
 
+        y_title = state.ylabel or ('Log<sub>10</sub> ' if use_log else '') + state.metric_name
+        yaxis_fn = _build_grouped_yaxis(state, use_log, use_count)
         fig.update_layout(
             **_common_layout(state),
             xaxis=dict(tickvals=list(range(len(categories))), ticktext=display_cats,
-                       tickangle=-35, title=state.xlabel or 'Category',
+                       tickangle=45, title=state.xlabel or 'Category',
                        **_axis_style()),
-            yaxis=dict(title=state.ylabel or ('Log<sub>10</sub> ' if use_log else '') + state.metric_name,
-                       **_axis_style()),
+            yaxis=dict(title=y_title, **yaxis_fn),
             barmode='group',
+            hoverlabel=dict(bgcolor='white', font_size=12, font_family='Arial'),
             legend=dict(title=dict(text=state.legend_title or 'Item'),
-                        font=dict(size=12)),
+                        yanchor='top', y=1.0, xanchor='left', x=1.05,
+                        font=dict(size=12, color='black')),
         )
-        if use_log and getattr(state, 'y_axis_format', 'linear') == 'power':
-            _power_ticks(fig)
         return fig
 
     elif orientation == 'By Protein' or (orientation == 'By Sample' and plot_filter == 'Selected Protein(s)'):
@@ -238,18 +296,34 @@ def create_grouped_bar_plot(state: DataAnalysisState):
             for cat in categories:
                 if orientation == 'By Sample':
                     item, group = bar_group, cat
-                    col = f'Rel_Avg_{group}' if state.is_relative else f'Avg_{group}'
-                    row = df[df['Description'] == item]
-                    v = float(row[col].values[0]) if len(row) > 0 and col in row.columns else 0
                 else:
                     item, group = cat, bar_group
-                    col = f'Rel_Avg_{group}' if state.is_relative else f'Avg_{group}'
-                    row = df[df['Description'] == item]
-                    v = float(row[col].values[0]) if len(row) > 0 and col in row.columns else 0
-                if use_log:
-                    v = _safe_log(v)
+                abs_col = f'Avg_{group}'
+                rel_col = f'Rel_Avg_{group}'
+                row = df[df['Description'] == item]
+                abs_value = float(row[abs_col].values[0]) if len(row) > 0 and abs_col in row.columns else 0
+                rel_value = float(row[rel_col].values[0]) if len(row) > 0 and rel_col in row.columns else 0
+                if state.is_relative:
+                    v = rel_value
+                else:
+                    v = abs_value
+                    if use_log:
+                        v = _safe_log(v)
                 values.append(v)
-                hover.append(f"{item} / {group}: {v:.4g}")
+                if state.is_relative:
+                    hover.append(
+                        f"Protein: {item}<br>"
+                        f"Sample: {group}<br>"
+                        f"Relative Contribution: {rel_value:.1f}%<br>"
+                        f"{state.metric_name}: {abs_value:{state.num_format}}"
+                    )
+                else:
+                    hover.append(
+                        f"Protein: {item}<br>"
+                        f"Sample: {group}<br>"
+                        f"{state.metric_name}: {abs_value:{state.num_format}}<br>"
+                        f"Relative Contribution: {rel_value:.1f}%"
+                    )
 
             fig.add_trace(go.Bar(
                 x=x_pos, y=values, name=disp_bg,
@@ -258,17 +332,19 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                 hovertext=hover, hoverinfo='text',
             ))
 
+        y_title = state.ylabel or ('Log<sub>10</sub> ' if use_log else '') + state.metric_name
+        yaxis_prot = _build_grouped_yaxis(state, use_log, use_count)
         fig.update_layout(
             **_common_layout(state),
             xaxis=dict(tickvals=list(range(len(categories))), ticktext=display_cats,
-                       tickangle=-35, title=state.xlabel or 'Category', **_axis_style()),
-            yaxis=dict(title=state.ylabel or ('Log<sub>10</sub> ' if use_log else '') + state.metric_name,
-                       **_axis_style()),
+                       tickangle=45, title=state.xlabel or 'Category', **_axis_style()),
+            yaxis=dict(title=y_title, **yaxis_prot),
             barmode='group',
-            legend=dict(title=dict(text=state.legend_title or 'Item'), font=dict(size=12)),
+            hoverlabel=dict(bgcolor='white', font_size=12, font_family='Arial'),
+            legend=dict(title=dict(text=state.legend_title or 'Item'),
+                        yanchor='top', y=1.0, xanchor='left', x=1.05,
+                        font=dict(size=12, color='black')),
         )
-        if use_log and getattr(state, 'y_axis_format', 'linear') == 'power':
-            _power_ticks(fig)
         return fig
 
     elif plot_filter in ('No Filter', 'Both') and orientation == 'By Sample':
@@ -319,60 +395,106 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
 
     fig = go.Figure()
 
+    # Pre-compute total sums per group for proportional log stacking
+    total_sums = {}
+    if use_log and not state.is_relative and df is not None and not df.empty:
+        for g in selected_groups:
+            abs_col = f'Count_{g}' if use_count else f'Avg_{g}'
+            if abs_col in df.columns:
+                total_sums[g] = float(df[abs_col].sum())
+            else:
+                total_sums[g] = 0.0
+
+    item_label = 'Function' if plot_filter in ('Selected Function(s)', 'Functional vs Non-Functional Peptides') else 'Protein'
+
     if orientation == 'By Sample':
         for i, item in enumerate(selected_items):
             row = df[df[items_col] == item] if df is not None else pd.DataFrame()
             values = []
+            hover_texts = []
             for g in selected_groups:
                 if df is None or row.empty:
                     values.append(0)
+                    hover_texts.append(f"No data for {item} in {g}")
                 else:
-                    col = (f'Rel_Count_{g}' if state.is_relative else f'Count_{g}') if use_count else \
-                          (f'Rel_Avg_{g}' if state.is_relative else f'Avg_{g}')
-                    v = float(row[col].values[0]) if col in row.columns else 0
-                    if use_log:
-                        v = _safe_log(v)
+                    abs_col = (f'Count_{g}' if use_count else f'Avg_{g}')
+                    rel_col = (f'Rel_Count_{g}' if use_count else f'Rel_Avg_{g}')
+                    abs_value = float(row[abs_col].values[0]) if abs_col in row.columns else 0
+                    rel_value = float(row[rel_col].values[0]) if rel_col in row.columns else 0
+                    if state.is_relative:
+                        v = rel_value
+                    elif use_log:
+                        total = total_sums.get(g, 0)
+                        log_total = np.log10(max(total, 1e-10)) if total > 0 else 0
+                        v = rel_value / 100 * log_total
+                    else:
+                        v = abs_value
                     values.append(v)
+                    hover_texts.append(
+                        f"{item_label}: {item}<br>"
+                        f"Sample: {g}<br>"
+                        f"Relative {state.metric_name}: {rel_value:.2f}%<br>"
+                        f"Absolute {state.metric_name}: {abs_value:{state.num_format}}"
+                    )
 
             disp_name = redact_string_descriptions(item)
             fig.add_trace(go.Bar(
                 name=disp_name, x=selected_groups, y=values,
                 marker=dict(color=color_map.get(item, '#999'), line=dict(color='white', width=0.5)),
+                hovertext=hover_texts, hoverinfo='text',
             ))
     else:
         # By Function / By Protein orientation - reverse axes
         for g in selected_groups:
             values = []
+            hover_texts = []
             for item in selected_items:
                 row = df[df[items_col] == item] if df is not None else pd.DataFrame()
                 if row.empty:
                     values.append(0)
+                    hover_texts.append(f"No data for {item} in {g}")
                 else:
-                    col = (f'Rel_Count_{g}' if state.is_relative else f'Count_{g}') if use_count else \
-                          (f'Rel_Avg_{g}' if state.is_relative else f'Avg_{g}')
-                    v = float(row[col].values[0]) if col in row.columns else 0
-                    if use_log:
-                        v = _safe_log(v)
+                    abs_col = (f'Count_{g}' if use_count else f'Avg_{g}')
+                    rel_col = (f'Rel_Count_{g}' if use_count else f'Rel_Avg_{g}')
+                    abs_value = float(row[abs_col].values[0]) if abs_col in row.columns else 0
+                    rel_value = float(row[rel_col].values[0]) if rel_col in row.columns else 0
+                    if state.is_relative:
+                        v = rel_value
+                    elif use_log:
+                        total = total_sums.get(g, 0)
+                        log_total = np.log10(max(total, 1e-10)) if total > 0 else 0
+                        v = rel_value / 100 * log_total
+                    else:
+                        v = abs_value
                     values.append(v)
+                    hover_texts.append(
+                        f"{item_label}: {item}<br>"
+                        f"Sample: {g}<br>"
+                        f"Relative {state.metric_name}: {rel_value:.2f}%<br>"
+                        f"Absolute {state.metric_name}: {abs_value:{state.num_format}}"
+                    )
 
             fig.add_trace(go.Bar(
                 name=redact_string_descriptions(g),
                 x=[redact_string_descriptions(it) for it in selected_items],
                 y=values,
                 marker=dict(line=dict(color='white', width=0.5)),
+                hovertext=hover_texts, hoverinfo='text',
             ))
 
     y_title = ('Relative ' if state.is_relative else '') + \
-               ('Log<sub>10</sub> ' if use_log else '') + state.metric_name
+               ('Log<sub>10</sub> ' if (use_log and not state.is_relative) else '') + state.metric_name
+    yaxis_stk = _axis_style()
+    if state.is_relative:
+        yaxis_stk['range'] = [0, 100]
     fig.update_layout(
         **_common_layout(state),
         barmode='stack',
-        xaxis=dict(title=state.xlabel or 'Sample', tickangle=-35, **_axis_style()),
-        yaxis=dict(title=state.ylabel or y_title, **_axis_style()),
+        xaxis=dict(title=state.xlabel or 'Sample', tickangle=45, **_axis_style()),
+        yaxis=dict(title=state.ylabel or y_title, **yaxis_stk),
+        hoverlabel=dict(bgcolor='white', font_size=12, font_family='Arial'),
         legend=dict(title=dict(text=state.legend_title or 'Item'), font=dict(size=12)),
     )
-    if use_log and getattr(state, 'y_axis_format', 'linear') == 'power':
-        _power_ticks(fig)
     return fig
 
 
@@ -522,7 +644,7 @@ def create_correlation_plot(state: DataAnalysisState):
     if len(fdf) > 1:
         if state.correlation_type == 'Pearson':
             corr, p = pearsonr(x_vals, y_vals)
-            sym = 'r'
+            sym = '<i>r</i>'
         else:
             corr, p = spearmanr(x_vals, y_vals)
             sym = 'ρ'
@@ -540,6 +662,22 @@ def create_correlation_plot(state: DataAnalysisState):
         fdf[pn_col].fillna('N/A') if pn_col else ['N/A'] * len(fdf),
     ])
 
+    # Synchronized tick values for both axes (same range)
+    x_min, x_max = float(x_vals.min()), float(x_vals.max())
+    y_min, y_max = float(y_vals.min()), float(y_vals.max())
+    overall_min = min(x_min, y_min)
+    overall_max = max(x_max, y_max)
+    combined_range = [overall_min * 0.95, overall_max * 1.05]
+    if use_log:
+        range_span = combined_range[1] - combined_range[0]
+        if range_span > 5:
+            tick_vals = list(np.arange(np.floor(combined_range[0]), np.ceil(combined_range[1]) + 1, 1))
+        else:
+            tick_vals = list(np.arange(np.floor(combined_range[0] * 2) / 2,
+                                       np.ceil(combined_range[1] * 2) / 2 + 0.5, 0.5))
+    else:
+        tick_vals = list(np.linspace(combined_range[0], combined_range[1], 6))
+
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=x_vals, y=y_vals, mode='markers',
@@ -547,9 +685,11 @@ def create_correlation_plot(state: DataAnalysisState):
         marker=dict(color=first_color),
         customdata=customdata,
         hovertemplate=(
-            '<b>Peptide:</b> %{customdata[0]}<br>'
+            '<b>Peptide ID:</b> %{customdata[0]}<br>'
             '<b>Function:</b> %{customdata[1]}<br>'
             '<b>Protein:</b> %{customdata[2]}<br>'
+            '<b>%{xaxis.title.text}:</b> %{x:' + tickfmt + '}<br>'
+            '<b>%{yaxis.title.text}:</b> %{y:' + tickfmt + '}<br>'
             '<extra></extra>'
         ),
     ))
@@ -564,25 +704,30 @@ def create_correlation_plot(state: DataAnalysisState):
             hovertemplate='<extra></extra>',
         ))
 
-    ax_kw = dict(tickformat=tickfmt, showline=True, linewidth=1, linecolor='black',
+    ax_kw = dict(tickformat=tickfmt, tickvals=tick_vals, nticks=5,
+                 range=combined_range,
+                 showline=True, linewidth=1, linecolor='black',
                  gridcolor='lightgray', showgrid=True, zeroline=False,
                  tickfont=dict(size=14, color='black'),
                  title_font=dict(size=16, color='black'))
 
-    leg_title = state.legend_title or f'{state.correlation_type} Correlation'
+    leg_title = state.legend_title or f'{state.correlation_type} Correlation Values'
     fig.update_layout(
         title=dict(text=_make_title(state), x=0.5, xanchor='center',
                    font=dict(size=18, color='black')),
-        xaxis=dict(title=x_label, **ax_kw),
+        xaxis=dict(title=x_label, tickangle=45, **ax_kw),
         yaxis=dict(title=y_label, **ax_kw),
-        height=500, width=650,
+        height=500, width=600,
         template='plotly_white',
-        legend=dict(title=dict(text=leg_title, font=dict(size=14, color='black')),
-                    font=dict(size=13)),
+        showlegend=True,
+        legend=dict(
+            title=dict(text=leg_title, font=dict(size=16, color='black')),
+            yanchor='top', y=0.99, xanchor='right', x=0.99,
+            bgcolor='rgba(255, 255, 255, 0.8)',
+            font=dict(size=14),
+        ),
         margin=dict(t=100, b=80, l=80, r=50),
     )
-    if use_log and getattr(state, 'y_axis_format', 'linear') == 'power':
-        _power_ticks(fig, y_axis='yaxis', x_axis='xaxis')
     return fig
 
 
@@ -694,6 +839,33 @@ def create_correlation_splom(state: DataAnalysisState):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _build_grouped_yaxis(state: DataAnalysisState, use_log: bool, use_count: bool) -> dict:
+    """Return y-axis kwargs matching notebook grouped bar plot formatting."""
+    kw = _axis_style()
+    if state.is_relative:
+        kw['range'] = [0, 100]
+    elif use_count and use_log:
+        kw['type'] = 'linear'
+        kw['tickformat'] = '.1f'
+        kw['exponentformat'] = 'none'
+        kw['showexponent'] = 'none'
+    elif use_count and not use_log:
+        kw['type'] = 'linear'
+        kw['tickformat'] = ',d'
+        kw['exponentformat'] = 'none'
+        kw['showexponent'] = 'none'
+    elif not use_count and use_log:
+        kw['type'] = 'linear'
+        kw['tickformat'] = '.1f'
+        kw['exponentformat'] = 'none'
+        kw['showexponent'] = 'none'
+    else:  # abundance, no log
+        kw['type'] = 'linear'
+        kw['exponentformat'] = 'E'
+        kw['showexponent'] = 'all'
+    return kw
+
 
 def _power_ticks(fig, y_axis='yaxis', x_axis=None):
     """
