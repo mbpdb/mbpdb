@@ -48,6 +48,53 @@
         });
     });
 
+    // -----------------------------------------------------------------------
+    // "Load example" links — fetch static example file and inject into input
+    // -----------------------------------------------------------------------
+    document.querySelectorAll('.dt-load-example').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            var url = link.getAttribute('data-url');
+            var inputId = link.getAttribute('data-input-id');
+            var input = document.getElementById(inputId);
+            var fileName = url.split('/').pop().replace(/\.[0-9a-f]{8,12}(\.[^.]+)$/, '$1');
+            var origHtml = link.innerHTML;
+
+            link.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:0.75rem;"></i> Loading...';
+            link.classList.add('loading');
+
+            fetch(url)
+                .then(function(r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.blob();
+                })
+                .then(function(blob) {
+                    var file = new File([blob], fileName, {type: blob.type || 'application/octet-stream'});
+                    var dt = new DataTransfer();
+                    dt.items.add(file);
+                    input.files = dt.files;
+                    input.dispatchEvent(new Event('change'));
+                    link.innerHTML = '<i class="fas fa-check" style="font-size:0.75rem;"></i> Loaded';
+                    link.classList.remove('loading');
+                    link.classList.add('loaded');
+                    // Reset after 3 s so it can be clicked again
+                    setTimeout(function() {
+                        link.innerHTML = origHtml;
+                        link.classList.remove('loaded');
+                    }, 3000);
+                })
+                .catch(function() {
+                    link.innerHTML = '<i class="fas fa-times" style="font-size:0.75rem;"></i> Failed';
+                    link.classList.remove('loading');
+                    link.style.color = '#dc3545';
+                    setTimeout(function() {
+                        link.innerHTML = origHtml;
+                        link.style.color = '';
+                    }, 3000);
+                });
+        });
+    });
+
     // Utility: AJAX helper
     function ajax(method, url, data, callback, errorCallback) {
         var xhr = new XMLHttpRequest();
@@ -93,6 +140,13 @@
         setTimeout(function() { el.classList.add('hidden'); }, 10000);
     }
 
+    function showStep2Error(msg) {
+        var el = document.getElementById('dt-error-step2');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+        setTimeout(function() { el.classList.add('hidden'); }, 10000);
+    }
+
     function goToStep(step) {
         currentStep = step;
         var indicators = document.querySelectorAll('.dt-step-indicator');
@@ -127,27 +181,27 @@
             var summary = '<div class="dt-alert dt-alert-success">' +
                 'Loaded <strong>' + resp.rows + '</strong> rows, <strong>' + resp.columns + '</strong> columns. ' +
                 'Found <strong>' + resp.sequences + '</strong> unique sequences to search.</div>';
-            if (resp.has_mbpdb) {
-                summary += '<div class="dt-alert dt-alert-success">' +
-                    '<i class="fas fa-check-circle"></i> MBPDB file loaded: <strong>' +
-                    resp.mbpdb_rows + '</strong> records. Skipping BLAST search.</div>';
-            }
             if (resp.warning) {
                 summary += '<div class="dt-alert dt-alert-warning">' + resp.warning + '</div>';
             }
-            document.getElementById('upload-summary').innerHTML = summary;
-            document.getElementById('upload-results').classList.remove('hidden');
 
-            // If MBPDB data was uploaded, auto-fire the BLAST step (which will skip
-            // immediately) so the user doesn't have to click "Search MBPDB".
             if (resp.has_mbpdb) {
+                // MBPDB file provided — skip the Search/Skip step entirely.
+                // Fold everything into one combined "Upload Summary" card.
+                summary += '<div class="dt-alert dt-alert-success">' +
+                    '<i class="fas fa-check-circle"></i> MBPDB file loaded: <strong>' +
+                    resp.mbpdb_rows + '</strong> records. Skipping BLAST search.</div>';
                 ajax('POST', 'start-blast/', null, function(blastResp) {
-                    document.getElementById('blast-results').classList.remove('hidden');
-                    document.getElementById('blast-summary').innerHTML =
-                        '<div class="dt-alert dt-alert-info">' +
+                    summary += '<div class="dt-alert dt-alert-info">' +
                         '<i class="fas fa-database"></i> ' + blastResp.message +
                         ' (' + blastResp.count + ' records)</div>';
+                    document.getElementById('blast-results-heading').textContent = 'Upload Summary';
+                    document.getElementById('blast-summary').innerHTML = summary;
+                    document.getElementById('blast-results').classList.remove('hidden');
                 });
+            } else {
+                document.getElementById('upload-summary').innerHTML = summary;
+                document.getElementById('upload-results').classList.remove('hidden');
             }
         }, function(msg) {
             btn.disabled = false;
@@ -300,7 +354,11 @@
             // Group panel uses bio rep columns (post-collapse)
             availableColumns = computeBioRepColumns();
             selectedColumns = [];
-            definedGroups = [];
+
+            // Restore previously saved groups (resume) or start fresh.
+            definedGroups = (resp.saved_groups && resp.saved_groups.length)
+                ? resp.saved_groups.slice()
+                : [];
 
             // Reset inputs
             document.getElementById('tr-bio-rep-name-input').value = '';
@@ -312,7 +370,7 @@
             renderDefinedTechReps();
             renderGroups();
             renderColumnPanels('');
-            document.getElementById('submit-groups-btn').disabled = true;
+            document.getElementById('submit-groups-btn').disabled = (definedGroups.length === 0);
         });
     }
 
@@ -443,8 +501,8 @@
 
     document.getElementById('tr-add-group-btn').addEventListener('click', function() {
         var name = document.getElementById('tr-bio-rep-name-input').value.trim();
-        if (!name) { showError('Please enter a biological replicate name'); return; }
-        if (trSelectedColumns.length < 2) { showError('Please select at least 2 columns to form a technical replicate group'); return; }
+        if (!name) { showStep2Error('Please enter a biological replicate name'); return; }
+        if (trSelectedColumns.length < 2) { showStep2Error('Please select at least 2 columns to form a technical replicate group'); return; }
         manualTechReps.push({name: name, columns: trSelectedColumns.slice()});
         document.getElementById('tr-bio-rep-name-input').value = '';
         trSelectedColumns = [];
@@ -538,8 +596,8 @@
 
     document.getElementById('add-group-btn').addEventListener('click', function() {
         var name = document.getElementById('group-name-input').value.trim();
-        if (!name) { showError('Please enter a group name'); return; }
-        if (!selectedColumns.length) { showError('Please select at least one column'); return; }
+        if (!name) { showStep2Error('Please enter a group name'); return; }
+        if (!selectedColumns.length) { showStep2Error('Please select at least one column'); return; }
         definedGroups.push({name: name, columns: selectedColumns.slice()});
         renderGroups();
         document.getElementById('group-name-input').value = '';
@@ -556,11 +614,44 @@
             return;
         }
         document.getElementById('defined-groups').classList.remove('hidden');
+        var dragSrcIdx = null;
         definedGroups.forEach(function(g, i) {
             var div = document.createElement('div');
             div.className = 'dt-group-item';
-            div.innerHTML = '<span><strong>' + g.name + '</strong> (' + g.columns.length + ' columns)</span>' +
+            div.draggable = true;
+            div.innerHTML =
+                '<span class="dt-group-drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical"></i></span>' +
+                '<span style="flex:1;"><strong>' + escHtml(g.name) + '</strong> (' + g.columns.length + ' columns)</span>' +
                 '<span class="remove-group" data-idx="' + i + '"><i class="fas fa-times"></i></span>';
+
+            div.addEventListener('dragstart', function(e) {
+                dragSrcIdx = i;
+                e.dataTransfer.effectAllowed = 'move';
+                div.classList.add('dt-group-dragging');
+            });
+            div.addEventListener('dragend', function() {
+                div.classList.remove('dt-group-dragging');
+                list.querySelectorAll('.dt-group-item').forEach(function(el) {
+                    el.classList.remove('dt-group-drag-over');
+                });
+            });
+            div.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                list.querySelectorAll('.dt-group-item').forEach(function(el) {
+                    el.classList.remove('dt-group-drag-over');
+                });
+                if (dragSrcIdx !== i) div.classList.add('dt-group-drag-over');
+            });
+            div.addEventListener('drop', function(e) {
+                e.preventDefault();
+                if (dragSrcIdx !== null && dragSrcIdx !== i) {
+                    var moved = definedGroups.splice(dragSrcIdx, 1)[0];
+                    definedGroups.splice(i, 0, moved);
+                    renderGroups();
+                }
+            });
+
             list.appendChild(div);
         });
         list.querySelectorAll('.remove-group').forEach(function(el) {
@@ -590,8 +681,8 @@
             ajax('POST', 'submit-groups/', {groups: definedGroups}, function() {
                 goToStep(3);
                 loadStep3();
-            }, function(msg) { btn.disabled = false; showError(msg); });
-        }, function(msg) { btn.disabled = false; showError(msg); });
+            }, function(msg) { btn.disabled = false; showStep2Error(msg); });
+        }, function(msg) { btn.disabled = false; showStep2Error(msg); });
     });
 
     // Skip Grouping: still save tech reps, then skip groups using bio rep columns
@@ -604,8 +695,8 @@
                 btn.disabled = false;
                 goToStep(3);
                 loadStep3();
-            }, function(msg) { btn.disabled = false; showError(msg); });
-        }, function(msg) { btn.disabled = false; showError(msg); });
+            }, function(msg) { btn.disabled = false; showStep2Error(msg); });
+        }, function(msg) { btn.disabled = false; showStep2Error(msg); });
     });
 
     // -----------------------------------------------------------------------
@@ -737,8 +828,7 @@
 
     document.getElementById('back-to-step2-btn').addEventListener('click', function() {
         goToStep(2);
-        // Re-render column panel in case columns need to be shown again
-        renderColumnPanels(document.getElementById('column-search').value);
+        loadStep2();
     });
 
     document.getElementById('fetch-uniprot-btn').addEventListener('click', function() {
@@ -861,6 +951,7 @@
                 resp.columns + '</strong> columns.</div>';
 
             renderExportButtons(resp.exports);
+            document.getElementById('viz-links-section').classList.remove('hidden');
         }, function(msg, resp) {
             btn.disabled = false;
             document.getElementById('process-progress').classList.add('hidden');
@@ -963,6 +1054,17 @@
         setTimeout(function() { document.body.removeChild(iframe); }, 30000);
     }
 
+    document.getElementById('download-all-btn').addEventListener('click', function() {
+        var corrType = document.getElementById('correlation-type').value;
+        var logTrans = document.getElementById('log-transform').checked;
+        var url = 'download-all/?correlation_type=' + corrType + '&log_transform=' + logTrans;
+        var iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = url;
+        document.body.appendChild(iframe);
+        setTimeout(function() { document.body.removeChild(iframe); }, 60000);
+    });
+
     function viewExport(type, label) {
         var corrType = document.getElementById('correlation-type').value;
         var logTrans = document.getElementById('log-transform').checked;
@@ -1046,11 +1148,99 @@
         document.getElementById('dt-viewer-panel').classList.add('hidden');
     });
 
+    // -----------------------------------------------------------------------
+    // Visualization transfer buttons
+    // -----------------------------------------------------------------------
+
+    function transferToViz(transferUrl, btnId, btnLabel, iconClass, redirectUrl, storageKey) {
+        var btn = document.getElementById(btnId);
+        btn.disabled = true;
+        btn.innerHTML = '<span class="dt-spinner"></span> Transferring...';
+        document.getElementById('viz-transfer-status').innerHTML = '';
+        ajax('POST', transferUrl, null, function(resp) {
+            try { sessionStorage.setItem(storageKey, JSON.stringify(resp)); } catch(e) {}
+            window.location.href = redirectUrl;
+        }, function(msg) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas ' + iconClass + '"></i> ' + btnLabel;
+            document.getElementById('viz-transfer-status').innerHTML =
+                '<div class="dt-alert dt-alert-danger">' + escHtml(msg) + '</div>';
+        });
+    }
+
+    document.getElementById('open-in-da-btn').addEventListener('click', function() {
+        transferToViz('/data_analysis/transfer-from-dt/', 'open-in-da-btn',
+            'Open in Data Analysis', 'fa-chart-bar',
+            '/data_analysis/?from_dt=1', 'da_from_dt');
+    });
+    document.getElementById('open-in-hm-btn').addEventListener('click', function() {
+        transferToViz('/heatmap/transfer-from-dt/', 'open-in-hm-btn',
+            'Open in Heatmap Visualization', 'fa-th',
+            '/heatmap/?from_dt=1', 'hm_from_dt');
+    });
+
     document.getElementById('start-over-btn').addEventListener('click', function() {
         if (!confirm('This will clear all data. Continue?')) return;
         ajax('POST', 'cleanup/', null, function() {
             location.reload();
         });
+    });
+
+    // Restore a dropzone's visual filename display (mirrors the internal showFile closure)
+    function restoreDropzoneName(inputId, fileName) {
+        if (!fileName) return;
+        var input = document.getElementById(inputId);
+        if (!input) return;
+        var zone = input.closest('.dt-dropzone');
+        if (!zone) return;
+        zone.querySelector('.drop-text').classList.add('hidden');
+        var el = zone.querySelector('.file-name');
+        el.textContent = fileName;
+        el.classList.remove('hidden');
+    }
+
+    // -----------------------------------------------------------------------
+    // Resume banner — check for existing session on page load
+    // -----------------------------------------------------------------------
+    ajax('GET', 'session-state/', null, function(resp) {
+        if (!resp.has_session || !resp.has_data) return;
+
+        // Restore uploaded file names on the Step 1 dropzones
+        var fn = resp.file_names || {};
+        restoreDropzoneName('peptidomic_file', fn.peptidomic_file);
+        restoreDropzoneName('functional_file', fn.functional_file);
+        restoreDropzoneName('fasta_file',      fn.fasta_file);
+
+        var banner = document.getElementById('dt-resume-banner');
+        var btns = document.getElementById('dt-resume-btns');
+
+        function makeResumeBtn(label, icon, onClick) {
+            var btn = document.createElement('button');
+            btn.className = 'dt-resume-btn';
+            btn.innerHTML = '<i class="fas ' + icon + '"></i> ' + label;
+            btn.addEventListener('click', function() {
+                banner.classList.add('hidden');
+                onClick();
+            });
+            btns.appendChild(btn);
+        }
+
+        makeResumeBtn('Upload Data', 'fa-upload', function() {
+            goToStep(1);
+        });
+        makeResumeBtn('Study Variables', 'fa-layer-group', function() {
+            goToStep(2); loadStep2();
+        });
+        makeResumeBtn('Protein Mapping', 'fa-dna', function() {
+            goToStep(3); loadStep3();
+        });
+        if (resp.has_processed) {
+            makeResumeBtn('Process &amp; Export', 'fa-cogs', function() {
+                goToStep(4);
+            });
+        }
+
+        banner.classList.remove('hidden');
     });
 
 })();
