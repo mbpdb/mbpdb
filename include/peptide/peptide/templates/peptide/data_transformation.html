@@ -95,10 +95,18 @@
     .dt-example-links { font-size: 0.82rem; color: #666; margin-top: 3px; }
     .dt-example-links a { color: #1976d2; text-decoration: none; }
     .dt-example-links a:hover { text-decoration: underline; }
-    .dt-group-item { padding: 8px 12px; background: #f0f7ff; border-radius: 4px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
-    .dt-group-item .remove-group { cursor: pointer; color: #dc3545; }
+    .dt-load-example.loading { color: #999; pointer-events: none; }
+    .dt-load-example.loaded { color: #4caf50; pointer-events: none; }
+    .dt-group-item { padding: 8px 12px; background: #f0f7ff; border-radius: 4px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; gap: 8px; cursor: default; }
+    .dt-group-item .remove-group { cursor: pointer; color: #dc3545; flex-shrink: 0; }
+    .dt-group-drag-handle { cursor: grab; color: #bbb; flex-shrink: 0; }
+    .dt-group-drag-handle:active { cursor: grabbing; }
+    .dt-group-item.dt-group-dragging { opacity: 0.4; }
+    .dt-group-item.dt-group-drag-over { outline: 2px dashed #1976d2; background: #e8f0fe; }
     #correlation-options { margin-top: 12px; padding: 12px; background: #f8f9fa; border-radius: 4px; }
     #correlation-options label { margin-right: 16px; }
+    .dt-resume-btn { padding: 5px 12px; font-size: 0.82rem; background: #fff; border: 1px solid #1976d2; color: #1976d2; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+    .dt-resume-btn:hover { background: #e8f0fe; }
 </style>
 {% endblock 'head' %}
 
@@ -113,6 +121,13 @@
         <div class="dt-step-indicator" data-step="2"><strong>2.</strong> Study Variables</div>
         <div class="dt-step-indicator" data-step="3"><strong>3.</strong> Protein Mapping</div>
         <div class="dt-step-indicator" data-step="4"><strong>4.</strong> Process & Export</div>
+    </div>
+
+    <div id="dt-resume-banner" class="dt-alert dt-alert-info hidden" style="margin-bottom:12px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+            <span><i class="fas fa-history"></i> <strong>Previous session found.</strong> Jump back to a step:</span>
+            <div id="dt-resume-btns" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+        </div>
     </div>
 
     <div id="dt-error" class="dt-alert dt-alert-danger hidden"></div>
@@ -131,7 +146,7 @@
                         <div class="file-name hidden"></div>
                     </div>
                     <div class="help-text">CSV, TSV, or XLSX file containing peptidomic results (Proteome Discoverer, MaxQuant, Skyline, etc.)</div>
-                    <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_peptidomic_data.csv' %}" download>Download example file</a></div>
+                    <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_peptidomic_data.csv' %}" download>Download example file</a> &middot; <a href="#" class="dt-load-example" data-input-id="peptidomic_file" data-url="{% static 'peptide/examples/data_transformation/example_peptidomic_data.csv' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
                 </div>
                 <!-- Functional data OR BLAST threshold (same row) -->
                 <div class="dt-or-row">
@@ -143,7 +158,7 @@
                             <div class="file-name hidden"></div>
                         </div>
                         <div class="help-text">Pre-computed MBPDB results (columns: search_peptide, peptide, function) — skips BLAST search</div>
-                        <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_mbpdb_functional_data.csv' %}" download>Download example file</a></div>
+                        <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_mbpdb_functional_data.csv' %}" download>Download example file</a> &middot; <a href="#" class="dt-load-example" data-input-id="functional_file" data-url="{% static 'peptide/examples/data_transformation/example_mbpdb_functional_data.csv' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
                     </div>
                     <div class="dt-or-divider">OR</div>
                     <div class="dt-blast-inline" id="blast-threshold-section">
@@ -173,7 +188,7 @@
                         <div class="file-name hidden"></div>
                     </div>
                     <div class="help-text">Additional FASTA protein sequences to supplement the default bovine/human milk protein database</div>
-                    <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_protein_sequences.fasta' %}" download>Download example file</a></div>
+                    <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_protein_sequences.fasta' %}" download>Download example file</a> &middot; <a href="#" class="dt-load-example" data-input-id="fasta_file" data-url="{% static 'peptide/examples/data_transformation/example_protein_sequences.fasta' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
                 </div>
                 <button type="submit" class="dt-btn dt-btn-primary" id="upload-btn">
                     <i class="fas fa-upload"></i> Upload & Validate
@@ -202,7 +217,7 @@
 
         <!-- BLAST results -->
         <div id="blast-results" class="dt-card hidden">
-            <h4>MBPDB Search Results</h4>
+            <h4 id="blast-results-heading">MBPDB Search Results</h4>
             <div id="blast-summary"></div>
             <div style="margin-top: 12px;">
                 <button class="dt-btn dt-btn-primary" id="goto-step2-btn">Continue to Study Variables <i class="fas fa-arrow-right"></i></button>
@@ -215,6 +230,7 @@
         <div class="dt-card">
             <h4>Define Study Variable Groups</h4>
             <p style="color:#666;">Group your abundance columns into experimental conditions. If any columns are technical replicates, define them below first — they will be averaged into a single biological replicate and become available in the group selector.</p>
+            <div id="dt-error-step2" class="dt-alert dt-alert-danger hidden" style="margin-bottom:12px;"></div>
 
             <!-- Technical Replicate Assignment (optional sub-section) -->
             <div style="margin-bottom:20px; padding-bottom:20px; border-bottom:2px solid #dee2e6;">
@@ -267,7 +283,7 @@
                     <div class="file-name hidden"></div>
                 </div>
                 <div class="help-text">JSON file mapping group names to abundance columns</div>
-                <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_study_variables.json' %}" download>Example JSON</a></div>
+                <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_study_variables.json' %}" download>Example JSON</a> &middot; <a href="#" class="dt-load-example" data-input-id="group-json-input" data-url="{% static 'peptide/examples/data_transformation/example_study_variables.json' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
             </div>
 
             <div id="manual-grouping">
@@ -295,7 +311,10 @@
             </div>
 
             <div id="defined-groups" class="hidden" style="margin-bottom:12px;">
-                <h5>Defined Groups:</h5>
+                <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:6px;">
+                    <h5 style="margin:0;">Defined Groups:</h5>
+                    <span style="font-size:0.8rem; color:#6c757d;"><i class="fas fa-grip-vertical" style="font-size:0.72rem;"></i> Drag rows to reorder — group order is preserved in the output.</span>
+                </div>
                 <div id="groups-list"></div>
             </div>
 
@@ -336,6 +355,7 @@
                     <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag & drop or click to select</div>
                     <div class="file-name hidden"></div>
                 </div>
+                <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_protein_mapping_key.json' %}" download>Download example file</a> &middot; <a href="#" class="dt-load-example" data-input-id="protein-map-input" data-url="{% static 'peptide/examples/data_transformation/example_protein_mapping_key.json' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
                 <div id="protein-map-upload-status"></div>
             </div>
 
@@ -397,7 +417,29 @@
                 </label>
             </div>
 
-            <div class="dt-export-list" id="export-buttons" style="margin-top: 16px;"></div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:16px; margin-bottom:4px;">
+                <strong style="font-size:0.95rem; color:#555;">Individual Downloads</strong>
+                <button class="dt-btn dt-btn-success" id="download-all-btn" style="font-size:0.88rem; padding:6px 16px;">
+                    <i class="fas fa-file-archive"></i> Download All (.zip)
+                </button>
+            </div>
+            <div class="dt-export-list" id="export-buttons"></div>
+
+            <div id="viz-links-section" class="hidden" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
+                <h5 style="margin-bottom: 8px; color: #333;">Proceed to Visualization</h5>
+                <p style="color: #666; font-size: 0.9rem; margin-bottom: 12px;">
+                    Send your processed data directly to a visualization dashboard — no download or re-upload needed.
+                </p>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button id="open-in-da-btn" class="dt-btn dt-btn-primary">
+                        <i class="fas fa-chart-bar"></i> Open in Data Analysis
+                    </button>
+                    <button id="open-in-hm-btn" class="dt-btn dt-btn-primary">
+                        <i class="fas fa-th"></i> Open in Heatmap Visualization
+                    </button>
+                </div>
+                <div id="viz-transfer-status" style="margin-top: 10px;"></div>
+            </div>
         </div>
 
         <!-- In-app data viewer -->
@@ -428,5 +470,5 @@
 {% endblock %}
 
 {% block 'scripts' %}
-<script src="{% static 'peptide/js/data_transformation.js' %}?v=14"></script>
+<script src="{% static 'peptide/js/data_transformation.js' %}?v=22"></script>
 {% endblock %}

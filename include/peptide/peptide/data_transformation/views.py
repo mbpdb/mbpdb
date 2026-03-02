@@ -162,6 +162,13 @@ def upload_files(request):
         # Store sequences for BLAST
         _save_json(work_dir, 'sequences', sequences)
 
+        # Save original filenames so they can be restored on resume
+        _save_json(work_dir, 'uploaded_file_names', {
+            'peptidomic_file': pep_file.name,
+            'functional_file': func_file.name if func_file else None,
+            'fasta_file': fasta_file.name if fasta_file else None,
+        })
+
         return JsonResponse(result)
 
     except Exception as e:
@@ -269,23 +276,39 @@ def get_step2_form(request):
         else:
             filtered = columns
 
-        # Save raw (pre-collapse) columns for Phase 1 manual tech rep assignment
-        raw_columns = list(filtered)
-        _save_json(work_dir, 'raw_columns', raw_columns)
+        # On resume: raw_columns is already saved — don't overwrite it.
+        raw_columns = _load_json(work_dir, 'raw_columns')
+        if not raw_columns:
+            raw_columns = list(filtered)
+            _save_json(work_dir, 'raw_columns', raw_columns)
 
-        # Detect and collapse technical duplicates before showing group assignment UI.
-        # Biological replicate column names (post-collapse) are what the user assigns to groups.
-        tech_dup_mapping = {}
-        if df is not None and filtered:
-            _, tech_dup_mapping, filtered = group_processing.collapse_technical_duplicates(df, filtered)
-            if tech_dup_mapping:
-                _save_json(work_dir, 'tech_dup_mapping', tech_dup_mapping)
+        # On resume: use the user's previously saved tech rep mapping instead of
+        # re-running auto-detection (which would clobber any manual adjustments).
+        tech_dup_mapping = _load_json(work_dir, 'tech_dup_mapping')
+        if tech_dup_mapping is None:
+            tech_dup_mapping = {}
+            if df is not None and filtered:
+                _, tech_dup_mapping, filtered = group_processing.collapse_technical_duplicates(df, filtered)
+                if tech_dup_mapping:
+                    _save_json(work_dir, 'tech_dup_mapping', tech_dup_mapping)
+        else:
+            # Recompute post-collapse column list from saved mapping
+            filtered = group_processing.compute_bio_rep_columns(raw_columns, tech_dup_mapping)
+
+        # Return previously defined groups so the frontend can restore them.
+        saved_group_data = _load_json(work_dir, 'group_data') or {}
+        saved_groups = [
+            {'name': info['grouping_variable'], 'columns': info['abundance_columns']}
+            for info in saved_group_data.values()
+            if info.get('grouping_variable') and info.get('abundance_columns')
+        ]
 
         return JsonResponse({
             'columns': filtered,
             'all_columns': columns,
             'raw_columns': raw_columns,
             'tech_dup_mapping': tech_dup_mapping,
+            'saved_groups': saved_groups,
         })
     except Exception as e:
         return JsonResponse({'error': f'Could not load step 2: {str(e)}', 'columns': [], 'all_columns': []}, status=500)
@@ -1207,6 +1230,110 @@ def download_export(request, export_type):
 
     response = HttpResponse(content, content_type=content_type)
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Session state (for resume banner)
+# ---------------------------------------------------------------------------
+
+@require_GET
+def session_state(request):
+    """Return which steps have saved state so the wizard can offer to resume."""
+    work_dir = request.session.get('dt_work_dir')
+    if not work_dir or not os.path.isdir(work_dir):
+        return JsonResponse({'has_session': False})
+    file_names = _load_json(work_dir, 'uploaded_file_names') or {}
+    return JsonResponse({
+        'has_session': True,
+        'has_data':      os.path.exists(os.path.join(work_dir, 'pd_results.pkl')),
+        'has_groups':    os.path.exists(os.path.join(work_dir, 'group_data.json')),
+        'has_processed': os.path.exists(os.path.join(work_dir, 'merged_df.pkl')),
+        'file_names': file_names,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Download All (ZIP)
+# ---------------------------------------------------------------------------
+
+@require_GET
+def download_all_exports(request):
+    """Download all available exports bundled as a single ZIP file."""
+    import io
+    import zipfile
+
+    work_dir = _get_work_dir(request)
+    merged_df = _load_df(work_dir, 'merged_df')
+    if merged_df is None:
+        return JsonResponse(
+            {'error': 'No processed data available. Run Process Data first.'}, status=400
+        )
+
+    group_data = _load_json(work_dir, 'group_data')
+    protein_dict = _load_json(work_dir, 'protein_dict') or {}
+    mbpdb_results = _load_df(work_dir, 'mbpdb_results')
+    tech_dup_mapping = _load_json(work_dir, 'tech_dup_mapping')
+    pd_results = _load_df(work_dir, 'pd_results')
+
+    correlation_type = request.GET.get('correlation_type', 'Pearson')
+    log_transform = request.GET.get('log_transform', 'true').lower() == 'true'
+
+    has_mbpdb = mbpdb_results is not None and not mbpdb_results.empty
+    has_groups = bool(group_data and len(group_data) > 0)
+    has_function = 'function' in merged_df.columns and merged_df['function'].notna().any()
+    has_tech_rep = bool(tech_dup_mapping and any(len(v) >= 2 for v in tech_dup_mapping.values()))
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        def _add(filename, content):
+            if content is not None:
+                zf.writestr(filename, content)
+
+        if has_mbpdb:
+            _add('MBPDB_SEARCH.tsv', export_manager.export_mbpdb_results(mbpdb_results))
+
+        if has_groups:
+            _add('categorical_variable_definitions.json',
+                 export_manager.export_group_definitions(group_data))
+
+        _add('merged_dataframe.csv', export_manager.export_merged_dataset(merged_df))
+
+        if has_groups:
+            _add('list_of_peptides_by_sequences.csv',
+                 export_manager.export_sequence_list(merged_df, group_data))
+            _add('summed_peptide_results.xlsx',
+                 export_manager.export_summed_peptide_data(merged_df, group_data))
+            protein_content, _ = export_manager.export_protein_data(merged_df, group_data, protein_dict)
+            _add('protein_analysis.xlsx', protein_content)
+
+            if has_function:
+                _add('processed_mbpdb_results.xlsx',
+                     export_manager.export_summed_function_data(merged_df, group_data))
+
+            _add(f'group_correlations_{correlation_type.lower()}.xlsx',
+                 export_manager.export_group_correlation(
+                     merged_df, group_data, correlation_type, log_transform))
+            _add(f'replicate_correlations_{correlation_type.lower()}.xlsx',
+                 export_manager.export_replicate_correlation(
+                     merged_df, group_data, correlation_type, log_transform))
+
+        if has_tech_rep and pd_results is not None:
+            _add(f'tech_rep_correlations_{correlation_type.lower()}.xlsx',
+                 export_manager.export_tech_rep_correlation(
+                     pd_results, tech_dup_mapping, correlation_type, log_transform))
+
+        if tech_dup_mapping:
+            _add('technical_replicate_key.json',
+                 json.dumps(tech_dup_mapping, indent=2).encode('utf-8'))
+
+        saved_decisions = _load_json(work_dir, 'protein_decisions')
+        pm = {'version': 1, 'protein_decisions': saved_decisions or {}}
+        _add('protein_mapping_key.json', json.dumps(pm, indent=2).encode('utf-8'))
+
+    buf.seek(0)
+    response = HttpResponse(buf.getvalue(), content_type='application/zip')
+    response['Content-Disposition'] = 'attachment; filename="mbpdb_results.zip"'
     return response
 
 

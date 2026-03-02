@@ -25,5 +25,7 @@ urlpatterns = [
     path('process/', views.process_data, name='dt_process'),
     path('view/<str:export_type>/', views.view_export, name='dt_view'),
     path('download/<str:export_type>/', views.download_export, name='dt_download'),
+    path('download-all/', views.download_all_exports, name='dt_download_all'),
+    path('session-state/', views.session_state, name='dt_session_state'),
     path('cleanup/', views.cleanup, name='dt_cleanup'),
 ]
