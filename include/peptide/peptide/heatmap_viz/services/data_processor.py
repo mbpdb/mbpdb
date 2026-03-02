@@ -510,16 +510,23 @@ def generate_heatmap(
 
     messages = list(errors or []) + list(notifications or [])
 
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import io as _io
+
+    # Close all open figures before encoding to prevent memory accumulation.
+    plt.close('all')
+
     def fig_to_b64(fig) -> str | None:
         if fig is None:
             return None
-        import matplotlib
-        matplotlib.use('Agg')
-        import io as _io
         buf = _io.BytesIO()
         fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
         buf.seek(0)
-        return base64.b64encode(buf.read()).decode()
+        data = base64.b64encode(buf.read()).decode()
+        plt.close(fig)
+        return data
 
     portrait_b64 = fig_to_b64(fig_port) if fig_port is not None else None
     landscape_b64 = fig_to_b64(fig_land) if fig_land is not None else None
