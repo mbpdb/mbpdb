@@ -139,3 +139,4 @@ include/peptide/peptide/notebooks/examples/rob/robs_preterm_term_peptiline.xlsx
 include/peptide/peptide/notebooks/examples/rob/unique_peptides_part1.csv
 include/peptide/peptide/notebooks/examples/rob/unique_peptides_part2.csv
 dev.sh
+include/peptide/peptide/notebooks/examples/protein_mapping_key.json
