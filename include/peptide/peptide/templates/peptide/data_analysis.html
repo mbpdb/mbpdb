@@ -78,6 +78,12 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 #plot-area { min-height: 200px; }
 #plot-container { width: 100%; }
 
+.page-box { max-width: 960px; margin: 0 auto; }
+.color-swatch {
+    width: 72px; height: 22px; border-radius: 3px; border: 1px solid #ccc;
+    flex-shrink: 0; display: inline-block;
+}
+
 .step-disabled { opacity: .55; pointer-events: none; }
 
 .placeholder-box {
@@ -107,6 +113,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
 {% block 'content' %}
 <div class="da-page">
+<div class="page-box">
     <div class="da-header">
         <i class="fas fa-chart-bar icon"></i>
         <h1>Data Analysis Dashboard</h1>
@@ -285,7 +292,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">Color Scheme</label>
-                        <select id="color-scheme" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <select id="color-scheme" disabled style="width:150px; flex-shrink:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
                             <optgroup label="Default">
                                 <option value="HSV">HSV (Default)</option>
                             </optgroup>
@@ -333,6 +340,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                                 <option value="RdYlGn">RdYlGn</option>
                             </optgroup>
                         </select>
+                        <div class="color-swatch" id="color-scheme-swatch"></div>
                     </div>
                 </div>
             </div>
@@ -351,6 +359,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             </span>
         </div>
     </div>
+</div><!-- end .page-box -->
 
     <!-- ── Step 3: Plot output ──────────────────────────────────── -->
     <div class="step-card" id="step3-card">
@@ -632,6 +641,52 @@ Plotly.newPlot('plot', ${JSON.stringify(currentFigJson.data)}, ${JSON.stringify(
     a.href = url; a.download = 'data_analysis_plot.html'; a.click();
     URL.revokeObjectURL(url);
 }
+
+// ── Color swatch preview ──────────────────────────────────────────
+const COLOR_GRADIENTS = {
+    'HSV':          'linear-gradient(to right,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)',
+    'Plotly':       'linear-gradient(to right,#636efa,#ef553b,#00cc96,#ab63fa,#ffa15a,#19d3f3,#ff6692)',
+    'D3':           'linear-gradient(to right,#1f77b4,#ff7f0e,#2ca02c,#d62728,#9467bd,#8c564b,#e377c2)',
+    'G10':          'linear-gradient(to right,#3366cc,#dc3912,#ff9900,#109618,#990099,#0099c6,#dd4477)',
+    'T10':          'linear-gradient(to right,#4c78a8,#f58518,#e45756,#72b7b2,#54a24b,#eeca3b,#b279a2)',
+    'Alphabet':     'linear-gradient(to right,#aa0dfe,#3283fe,#85660d,#782ab6,#565656,#1c8356,#16ff32)',
+    'Set1':         'linear-gradient(to right,#e41a1c,#377eb8,#4daf4a,#984ea3,#ff7f00,#a65628,#f781bf)',
+    'Set2':         'linear-gradient(to right,#66c2a5,#fc8d62,#8da0cb,#e78ac3,#a6d854,#ffd92f,#e5c494)',
+    'Set3':         'linear-gradient(to right,#8dd3c7,#ffffb3,#bebada,#fb8072,#80b1d3,#fdb462,#b3de69)',
+    'Pastel1':      'linear-gradient(to right,#fbb4ae,#b3cde3,#ccebc5,#decbe4,#fed9a6,#ffffcc,#e5d8bd)',
+    'Pastel2':      'linear-gradient(to right,#b3e2cd,#fdcdac,#cbd5e8,#f4cae4,#e6f5c9,#fff2ae,#f1e2cc)',
+    'Paired':       'linear-gradient(to right,#a6cee3,#1f78b4,#b2df8a,#33a02c,#fb9a99,#e31a1c,#fdbf6f)',
+    'Blues':        'linear-gradient(to right,#f7fbff,#9ecae1,#3182bd)',
+    'Greens':       'linear-gradient(to right,#f7fcf5,#a1d99b,#238b45)',
+    'Reds':         'linear-gradient(to right,#fff5f0,#fc9272,#a50f15)',
+    'Purples':      'linear-gradient(to right,#fcfbfd,#9e9ac8,#3f007d)',
+    'Oranges':      'linear-gradient(to right,#fff5eb,#fd8d3c,#7f2704)',
+    'Greys':        'linear-gradient(to right,#ffffff,#969696,#000000)',
+    'steelblue':    'linear-gradient(to right,#4682b4,#4682b4)',
+    'crimson':      'linear-gradient(to right,#dc143c,#dc143c)',
+    'seagreen':     'linear-gradient(to right,#2e8b57,#2e8b57)',
+    'darkorange':   'linear-gradient(to right,#ff8c00,#ff8c00)',
+    'mediumpurple': 'linear-gradient(to right,#9370db,#9370db)',
+    'teal':         'linear-gradient(to right,#008080,#008080)',
+    'coral':        'linear-gradient(to right,#ff7f50,#ff7f50)',
+    'gold':         'linear-gradient(to right,#ffd700,#ffd700)',
+    'slategray':    'linear-gradient(to right,#708090,#708090)',
+    'navy':         'linear-gradient(to right,#000080,#000080)',
+    'Viridis':      'linear-gradient(to right,#440154,#31688e,#35b779,#fde725)',
+    'Cividis':      'linear-gradient(to right,#00204d,#4f5d6c,#7b8c92,#c8ccbd,#f2e860)',
+    'Inferno':      'linear-gradient(to right,#000004,#420a68,#932667,#dd513a,#fca50a,#fcffa4)',
+    'Spectral':     'linear-gradient(to right,#d53e4f,#f46d43,#fdae61,#fee08b,#ffffbf,#e6f598,#abdda4,#3288bd)',
+    'RdBu':         'linear-gradient(to right,#b2182b,#f4a582,#f7f7f7,#4393c3,#2166ac)',
+    'RdYlGn':       'linear-gradient(to right,#d73027,#fc8d59,#fee08b,#d9ef8b,#91cf60,#1a9850)',
+};
+function updateColorSwatch(selectId, swatchId) {
+    const val = document.getElementById(selectId).value;
+    const swatch = document.getElementById(swatchId);
+    if (swatch) swatch.style.background = COLOR_GRADIENTS[val] || '#dee2e6';
+}
+updateColorSwatch('color-scheme', 'color-scheme-swatch');
+document.getElementById('color-scheme').addEventListener('change', () =>
+    updateColorSwatch('color-scheme', 'color-scheme-swatch'));
 
 })();
 </script>

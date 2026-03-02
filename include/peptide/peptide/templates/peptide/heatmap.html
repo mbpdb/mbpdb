@@ -71,6 +71,11 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 .heatmap-img-container img { max-width: 100%; border: 1px solid #dee2e6; border-radius: 4px; }
 
 .hidden { display: none !important; }
+.page-box { max-width: 960px; margin: 0 auto; }
+.color-swatch {
+    width: 72px; height: 22px; border-radius: 3px; border: 1px solid #ccc;
+    flex-shrink: 0; display: inline-block;
+}
 .checkbox-row { display: flex; align-items: center; gap: 6px; font-size: .85rem; }
 .step-disabled { opacity: .55; pointer-events: none; }
 .placeholder-box {
@@ -100,6 +105,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
 {% block 'content' %}
 <div class="hm-page">
+<div class="page-box">
 
     <div class="hm-header">
         <i class="fas fa-th icon"></i>
@@ -289,7 +295,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:130px;">Heatmap Color</label>
-                        <select id="hm-color" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <select id="hm-color" disabled style="width:150px; flex-shrink:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
                             <option value="RdYlGn_r">RdYlGn_r (default)</option>
                             <option value="RdYlBu_r">RdYlBu_r</option>
                             <option value="coolwarm">coolwarm</option>
@@ -302,11 +308,12 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                             <option value="ocean">ocean</option>
                             <option value="rainbow">rainbow</option>
                         </select>
+                        <div class="color-swatch" id="hm-color-swatch"></div>
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:130px;">Line Plot Color</label>
-                        <select id="lp-color" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <select id="lp-color" disabled style="width:150px; flex-shrink:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
                             <option value="Set3">Set3 (default)</option>
                             <option value="Set1">Set1</option>
                             <option value="Set2">Set2</option>
@@ -314,16 +321,18 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                             <option value="Paired">Paired</option>
                             <option value="Pastel1">Pastel1</option>
                         </select>
+                        <div class="color-swatch" id="lp-color-swatch"></div>
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:130px;">Avg Line Color</label>
-                        <select id="avglp-color" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <select id="avglp-color" disabled style="width:150px; flex-shrink:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
                             <option value="Dark2">Dark2 (default)</option>
                             <option value="Set1">Set1</option>
                             <option value="tab10">tab10</option>
                             <option value="Accent">Accent</option>
                         </select>
+                        <div class="color-swatch" id="avglp-color-swatch"></div>
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
@@ -377,6 +386,8 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             </span>
         </div>
     </div>
+
+</div><!-- end .page-box -->
 
     <!-- ── Step 3: Output ────────────────────────────────────────── -->
     <div class="step-card" id="step3-card">
@@ -825,6 +836,39 @@ async function downloadImg(b64, orientation) {
 
 document.getElementById('dl-portrait-btn').addEventListener('click',  () => { if (currentPortraitB64)  downloadImg(currentPortraitB64,  'portrait');  });
 document.getElementById('dl-landscape-btn').addEventListener('click', () => { if (currentLandscapeB64) downloadImg(currentLandscapeB64, 'landscape'); });
+
+// ── Color swatch previews ─────────────────────────────────────────
+const COLOR_GRADIENTS = {
+    'RdYlGn_r': 'linear-gradient(to right,#1a9850,#91cf60,#d9ef8b,#fee08b,#fc8d59,#d73027)',
+    'RdYlBu_r': 'linear-gradient(to right,#4575b4,#91bfdb,#e0f3f8,#fee090,#fc8d59,#d73027)',
+    'coolwarm':  'linear-gradient(to right,#3b4cc0,#7b97e8,#c7d7f8,#f7cbb8,#e36b51,#b40426)',
+    'viridis':   'linear-gradient(to right,#440154,#31688e,#35b779,#fde725)',
+    'plasma':    'linear-gradient(to right,#0d0887,#7e03a8,#cc4778,#f89540,#f0f921)',
+    'Blues':     'linear-gradient(to right,#f7fbff,#9ecae1,#3182bd)',
+    'Greens':    'linear-gradient(to right,#f7fcf5,#a1d99b,#238b45)',
+    'YlOrRd':   'linear-gradient(to right,#ffffb2,#fecc5c,#fd8d3c,#f03b20,#bd0026)',
+    'jet':       'linear-gradient(to right,#00007f,#0000ff,#00ffff,#ffff00,#ff0000,#7f0000)',
+    'ocean':     'linear-gradient(to right,#008060,#005080,#00a0b0,#80d8ff)',
+    'rainbow':   'linear-gradient(to right,#7f00ff,#0000ff,#00ffff,#00ff00,#ffff00,#ff7f00,#ff0000)',
+    'Set3':      'linear-gradient(to right,#8dd3c7,#ffffb3,#bebada,#fb8072,#80b1d3,#fdb462,#b3de69,#fccde5)',
+    'Set1':      'linear-gradient(to right,#e41a1c,#377eb8,#4daf4a,#984ea3,#ff7f00,#a65628,#f781bf,#999999)',
+    'Set2':      'linear-gradient(to right,#66c2a5,#fc8d62,#8da0cb,#e78ac3,#a6d854,#ffd92f,#e5c494)',
+    'tab10':     'linear-gradient(to right,#1f77b4,#ff7f0e,#2ca02c,#d62728,#9467bd,#8c564b,#e377c2,#bcbd22)',
+    'Paired':    'linear-gradient(to right,#a6cee3,#1f78b4,#b2df8a,#33a02c,#fb9a99,#e31a1c,#fdbf6f,#ff7f00)',
+    'Pastel1':   'linear-gradient(to right,#fbb4ae,#b3cde3,#ccebc5,#decbe4,#fed9a6,#ffffcc,#e5d8bd,#fddaec)',
+    'Dark2':     'linear-gradient(to right,#1b9e77,#d95f02,#7570b3,#e7298a,#66a61e,#e6ab02,#a6761d)',
+    'Accent':    'linear-gradient(to right,#7fc97f,#beaed4,#fdc086,#ffff99,#386cb0,#f0027f,#bf5b17)',
+};
+function updateSwatch(selectId, swatchId) {
+    const val = document.getElementById(selectId).value;
+    const swatch = document.getElementById(swatchId);
+    swatch.style.background = COLOR_GRADIENTS[val] || '#dee2e6';
+}
+['hm-color','lp-color','avglp-color'].forEach(id => {
+    const swatchId = id + '-swatch';
+    updateSwatch(id, swatchId);
+    document.getElementById(id).addEventListener('change', () => updateSwatch(id, swatchId));
+});
 
 })();
 </script>
