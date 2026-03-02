@@ -115,6 +115,13 @@ def _validate_and_standardize_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, s
         return x
 
     df['Protein'] = df['Protein'].apply(extract_uniprot)
+
+    # Strip leading/trailing whitespace from string columns that are used as
+    # column name components in calculate_abundance() – prevents mismatches.
+    for col in ('Unique Peptide ID', 'function'):
+        if col in df.columns and df[col].dtype == object:
+            df[col] = df[col].str.strip()
+
     return df, None
 
 
@@ -271,31 +278,88 @@ def get_selector_options(merged_df: pd.DataFrame, group_data_dict: dict, protein
     }
 
 
-def get_specific_options(merged_df: pd.DataFrame, bio_or_pep: str, selected_proteins: list = None) -> list:
+def get_specific_options(
+    merged_df: pd.DataFrame,
+    bio_or_pep: str,
+    selected_proteins: list = None,
+    selected_var_keys: list = None,
+) -> list:
     """
-    Return options for the specific_select_multiple widget.
-    bio_or_pep '2' → unique function values (filtered by selected_proteins if given).
-    bio_or_pep '1' → unique 'Unique Peptide ID' values (filtered by selected_proteins if given).
+    Return options as list of {label, value} dicts for the specific-selector widget.
+
+    bio_or_pep '1' → peptide intervals.
+        value = label = "start-end" or "start-end UID"  (matches calculate_abundance() column names)
+        Only peptides with at least one non-zero Avg_ value in selected_var_keys are returned.
+    bio_or_pep '2' → individual bioactive function names.
+        Function column values may be semicolon-delimited; we split them so that
+        each individual function appears as a separate selectable option, matching
+        the way filter_data_by_selection() does its matching.
     """
     df = merged_df.copy()
     if selected_proteins:
         df = df[df['Protein'].isin(selected_proteins)]
 
+    # For peptide intervals, restrict to rows that have non-zero abundance in at least
+    # one of the selected variables — so the dropdown only shows "active" peptides.
+    if bio_or_pep == '1' and selected_var_keys:
+        avg_cols = [f'Avg_{v}' for v in selected_var_keys if f'Avg_{v}' in df.columns]
+        if avg_cols:
+            mask = df[avg_cols].apply(pd.to_numeric, errors='coerce').gt(0).any(axis=1)
+            df = df[mask]
+
+    # ── Bioactive Functions ────────────────────────────────────────────────────
     if bio_or_pep == '2':
         if 'function' not in df.columns:
             return []
-        funcs = df['function'].dropna().unique().tolist()
-        return sorted([str(f) for f in funcs if str(f).strip()])
+        funcs: set[str] = set()
+        for val in df['function'].dropna():
+            for part in str(val).split(';'):
+                part = part.strip()
+                if part and part.lower() != 'nan':
+                    funcs.add(part)
+        return [{'label': f, 'value': f} for f in sorted(funcs)]
 
+    # ── Peptide Intervals ──────────────────────────────────────────────────────
     if bio_or_pep == '1':
-        pid_col = next((c for c in ('Unique Peptide ID', 'peptide_id', 'PeptideID') if c in df.columns), None)
-        if pid_col:
-            ids = df[pid_col].dropna().unique().tolist()
-            return sorted([str(i) for i in ids if str(i).strip()])
-        # Fallback: build interval strings from start/end columns
-        if 'start' in df.columns and 'end' in df.columns:
-            intervals = (df['start'].astype(str) + '-' + df['end'].astype(str)).unique().tolist()
-            return sorted(intervals)
+        if 'start' not in df.columns or 'end' not in df.columns:
+            return []
+
+        seen: set[str] = set()
+        options: list[dict] = []
+
+        for _, row in df.iterrows():
+            try:
+                start = int(row['start'])
+                end = int(row['end'])
+            except (ValueError, TypeError):
+                continue
+
+            interval = f"{start}-{end}"
+            value = interval
+
+            # Append Unique Peptide ID — mirrors calculate_abundance() column naming exactly
+            if 'Unique Peptide ID' in df.columns:
+                uid_raw = row.get('Unique Peptide ID')
+                if pd.notna(uid_raw):
+                    uid = str(uid_raw).strip()
+                    if uid:
+                        value = f"{interval} {uid}"
+
+            if value in seen:
+                continue
+            seen.add(value)
+
+            options.append({'label': value, 'value': value})
+
+        # Sort by interval start position
+        def _sort_key(opt: dict) -> int:
+            try:
+                return int(opt['value'].split('-')[0])
+            except (ValueError, IndexError):
+                return 0
+
+        options.sort(key=_sort_key)
+        return options
 
     return []
 
@@ -409,7 +473,14 @@ def generate_heatmap(
     if not available_data_variables_dict:
         return None, None, ['No data available for plotting.']
 
-    pp = plot_params
+    pp = dict(plot_params)
+    # Portrait mode cannot show specific peptide-interval or function overlays
+    # (heatmap_renderer explicitly returns None for portrait when bio_or_pep != 'no').
+    # Force landscape-only when a specific overlay is active.
+    if pp.get('bio_or_pep', 'no') != 'no':
+        pp['plot_landscape'] = True
+        pp['plot_portrait'] = False
+
     try:
         fig_port, fig_land, errors, notifications = update_plot(
             available_data_variables_dict,
@@ -421,7 +492,7 @@ def generate_heatmap(
             lp_selected_color=pp.get('lp_selected_color', 'Set3'),
             avglp_selected_color=pp.get('avglp_selected_color', 'Dark2'),
             xaxis_label=pp.get('xaxis_label', ''),
-            yaxis_label=pp.get('yaxis_label', ''),
+            yaxis_label=pp.get('yaxis_label', '') or 'Averaged Peptide Abundance',
             yaxis_position=pp.get('yaxis_position', 5),
             legend_title_input_1=pp.get('legend_title_1', 'Sample Type:'),
             legend_title_input_2=pp.get('legend_title_2', 'Peptide Counts:'),

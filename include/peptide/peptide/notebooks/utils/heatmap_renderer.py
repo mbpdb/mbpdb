@@ -227,18 +227,29 @@ def calculate_y_ticks(min_values, max_values, log_transform):
 def calculate_abundance(protein_sequence, peptide_dataframe, grouping_variable):
     protein_sequence_length = len(protein_sequence)
     data = []
+    col_names = []
     Avg_column = f'Avg_{grouping_variable}'
 
     for idx, row in peptide_dataframe.iterrows():
         try:
-            start_idx = int(row['start']) - 1
-            stop_idx = int(row['end'])
+            start_val = int(row['start'])
+            end_val = int(row['end'])
+            start_idx = start_val - 1
+            stop_idx = end_val
             abundance_value = row[Avg_column]
 
             values = [0] * protein_sequence_length
             if abundance_value > 0:
                 values[start_idx:stop_idx] = [abundance_value] * (stop_idx - start_idx)
             data.append(values)
+
+            # Build column name in the same loop to guarantee alignment
+            uid_suffix = ''
+            if 'Unique Peptide ID' in row and not pd.isnull(row['Unique Peptide ID']):
+                uid = str(row['Unique Peptide ID']).strip()
+                if uid:
+                    uid_suffix = f' {uid}'
+            col_names.append(f"{start_val}-{end_val}{uid_suffix}")
 
         except (KeyError, ValueError) as e:
             error_message = f'{type(e).__name__}: {e} - Skipping this row'
@@ -251,10 +262,7 @@ def calculate_abundance(protein_sequence, peptide_dataframe, grouping_variable):
 
     # Create the initial DataFrame
     abundance_df = pd.DataFrame(data).T
-    abundance_df.columns = [
-        f"{int(row['start'])}-{int(row['end'])}" + (f" {row['Unique Peptide ID']}" if 'Unique Peptide ID' in row and not pd.isnull(row['Unique Peptide ID']) else "")
-        for _, row in peptide_dataframe.iterrows()
-    ]
+    abundance_df.columns = col_names
 
 
     # Initialize count list
@@ -278,10 +286,13 @@ def calculate_abundance(protein_sequence, peptide_dataframe, grouping_variable):
 def calculate_function(protein_sequence, peptide_dataframe, grouping_variable):
     protein_sequence_length = len(protein_sequence)
     data = []
+    col_names = []
 
     for _, row in peptide_dataframe.iterrows():
-        start_idx = int(row['start'] - 1)
-        stop_idx = int(row['end'])
+        start_val = int(row['start'])
+        end_val = int(row['end'])
+        start_idx = start_val - 1
+        stop_idx = end_val
         if stop_idx > protein_sequence_length:
             stop_idx -= 1
 
@@ -293,11 +304,15 @@ def calculate_function(protein_sequence, peptide_dataframe, grouping_variable):
 
         data.append(values)
 
+        uid_suffix = ''
+        if 'Unique Peptide ID' in row and not pd.isnull(row['Unique Peptide ID']):
+            uid = str(row['Unique Peptide ID']).strip()
+            if uid:
+                uid_suffix = f' {uid}'
+        col_names.append(f"{start_val}-{end_val}{uid_suffix}")
+
     function_df = pd.DataFrame(data).T
-    function_df.columns = [
-        f"{int(row['start'])}-{int(row['end'])}" + (f" {row['Unique Peptide ID']}" if 'Unique Peptide ID' in row and not pd.isnull(row['Unique Peptide ID']) else "")
-        for _, row in peptide_dataframe.iterrows()
-    ]
+    function_df.columns = col_names
     return function_df
 
 def export_heatmap_data_to_dict(protein_id, group_key, group_info, protein_sequence,
@@ -1029,13 +1044,10 @@ def filter_data_by_selection(bp_abs, bp_func, selected_peptides, selected_functi
             filtered_bp_abs = bp_abs[all_columns].copy()
             filtered_bp_func = pd.DataFrame()
 
-            # Add warning for non-matching peptides if any
-            if non_matching_peptides:
-                errors.append(f'Some peptide columns not found in data for variable: {var_name}. Missing: {non_matching_peptides}')
-
             return filtered_bp_abs, filtered_bp_func, errors
         else:
-            errors.append(f'No matching peptide columns found in data for variable: {var_name}. Non-matching peptides: {non_matching_peptides}')
+            # No selected peptides exist in this protein/variable combination — silently skip.
+            # This is expected when plotting multiple proteins and a peptide belongs to only one.
             return pd.DataFrame(), pd.DataFrame(), errors
 
     # ---------- Handle bioactive functions selection (bio_or_pep = '2') ----------

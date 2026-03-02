@@ -173,6 +173,7 @@ def get_specific_options(request):
         body = json.loads(request.body)
         bio_or_pep = body.get('bio_or_pep', 'no')
         selected_proteins = body.get('selected_proteins', [])
+        selected_var_keys = body.get('selected_var_keys', [])
     except Exception:
         return JsonResponse({'error': 'Invalid JSON body.'}, status=400)
 
@@ -184,7 +185,11 @@ def get_specific_options(request):
     if merged_df is None:
         return JsonResponse({'error': 'Session data missing.'}, status=400)
 
-    options = data_processor.get_specific_options(merged_df, bio_or_pep, selected_proteins or None)
+    options = data_processor.get_specific_options(
+        merged_df, bio_or_pep,
+        selected_proteins or None,
+        selected_var_keys or None,
+    )
     return JsonResponse({'options': options})
 
 
