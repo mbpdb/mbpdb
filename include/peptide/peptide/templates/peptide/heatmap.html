@@ -9,6 +9,8 @@
 .hm-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .hm-header h1 { font-size: 1.8rem; margin: 0; font-weight: 500; }
 .hm-header .icon { font-size: 1.6rem; color: #1976d2; }
+.btn-back-dt { margin-left: auto; padding: 6px 14px; font-size: 0.85rem; color: #6c757d; border: 1px solid #dee2e6; border-radius: 4px; text-decoration: none; background: #f8f9fa; white-space: nowrap; }
+.btn-back-dt:hover { background: #e9ecef; color: #495057; text-decoration: none; }
 
 .step-card {
     background: #fff; border: 1px solid #dee2e6; border-radius: 8px;
@@ -110,6 +112,10 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
     <div class="hm-header">
         <i class="fas fa-th icon"></i>
         <h1>Sequence Heatmap Dashboard</h1>
+        <div style="margin-left:auto; display:flex; gap:8px; flex-shrink:0;">
+            <button id="go-to-da-btn" class="btn-back-dt"><i class="fas fa-chart-bar"></i> Data Analysis</button>
+            <a href="/data_transformation/" class="btn-back-dt"><i class="fas fa-arrow-left"></i> Data Transformation</a>
+        </div>
     </div>
 
     <!-- ── Step 1: Upload ───────────────────────────────────────── -->
@@ -870,6 +876,39 @@ function updateSwatch(selectId, swatchId) {
     document.getElementById(id).addEventListener('change', () => updateSwatch(id, swatchId));
 });
 
+// ── Auto-load when arriving from Data Transformation ─────────────
+if (new URLSearchParams(window.location.search).get('from_dt') === '1') {
+    const stored = sessionStorage.getItem('hm_from_dt');
+    if (stored) {
+        sessionStorage.removeItem('hm_from_dt');
+        const data = JSON.parse(stored);
+        const status = document.getElementById('upload-status');
+        showStatus(status,
+            `✅ <strong>${data.filename}</strong> loaded — ${data.rows.toLocaleString()} rows, ` +
+            `${data.proteins.length} protein(s), ${data.var_keys.length} variable(s)` +
+            (data.has_functions ? ', function data available' : ''), 'success');
+        if (data.warnings && data.warnings.length)
+            data.warnings.forEach(w => appendStatus(status, w, 'warning'));
+        hasFunctions = !!data.has_functions;
+        populateSelectors(data);
+        enableStep2();
+    }
+}
+
 })();
+
+document.getElementById('go-to-da-btn').addEventListener('click', function() {
+    var btn = this;
+    btn.style.opacity = '0.6';
+    btn.style.pointerEvents = 'none';
+    fetch('/data_analysis/transfer-from-dt/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest'}
+    }).then(function() {
+        window.location.href = '/data_analysis/?from_dt=1';
+    }).catch(function() {
+        window.location.href = '/data_analysis/';
+    });
+});
 </script>
 {% endblock %}

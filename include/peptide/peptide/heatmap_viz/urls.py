@@ -6,6 +6,7 @@ app_name = 'heatmap_viz'
 urlpatterns = [
     path('', views.index, name='index'),
     path('upload/', views.upload, name='upload'),
+    path('transfer-from-dt/', views.transfer_from_dt, name='transfer_from_dt'),
     path('fetch-sequence/', views.fetch_sequence, name='fetch_sequence'),
     path('get-specific-options/', views.get_specific_options, name='get_specific_options'),
     path('plot/', views.plot, name='plot'),

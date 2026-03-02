@@ -117,6 +117,52 @@ def upload(request):
 
 
 # ---------------------------------------------------------------------------
+# Transfer from Data Transformation
+# ---------------------------------------------------------------------------
+
+@require_POST
+def transfer_from_dt(request):
+    """Load merged_df directly from the data transformation session."""
+    import io
+    dt_work_dir = request.session.get('dt_work_dir')
+    if not dt_work_dir or not os.path.isdir(dt_work_dir):
+        return JsonResponse(
+            {'error': 'No data transformation session found. Please complete data transformation first.'},
+            status=400,
+        )
+    dt_pkl = os.path.join(dt_work_dir, 'merged_df.pkl')
+    if not os.path.exists(dt_pkl):
+        return JsonResponse(
+            {'error': 'No processed data found. Please click "Process Data" in the wizard first.'},
+            status=400,
+        )
+
+    df = pd.read_pickle(dt_pkl)
+    buf = io.BytesIO()
+    df.to_csv(buf, index=False)
+    buf.seek(0)
+
+    df_hm, group_data_dict, protein_dict, col_order, err = data_processor.load_merged_file(buf, 'merged_df.csv')
+    if err:
+        return JsonResponse({'error': f'Could not process data: {err}'}, status=400)
+
+    work_dir = _get_work_dir(request)
+    _save_df(work_dir, 'merged_df', df_hm)
+    _save_json(work_dir, 'group_data_dict', group_data_dict)
+    _save_json(work_dir, 'protein_dict', protein_dict)
+    _save_json(work_dir, 'col_order', col_order)
+
+    options = data_processor.get_selector_options(df_hm, group_data_dict, protein_dict, col_order)
+    return JsonResponse({
+        'success': True,
+        'filename': 'Data Transformation output',
+        'rows': len(df_hm),
+        'proteins': options['proteins'], 'var_keys': options['var_keys'],
+        'has_functions': options['has_functions'], 'warnings': [],
+    })
+
+
+# ---------------------------------------------------------------------------
 # Fetch protein sequence (UniProt)
 # ---------------------------------------------------------------------------
 
