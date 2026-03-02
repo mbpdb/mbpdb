@@ -140,3 +140,23 @@ include/peptide/peptide/notebooks/examples/rob/unique_peptides_part1.csv
 include/peptide/peptide/notebooks/examples/rob/unique_peptides_part2.csv
 dev.sh
 include/peptide/peptide/notebooks/examples/protein_mapping_key.json
+include/peptide/peptide/notebooks/examples/examples/abbott_merged_dataexploration_R01.csv
+include/peptide/peptide/notebooks/examples/examples/abbott_merged_dataexploration.csv
+include/peptide/peptide/notebooks/examples/examples/databaes import - Copy.xlsx
+include/peptide/peptide/notebooks/examples/examples/databaes import.tsv
+include/peptide/peptide/notebooks/examples/examples/databaes import.xlsx
+include/peptide/peptide/notebooks/examples/examples/example_fasta.fasta
+include/peptide/peptide/notebooks/examples/examples/example_group_definition.json
+include/peptide/peptide/notebooks/examples/examples/example_MBPDB_search.tsv
+include/peptide/peptide/notebooks/examples/examples/example_merged_dataframe_A1_and_A2_Beta_Casein.csv
+include/peptide/peptide/notebooks/examples/examples/example_merged_dataframe.csv
+include/peptide/peptide/notebooks/examples/examples/example_peptide_data - Copy.csv
+include/peptide/peptide/notebooks/examples/examples/example_peptide_data.csv
+include/peptide/peptide/notebooks/examples/examples/Labeled Peptides.xlsx
+include/peptide/peptide/notebooks/examples/examples/merged_dataframe_20260217_082336.csv
+include/peptide/peptide/notebooks/examples/examples/merged_dataframe_gastric_intest.csv
+include/peptide/peptide/notebooks/examples/examples/New Text Document.txt
+include/peptide/peptide/notebooks/examples/examples/protein_mapping_key.json
+include/peptide/peptide/notebooks/examples/examples/replicate scheme.txt
+include/peptide/peptide/notebooks/examples/examples/additional_peptidomic_input_formats/max_quant.csv
+include/peptide/peptide/notebooks/examples/examples/additional_peptidomic_input_formats/PEPEX_input.tsv
