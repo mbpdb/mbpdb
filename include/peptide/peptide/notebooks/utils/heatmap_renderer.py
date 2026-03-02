@@ -6,6 +6,7 @@ Those heavy libraries are imported lazily inside the rendering functions
 that actually use them — on the first plot call, not on notebook startup.
 """
 
+import logging
 import pandas as pd
 import numpy as np
 import re
@@ -13,14 +14,19 @@ import copy
 import warnings
 from itertools import cycle
 
-# IPython.display only needed when running in Jupyter; Django app uses no-ops
-try:
-    from IPython.display import display, HTML
-except ImportError:
-    def display(*args, **kwargs): pass
-    def HTML(s): return s
-
 import _settings as settings
+
+logger = logging.getLogger(__name__)
+
+
+def _log_validation(message: str, level: str = "warning") -> None:
+    """Log validation/warning messages (replaces legacy IPython display)."""
+    if level == "error":
+        logger.error(message)
+    elif level == "info":
+        logger.info(message)
+    else:
+        logger.warning(message)
 
 # ---------------------------------------------------------------------------
 # Constants from settings (safe to load — no matplotlib)
@@ -70,7 +76,7 @@ def proceed_with_label_specific_options(selected_bio_or_pep, bio_or_pep):
     # Optional: handle unexpected bio_or_pep values
     else:
         error_message = f"Unexpected value for bio_or_pep: {bio_or_pep}"
-        display(HTML(f"<div style='display: inline-block; margin: 10px 0;'><b style='color: red'>{error_message}</b></div>"))
+        _log_validation(error_message)
     #print(f" DEBUG: selected_peptides: {selected_peptides}")
     return selected_peptides, selected_functions
 
@@ -260,11 +266,11 @@ def calculate_abundance(protein_sequence, peptide_dataframe, grouping_variable):
 
         except (KeyError, ValueError) as e:
             error_message = f'{type(e).__name__}: {e} - Skipping this row'
-            display(HTML(f"<div style='display: inline-block; margin: 10px 0;'><b style='color: red'>{error_message}</b></div>"))
+            _log_validation(error_message)
             continue
 
     if not data:
-        display(HTML(f"<div style='display: inline-block; margin: 10px 0;'><b style='color: orange'>No valid data to process. Returning empty DataFrame.</b></div>"))
+        _log_validation("No valid data to process. Returning empty DataFrame.")
         return pd.DataFrame()
 
     # Create the initial DataFrame
@@ -1848,9 +1854,8 @@ def visualize_sequence_heatmap_lanscape(available_data_variables_dict,
         all_errors.append('The selection of Plot Averaged Data option "only" and Plot Specific Peptides option "Peptide Intervals" is invalid. Only the average Abundance will be plotted.')
 
     if bio_or_pep == '2' and ms_average_choice != 'only':
-        if footnote_list and footnote:  # Only display if there's actual footnote content
-            #print(footnote)
-            display(HTML(f"<div style='display: inline-block; margin: 10px 0; padding: 10px; background-color: #f0f8ff; border-left: 4px solid #0066cc;'><b style='color: #0066cc'>{footnote.replace(chr(10), '<br>')}</b></div>"))
+        if footnote_list and footnote:  # Log footnote content for debugging/reference
+            _log_validation(footnote.replace(chr(10), ' '), level="info")
     return fig, all_errors
 
 """_______________________________Portrait Plot______________________________________________"""

@@ -3,9 +3,20 @@ FASTA parsing and validation utilities shared between
 heatmap_visualization and (formerly) data_transformation notebooks.
 """
 
+import logging
 import re
-from IPython.display import display, HTML
+
 import _settings as settings
+
+logger = logging.getLogger(__name__)
+
+
+def _log_validation(message: str, level: str = "warning") -> None:
+    """Log validation/warning messages (replaces legacy IPython display)."""
+    if level == "error":
+        logger.error(message)
+    else:
+        logger.warning(message)
 
 
 # ---------------------------------------------------------------------------
@@ -58,8 +69,8 @@ def validate_fasta_format(file_data):
     """
     Validate that an uploaded file widget object contains proper FASTA content.
 
-    Returns ``True`` if valid, ``False`` otherwise.  Displays HTML error
-    messages on failure (for use inside ipywidgets Output contexts).
+    Returns ``True`` if valid, ``False`` otherwise.  Logs validation errors
+    via Python logging on failure.
     """
     try:
         content = file_data.content.tobytes().decode('utf-8')
@@ -69,7 +80,7 @@ def validate_fasta_format(file_data):
             return False
 
         if not any(line.strip().startswith('>') for line in lines):
-            display(HTML("<b style='color:red'>Improper FASTA header: at least one line must start with '>'</b>"))
+            _log_validation("Improper FASTA header: at least one line must start with '>'")
             return False
 
         has_header = False
@@ -102,7 +113,7 @@ def validate_fasta_format(file_data):
         return has_header and has_sequence
 
     except Exception as e:
-        display(HTML(f"<b style='color:red'>Validation error: {str(e)}</b>"))
+        _log_validation(f"FASTA validation error: {e}")
         return False
 
 

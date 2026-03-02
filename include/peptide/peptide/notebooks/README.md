@@ -6,6 +6,8 @@
 ## Overview
 PeptiLine transforms peptidomic mass spectrometry data into interactive visualizations and statistical summaries.
 
+> **Note:** The interactive Jupyter notebooks (`heatmap_visualization.ipynb`, `data_analysis.ipynb`) that used ipywidgets are no longer supported. The web application at https://mbpdb.nws.oregonstate.edu/peptiline/ provides equivalent functionality via the Data Transformation, Data Analysis, and Heatmap dashboards.
+
 - **Publication:** Submitted to PLOS Computational Biology (2025, under review)
 - **Web Application:** https://mbpdb.nws.oregonstate.edu/peptiline/
 - **License:** MIT (OSI compliant)
@@ -282,8 +284,7 @@ Core dependencies include:
 - seaborn
 - plotly
 - scikit-learn
-- ipywidgets
-See `notebook_requirements.txt` for complete list with version specifications.
+See `notebook_requirements.txt` for complete list with version specifications. Note: ipywidgets has been removed; notebooks with interactive widgets are deprecated.
 
 ## Project Structure
 ```

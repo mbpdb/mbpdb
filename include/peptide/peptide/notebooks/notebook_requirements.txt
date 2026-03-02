@@ -2,18 +2,14 @@
 # Use this file if you only want to run the notebooks locally.
 # Versions are pinned for compatibility with the deployed app.
 
-# Jupyter stack - pinned for widget compatibility (Voila removed)
+# Jupyter stack (ipywidgets removed - notebooks with interactive widgets no longer supported)
 notebook>=7.0.0,<8.0.0
 ipykernel>=6.29.0,<7.0.0
 jupyter_core>=5.7.0,<6.0.0
 jupyter_server>=2.14.0,<3.0.0
 jupyter-client>=8.6.0,<9.0.0
 jupyterlab>=4.2.5,<4.3.0
-ipywidgets>=8.1.3,<8.2.0
-jupyterlab_widgets>=3.0.11,<3.1.0
-widgetsnbextension>=4.0.11,<4.1.0
 nbconvert>=7.16.0,<8.0.0
-traitlets>=5.14.0,<6.0.0
 
 # Data processing & visualization
 pandas>=2.0.0
