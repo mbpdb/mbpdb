@@ -21,10 +21,6 @@ urlpatterns = [
     path('return_render_results/<uuid:task_id>/', views.return_render_results, name='return_render_results'),
     path('heatmap/', include('peptide.heatmap_viz.urls', namespace='heatmap_viz')),
     path('data_transformation/', include('peptide.data_transformation.urls')),
-    # Correlation view removed
-    #path('protein_bar_view/', views.voila_protein_bar_view, name='voila_protein_bar'),
-    #path('bioactive_bar_view/', views.voila_bioactive_bar_view, name='voila_bioactive_bar'),
-    #path('summed_bar_view/', views.voila_summed_bar_view, name='voila_summed_bar'),
     path('data_analysis/', include('peptide.data_analysis.urls', namespace='data_analysis')),
     path('peptiline/', views.peptiline_landing, name='peptiline_landing'),
     path('supplementals_tables_and_figures/', views.supplementals_tables_and_figures, name='supplementals_tables_and_figures'),

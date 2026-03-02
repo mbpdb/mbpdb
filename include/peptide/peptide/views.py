@@ -19,26 +19,11 @@ from django.core.cache import cache
 
 from django.shortcuts import render
 
-def voila_heatmap_view(request):
-    return render(request, 'peptide/heatmap.html')
-
-
-def voila_data_analysis_view(request):
-    return render(request, 'peptide/data_analysis_plot.html')
-
 def supplementals_tables_and_figures(request):
     return render(request, 'peptide/supplementals_tables_and_figures.html')
 
 def zukaitis_2026(request):
     return render(request, 'peptide/zukaitis_2026.html')
-
-#def voila_protein_bar_view(request):
-#    return render(request, 'peptide/protein_bar_plot.html')
-
-#def voila_bioactive_bar_view(request):
-#    return render(request, 'peptide/bioactive_bar_plot.html')
-#def voila_summed_bar_view(request):
-#    return render(request, 'peptide/summed_bar_plot.html')
 
 def test(request):
     return render(request, 'peptide/test.html')

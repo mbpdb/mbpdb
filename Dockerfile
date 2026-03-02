@@ -3,17 +3,9 @@ FROM python:3.10
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
-ENV JUPYTER_ENABLE_LAB=yes
-ENV JUPYTER_PLATFORM_DIRS=1
 ENV DJANGO_SETTINGS_MODULE=peptide.settings
 ENV BASE_PYTHONPATH=/app/include/peptide
 ENV PIP_ROOT_USER_ACTION=ignore
-
-# Generate a random token and save it as an environment variable
-RUN VOILA_TOKEN=$(openssl rand -hex 32) && \
-    echo "export VOILA_TOKEN=${VOILA_TOKEN}" >> /etc/profile.d/voila_token.sh && \
-    echo "VOILA_TOKEN=${VOILA_TOKEN}" >> /.env
-
 
 # Add gosu for privilege dropping
 RUN apt-get update && apt-get install -y gosu && \
@@ -51,12 +43,7 @@ WORKDIR /app
 # Copy requirements and install Python packages
 COPY requirements.txt .
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --upgrade voila jupyterlab
-
-RUN python3 -m ipykernel install --user
-
-
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
 COPY include /app/include
@@ -70,11 +57,6 @@ RUN chown -R celery_user:celery_user /app/include/peptide && \
     touch /app/include/peptide/db.sqlite3 && \
     chown celery_user:celery_user /app/include/peptide/db.sqlite3 && \
     chmod 664 /app/include/peptide/db.sqlite3
-
-# Trust notebooks
-RUN jupyter trust /app/include/peptide/peptide/notebooks/heatmap_visualization.ipynb || echo "Warning: Could not trust notebook" && \
-    jupyter trust /app/include/peptide/peptide/notebooks/data_transformation.ipynb || echo "Warning: Could not trust notebook" && \
-    jupyter trust /app/include/peptide/peptide/notebooks/data_analysis.ipynb || echo "Warning: Could not trust notebook"
 
 # Copy and setup start script
 COPY start.sh /app/start.sh
@@ -100,8 +82,8 @@ RUN chmod -R 755 /app/include/peptide/static_files
 RUN mkdir -p /app/include/peptide/static_files && \
     chmod -R 755 /app/include/peptide/static_files
 
-# Expose ports for Django and Voila
-EXPOSE 8000 8866 8867 8868 8869
+# Expose port for Django
+EXPOSE 8000
 
 # Use the start script as the entry point
 CMD ["/app/start.sh"]

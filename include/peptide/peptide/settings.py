@@ -107,13 +107,6 @@ MIDDLEWARE = [
 _default_cors = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
-    # Voila instances (local)
-    "http://localhost:8866",
-    "http://127.0.0.1:8866",
-    "http://localhost:8867",
-    "http://127.0.0.1:8867",
-    "http://localhost:8868",
-    "http://127.0.0.1:8868",
 ]
 _env_cors = os.environ.get('DJANGO_CORS_ORIGINS', '')
 _extra_cors = [h.strip() for h in _env_cors.split(',') if h.strip()] if _env_cors else []
@@ -124,13 +117,6 @@ CORS_ALLOWED_ORIGINS = _default_cors + _extra_cors
 _default_csrf = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
-    # Voila instances (local)
-    "http://localhost:8866",
-    "http://127.0.0.1:8866",
-    "http://localhost:8867",
-    "http://127.0.0.1:8867",
-    "http://localhost:8868",
-    "http://127.0.0.1:8868",
 ]
 _env_csrf = os.environ.get('DJANGO_CSRF_ORIGINS', '')
 _extra_csrf = [h.strip() for h in _env_csrf.split(',') if h.strip()] if _env_csrf else []

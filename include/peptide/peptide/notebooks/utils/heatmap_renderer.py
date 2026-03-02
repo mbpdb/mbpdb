@@ -12,7 +12,14 @@ import re
 import copy
 import warnings
 from itertools import cycle
-from IPython.display import display, HTML
+
+# IPython.display only needed when running in Jupyter; Django app uses no-ops
+try:
+    from IPython.display import display, HTML
+except ImportError:
+    def display(*args, **kwargs): pass
+    def HTML(s): return s
+
 import _settings as settings
 
 # ---------------------------------------------------------------------------

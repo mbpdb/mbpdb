@@ -1,4 +1,4 @@
-name: Deploy Django-Voila Container to Azure
+name: Deploy Django Container to Azure
 
 on:
   push:
@@ -45,9 +45,6 @@ jobs:
           PYTHONPATH=/app/include/peptide
           WEBSITES_PORT=8000
           WEBSITES_CONTAINER_START_TIME_LIMIT=1800
-          VOILA_PORT=8866
-          DATA_PORT=8867
-          DATA_VIZ_PORT=8868
           GITHUB_PAT=${{ secrets.MY_GITHUB_PAT }}
           DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
           DJANGO_ALLOWED_HOSTS=${{ secrets.DJANGO_ALLOWED_HOSTS }}
@@ -68,9 +65,6 @@ jobs:
           "PYTHONPATH=/app/include/peptide" \
           "WEBSITES_PORT=8000" \
           "WEBSITES_CONTAINER_START_TIME_LIMIT=1800" \
-          "VOILA_PORT=8866" \
-          "DATA_PORT=8867" \
-          "DATA_VIZ_PORT=8868" \
           "GITHUB_PAT=${{ secrets.MY_GITHUB_PAT }}" \
           "DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}" \
           "DJANGO_ALLOWED_HOSTS=${{ secrets.DJANGO_ALLOWED_HOSTS }}" \

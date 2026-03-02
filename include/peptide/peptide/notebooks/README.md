@@ -283,8 +283,6 @@ Core dependencies include:
 - plotly
 - scikit-learn
 - ipywidgets
-- voila
-
 See `notebook_requirements.txt` for complete list with version specifications.
 
 ## Project Structure
