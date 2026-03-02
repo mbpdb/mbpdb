@@ -28,24 +28,12 @@ def _get_work_dir(request) -> str:
 
 
 def _save_df(work_dir: str, name: str, df: pd.DataFrame):
-    path = os.path.join(work_dir, f'{name}.parquet')
-    df_out = df.copy()
-    for col in df_out.select_dtypes(include='object').columns:
-        try:
-            df_out[col] = df_out[col].where(df_out[col].isna(), df_out[col].astype(str))
-        except Exception:
-            df_out[col] = df_out[col].astype(str)
-    df_out.to_parquet(path, index=False)
+    df.to_pickle(os.path.join(work_dir, f'{name}.pkl'))
 
 
 def _load_df(work_dir: str, name: str) -> pd.DataFrame | None:
-    parquet_path = os.path.join(work_dir, f'{name}.parquet')
-    pkl_path = os.path.join(work_dir, f'{name}.pkl')
-    if os.path.exists(parquet_path):
-        return pd.read_parquet(parquet_path)
-    if os.path.exists(pkl_path):
-        return pd.read_pickle(pkl_path)
-    return None
+    path = os.path.join(work_dir, f'{name}.pkl')
+    return pd.read_pickle(path) if os.path.exists(path) else None
 
 
 def _save_json(work_dir: str, name: str, data):

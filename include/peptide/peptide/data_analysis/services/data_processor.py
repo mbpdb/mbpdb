@@ -201,11 +201,14 @@ def get_color_sequence(n_colors: int, scheme: str = 'HSV') -> list:
         'lightgreen', 'lightred', 'gold', 'silver', 'teal', 'navy', 'maroon',
         'olive', 'lime', 'aqua', 'indigo', 'violet', 'turquoise', 'coral',
         'crimson', 'salmon', 'sienna', 'tan', 'khaki', 'plum', 'orchid',
+        'steelblue', 'seagreen', 'mediumpurple', 'slategray',
     }
 
     try:
-        if scheme.startswith('---') or scheme.lower() in single_colors:
+        if scheme.startswith('---'):
             scheme = 'HSV'
+        elif scheme.lower() in single_colors:
+            return [scheme.lower()] * n_colors
 
         if scheme.lower() in ('rainbow', 'hsv'):
             return [f'hsl({h},70%,60%)' for h in np.linspace(0, 330, n_colors)]
@@ -317,12 +320,18 @@ class DataAnalysisState:
         self.unique_function_abundance_dict: dict = {}
         self.unique_function_counts_dict: dict = {}
         self.function_group_metrics_dict: dict = {}
+        self.function_unique_peptide_counts: dict = {}  # {fn: total unique peptides for that fn}
         self.abundance_count_by_sample_dict: dict = {}
         self.selected_proteins: list = []
         self.selected_functions: list = []
         self.all_proteins: list = []
         self.all_functions: list = []
         self.function_color_map: dict = {}
+
+    @property
+    def selected_protein_names(self) -> list:
+        """Return selected protein IDs converted to display names (for protein_df/psdd lookups)."""
+        return [self.protein_dict.get(pid, {}).get('name', pid) for pid in self.selected_proteins]
 
     # ------------------------------------------------------------------
     # Step 1: Resolve selected proteins / functions
@@ -409,18 +418,13 @@ class DataAnalysisState:
         protein_mask = pd.Series(True, index=df.index)
         function_mask = pd.Series(True, index=df.index)
 
-        protein_col = 'protein_name' if 'protein_name' in df.columns else None
-
-        # Protein filter
-        if self.plot_filter in ('Selected Protein(s)', 'Both') and protein_col:
+        # Protein filter – match by ID against the 'Protein' column (semicolon-separated IDs).
+        if self.plot_filter in ('Selected Protein(s)', 'Both') and 'Protein' in df.columns:
             if 'All Proteins (No Filter)' not in self.selected_proteins_raw:
-                protein_mask = df[protein_col].fillna('').apply(
-                    lambda x: any(p == x for p in self.selected_proteins)
+                sel_ids = set(self.selected_proteins)
+                protein_mask = df['Protein'].fillna('').apply(
+                    lambda x: bool(sel_ids.intersection(p.strip() for p in x.split(';')))
                 )
-                if protein_mask.sum() == 0:
-                    protein_mask = df[protein_col].fillna('').apply(
-                        lambda x: any(p in x for p in self.selected_proteins)
-                    )
 
         # Function filter
         has_function = 'function' in df.columns and not df['function'].isna().all()
@@ -523,6 +527,22 @@ class DataAnalysisState:
         fn_ct_totals: dict = {}
         fn_group_metrics: dict = {}
 
+        # Per-function unique peptide counts across all groups (prevents double counting in totals).
+        # A peptide with functions "A;B" is counted in BOTH A and B individually,
+        # but total unique peptide count uses nunique() on the full set.
+        fn_unique_peptide_counts: dict = {}
+        for fn in all_fns:
+            if self.plot_filter == 'Functional vs Non-Functional Peptides':
+                mask = df['function'].notna() if fn == 'Functional Peptides' else df['function'].isna()
+            else:
+                mask = df['function'].apply(lambda x: contains_function(x, fn))
+            fn_rows = df[mask]
+            fn_unique_peptide_counts[fn] = (
+                int(fn_rows['Unique Peptide ID'].nunique())
+                if 'Unique Peptide ID' in fn_rows.columns else 0
+            )
+        self.function_unique_peptide_counts = fn_unique_peptide_counts
+
         for group_name in self.selected_groups:
             col = f'Avg_{group_name}'
             if col not in df.columns:
@@ -532,9 +552,6 @@ class DataAnalysisState:
             nonzero = temp[(temp[col] != 0) & temp[col].notna()]
             unique_fn_ab.setdefault(group_name, {})
             unique_fn_ct.setdefault(group_name, {})
-
-            total_fn_ab = 0.0
-            total_fn_ct = 0
 
             for fn in all_fns:
                 if self.plot_filter == 'Functional vs Non-Functional Peptides':
@@ -547,8 +564,6 @@ class DataAnalysisState:
                 ct = int(fn_rows['Unique Peptide ID'].nunique())
                 unique_fn_ab[group_name][fn] = ab
                 unique_fn_ct[group_name][fn] = ct
-                total_fn_ab += ab
-                total_fn_ct += ct
 
                 fn_group_metrics.setdefault(fn, {})
                 fn_group_metrics[fn][group_name] = {
@@ -558,10 +573,27 @@ class DataAnalysisState:
                     'rel_count': 0.0,
                 }
 
-            fn_ab_totals[group_name] = total_fn_ab
-            fn_ct_totals[group_name] = total_fn_ct
+            # CRITICAL: Use actual unique functional-peptide counts (not sum of per-function
+            # counts) to prevent double-counting peptides with multiple function annotations.
+            # E.g. if a peptide has "A;B", summing fn_ct[A]+fn_ct[B] counts it twice.
+            if self.plot_filter == 'Functional vs Non-Functional Peptides':
+                # Count all non-null rows (functional) and null rows separately
+                functional_nonzero = nonzero[nonzero['function'].notna()]
+                nonfunctional_nonzero = nonzero[nonzero['function'].isna()]
+                fn_ab_totals[group_name] = float(functional_nonzero[col].sum()) + float(nonfunctional_nonzero[col].sum())
+                fn_ct_totals[group_name] = int(nonzero['Unique Peptide ID'].nunique())
+            else:
+                # Rows with any functional annotation (may have multi-function peptides)
+                func_mask = nonzero['function'].notna() & (nonzero['function'].astype(str).str.strip() != '')
+                functional_nonzero = nonzero[func_mask]
+                # Total functional abundance: sum each unique peptide once (not once per function)
+                fn_ab_totals[group_name] = float(
+                    functional_nonzero.drop_duplicates('Unique Peptide ID')[col].sum()
+                ) if 'Unique Peptide ID' in functional_nonzero.columns else float(functional_nonzero[col].sum())
+                # Total functional peptide count: unique peptides with any function
+                fn_ct_totals[group_name] = int(functional_nonzero['Unique Peptide ID'].nunique()) if 'Unique Peptide ID' in functional_nonzero.columns else 0
 
-        # Relative values
+        # Relative values: function's contribution to each group's functional total
         for fn, gdict in fn_group_metrics.items():
             for gname, vals in gdict.items():
                 tot_ab = fn_ab_totals.get(gname, 0)
@@ -658,7 +690,7 @@ class DataAnalysisState:
         if not available_ab or 'Protein' not in df.columns:
             return
 
-        # Calculate protein totals
+        # Calculate protein totals – track per-group peptide sets for Count columns
         protein_data = {}
         for _, row in df.iterrows():
             proteins = [p.strip() for p in str(row.get('Protein', '')).split(';') if p.strip()]
@@ -667,6 +699,7 @@ class DataAnalysisState:
                 if pid not in protein_data:
                     protein_data[pid] = {
                         'peptides': set(),
+                        'peptides_by_group': {g: set() for g in self.selected_groups},
                         'abundance': {g: 0.0 for g in self.selected_groups},
                     }
                 protein_data[pid]['peptides'].add(pep_id)
@@ -676,6 +709,8 @@ class DataAnalysisState:
                         v = row[col]
                         if pd.notna(v):
                             protein_data[pid]['abundance'][g] += float(v)
+                            if float(v) > 0:
+                                protein_data[pid]['peptides_by_group'][g].add(pep_id)
 
         rows = []
         for pid, pdata in protein_data.items():
@@ -684,6 +719,7 @@ class DataAnalysisState:
             for g in self.selected_groups:
                 ab = pdata['abundance'][g]
                 row[f'Avg_{g}'] = ab
+                row[f'Count_{g}'] = len(pdata['peptides_by_group'][g])
             row['unique_peptide_count'] = len(pdata['peptides'])
             rows.append(row)
 
@@ -693,11 +729,14 @@ class DataAnalysisState:
 
         self.protein_df = pd.DataFrame(rows)
 
-        # Relative abundances
+        # Relative abundances (protein's contribution to each group total)
         for g in self.selected_groups:
-            col = f'Avg_{g}'
-            total = self.protein_df[col].sum()
-            self.protein_df[f'Rel_{col}'] = (self.protein_df[col] / total * 100).round(6) if total else 0.0
+            ab_col = f'Avg_{g}'
+            ct_col = f'Count_{g}'
+            tot_ab = self.protein_df[ab_col].sum()
+            tot_ct = self.protein_df[ct_col].sum()
+            self.protein_df[f'Rel_Avg_{g}'] = (self.protein_df[ab_col] / tot_ab * 100).round(6) if tot_ab else 0.0
+            self.protein_df[f'Rel_Count_{g}'] = (self.protein_df[ct_col] / tot_ct * 100).round(6) if tot_ct else 0.0
 
         # sum_df
         self.sum_df = pd.DataFrame({
@@ -713,21 +752,41 @@ class DataAnalysisState:
         ).round(2)
         self.protein_df = self.protein_df.sort_values('avg_abundance_all', ascending=False)
 
-        # Build protein_sample_distribution_dict
+        # Build protein_sample_distribution_dict.
+        # 'abundance_relative' = protein's contribution to each group total (for By Sample hover).
+        # 'relative'           = each group's contribution to the protein's total (for By Protein stacked bar).
         psdd = {}
         for _, row in self.protein_df.iterrows():
             pname = row['Description']
+            tot_ab = sum(float(row.get(f'Avg_{g}', 0)) for g in self.selected_groups)
+            tot_ct = sum(float(row.get(f'Count_{g}', 0)) for g in self.selected_groups)
             psdd[pname] = {
-                'Abundance': {g: row.get(f'Avg_{g}', 0) for g in self.selected_groups},
-                'counts': {g: 0 for g in self.selected_groups},
-                'abundance_relative': {g: row.get(f'Rel_Avg_{g}', 0) for g in self.selected_groups},
-                'count_relative': {g: 0 for g in self.selected_groups},
-                'unique_peptide_count': row.get('unique_peptide_count', 0),
-                'total_Abundance': sum(row.get(f'Avg_{g}', 0) for g in self.selected_groups),
-                'total_count': 0,
+                'Abundance': {g: float(row.get(f'Avg_{g}', 0)) for g in self.selected_groups},
+                'counts': {g: float(row.get(f'Count_{g}', 0)) for g in self.selected_groups},
+                # protein's share of each group's total (By Sample hover / reference)
+                'abundance_relative': {g: float(row.get(f'Rel_Avg_{g}', 0)) for g in self.selected_groups},
+                'count_relative': {g: float(row.get(f'Rel_Count_{g}', 0)) for g in self.selected_groups},
+                # group's share of this protein's total (for By Protein stacked bar)
+                'relative': {
+                    g: float(row.get(f'Avg_{g}', 0)) / tot_ab * 100 if tot_ab > 0 else 0.0
+                    for g in self.selected_groups
+                },
+                'count_relative_to_protein': {
+                    g: float(row.get(f'Count_{g}', 0)) / tot_ct * 100 if tot_ct > 0 else 0.0
+                    for g in self.selected_groups
+                },
+                'values': {g: float(row.get(f'Avg_{g}', 0)) for g in self.selected_groups},
+                'unique_peptide_count': int(row.get('unique_peptide_count', 0)),
+                'total_Abundance': tot_ab,
+                'total_count': tot_ct,
             }
         self.protein_sample_distribution_dict = psdd
-        self.protein_count_bysample_dict = {g: 0 for g in self.selected_groups}
+
+        # Unique peptide counts per group for selected proteins
+        self.protein_count_bysample_dict = {
+            g: int(self.protein_df[f'Count_{g}'].sum()) if f'Count_{g}' in self.protein_df.columns else 0
+            for g in self.selected_groups
+        }
 
     # ------------------------------------------------------------------
     # Step 6: Reorganize by function
@@ -738,21 +797,40 @@ class DataAnalysisState:
             return
 
         fdd = {}
+        include_fns = set(self.selected_functions)
+        if self.plot_minor:
+            include_fns.add('Minor Functions')
+
         for _, row in self.function_df.iterrows():
             fn = row['Description']
-            if fn not in (self.selected_functions + (['Minor Functions'] if self.plot_minor else [])):
+            if fn not in include_fns:
                 continue
+
+            tot_ab = sum(float(row.get(f'Avg_{g}', 0)) for g in self.selected_groups)
+            tot_ct = sum(float(row.get(f'Count_{g}', 0)) for g in self.selected_groups)
+
             fdd[fn] = {
                 'Abundance': {g: float(row.get(f'Avg_{g}', 0)) for g in self.selected_groups},
                 'counts': {g: float(row.get(f'Count_{g}', 0)) for g in self.selected_groups},
+                # function's share of each group's functional total (By Sample hover/reference)
                 'abundance_relative': {g: float(row.get(f'Rel_Avg_{g}', 0)) for g in self.selected_groups},
                 'count_relative': {g: float(row.get(f'Rel_Count_{g}', 0)) for g in self.selected_groups},
-                'total_Abundance': sum(float(row.get(f'Avg_{g}', 0)) for g in self.selected_groups),
-                'total_count': sum(float(row.get(f'Count_{g}', 0)) for g in self.selected_groups),
-                'unique_peptide_count': 0,
+                # group's share of this function's total (for By Function stacked bar)
+                'relative': {
+                    g: float(row.get(f'Avg_{g}', 0)) / tot_ab * 100 if tot_ab > 0 else 0.0
+                    for g in self.selected_groups
+                },
+                'count_relative_to_function': {
+                    g: float(row.get(f'Count_{g}', 0)) / tot_ct * 100 if tot_ct > 0 else 0.0
+                    for g in self.selected_groups
+                },
+                'total_Abundance': tot_ab,
+                'total_count': tot_ct,
+                # Unique peptide count for this function (across all groups, not double-counted)
+                'unique_peptide_count': self.function_unique_peptide_counts.get(fn, 0),
                 'values': {},
             }
-            # 'values' alias for quick access
+            # 'values' alias matches notebook convention
             if self.use_count:
                 fdd[fn]['values'] = fdd[fn]['counts']
             else:

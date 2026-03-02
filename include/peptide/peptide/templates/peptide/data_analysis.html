@@ -85,26 +85,22 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
     border-radius: 6px; font-size: .9rem;
 }
 
-/* ── Radio button groups (matches notebook RadioButtons style) ── */
+/* ── Radio button groups (traditional visible style) ── */
 .radio-group {
-    display: flex; flex-wrap: wrap; gap: 0;
-    border: 1px solid #ced4da; border-radius: 4px; overflow: hidden;
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start;
 }
 .radio-group label {
-    display: inline-flex; align-items: center;
-    padding: 6px 13px; background: #fff; cursor: pointer;
-    font-size: .82rem; font-weight: 400;
-    border-right: 1px solid #ced4da;
-    transition: background .15s, color .15s;
-    white-space: nowrap; user-select: none;
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: .82rem; font-weight: 400; cursor: pointer; white-space: nowrap;
 }
-.radio-group label:last-child { border-right: none; }
-.radio-group input[type=radio] { display: none; }
-.radio-group label.rg-checked { background: #1976d2; color: #fff; font-weight: 600; }
+.radio-group input[type=radio] {
+    width: 14px; height: 14px; cursor: pointer; accent-color: #1976d2; flex-shrink: 0;
+}
 .radio-group.rg-disabled label { opacity: .55; cursor: not-allowed; }
-.rg-field { margin-bottom: 10px; }
+.radio-group.rg-disabled input[type=radio] { cursor: not-allowed; }
+.rg-field { margin-bottom: 8px; }
 .rg-field > .rg-label {
-    font-weight: 600; font-size: .82rem; margin-bottom: 5px; display: block; color: #333;
+    font-weight: 600; font-size: .82rem; margin-bottom: 4px; display: block; color: #333;
 }
 </style>
 {% endblock %}
@@ -126,7 +122,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
         <div class="status-box status-info" style="margin-bottom:12px;">
             <strong>Instructions:</strong> Upload a merged data file from the
             <a href="/data_transformation/">Data Transformation</a> module.
-            Accepted formats: CSV, TSV, XLSX, or Parquet.
+            Accepted formats: CSV or XLSX.
             The file must contain <code>Protein</code>, <code>Unique Peptide ID</code>,
             and <code>Avg_*</code> columns.
             &nbsp;<a href="/static/peptide/examples/example_merged_dataframe.csv" download style="font-size:.82rem;">
@@ -137,10 +133,10 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             <!-- Upload zone -->
             <div style="flex:1; min-width:200px; max-width:320px;">
                 <div class="upload-zone" id="upload-zone">
-                    <input type="file" id="merged-file-input" accept=".csv,.txt,.tsv,.xlsx,.parquet">
+                    <input type="file" id="merged-file-input" accept=".csv,.xlsx">
                     <div class="drop-text">
                         <i class="fas fa-upload"></i>
-                        Click or drag CSV / TSV / XLSX / Parquet
+                        Click or drag CSV / XLSX
                     </div>
                 </div>
                 <div id="upload-file-name" style="margin-top:4px; font-size:0.82rem; color:#555;"></div>
@@ -160,12 +156,15 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             Select Variables &amp; Settings
         </div>
 
-        <div class="selector-grid">
-            <div class="selector-block">
-                <label><i class="fas fa-layer-group"></i> Sample Groups</label>
-                <select id="group-selector" class="multi-select" multiple size="5" disabled></select>
-                <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
-            </div>
+        <!-- Sample Groups (full width) -->
+        <div class="selector-block" style="margin-bottom:14px;">
+            <label><i class="fas fa-layer-group"></i> Sample Groups</label>
+            <select id="group-selector" class="multi-select" multiple size="5" disabled></select>
+            <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+        </div>
+
+        <!-- Proteins + Functions (2-col) -->
+        <div class="selector-grid" style="margin-bottom:14px;">
             <div class="selector-block">
                 <label><i class="fas fa-dna"></i> Proteins <small class="text-muted">(sorted by abundance)</small></label>
                 <select id="protein-selector" class="multi-select" multiple size="5" disabled></select>
@@ -178,135 +177,166 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             </div>
         </div>
 
+        <!-- Plot Filter (below selectors) -->
+        <div style="margin-bottom:14px; max-width:320px;">
+            <label style="font-weight:600; font-size:.82rem; margin-bottom:4px; display:block;">
+                <i class="fas fa-filter"></i> Plot Filter
+            </label>
+            <select id="plot-filter" disabled style="width:100%; border:1px solid #ced4da; border-radius:4px; padding:5px 8px; font-size:.82rem;">
+                <option value="No Filter">No Filter</option>
+                <option value="Selected Protein(s)">Selected Protein(s)</option>
+                <option value="Selected Function(s)">Selected Function(s)</option>
+                <option value="Both">Both</option>
+                <option value="Functional vs Non-Functional Peptides">Functional vs Non-Functional</option>
+            </select>
+        </div>
+
         <hr style="margin:14px 0;">
-        <div style="font-weight:600; margin-bottom:10px;">
-            <i class="fas fa-sliders-h"></i> Visualization Settings
-        </div>
 
-        <!-- Row 1: radio groups -->
-        <div style="display:flex; flex-wrap:wrap; gap:16px 32px; margin-bottom:12px;">
+        <!-- 2-column settings layout -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:4px;">
 
-            <div class="rg-field">
-                <span class="rg-label">Plot Type</span>
-                <div class="radio-group rg-disabled" id="rg-plot-type">
-                    <label class="rg-checked"><input type="radio" name="plot-type" value="Grouped Bar Plots" checked disabled> Grouped Bar Plots</label>
-                    <label><input type="radio" name="plot-type" value="Stacked Bar Plots" disabled> Stacked Bar Plots</label>
-                    <label><input type="radio" name="plot-type" value="Pie Charts" disabled> Pie Charts</label>
-                    <label><input type="radio" name="plot-type" value="Corr. Scatter Plots" disabled> Corr. Scatter Plots</label>
+            <!-- Left: Visualization Settings -->
+            <div>
+                <div style="font-weight:700; font-size:.95rem; margin-bottom:12px;">
+                    <u>Visualization Settings:</u>
+                </div>
+                <!-- 2x2 grid of radio groups, vertical options -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 18px;">
+
+                    <div class="rg-field">
+                        <span class="rg-label">Plot Type</span>
+                        <div class="radio-group rg-disabled" id="rg-plot-type" style="flex-direction:column; gap:4px; align-items:flex-start;">
+                            <label><input type="radio" name="plot-type" value="Grouped Bar Plots" checked disabled> Grouped Bar Plots</label>
+                            <label><input type="radio" name="plot-type" value="Stacked Bar Plots" disabled> Stacked Bar Plots</label>
+                            <label><input type="radio" name="plot-type" value="Pie Charts" disabled> Pie Charts</label>
+                            <label><input type="radio" name="plot-type" value="Corr. Scatter Plots" disabled> Corr. Scatter Plots</label>
+                        </div>
+                    </div>
+
+                    <div class="rg-field">
+                        <span class="rg-label">Plot Orientation</span>
+                        <div class="radio-group rg-disabled" id="rg-plot-orientation" style="flex-direction:column; gap:4px; align-items:flex-start;">
+                            <label><input type="radio" name="plot-orientation" value="By Sample" checked disabled> By Sample</label>
+                            <label><input type="radio" name="plot-orientation" value="By Protein" disabled> By Protein</label>
+                            <label><input type="radio" name="plot-orientation" value="By Function" disabled> By Function</label>
+                        </div>
+                    </div>
+
+                    <div class="rg-field">
+                        <span class="rg-label">Value Type</span>
+                        <div class="radio-group rg-disabled" id="rg-abs-or-count" style="flex-direction:column; gap:4px; align-items:flex-start;">
+                            <label><input type="radio" name="abs-or-count" value="Abundance" checked disabled> Abundance</label>
+                            <label><input type="radio" name="abs-or-count" value="Count" disabled> Peptide Count</label>
+                        </div>
+                    </div>
+
+                    <div class="rg-field">
+                        <span class="rg-label">Metric</span>
+                        <div class="radio-group rg-disabled" id="rg-metric-type" style="flex-direction:column; gap:4px; align-items:flex-start;">
+                            <label><input type="radio" name="metric-type" value="Absolute" checked disabled> Absolute</label>
+                            <label><input type="radio" name="metric-type" value="Relative" disabled> Relative</label>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Correlation type (conditional, in left column) -->
+                <div class="rg-field" id="corr-type-block" style="display:none; margin-top:10px;">
+                    <span class="rg-label">Correlation Type</span>
+                    <div class="radio-group" id="rg-correlation-type" style="flex-direction:column; gap:4px; align-items:flex-start;">
+                        <label><input type="radio" name="correlation-type" value="Pearson" checked> Pearson</label>
+                        <label><input type="radio" name="correlation-type" value="Spearman"> Spearman</label>
+                    </div>
+                </div>
+
+                <!-- Checkboxes under Visualization Settings -->
+                <div style="margin-top:10px; display:flex; flex-direction:column; gap:6px;">
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="log-transform" checked disabled> Log&#x2081;&#x2080; transform y-axis
+                    </label>
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="plot-minor" disabled> Show minor groups
+                    </label>
                 </div>
             </div>
 
-            <div class="rg-field">
-                <span class="rg-label">Plot Orientation</span>
-                <div class="radio-group rg-disabled" id="rg-plot-orientation">
-                    <label class="rg-checked"><input type="radio" name="plot-orientation" value="By Sample" checked disabled> By Sample</label>
-                    <label><input type="radio" name="plot-orientation" value="By Protein" disabled> By Protein</label>
-                    <label><input type="radio" name="plot-orientation" value="By Function" disabled> By Function</label>
+            <!-- Right: Appearance Settings -->
+            <div style="min-width:0;">
+                <div style="font-weight:700; font-size:.95rem; margin-bottom:8px;">
+                    <u>Appearance Settings:</u>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">X-Axis Label</label>
+                        <input type="text" id="xlabel" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">Y-Axis Label</label>
+                        <input type="text" id="ylabel" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">Legend Title</label>
+                        <input type="text" id="legend-title" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">Plot Title</label>
+                        <input type="text" id="plot-title" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">Color Scheme</label>
+                        <select id="color-scheme" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                            <optgroup label="Default">
+                                <option value="HSV">HSV (Default)</option>
+                            </optgroup>
+                            <optgroup label="Qualitative (Recommended)">
+                                <option value="Plotly">Plotly</option>
+                                <option value="D3">D3</option>
+                                <option value="G10">G10</option>
+                                <option value="T10">T10</option>
+                                <option value="Alphabet">Alphabet</option>
+                                <option value="Set1">Set1</option>
+                                <option value="Set2">Set2</option>
+                                <option value="Set3">Set3</option>
+                                <option value="Pastel1">Pastel1</option>
+                                <option value="Pastel2">Pastel2</option>
+                                <option value="Paired">Paired</option>
+                            </optgroup>
+                            <optgroup label="Monochromatic (Shades)">
+                                <option value="Blues">Blues</option>
+                                <option value="Greens">Greens</option>
+                                <option value="Reds">Reds</option>
+                                <option value="Purples">Purples</option>
+                                <option value="Oranges">Oranges</option>
+                                <option value="Greys">Greys</option>
+                            </optgroup>
+                            <optgroup label="Single Color (All Same)">
+                                <option value="steelblue">Steel Blue</option>
+                                <option value="crimson">Crimson</option>
+                                <option value="seagreen">Sea Green</option>
+                                <option value="darkorange">Dark Orange</option>
+                                <option value="mediumpurple">Medium Purple</option>
+                                <option value="teal">Teal</option>
+                                <option value="coral">Coral</option>
+                                <option value="gold">Gold</option>
+                                <option value="slategray">Slate Gray</option>
+                                <option value="navy">Navy</option>
+                            </optgroup>
+                            <optgroup label="Sequential">
+                                <option value="Viridis">Viridis</option>
+                                <option value="Cividis">Cividis</option>
+                                <option value="Inferno">Inferno</option>
+                            </optgroup>
+                            <optgroup label="Diverging">
+                                <option value="Spectral">Spectral</option>
+                                <option value="RdBu">RdBu</option>
+                                <option value="RdYlGn">RdYlGn</option>
+                            </optgroup>
+                        </select>
+                    </div>
                 </div>
             </div>
 
-            <div class="rg-field">
-                <span class="rg-label">Value Type</span>
-                <div class="radio-group rg-disabled" id="rg-abs-or-count">
-                    <label class="rg-checked"><input type="radio" name="abs-or-count" value="Abundance" checked disabled> Abundance</label>
-                    <label><input type="radio" name="abs-or-count" value="Count" disabled> Peptide Count</label>
-                </div>
-            </div>
-
-            <div class="rg-field">
-                <span class="rg-label">Metric</span>
-                <div class="radio-group rg-disabled" id="rg-metric-type">
-                    <label class="rg-checked"><input type="radio" name="metric-type" value="Absolute" checked disabled> Absolute</label>
-                    <label><input type="radio" name="metric-type" value="Relative" disabled> Relative</label>
-                </div>
-            </div>
-
-        </div>
-
-        <!-- Row 2: dropdowns -->
-        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap:12px; margin-bottom:12px;">
-            <div>
-                <label style="font-weight:600; font-size:.82rem; margin-bottom:2px; display:block;">Plot Filter</label>
-                <select id="plot-filter" disabled style="width:100%; border:1px solid #ced4da; border-radius:4px; padding:5px 8px; font-size:.82rem;">
-                    <option value="No Filter">No Filter</option>
-                    <option value="Selected Protein(s)">Selected Protein(s)</option>
-                    <option value="Selected Function(s)">Selected Function(s)</option>
-                    <option value="Both">Both</option>
-                    <option value="Functional vs Non-Functional Peptides">Functional vs Non-Functional</option>
-                </select>
-            </div>
-            <div>
-                <label style="font-weight:600; font-size:.82rem; margin-bottom:2px; display:block;">Color Scheme</label>
-                <select id="color-scheme" disabled style="width:100%; border:1px solid #ced4da; border-radius:4px; padding:5px 8px; font-size:.82rem;">
-                    <optgroup label="Default">
-                        <option value="HSV">HSV (Default)</option>
-                    </optgroup>
-                    <optgroup label="Qualitative (Recommended)">
-                        <option value="Plotly">Plotly</option>
-                        <option value="D3">D3</option>
-                        <option value="G10">G10</option>
-                        <option value="T10">T10</option>
-                        <option value="Alphabet">Alphabet</option>
-                        <option value="Set1">Set1</option>
-                        <option value="Set2">Set2</option>
-                        <option value="Set3">Set3</option>
-                        <option value="Pastel1">Pastel1</option>
-                        <option value="Pastel2">Pastel2</option>
-                        <option value="Paired">Paired</option>
-                    </optgroup>
-                    <optgroup label="Sequential">
-                        <option value="Viridis">Viridis</option>
-                        <option value="Cividis">Cividis</option>
-                        <option value="Inferno">Inferno</option>
-                        <option value="Blues">Blues</option>
-                        <option value="Greens">Greens</option>
-                        <option value="Reds">Reds</option>
-                    </optgroup>
-                    <optgroup label="Diverging">
-                        <option value="Spectral">Spectral</option>
-                        <option value="RdBu">RdBu</option>
-                        <option value="RdYlGn">RdYlGn</option>
-                    </optgroup>
-                </select>
-            </div>
-        </div>
-
-        <!-- Row 3: text labels + conditional correlation type -->
-        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap:12px; margin-bottom:12px;">
-            <div>
-                <label style="font-weight:600; font-size:.82rem; margin-bottom:2px; display:block;">X-Axis Label</label>
-                <input type="text" id="xlabel" placeholder="Auto" disabled style="width:100%; border:1px solid #ced4da; border-radius:4px; padding:5px 8px; font-size:.82rem;">
-            </div>
-            <div>
-                <label style="font-weight:600; font-size:.82rem; margin-bottom:2px; display:block;">Y-Axis Label</label>
-                <input type="text" id="ylabel" placeholder="Auto" disabled style="width:100%; border:1px solid #ced4da; border-radius:4px; padding:5px 8px; font-size:.82rem;">
-            </div>
-            <div>
-                <label style="font-weight:600; font-size:.82rem; margin-bottom:2px; display:block;">Legend Title</label>
-                <input type="text" id="legend-title" placeholder="Auto" disabled style="width:100%; border:1px solid #ced4da; border-radius:4px; padding:5px 8px; font-size:.82rem;">
-            </div>
-            <div>
-                <label style="font-weight:600; font-size:.82rem; margin-bottom:2px; display:block;">Plot Title</label>
-                <input type="text" id="plot-title" placeholder="Auto" disabled style="width:100%; border:1px solid #ced4da; border-radius:4px; padding:5px 8px; font-size:.82rem;">
-            </div>
-        </div>
-
-        <!-- Correlation type radio (shown only for Corr. Scatter Plots) -->
-        <div class="rg-field" id="corr-type-block" style="display:none; margin-bottom:12px;">
-            <span class="rg-label">Correlation Type</span>
-            <div class="radio-group" id="rg-correlation-type">
-                <label class="rg-checked"><input type="radio" name="correlation-type" value="Pearson" checked> Pearson</label>
-                <label><input type="radio" name="correlation-type" value="Spearman"> Spearman</label>
-            </div>
-        </div>
-
-        <div style="display:flex; gap:20px; margin-top:4px; flex-wrap:wrap; align-items:center;">
-            <label class="checkbox-row">
-                <input type="checkbox" id="log-transform" checked disabled> Log₁₀ transform y-axis
-            </label>
-            <label class="checkbox-row">
-                <input type="checkbox" id="plot-minor" disabled> Show minor groups
-            </label>
         </div>
 
         <div style="margin-top:16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
@@ -365,19 +395,6 @@ function getRadioValue(name) {
     const checked = document.querySelector(`input[name="${name}"]:checked`);
     return checked ? checked.value : '';
 }
-
-function initRadioGroups() {
-    document.querySelectorAll('.radio-group').forEach(group => {
-        group.querySelectorAll('label').forEach(label => {
-            label.addEventListener('click', function() {
-                if (group.classList.contains('rg-disabled')) return;
-                group.querySelectorAll('label').forEach(l => l.classList.remove('rg-checked'));
-                this.classList.add('rg-checked');
-            });
-        });
-    });
-}
-initRadioGroups();
 
 // ── Enable step 2 controls after upload ──────────────────────────
 function enableStep2() {
@@ -447,6 +464,7 @@ async function handleUpload(file) {
 
     populateSelectors(data);
     enableStep2();
+    applyPlotFilterGreying();
 }
 
 function populateSelectors(data) {
@@ -482,6 +500,30 @@ document.getElementById('rg-plot-type').addEventListener('click', function() {
     document.getElementById('corr-type-block').style.display =
         val === 'Corr. Scatter Plots' ? '' : 'none';
 });
+
+// ── Plot filter: grey protein/function selectors accordingly ─────
+function applyPlotFilterGreying() {
+    const filterVal = document.getElementById('plot-filter').value;
+    const protSel   = document.getElementById('protein-selector');
+    const fnSel     = document.getElementById('function-selector');
+    const fnBlock   = document.getElementById('function-selector-block');
+
+    const enableProt = filterVal === 'Selected Protein(s)' || filterVal === 'Both';
+    const enableFn   = (filterVal === 'Selected Function(s)' || filterVal === 'Both' ||
+                        filterVal === 'Functional vs Non-Functional Peptides');
+
+    // Grey out protein selector when not relevant
+    protSel.disabled = !enableProt;
+    protSel.style.opacity = enableProt ? '1' : '0.45';
+
+    // Grey out function selector when not relevant (only if visible)
+    if (fnBlock.style.display !== 'none') {
+        fnSel.disabled = !enableFn;
+        fnSel.style.opacity = enableFn ? '1' : '0.45';
+    }
+}
+
+document.getElementById('plot-filter').addEventListener('change', applyPlotFilterGreying);
 
 // ── Generate Plot ─────────────────────────────────────────────────
 document.getElementById('generate-btn').addEventListener('click', generatePlot);

@@ -17,8 +17,14 @@ from .data_processor import (
 )
 
 
-def _safe_log(val, fallback=1e-10):
-    return np.log10(max(float(val), fallback))
+def _safe_log(val):
+    try:
+        v = float(val)
+    except (TypeError, ValueError):
+        return None
+    if np.isnan(v) or v <= 0:
+        return None
+    return np.log10(v)
 
 
 # ---------------------------------------------------------------------------
@@ -31,7 +37,7 @@ def _make_title(state: DataAnalysisState) -> str:
         parts = []
         if state.plot_filter not in ('No Filter',):
             if state.selected_proteins and state.plot_filter in ('Selected Protein(s)', 'Both'):
-                parts.append('Filtered By: ' + ', '.join(state.selected_proteins[:3]))
+                parts.append('Filtered By: ' + ', '.join(state.selected_protein_names[:3]))
             if state.selected_functions and state.plot_filter in ('Selected Function(s)', 'Both'):
                 parts.append('Function: ' + ', '.join(state.selected_functions[:3]))
         title = ' | '.join(parts) if parts else 'Data Analysis'
@@ -358,7 +364,69 @@ def create_grouped_bar_plot(state: DataAnalysisState):
 # Plot 3: Stacked bar plot
 # ---------------------------------------------------------------------------
 
+def _plot_no_filter_stacked(state: DataAnalysisState):
+    """Stacked bar for 'No Filter': single 'Total' bar with one segment per sample group."""
+    import plotly.graph_objects as go
+
+    data = state.total_peptide_results_dict
+    if not data:
+        return None
+
+    groups = list(data.keys())
+    use_count = state.use_count
+    color_seq = get_color_sequence(len(groups), state.color_scheme)
+
+    total_count = sum(data[g]['unique_peptides'] for g in groups) or 1
+    total_abund = sum(data[g]['total_Abundance'] for g in groups) or 1
+
+    fig = go.Figure()
+    for i, g in enumerate(groups):
+        abs_val = data[g]['unique_peptides'] if use_count else data[g]['total_Abundance']
+        rel_val = (data[g]['unique_peptides'] / total_count * 100) if use_count \
+                  else (data[g]['total_Abundance'] / total_abund * 100)
+        y_val = rel_val if state.is_relative else abs_val
+        metric_label = 'Peptide Count' if use_count else 'Abundance'
+        hover = (
+            f"Sample: {g}<br>"
+            f"{metric_label}: {abs_val:{state.num_format}}<br>"
+            f"Contribution: {rel_val:.2f}%"
+        )
+        fig.add_trace(go.Bar(
+            name=g, x=['Total'], y=[y_val],
+            marker=dict(color=color_seq[i], line=dict(color='white', width=0.5)),
+            hovertext=[hover], hoverinfo='text',
+        ))
+
+    y_title = ('Relative ' if state.is_relative else '') + state.metric_name
+    yaxis_kw = _axis_style()
+    if state.is_relative:
+        yaxis_kw['range'] = [0, 100]
+    fig.update_layout(
+        **_common_layout(state),
+        barmode='stack',
+        xaxis=dict(title='', **_axis_style()),
+        yaxis=dict(title=state.ylabel or y_title, **yaxis_kw),
+        hoverlabel=dict(bgcolor='white', font_size=12, font_family='Arial'),
+        legend=dict(title=dict(text=state.legend_title or 'Sample'), font=dict(size=12)),
+    )
+    return fig
+
+
 def plot_stacked_bar_scaled(state: DataAnalysisState):
+    """
+    Stacked bar plot matching notebook's plot_stacked_bar_scaled logic.
+
+    By Sample orientation (x=groups, legend=items):
+      - y_value = rel_value / 100 * total_sums[g]  where total_sums uses the
+        proper per-group total (unique functional peptide count / actual functional
+        abundance) to prevent double-counting multi-function peptides.
+
+    By Function / By Protein orientation (x=items, legend=groups):
+      - Uses function_distribution_dict / protein_sample_distribution_dict with
+        'relative' key = group's contribution to the item's total.
+      - y_value = (rel_percentage / 100) * item_total  for non-log absolute
+      - y_value = (rel_percentage / 100) * log10(item_total)  for log
+    """
     import plotly.graph_objects as go
 
     selected_groups = state.selected_groups
@@ -367,47 +435,80 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
     plot_filter = state.plot_filter
     orientation = state.orientation
 
-    # Determine data source
-    if plot_filter in ('Selected Function(s)', 'Functional vs Non-Functional Peptides'):
+    if plot_filter == 'No Filter':
+        return _plot_no_filter_stacked(state)
+
+    # ── Resolve data source and selected items ─────────────────────────────────
+    is_func_filter = plot_filter in ('Selected Function(s)', 'Functional vs Non-Functional Peptides')
+    is_prot_filter = plot_filter == 'Selected Protein(s)'
+    is_both = plot_filter == 'Both'
+
+    if is_func_filter:
         df = state.function_df
         items_col = 'Description'
         selected_items = state.selected_functions
-    elif plot_filter == 'Selected Protein(s)':
+        item_label = 'Function'
+    elif is_prot_filter:
         df = state.protein_df
         items_col = 'Description'
-        selected_items = state.selected_proteins
-    elif plot_filter == 'No Filter':
-        # Fall back to total peptides stacked by group (one bar per group with sub-groupings)
-        df = None
-        selected_items = selected_groups
-    else:
-        df = state.function_df
+        selected_items = state.selected_protein_names
+        item_label = 'Protein'
+    else:  # Both
+        # Combine function and protein items
+        fn_df = state.function_df
+        pr_df = state.protein_df
+        if (fn_df is None or fn_df.empty) and (pr_df is None or pr_df.empty):
+            return plot_total_peptides(state)
+        df = pd.concat([d for d in [fn_df, pr_df] if d is not None and not d.empty], ignore_index=True)
         items_col = 'Description'
-        selected_items = state.selected_functions
+        selected_items = list(state.selected_functions) + list(state.selected_protein_names)
+        item_label = 'Item'
 
     if df is None or (hasattr(df, 'empty') and df.empty):
         return plot_total_peptides(state)
 
+    # ── Build color map ────────────────────────────────────────────────────────
     color_seq = get_color_sequence(len(selected_items), state.color_scheme)
     color_map = {item: color_seq[i] for i, item in enumerate(selected_items)}
-    if state.plot_minor and 'Minor Functions' in (state.function_distribution_dict or {}):
+    if state.plot_minor and 'Minor Functions' in color_map:
         color_map['Minor Functions'] = '#808080'
+    if state.plot_minor and 'Minor Proteins' in color_map:
+        color_map['Minor Proteins'] = '#808080'
 
     fig = go.Figure()
 
-    # Pre-compute total sums per group for proportional log stacking
-    total_sums = {}
-    if use_log and not state.is_relative and df is not None and not df.empty:
-        for g in selected_groups:
-            abs_col = f'Count_{g}' if use_count else f'Avg_{g}'
-            if abs_col in df.columns:
-                total_sums[g] = float(df[abs_col].sum())
-            else:
-                total_sums[g] = 0.0
-
-    item_label = 'Function' if plot_filter in ('Selected Function(s)', 'Functional vs Non-Functional Peptides') else 'Protein'
-
+    # ── By Sample orientation ──────────────────────────────────────────────────
     if orientation == 'By Sample':
+        # Compute total_sums per group – matches notebook's approach of using the
+        # real total (unique peptides / unique functional abundance) to prevent
+        # stacked bars from summing to an inflated (double-counted) total.
+        total_sums = {}
+        for g in selected_groups:
+            if use_count:
+                if is_func_filter:
+                    total_sums[g] = state.function_count_totals_dict.get(g, 0)
+                elif is_prot_filter:
+                    _pct = state.protein_count_bysample_dict.get(g, 0)
+                    if not _pct and state.protein_df is not None and f'Count_{g}' in state.protein_df.columns:
+                        _pct = int(state.protein_df[f'Count_{g}'].sum())
+                    total_sums[g] = _pct
+                else:  # Both
+                    total_sums[g] = state.abundance_count_by_sample_dict.get(g, {}).get('unique_peptides', 0)
+            else:  # abundance
+                if is_func_filter:
+                    total_sums[g] = state.function_abundance_totals_dict.get(g, 0)
+                elif is_prot_filter:
+                    sm = state.sum_df
+                    col_key = f'Avg_{g}'
+                    if sm is not None and col_key in sm['Sample'].values:
+                        total_sums[g] = float(sm.loc[sm['Sample'] == col_key, 'Total_Sum'].values[0])
+                    elif state.protein_df is not None and f'Avg_{g}' in state.protein_df.columns:
+                        total_sums[g] = float(state.protein_df[f'Avg_{g}'].sum())
+                    else:
+                        total_sums[g] = 0.0
+                else:  # Both
+                    total_sums[g] = state.abundance_count_by_sample_dict.get(g, {}).get('total_Abundance', 0)
+
         for i, item in enumerate(selected_items):
             row = df[df[items_col] == item] if df is not None else pd.DataFrame()
             values = []
@@ -416,85 +517,216 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
                 if df is None or row.empty:
                     values.append(0)
                     hover_texts.append(f"No data for {item} in {g}")
+                    continue
+
+                abs_col = f'Count_{g}' if use_count else f'Avg_{g}'
+                rel_col = f'Rel_Count_{g}' if use_count else f'Rel_Avg_{g}'
+                abs_value = float(row[abs_col].values[0]) if abs_col in row.columns else 0.0
+                rel_value = float(row[rel_col].values[0]) if rel_col in row.columns else 0.0
+
+                total = total_sums.get(g, 0)
+                if state.is_relative:
+                    v = rel_value
+                elif use_log:
+                    log_total = _safe_log(total) if total > 0 else 0.0
+                    v = rel_value / 100.0 * log_total
                 else:
-                    abs_col = (f'Count_{g}' if use_count else f'Avg_{g}')
-                    rel_col = (f'Rel_Count_{g}' if use_count else f'Rel_Avg_{g}')
-                    abs_value = float(row[abs_col].values[0]) if abs_col in row.columns else 0
-                    rel_value = float(row[rel_col].values[0]) if rel_col in row.columns else 0
-                    if state.is_relative:
-                        v = rel_value
-                    elif use_log:
-                        total = total_sums.get(g, 0)
-                        log_total = np.log10(max(total, 1e-10)) if total > 0 else 0
-                        v = rel_value / 100 * log_total
-                    else:
-                        v = abs_value
-                    values.append(v)
-                    hover_texts.append(
-                        f"{item_label}: {item}<br>"
-                        f"Sample: {g}<br>"
-                        f"Relative {state.metric_name}: {rel_value:.2f}%<br>"
-                        f"Absolute {state.metric_name}: {abs_value:{state.num_format}}"
-                    )
+                    # Scale proportionally so bars sum to the true total
+                    # (prevents double-counting of multi-function peptides)
+                    v = rel_value / 100.0 * total if total > 0 else abs_value
+
+                values.append(v)
+                hover_texts.append(
+                    f"{item_label}: {item}<br>"
+                    f"Sample: {g}<br>"
+                    f"Relative {state.metric_name}: {rel_value:.2f}%<br>"
+                    f"Absolute {state.metric_name}: {abs_value:{state.num_format}}"
+                )
 
             disp_name = redact_string_descriptions(item)
+            color = color_map.get(item, '#999')
+            if item in ('Minor Functions', 'Minor Proteins'):
+                color = '#808080'
             fig.add_trace(go.Bar(
                 name=disp_name, x=selected_groups, y=values,
-                marker=dict(color=color_map.get(item, '#999'), line=dict(color='white', width=0.5)),
+                marker=dict(color=color, line=dict(color='white', width=0.5)),
                 hovertext=hover_texts, hoverinfo='text',
             ))
+
+        # Totals annotation (matches notebook's scatter-text trace above bars)
+        if not state.is_relative:
+            text_vals = []
+            for g in selected_groups:
+                total = total_sums.get(g, 0)
+                if use_log and total > 0:
+                    text_vals.append(f"{np.log10(max(total, 1e-10)):.2f}")
+                elif use_count:
+                    text_vals.append(f"{int(total):,}")
+                else:
+                    text_vals.append(f"{total:.2e}")
+            y_totals = []
+            for g in selected_groups:
+                total = total_sums.get(g, 0)
+                if use_log and total > 0:
+                    y_totals.append(np.log10(max(total, 1e-10)))
+                else:
+                    y_totals.append(total)
+            fig.add_trace(go.Scatter(
+                x=selected_groups, y=y_totals,
+                mode='text', text=text_vals,
+                textposition='top center',
+                textfont=dict(size=10 if len(selected_groups) > 12 else 12, color='black'),
+                showlegend=True,
+                name=f'Total {state.metric_name}',
+                hoverinfo='none',
+            ))
+
+    # ── By Function / By Protein orientation ──────────────────────────────────
     else:
-        # By Function / By Protein orientation - reverse axes
-        for g in selected_groups:
+        # Build per-item totals dict from function_distribution_dict or protein_sample_distribution_dict
+        # Uses 'relative'  = each group's contribution to the item's total
+        item_data_dict = {}
+        for item in selected_items:
+            if plot_filter in ('Selected Function(s)', 'Functional vs Non-Functional Peptides', 'Both'):
+                d = state.function_distribution_dict.get(item)
+                if d is not None:
+                    item_data_dict[item] = d
+            if item not in item_data_dict and plot_filter in ('Selected Protein(s)', 'Both'):
+                d = state.protein_sample_distribution_dict.get(item)
+                if d is None:
+                    # try matching by name from protein_df
+                    if state.protein_df is not None:
+                        pr = state.protein_df[state.protein_df['Description'] == item]
+                        if not pr.empty:
+                            row = pr.iloc[0]
+                            tot_ab = sum(float(row.get(f'Avg_{g}', 0)) for g in selected_groups)
+                            tot_ct = sum(float(row.get(f'Count_{g}', 0)) for g in selected_groups)
+                            d = {
+                                'Abundance': {g: float(row.get(f'Avg_{g}', 0)) for g in selected_groups},
+                                'counts': {g: float(row.get(f'Count_{g}', 0)) for g in selected_groups},
+                                'relative': {
+                                    g: float(row.get(f'Avg_{g}', 0)) / tot_ab * 100 if tot_ab > 0 else 0.0
+                                    for g in selected_groups
+                                },
+                                'count_relative_to_function': {
+                                    g: float(row.get(f'Count_{g}', 0)) / tot_ct * 100 if tot_ct > 0 else 0.0
+                                    for g in selected_groups
+                                },
+                                'total_Abundance': tot_ab,
+                                'unique_peptide_count': int(row.get('unique_peptide_count', 0)),
+                            }
+                if d is not None:
+                    item_data_dict[item] = d
+
+        all_items = [it for it in selected_items if it in item_data_dict]
+        display_items = [redact_string_descriptions(it) for it in all_items]
+        colors = get_color_sequence(len(selected_groups), state.color_scheme)
+
+        for gi, g in enumerate(selected_groups):
             values = []
             hover_texts = []
-            for item in selected_items:
-                row = df[df[items_col] == item] if df is not None else pd.DataFrame()
-                if row.empty:
-                    values.append(0)
-                    hover_texts.append(f"No data for {item} in {g}")
-                else:
-                    abs_col = (f'Count_{g}' if use_count else f'Avg_{g}')
-                    rel_col = (f'Rel_Count_{g}' if use_count else f'Rel_Avg_{g}')
-                    abs_value = float(row[abs_col].values[0]) if abs_col in row.columns else 0
-                    rel_value = float(row[rel_col].values[0]) if rel_col in row.columns else 0
-                    if state.is_relative:
-                        v = rel_value
-                    elif use_log:
-                        total = total_sums.get(g, 0)
-                        log_total = np.log10(max(total, 1e-10)) if total > 0 else 0
-                        v = rel_value / 100 * log_total
-                    else:
-                        v = abs_value
-                    values.append(v)
-                    hover_texts.append(
-                        f"{item_label}: {item}<br>"
-                        f"Sample: {g}<br>"
-                        f"Relative {state.metric_name}: {rel_value:.2f}%<br>"
-                        f"Absolute {state.metric_name}: {abs_value:{state.num_format}}"
-                    )
+            for item in all_items:
+                data = item_data_dict[item]
 
+                # Use group's contribution to item total ('relative' key)
+                # so stacked bars show distribution of this item across samples
+                rel_key = 'count_relative_to_function' if use_count else 'relative'
+                rel_percentage = data.get(rel_key, {}).get(g, 0.0)
+
+                abs_value = (
+                    data.get('counts' if use_count else 'Abundance', {}).get(g, 0.0)
+                )
+                item_total = (
+                    data.get('unique_peptide_count', 0)
+                    if use_count
+                    else data.get('total_Abundance', 0.0)
+                )
+
+                if state.is_relative:
+                    v = rel_percentage
+                elif use_log:
+                    log_total = _safe_log(item_total) if item_total > 0 else 0.0
+                    v = rel_percentage / 100.0 * log_total
+                else:
+                    # Equivalent to abs_value but expressed via proportional total
+                    # (same as notebook: total_Abundance * rel_percentage / 100)
+                    v = item_total * (rel_percentage / 100.0) if item_total > 0 else abs_value
+
+                values.append(v)
+                abs_count_label = 'Count' if use_count else 'Abundance'
+                hover_texts.append(
+                    f"{item_label}: {item}<br>"
+                    f"Sample: {g}<br>"
+                    f"Sample's contribution: {rel_percentage:.2f}%<br>"
+                    f"{abs_count_label} in sample: {abs_value:{state.num_format}}"
+                )
+
+            color = colors[gi] if gi < len(colors) else '#CCCCCC'
             fig.add_trace(go.Bar(
                 name=redact_string_descriptions(g),
-                x=[redact_string_descriptions(it) for it in selected_items],
+                x=display_items,
                 y=values,
-                marker=dict(line=dict(color='white', width=0.5)),
+                marker=dict(color=color, line=dict(color='white', width=0.5)),
                 hovertext=hover_texts, hoverinfo='text',
             ))
 
+        # Totals above bars
+        if not state.is_relative:
+            text_vals = []
+            y_totals = []
+            for item in all_items:
+                data = item_data_dict[item]
+                total = (
+                    data.get('unique_peptide_count', 0)
+                    if use_count
+                    else data.get('total_Abundance', 0.0)
+                )
+                if use_log and total > 0:
+                    text_vals.append(f"{np.log10(max(total, 1e-10)):.2f}")
+                    y_totals.append(np.log10(max(total, 1e-10)))
+                elif use_count:
+                    text_vals.append(f"{int(total):,}")
+                    y_totals.append(total)
+                else:
+                    text_vals.append(f"{total:.2e}")
+                    y_totals.append(total)
+            fig.add_trace(go.Scatter(
+                x=display_items, y=y_totals,
+                mode='text', text=text_vals,
+                textposition='top center',
+                textfont=dict(size=12, color='black'),
+                showlegend=True,
+                name=f'Total {state.metric_name}',
+                hoverinfo='none',
+            ))
+
+    # ── Layout ─────────────────────────────────────────────────────────────────
     y_title = ('Relative ' if state.is_relative else '') + \
                ('Log<sub>10</sub> ' if (use_log and not state.is_relative) else '') + state.metric_name
     yaxis_stk = _axis_style()
     if state.is_relative:
         yaxis_stk['range'] = [0, 100]
-    fig.update_layout(
+    if state.is_relative:
+        yaxis_stk['tickformat'] = '.1f'
+    else:
+        yaxis_stk['showticklabels'] = False
+
+    xlabel = state.xlabel or ('Sample' if orientation == 'By Sample' else 'Function / Protein')
+    fig.update_layout(**{
         **_common_layout(state),
-        barmode='stack',
-        xaxis=dict(title=state.xlabel or 'Sample', tickangle=45, **_axis_style()),
-        yaxis=dict(title=state.ylabel or y_title, **yaxis_stk),
-        hoverlabel=dict(bgcolor='white', font_size=12, font_family='Arial'),
-        legend=dict(title=dict(text=state.legend_title or 'Item'), font=dict(size=12)),
-    )
+        'barmode': 'stack',
+        'xaxis': dict(title=xlabel, tickangle=-90 if orientation == 'By Sample' else 45, **_axis_style()),
+        'yaxis': dict(title=state.ylabel or y_title, **yaxis_stk),
+        'hoverlabel': dict(bgcolor='white', font_size=12, font_family='Arial'),
+        'legend': dict(
+            title=dict(text=state.legend_title or ('Item' if orientation == 'By Sample' else 'Sample')),
+            font=dict(size=16, color='black'),
+            yanchor='top', y=0.95, xanchor='left', x=1.05,
+            bgcolor='rgba(255,255,255,0.9)',
+        ),
+        'height': 820, 'width': 1200,
+        'margin': dict(t=100, l=100, r=100, b=100),
+    })
     return fig
 
 
@@ -518,7 +750,7 @@ def create_pie_charts(state: DataAnalysisState):
     elif plot_filter == 'Selected Protein(s)':
         df = state.protein_df
         items_col = 'Description'
-        items = state.selected_proteins
+        items = state.selected_protein_names
     else:
         # No Filter / Both → one pie per sample showing total distribution
         metrics = state.abundance_count_by_sample_dict
@@ -532,9 +764,9 @@ def create_pie_charts(state: DataAnalysisState):
             textposition='inside', textinfo='percent',
             hovertemplate="Sample: %{label}<br>Value: %{value:.2e}<br><extra></extra>",
         ))
-        fig.update_layout(**_common_layout(state),
-                          showlegend=True,
-                          legend=dict(title=dict(text=state.legend_title or 'Sample')))
+        fig.update_layout(**{**_common_layout(state),
+                          'showlegend': True,
+                          'legend': dict(title=dict(text=state.legend_title or 'Sample'))})
         return fig
 
     if df is None or df.empty:
@@ -565,9 +797,9 @@ def create_pie_charts(state: DataAnalysisState):
                 hovertemplate="%{label}: %{value:.2e}<br><extra></extra>",
             ), row=row_idx, col=col_idx)
 
-        fig.update_layout(**_common_layout(state),
-                          height=400 * rows, width=1000,
-                          legend=dict(title=dict(text=state.legend_title or 'Item')))
+        fig.update_layout(**{**_common_layout(state),
+                          'height': 400 * rows, 'width': 1000,
+                          'legend': dict(title=dict(text=state.legend_title or 'Item'))})
         return fig
     else:
         # By Function/Protein: one pie per item
@@ -598,9 +830,9 @@ def create_pie_charts(state: DataAnalysisState):
                 hovertemplate="%{label}: %{value:.2e}<br><extra></extra>",
             ), row=row_idx, col=col_idx)
 
-        fig.update_layout(**_common_layout(state),
-                          height=400 * rows, width=1000,
-                          legend=dict(title=dict(text=state.legend_title or 'Sample')))
+        fig.update_layout(**{**_common_layout(state),
+                          'height': 400 * rows, 'width': 1000,
+                          'legend': dict(title=dict(text=state.legend_title or 'Sample'))})
         return fig
 
 
@@ -817,10 +1049,10 @@ def create_correlation_splom(state: DataAnalysisState):
     fig.update_layout(
         title=dict(text=_make_title(state), x=0.5, xanchor='center',
                    font=dict(size=18, color='black')),
-        width=sz, height=sz,
+        width=sz + 250, height=sz,
         template='plotly_white',
         legend=dict(title=dict(text=leg_title, font=dict(size=14, color='black')),
-                    font=dict(size=13), x=0.8, y=1),
+                    font=dict(size=13), x=1.01, y=1, yanchor='top'),
     )
     # Apply consistent axis ranges/formats
     overall_min, overall_max = min(all_vals), max(all_vals)
@@ -960,13 +1192,7 @@ def generate_plot(merged_df: pd.DataFrame, group_data_dict: dict, protein_dict: 
                 fig = create_grouped_bar_plot(state)
 
         elif plot_type == 'Stacked Bar Plots':
-            if plot_filter == 'Both':
-                warnings.append(
-                    "Plot Filter 'Both' is not supported for Stacked Bar Plots. "
-                    "Please choose a single filter."
-                )
-            else:
-                fig = plot_stacked_bar_scaled(state)
+            fig = plot_stacked_bar_scaled(state)
 
         elif plot_type == 'Pie Charts':
             fig = create_pie_charts(state)
