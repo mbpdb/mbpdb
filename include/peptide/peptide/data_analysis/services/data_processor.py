@@ -752,6 +752,68 @@ class DataAnalysisState:
         ).round(2)
         self.protein_df = self.protein_df.sort_values('avg_abundance_all', ascending=False)
 
+        # ── Handle Minor Proteins ──────────────────────────────────────────────
+        # When plot_minor=True and specific proteins are selected (not "All"),
+        # aggregate non-selected proteins into a single "Minor Proteins" entry.
+        if (self.plot_minor
+                and 'All Proteins (No Filter)' not in self.selected_proteins_raw
+                and self.selected_proteins):
+            selected_names_set = set(self.selected_protein_names)
+            minor_rows = self.protein_df[~self.protein_df['Description'].isin(selected_names_set)]
+            main_rows = self.protein_df[self.protein_df['Description'].isin(selected_names_set)]
+
+            if not minor_rows.empty:
+                minor_entry = {'Protein': 'Minor Proteins', 'Description': 'Minor Proteins'}
+                for g in self.selected_groups:
+                    ab_col = f'Avg_{g}'
+                    ct_col = f'Count_{g}'
+                    minor_entry[ab_col] = float(minor_rows[ab_col].sum()) if ab_col in minor_rows.columns else 0.0
+                    minor_entry[ct_col] = float(minor_rows[ct_col].sum()) if ct_col in minor_rows.columns else 0.0
+                minor_entry['unique_peptide_count'] = (
+                    int(minor_rows['unique_peptide_count'].sum())
+                    if 'unique_peptide_count' in minor_rows.columns else 0
+                )
+
+                # Keep only selected proteins + "Minor Proteins"
+                self.protein_df = pd.concat(
+                    [main_rows, pd.DataFrame([minor_entry])], ignore_index=True
+                )
+
+                # Recompute relative columns after aggregation
+                for g in self.selected_groups:
+                    ab_col = f'Avg_{g}'
+                    ct_col = f'Count_{g}'
+                    tot_ab = float(self.protein_df[ab_col].sum()) if ab_col in self.protein_df.columns else 0
+                    tot_ct = float(self.protein_df[ct_col].sum()) if ct_col in self.protein_df.columns else 0
+                    self.protein_df[f'Rel_Avg_{g}'] = (
+                        (self.protein_df[ab_col] / tot_ab * 100).round(6) if tot_ab > 0 else 0.0
+                    )
+                    self.protein_df[f'Rel_Count_{g}'] = (
+                        (self.protein_df[ct_col] / tot_ct * 100).round(6) if tot_ct > 0 else 0.0
+                    )
+
+                # Recompute avg_abundance_all and sort
+                ab_cols_avail = [f'Avg_{g}' for g in self.selected_groups if f'Avg_{g}' in self.protein_df.columns]
+                total_sum = max(self.protein_df[ab_cols_avail].sum().sum(), 1e-10)
+                self.protein_df['avg_abundance_all'] = (
+                    self.protein_df[ab_cols_avail].sum(axis=1) / total_sum * 100
+                ).round(2)
+                self.protein_df = self.protein_df.sort_values('avg_abundance_all', ascending=False)
+
+                # Update sum_df
+                self.sum_df = pd.DataFrame({
+                    'Sample': [f'Avg_{g}' for g in self.selected_groups],
+                    'Total_Sum': [
+                        float(self.protein_df[f'Avg_{g}'].sum())
+                        if f'Avg_{g}' in self.protein_df.columns else 0
+                        for g in self.selected_groups
+                    ],
+                })
+
+                # Add "Minor Proteins" to selected_proteins list
+                if 'Minor Proteins' not in self.selected_proteins:
+                    self.selected_proteins = list(self.selected_proteins) + ['Minor Proteins']
+
         # Build protein_sample_distribution_dict.
         # 'abundance_relative' = protein's contribution to each group total (for By Sample hover).
         # 'relative'           = each group's contribution to the protein's total (for By Protein stacked bar).
@@ -780,6 +842,9 @@ class DataAnalysisState:
                 'total_Abundance': tot_ab,
                 'total_count': tot_ct,
             }
+            # Minor Proteins gets grey colour in plots
+            if pname == 'Minor Proteins':
+                psdd[pname]['color'] = '#808080'
         self.protein_sample_distribution_dict = psdd
 
         # Unique peptide counts per group for selected proteins

@@ -209,6 +209,10 @@ def create_grouped_bar_plot(state: DataAnalysisState):
             color_seq = get_color_sequence(len(selected_groups), state.color_scheme)
             color_map = {g: color_seq[i] for i, g in enumerate(selected_groups)}
 
+        # Minor Functions always shown in grey
+        if 'Minor Functions' in color_map:
+            color_map['Minor Functions'] = '#808080'
+
         display_cats = [redact_string_descriptions(c) for c in categories]
         n_bars = len(bar_groups)
         bar_width = 0.8 / max(n_bars, 1)
@@ -251,9 +255,12 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                         f"Relative Contribution: {rel_value:.1f}%"
                     )
 
+            fn_color = color_map.get(bar_group, '#999')
+            if bar_group in ('Minor Functions', 'Minor Proteins'):
+                fn_color = '#808080'
             fig.add_trace(go.Bar(
                 x=x_pos, y=values, name=disp_bg,
-                marker=dict(color=color_map.get(bar_group, '#999'), line=dict(color='black', width=0.5)),
+                marker=dict(color=fn_color, line=dict(color='black', width=0.5)),
                 width=bar_width * 0.9,
                 hovertext=hover, hoverinfo='text',
             ))
@@ -289,6 +296,10 @@ def create_grouped_bar_plot(state: DataAnalysisState):
             color_seq = get_color_sequence(len(selected_groups), state.color_scheme)
             color_map = {g: color_seq[i] for i, g in enumerate(selected_groups)}
 
+        # Minor Proteins always shown in grey
+        if 'Minor Proteins' in color_map:
+            color_map['Minor Proteins'] = '#808080'
+
         display_cats = [redact_string_descriptions(c) for c in categories]
         n_bars = len(bar_groups_list)
         bar_width = 0.8 / max(n_bars, 1)
@@ -304,8 +315,9 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                     item, group = bar_group, cat
                 else:
                     item, group = cat, bar_group
-                abs_col = f'Avg_{group}'
-                rel_col = f'Rel_Avg_{group}'
+                # Use Count columns when Peptide Count is selected, Avg columns for Abundance
+                abs_col = f'Count_{group}' if use_count else f'Avg_{group}'
+                rel_col = f'Rel_Count_{group}' if use_count else f'Rel_Avg_{group}'
                 row = df[df['Description'] == item]
                 abs_value = float(row[abs_col].values[0]) if len(row) > 0 and abs_col in row.columns else 0
                 rel_value = float(row[rel_col].values[0]) if len(row) > 0 and rel_col in row.columns else 0
@@ -316,24 +328,28 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                     if use_log:
                         v = _safe_log(v)
                 values.append(v)
+                count_fmt = ',.0f' if use_count else state.num_format
                 if state.is_relative:
                     hover.append(
                         f"Protein: {item}<br>"
                         f"Sample: {group}<br>"
                         f"Relative Contribution: {rel_value:.1f}%<br>"
-                        f"{state.metric_name}: {abs_value:{state.num_format}}"
+                        f"{state.metric_name}: {abs_value:{count_fmt}}"
                     )
                 else:
                     hover.append(
                         f"Protein: {item}<br>"
                         f"Sample: {group}<br>"
-                        f"{state.metric_name}: {abs_value:{state.num_format}}<br>"
+                        f"{state.metric_name}: {abs_value:{count_fmt}}<br>"
                         f"Relative Contribution: {rel_value:.1f}%"
                     )
 
+            bar_color = color_map.get(bar_group, '#999')
+            if bar_group == 'Minor Proteins':
+                bar_color = '#808080'
             fig.add_trace(go.Bar(
                 x=x_pos, y=values, name=disp_bg,
-                marker=dict(color=color_map.get(bar_group, '#999'), line=dict(color='black', width=0.5)),
+                marker=dict(color=bar_color, line=dict(color='black', width=0.5)),
                 width=bar_width * 0.9,
                 hovertext=hover, hoverinfo='text',
             ))
@@ -706,10 +722,20 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
     yaxis_stk = _axis_style()
     if state.is_relative:
         yaxis_stk['range'] = [0, 100]
-    if state.is_relative:
         yaxis_stk['tickformat'] = '.1f'
+    elif use_count and not use_log:
+        yaxis_stk['tickformat'] = ',d'
+        yaxis_stk['exponentformat'] = 'none'
+        yaxis_stk['showexponent'] = 'none'
+    elif use_count and use_log:
+        yaxis_stk['tickformat'] = '.1f'
+        yaxis_stk['exponentformat'] = 'none'
+    elif use_log:
+        yaxis_stk['tickformat'] = '.1f'
+        yaxis_stk['exponentformat'] = 'none'
     else:
-        yaxis_stk['showticklabels'] = False
+        yaxis_stk['exponentformat'] = 'E'
+        yaxis_stk['showexponent'] = 'all'
 
     xlabel = state.xlabel or ('Sample' if orientation == 'By Sample' else 'Function / Protein')
     fig.update_layout(**{
@@ -758,11 +784,12 @@ def create_pie_charts(state: DataAnalysisState):
         vals = [v['unique_peptides'] if use_count else v['total_Abundance'] for v in metrics.values()]
         colors = get_color_sequence(len(labels), state.color_scheme)
         fig = go.Figure()
+        _hover_fmt_nf = "Sample: %{label}<br>Value: %{value:,.0f}<br><extra></extra>" if use_count else "Sample: %{label}<br>Value: %{value:.2e}<br><extra></extra>"
         fig.add_trace(go.Pie(
             labels=labels, values=vals,
             marker_colors=colors,
             textposition='inside', textinfo='percent',
-            hovertemplate="Sample: %{label}<br>Value: %{value:.2e}<br><extra></extra>",
+            hovertemplate=_hover_fmt_nf,
         ))
         fig.update_layout(**{**_common_layout(state),
                           'showlegend': True,
@@ -788,13 +815,14 @@ def create_pie_charts(state: DataAnalysisState):
             vals = [float(v) for v in pie_df.get(col_key, pd.Series([0] * len(pie_df)))]
             colors = get_color_sequence(len(labels), state.color_scheme)
 
+            hover_fmt = "%{label}: %{value:,.0f}<br><extra></extra>" if use_count else "%{label}: %{value:.2e}<br><extra></extra>"
             fig.add_trace(go.Pie(
                 labels=[redact_string_descriptions(l) for l in labels],
                 values=vals, name=group,
                 marker_colors=colors,
                 textposition='inside', textinfo='percent',
                 title=dict(text=group, font=dict(size=14)),
-                hovertemplate="%{label}: %{value:.2e}<br><extra></extra>",
+                hovertemplate=hover_fmt,
             ), row=row_idx, col=col_idx)
 
         fig.update_layout(**{**_common_layout(state),
@@ -822,12 +850,13 @@ def create_pie_charts(state: DataAnalysisState):
                     for g in selected_groups]
             colors = get_color_sequence(len(labels), state.color_scheme)
 
+            _item_hover_fmt = "%{label}: %{value:,.0f}<br><extra></extra>" if use_count else "%{label}: %{value:.2e}<br><extra></extra>"
             fig.add_trace(go.Pie(
                 labels=labels, values=vals, name=item,
                 marker_colors=colors,
                 textposition='inside', textinfo='percent',
                 title=dict(text=redact_string_descriptions(item), font=dict(size=12)),
-                hovertemplate="%{label}: %{value:.2e}<br><extra></extra>",
+                hovertemplate=_item_hover_fmt,
             ), row=row_idx, col=col_idx)
 
         fig.update_layout(**{**_common_layout(state),

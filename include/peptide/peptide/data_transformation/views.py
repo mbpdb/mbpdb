@@ -169,6 +169,30 @@ def upload_files(request):
             'fasta_file': fasta_file.name if fasta_file else None,
         })
 
+        # Save original file bytes so they can be reloaded on resume
+        try:
+            pep_file.seek(0)
+            with open(os.path.join(work_dir, 'peptidomic_file.orig'), 'wb') as fh:
+                fh.write(pep_file.read())
+            if func_file:
+                func_file.seek(0)
+                with open(os.path.join(work_dir, 'functional_file.orig'), 'wb') as fh:
+                    fh.write(func_file.read())
+            else:
+                stale = os.path.join(work_dir, 'functional_file.orig')
+                if os.path.exists(stale):
+                    os.remove(stale)
+            if fasta_file:
+                fasta_file.seek(0)
+                with open(os.path.join(work_dir, 'fasta_file.orig'), 'wb') as fh:
+                    fh.write(fasta_file.read())
+            else:
+                stale = os.path.join(work_dir, 'fasta_file.orig')
+                if os.path.exists(stale):
+                    os.remove(stale)
+        except Exception:
+            pass  # Non-fatal: resume will still show filenames without reloadable bytes
+
         return JsonResponse(result)
 
     except Exception as e:
@@ -1250,6 +1274,11 @@ def session_state(request):
         'has_groups':    os.path.exists(os.path.join(work_dir, 'group_data.json')),
         'has_processed': os.path.exists(os.path.join(work_dir, 'merged_df.pkl')),
         'file_names': file_names,
+        'has_saved_files': {
+            'peptidomic_file': os.path.exists(os.path.join(work_dir, 'peptidomic_file.orig')),
+            'functional_file': os.path.exists(os.path.join(work_dir, 'functional_file.orig')),
+            'fasta_file': os.path.exists(os.path.join(work_dir, 'fasta_file.orig')),
+        },
     })
 
 
@@ -1334,6 +1363,41 @@ def download_all_exports(request):
     buf.seek(0)
     response = HttpResponse(buf.getvalue(), content_type='application/zip')
     response['Content-Disposition'] = 'attachment; filename="mbpdb_results.zip"'
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Reload saved files (serve previously uploaded raw bytes back to browser)
+# ---------------------------------------------------------------------------
+
+@require_GET
+def reload_saved_file(request, file_key):
+    """
+    Return the raw bytes of a previously uploaded file so the browser can
+    re-inject it into the file input and resubmit the upload form.
+    file_key: 'peptidomic_file' | 'functional_file' | 'fasta_file'
+    """
+    allowed_keys = {'peptidomic_file', 'functional_file', 'fasta_file'}
+    if file_key not in allowed_keys:
+        return HttpResponse('Invalid file key.', status=400)
+
+    work_dir = request.session.get('dt_work_dir')
+    if not work_dir or not os.path.isdir(work_dir):
+        return HttpResponse('No session found.', status=404)
+
+    orig_path = os.path.join(work_dir, f'{file_key}.orig')
+    if not os.path.exists(orig_path):
+        return HttpResponse('Saved file not found.', status=404)
+
+    file_names = _load_json(work_dir, 'uploaded_file_names') or {}
+    original_name = file_names.get(file_key, f'{file_key}.bin')
+
+    with open(orig_path, 'rb') as fh:
+        data = fh.read()
+
+    response = HttpResponse(data, content_type='application/octet-stream')
+    response['Content-Disposition'] = f'inline; filename="{original_name}"'
+    response['X-Original-Filename'] = original_name
     return response
 
 

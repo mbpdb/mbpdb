@@ -1207,9 +1207,41 @@
 
         // Restore uploaded file names on the Step 1 dropzones
         var fn = resp.file_names || {};
+        var savedFiles = resp.has_saved_files || {};
         restoreDropzoneName('peptidomic_file', fn.peptidomic_file);
         restoreDropzoneName('functional_file', fn.functional_file);
         restoreDropzoneName('fasta_file',      fn.fasta_file);
+
+        // If saved file bytes are available, also reload them into the inputs
+        // so the form can be resubmitted without the user re-selecting files.
+        function reloadSavedFile(fileKey, inputId) {
+            if (!savedFiles[fileKey]) return;
+            fetch('reload-saved-file/' + fileKey + '/')
+                .then(function(r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    var origName = r.headers.get('X-Original-Filename') || fileKey;
+                    return r.blob().then(function(blob) {
+                        return {blob: blob, name: origName};
+                    });
+                })
+                .then(function(obj) {
+                    var file = new File([obj.blob], obj.name,
+                        {type: obj.blob.type || 'application/octet-stream'});
+                    var dt = new DataTransfer();
+                    dt.items.add(file);
+                    var input = document.getElementById(inputId);
+                    if (input) {
+                        input.files = dt.files;
+                        // Don't dispatch 'change' here — we don't want to
+                        // re-trigger the dropzone visual since names are already shown.
+                    }
+                })
+                .catch(function() { /* silent — user can still pick manually */ });
+        }
+
+        reloadSavedFile('peptidomic_file', 'peptidomic_file');
+        reloadSavedFile('functional_file', 'functional_file');
+        reloadSavedFile('fasta_file',      'fasta_file');
 
         var banner = document.getElementById('dt-resume-banner');
         var btns = document.getElementById('dt-resume-btns');

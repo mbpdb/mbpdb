@@ -163,6 +163,52 @@ def transfer_from_dt(request):
 
 
 # ---------------------------------------------------------------------------
+# Transfer from Data Analysis
+# ---------------------------------------------------------------------------
+
+@require_POST
+def transfer_from_da(request):
+    """Load merged_df directly from the data analysis session."""
+    import io
+    da_work_dir = request.session.get('da_work_dir')
+    if not da_work_dir or not os.path.isdir(da_work_dir):
+        return JsonResponse(
+            {'error': 'No data analysis session found. Please upload a file in Data Analysis first.'},
+            status=400,
+        )
+    da_pkl = os.path.join(da_work_dir, 'merged_df.pkl')
+    if not os.path.exists(da_pkl):
+        return JsonResponse(
+            {'error': 'No processed data found in Data Analysis session.'},
+            status=400,
+        )
+
+    df = pd.read_pickle(da_pkl)
+    buf = io.BytesIO()
+    df.to_csv(buf, index=False)
+    buf.seek(0)
+
+    df_hm, group_data_dict, protein_dict, col_order, err = data_processor.load_merged_file(buf, 'merged_df.csv')
+    if err:
+        return JsonResponse({'error': f'Could not process data: {err}'}, status=400)
+
+    work_dir = _get_work_dir(request)
+    _save_df(work_dir, 'merged_df', df_hm)
+    _save_json(work_dir, 'group_data_dict', group_data_dict)
+    _save_json(work_dir, 'protein_dict', protein_dict)
+    _save_json(work_dir, 'col_order', col_order)
+
+    options = data_processor.get_selector_options(df_hm, group_data_dict, protein_dict, col_order)
+    return JsonResponse({
+        'success': True,
+        'filename': 'Data Analysis output',
+        'rows': len(df_hm),
+        'proteins': options['proteins'], 'var_keys': options['var_keys'],
+        'has_functions': options['has_functions'], 'warnings': [],
+    })
+
+
+# ---------------------------------------------------------------------------
 # Fetch protein sequence (UniProt)
 # ---------------------------------------------------------------------------
 
