@@ -10,6 +10,8 @@
 .da-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .da-header h1 { font-size: 1.8rem; margin: 0; font-weight: 500; }
 .da-header .icon { font-size: 1.6rem; color: #1976d2; }
+.btn-back-dt { margin-left: auto; padding: 6px 14px; font-size: 0.85rem; color: #6c757d; border: 1px solid #dee2e6; border-radius: 4px; text-decoration: none; background: #f8f9fa; white-space: nowrap; }
+.btn-back-dt:hover { background: #e9ecef; color: #495057; text-decoration: none; }
 
 .step-card {
     background: #fff; border: 1px solid #dee2e6; border-radius: 8px;
@@ -117,6 +119,10 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
     <div class="da-header">
         <i class="fas fa-chart-bar icon"></i>
         <h1>Data Analysis Dashboard</h1>
+        <div style="margin-left:auto; display:flex; gap:8px; flex-shrink:0;">
+            <button id="go-to-hm-btn" class="btn-back-dt"><i class="fas fa-th"></i> Heatmap Dashboard</button>
+            <a href="/data_transformation/" class="btn-back-dt"><i class="fas fa-arrow-left"></i> Data Transformation</a>
+        </div>
     </div>
 
     <!-- ── Step 1: Upload ───────────────────────────────────────── -->
@@ -688,6 +694,38 @@ updateColorSwatch('color-scheme', 'color-scheme-swatch');
 document.getElementById('color-scheme').addEventListener('change', () =>
     updateColorSwatch('color-scheme', 'color-scheme-swatch'));
 
+// ── Auto-load when arriving from Data Transformation ─────────────
+if (new URLSearchParams(window.location.search).get('from_dt') === '1') {
+    const stored = sessionStorage.getItem('da_from_dt');
+    if (stored) {
+        sessionStorage.removeItem('da_from_dt');
+        const data = JSON.parse(stored);
+        showStatus(uploadStatus,
+            `✅ <strong>${data.filename}</strong> — ${data.rows.toLocaleString()} rows, ` +
+            `${data.groups.length} group(s), ${data.proteins.length} protein(s)` +
+            (data.has_functions ? ', function data available' : ''), 'success');
+        if (data.warnings && data.warnings.length)
+            data.warnings.forEach(w => appendStatus(uploadStatus, w, 'warning'));
+        populateSelectors(data);
+        enableStep2();
+        applyPlotFilterGreying();
+    }
+}
+
 })();
+
+document.getElementById('go-to-hm-btn').addEventListener('click', function() {
+    var btn = this;
+    btn.style.opacity = '0.6';
+    btn.style.pointerEvents = 'none';
+    fetch('/heatmap/transfer-from-dt/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest'}
+    }).then(function() {
+        window.location.href = '/heatmap/?from_dt=1';
+    }).catch(function() {
+        window.location.href = '/heatmap/';
+    });
+});
 </script>
 {% endblock %}

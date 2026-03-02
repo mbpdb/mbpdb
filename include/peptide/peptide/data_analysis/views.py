@@ -110,6 +110,50 @@ def upload(request):
 
 
 # ---------------------------------------------------------------------------
+# Transfer from Data Transformation
+# ---------------------------------------------------------------------------
+
+@require_POST
+def transfer_from_dt(request):
+    """Load merged_df directly from the data transformation session."""
+    dt_work_dir = request.session.get('dt_work_dir')
+    if not dt_work_dir or not os.path.isdir(dt_work_dir):
+        return JsonResponse(
+            {'error': 'No data transformation session found. Please complete data transformation first.'},
+            status=400,
+        )
+    dt_pkl = os.path.join(dt_work_dir, 'merged_df.pkl')
+    if not os.path.exists(dt_pkl):
+        return JsonResponse(
+            {'error': 'No processed data found. Please click "Process Data" in the wizard first.'},
+            status=400,
+        )
+
+    df = pd.read_pickle(dt_pkl)
+    df, col_warnings = data_processor.validate_columns(df)
+    group_data_dict, df, group_warning = data_processor.process_group_data(df)
+    if not group_data_dict:
+        return JsonResponse({'error': 'No group columns found in transformed data.'}, status=400)
+    protein_dict = data_processor.extract_protein_dict(df)
+
+    work_dir = _get_work_dir(request)
+    _save_df(work_dir, 'merged_df', df)
+    _save_json(work_dir, 'group_data_dict', group_data_dict)
+    _save_json(work_dir, 'protein_dict', protein_dict)
+
+    options = data_processor.get_selector_options(df, group_data_dict, protein_dict)
+    warnings = col_warnings + ([group_warning] if group_warning else [])
+    return JsonResponse({
+        'success': True,
+        'filename': 'Data Transformation output',
+        'rows': len(df), 'columns': len(df.columns),
+        'groups': options['groups'], 'proteins': options['proteins'],
+        'protein_ids': options['protein_ids'], 'functions': options['functions'],
+        'has_functions': options['has_functions'], 'warnings': warnings,
+    })
+
+
+# ---------------------------------------------------------------------------
 # Plot endpoint
 # ---------------------------------------------------------------------------
 
