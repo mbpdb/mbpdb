@@ -1,0 +1,51 @@
+# Git and version control
+.git
+.gitignore
+.github
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv
+.venv*/
+venv
+env
+*.egg-info
+.eggs
+
+# IDE and editor
+.idea
+.vscode
+.cursor
+.claude
+*.swp
+*.swo
+
+# Jupyter
+.ipynb_checkpoints
+*-checkpoint.ipynb
+
+# Build artifacts and caches
+*.sqlite3
+include/peptide/static_files
+static_files
+*.log
+
+# Local dev and test
+.env
+.env.*
+*.env
+.DS_Store
+Thumbs.db
+
+# Documentation and misc (not needed in container)
+README.md
+todo.txt
+dev.sh
+
+# Large/archived content that duplicates static files
+include/peptide/peptide/notebooks/archive
+include/peptide/peptide/notebooks/heatmap_images

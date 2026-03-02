@@ -73,7 +73,8 @@ ENV PYTHONPATH=/app/include/peptide:${BASE_PYTHONPATH}
 WORKDIR /app/include/peptide
 
 # Collect static files (BUILDING=true allows this without SECRET_KEY)
-RUN BUILDING=true python manage.py collectstatic --noinput
+# --verbosity 1 reduces "Found another file" duplicate messages
+RUN BUILDING=true python manage.py collectstatic --noinput --verbosity 1
 
 # Make sure static files are accessible
 RUN chmod -R 755 /app/include/peptide/static_files

@@ -166,12 +166,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.7/howto/static-files/
-
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, "peptide/static"),  # Keep this as your main static directory
-]
-
-# Make sure these paths are correct
+# STATICFILES_DIRS removed — it duplicated peptide/static/ which AppDirectoriesFinder
+# already finds, causing "Found another file" warnings during collectstatic.
+#
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static_files')
 
@@ -263,6 +260,13 @@ LOGGING = {
             'propagate': True,
         },
         'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        # Suppress "Session data corrupted" when users have stale cookies (e.g. after
+        # SECRET_KEY change or container restart). Django creates a fresh session automatically.
+        'django.security.SuspiciousSession': {
             'handlers': ['console'],
             'level': 'ERROR',
             'propagate': False,

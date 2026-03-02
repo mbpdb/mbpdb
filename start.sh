@@ -27,6 +27,9 @@ cd /app/include/peptide
 echo "Running database migrations..."
 python manage.py migrate --run-syncdb --noinput || { echo "WARNING: Migrations failed"; }
 
+# Clear expired sessions (reduces stale/corrupted session warnings)
+python manage.py clearsessions 2>/dev/null || true
+
 # Create superuser if credentials are provided and user doesn't exist
 if [ -n "$DJANGO_SUPERUSER_USERNAME" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ]; then
     echo "Checking for superuser..."
