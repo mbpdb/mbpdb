@@ -633,9 +633,6 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
         total_plots = result['total_plots']
         style_map = result['style_map']
 
-        yaxis_position_land = yaxis_position_port = 0.0 - 0.01 * yaxis_position
-        if log_transform or (y_ticks[1] - y_ticks[0] > 9999):
-            yaxis_position_land = -0.01 - 0.01 * yaxis_position
         selected_legend_title = [legend_title_input_1, legend_title_input_2, legend_title_input_3, legend_title[4]]
 
         # Your plotting code here, using the widget values as inputs
@@ -702,7 +699,6 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                             xaxis_label,
                             yaxis_label,
                             selected_legend_title,
-                            yaxis_position_port,
                             cmap,
                             avg_cmap,
                             lp_selected_color,
@@ -791,7 +787,6 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                         xaxis_label,
                         yaxis_label,
                         selected_legend_title,
-                        yaxis_position_land,
                         cmap,
                         avg_cmap,
                         lp_selected_color,
@@ -1628,6 +1623,47 @@ def collect_missing_data_notifications(available_data_variables_dict, selected_p
     return notifications
 
 
+def _auto_yaxis_x(fig, fontsize=16):
+    """
+    After tight_layout() + fig.canvas.draw(), return the x figure-fraction at
+    which to place a rotated y-axis label so it sits just to the left of the
+    leftmost ha='right' text label (the var_name row labels) and the leftmost
+    y-axis tick label.  Falls back to -0.05 if nothing is found.
+    """
+    try:
+        renderer = fig.canvas.get_renderer()
+        fig_bbox = fig.get_window_extent(renderer)
+        if fig_bbox.width == 0:
+            return -0.05
+
+        min_x_px = float('inf')
+
+        # Measure var_name text labels placed ha='right' outside the axes
+        for ax in fig.axes:
+            for txt in ax.texts:
+                if txt.get_ha() == 'right':
+                    bb = txt.get_window_extent(renderer=renderer)
+                    if bb.x0 < min_x_px:
+                        min_x_px = bb.x0
+            # Also capture the leftmost y-axis tick label
+            if ax.yaxis.get_visible():
+                for lbl in ax.yaxis.get_ticklabels():
+                    if lbl.get_text():
+                        bb = lbl.get_window_extent(renderer=renderer)
+                        if bb.x0 < min_x_px:
+                            min_x_px = bb.x0
+
+        if min_x_px == float('inf'):
+            return -0.08
+
+        # Approximate the width of the rotated label in display pixels
+        label_width_px = fontsize / 72 * fig.dpi
+        target_x_px = min_x_px - label_width_px - 16  # 16 px breathing room
+        return (target_x_px - fig_bbox.x0) / fig_bbox.width
+    except Exception:
+        return -0.08
+
+
 """_________________________________________Landscape Plot________________________________________"""
 # Function to plot rows of amino acids with backgrounds colored (landscape version)
 def plot_row_color_landscape(ax, amino_acids, colors):
@@ -1672,7 +1708,6 @@ def visualize_sequence_heatmap_lanscape(available_data_variables_dict,
                                                          xaxis_label,
                                                          yaxis_label,
                                                          legend_title,
-                                                         yaxis_position,
                                                          cmap,
                                                          avg_cmap,
                                                          lp_selected_color,
@@ -1845,10 +1880,10 @@ def visualize_sequence_heatmap_lanscape(available_data_variables_dict,
 
 
 
-    fig.text(yaxis_position, 0.90, yaxis_label, va='top', rotation='vertical', fontsize=16)
     fig.text(0.5, -0.025, xaxis_label, ha='center', va='center', fontsize=16)
     plt.tight_layout()
-    #plt.subplots_adjust(left=0.05)  # Create space on the left for the y-label
+    fig.canvas.draw()
+    fig.text(_auto_yaxis_x(fig), 0.90, yaxis_label, va='top', rotation='vertical', fontsize=16)
 
     if ms_average_choice == 'only' and bio_or_pep == '1':
         all_errors.append('The selection of Plot Averaged Data option "only" and Plot Specific Peptides option "Peptide Intervals" is invalid. Only the average Abundance will be plotted.')
@@ -1866,7 +1901,6 @@ def visualize_sequence_heatmap_portrait(available_data_variables_dict,
                                              xaxis_label,
                                              yaxis_label,
                                              legend_title,
-                                             yaxis_position,
                                              cmap,
                                              avg_cmap,
                                              lp_selected_color,
@@ -1977,8 +2011,8 @@ def visualize_sequence_heatmap_portrait(available_data_variables_dict,
     """
     # Adjust layout and save the figure
     plt.tight_layout()
-    #plt.subplots_adjust(left=0.15)  # Create space on the left for the y-label
-    fig.text(yaxis_position, 0.5, yaxis_label, va='center', rotation='vertical', fontsize=16)
+    fig.canvas.draw()
+    fig.text(_auto_yaxis_x(fig), 0.5, yaxis_label, va='center', rotation='vertical', fontsize=16)
     fig.text(0.5, 0.05, xaxis_label, ha='center', va='center', fontsize=16)
 
     # Display the plot inline

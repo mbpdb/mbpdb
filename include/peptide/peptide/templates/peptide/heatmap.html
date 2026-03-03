@@ -75,8 +75,8 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 .hidden { display: none !important; }
 .page-box { max-width: 960px; margin: 0 auto; }
 .color-swatch {
-    width: 72px; height: 22px; border-radius: 3px; border: 1px solid #ccc;
-    flex-shrink: 0; display: inline-block;
+    width: 72px; min-width: 0; height: 22px; border-radius: 3px; border: 1px solid #ccc;
+    flex-shrink: 1; display: inline-block; overflow: hidden;
 }
 .checkbox-row { display: flex; align-items: center; gap: 6px; font-size: .85rem; }
 .step-disabled { opacity: .55; pointer-events: none; }
@@ -113,7 +113,6 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
         <i class="fas fa-th icon"></i>
         <h1>Sequence Heatmap Dashboard</h1>
         <div style="margin-left:auto; display:flex; gap:8px; flex-shrink:0;">
-            <button id="go-to-da-btn" class="btn-back-dt"><i class="fas fa-chart-bar"></i> Data Analysis</button>
             <a href="/data_transformation/" class="btn-back-dt"><i class="fas fa-arrow-left"></i> Data Transformation</a>
         </div>
     </div>
@@ -247,20 +246,20 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                 </div>
 
                 <!-- Specific Overlay -->
-                <div style="margin-top:10px; max-width:380px;">
+                <div style="margin-top:10px; max-width:200px;">
                     <label style="font-weight:600; font-size:.82rem; margin-bottom:4px; display:block;">Specific Overlay</label>
-                    <select id="bio-or-pep" disabled style="width:100%; max-width:380px; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                    <select id="bio-or-pep" disabled style="width:100%; max-width:200px; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
                         <option value="no">None</option>
                         <option value="1">Selected Peptide Interval(s)</option>
                         <option value="2" id="bio-or-pep-func-opt">Selected Bioactive Function(s)</option>
                     </select>
                 </div>
-                <div id="specific-options-block" class="hidden" style="margin-top:8px; max-width:380px;">
+                <div id="specific-options-block" class="hidden" style="margin-top:8px; max-width:200px;">
                     <label style="font-weight:600; font-size:.82rem; margin-bottom:4px; display:block;" id="specific-options-label">
                         Select Items
                     </label>
                     <select id="specific-selector" class="multi-select" multiple size="5" disabled
-                            style="height:110px; font-size:.80rem; font-family:monospace; max-width:380px;"></select>
+                            style="height:110px; font-size:.80rem; font-family:monospace; max-width:200px;"></select>
                     <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
                     <span id="specific-spinner" class="hidden" style="font-size:.82rem; margin-left:6px;">
                         <i class="fas fa-circle-notch spin" style="color:#1976d2;"></i>
@@ -268,9 +267,9 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                 </div>
 
                 <!-- Plot Averaged -->
-                <div style="margin-top:10px; max-width:380px;">
+                <div style="margin-top:10px; max-width:200px;">
                     <label style="font-weight:600; font-size:.82rem; margin-bottom:4px; display:block;">Plot Averaged</label>
-                    <select id="ms-average" disabled style="width:100%; max-width:380px; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                    <select id="ms-average" disabled style="width:100%; max-width:200px; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
                         <option value="yes">Yes (show averaged)</option>
                         <option value="no">No (individual only)</option>
                         <option value="only">Only Averaged</option>
@@ -303,7 +302,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             </div>
 
             <!-- Right: Appearance Settings -->
-            <div style="min-width:0;">
+            <div style="min-width:0; max-width:380px;">
                 <div style="font-weight:700; font-size:.95rem; margin-bottom:8px;">
                     <u>Appearance Settings:</u>
                 </div>
@@ -311,7 +310,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:130px;">Heatmap Color</label>
-                        <select id="hm-color" disabled style="width:150px; flex-shrink:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <select id="hm-color" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
                             <option value="RdYlGn_r">RdYlGn_r (default)</option>
                             <option value="RdYlBu_r">RdYlBu_r</option>
                             <option value="coolwarm">coolwarm</option>
@@ -329,7 +328,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:130px;">Line Plot Color</label>
-                        <select id="lp-color" disabled style="width:150px; flex-shrink:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <select id="lp-color" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
                             <option value="Set3">Set3 (default)</option>
                             <option value="Set1">Set1</option>
                             <option value="Set2">Set2</option>
@@ -342,19 +341,13 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:130px;">Avg Line Color</label>
-                        <select id="avglp-color" disabled style="width:150px; flex-shrink:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <select id="avglp-color" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
                             <option value="Dark2">Dark2 (default)</option>
                             <option value="Set1">Set1</option>
                             <option value="tab10">tab10</option>
                             <option value="Accent">Accent</option>
                         </select>
                         <div class="color-swatch" id="avglp-color-swatch"></div>
-                    </div>
-
-                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:130px;">Y-Axis Offset</label>
-                        <input type="number" id="yaxis-position" value="5" min="0" max="30" step="1" disabled
-                               style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
@@ -370,20 +363,20 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:130px;">Legend Title 1</label>
+                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend Title (Sample Type)</label>
                         <input type="text" id="legend-title-1" placeholder="Sample Type:" disabled
                                style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:130px;">Legend Title 2</label>
+                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend Title (Peptide Counts)</label>
                         <input type="text" id="legend-title-2" placeholder="Peptide Counts:" disabled
                                style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:130px;">Legend Title 3</label>
-                        <input type="text" id="legend-title-3" placeholder="Abundance:" disabled
+                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend Title (Average Abundance)</label>
+                        <input type="text" id="legend-title-3" placeholder="Average Abundance:" disabled
                                style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
                     </div>
 
@@ -735,7 +728,7 @@ async function generateHeatmap() {
     const missingPids = getMissingSeqPids(selectedProteins);
     if (missingPids.length) {
         const { fetched, failed } = await autoFetchSequences(missingPids, spinnerText);
-        _showAutoFetchResult(fetched, failed, msgs, false);
+        _showAutoFetchResult(fetched, failed, document.getElementById('autofetch-msgs'), true);
         const stillMissing = getMissingSeqPids(selectedProteins);
         if (stillMissing.length === selectedProteins.length) {
             appendStatus(msgs,
@@ -745,7 +738,7 @@ async function generateHeatmap() {
             return;
         }
     }
-    spinnerText.textContent = 'Generating… (this may take 30–60 s)';
+    spinnerText.textContent = 'Generating… (this may take 10–15 s)';
 
     const filterType  = getRadioValue('filter-type');
     const orientation = getRadioValue('hm-orientation');
@@ -766,10 +759,9 @@ async function generateHeatmap() {
         avglp_selected_color: document.getElementById('avglp-color').value,
         xaxis_label:          document.getElementById('xaxis-label').value,
         yaxis_label:          document.getElementById('yaxis-label').value,
-        yaxis_position:       parseInt(document.getElementById('yaxis-position').value) || 5,
         legend_title_1:       document.getElementById('legend-title-1').value || 'Sample Type:',
         legend_title_2:       document.getElementById('legend-title-2').value || 'Peptide Counts:',
-        legend_title_3:       document.getElementById('legend-title-3').value || 'Abundance:',
+        legend_title_3:       document.getElementById('legend-title-3').value || 'Average Abundance:',
         plot_portrait:        orientation === 'Portrait' || orientation === 'Both',
         plot_landscape:       orientation === 'Landscape' || orientation === 'Both',
         filter_type:          filterType,
@@ -906,20 +898,6 @@ if (new URLSearchParams(window.location.search).get('from_dt') === '1') {
 }
 
 })();
-
-document.getElementById('go-to-da-btn').addEventListener('click', function() {
-    var btn = this;
-    btn.style.opacity = '0.6';
-    btn.style.pointerEvents = 'none';
-    fetch('/data_analysis/transfer-from-dt/', {
-        method: 'POST',
-        headers: {'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest'}
-    }).then(function() {
-        window.location.href = '/data_analysis/?from_dt=1';
-    }).catch(function() {
-        window.location.href = '/data_analysis/';
-    });
-});
 
 // Load example helpers for heatmap page
 function hmLoadExample(url, inputId, linkId) {
