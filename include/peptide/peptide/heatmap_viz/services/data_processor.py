@@ -458,25 +458,30 @@ def build_available_data_variables(
 def generate_heatmap(
     available_data_variables_dict: dict,
     plot_params: dict,
-) -> tuple[bytes | None, bytes | None, list]:
+) -> tuple:
     """
-    Call heatmap_renderer.update_plot() and return (portrait_png, landscape_png, messages).
-    PNG bytes are base64-encoded strings for JSON transport.
+    Call heatmap_renderer.update_plot() and return
+    (portrait_b64, landscape_b64, compact_json, messages).
+
+    portrait_b64 / landscape_b64 – base64-encoded PNG strings (or None).
+    compact_json                  – Plotly figure JSON string for the compact
+                                    interactive plot (or None).
+    messages                      – list of error / notification strings.
     """
     import base64
 
     try:
         from utils.heatmap_renderer import update_plot
     except ImportError:
-        return None, None, ['Could not import heatmap_renderer.']
+        return None, None, None, ['Could not import heatmap_renderer.']
 
     if not available_data_variables_dict:
-        return None, None, ['No data available for plotting.']
+        return None, None, None, ['No data available for plotting.']
 
     pp = dict(plot_params)
 
     try:
-        fig_port, fig_land, errors, notifications = update_plot(
+        fig_port, fig_land, fig_compact, fig_port_plotly, fig_land_plotly, errors, notifications = update_plot(
             available_data_variables_dict,
             ms_average_choice=pp.get('ms_average_choice', 'yes'),
             bio_or_pep=pp.get('bio_or_pep', 'no'),
@@ -498,9 +503,10 @@ def generate_heatmap(
             manual_y_axis=pp.get('manual_y_axis', False),
             y_min_manual=pp.get('y_min', 0.0),
             y_max_manual=pp.get('y_max', 1.0),
+            plot_compact=pp.get('plot_compact', False),
         )
     except Exception as exc:
-        return None, None, [f'Error generating heatmap: {exc}\n{traceback.format_exc()}']
+        return None, None, None, None, None, [f'Error generating heatmap: {exc}\n{traceback.format_exc()}']
 
     messages = list(errors or []) + list(notifications or [])
 
@@ -522,7 +528,22 @@ def generate_heatmap(
         plt.close(fig)
         return data
 
-    portrait_b64 = fig_to_b64(fig_port) if fig_port is not None else None
-    landscape_b64 = fig_to_b64(fig_land) if fig_land is not None else None
+    portrait_b64  = fig_to_b64(fig_port) if fig_port  is not None else None
+    landscape_b64 = fig_to_b64(fig_land) if fig_land  is not None else None
 
-    return portrait_b64, landscape_b64, messages
+    # Convert Plotly figures to JSON for transport to the frontend
+    def _plotly_to_json(fig, name: str) -> str | None:
+        if fig is None:
+            return None
+        try:
+            import plotly.io as pio
+            return pio.to_json(fig)
+        except Exception as exc:
+            messages.append(f'Warning: could not serialise {name} interactive plot: {exc}')
+            return None
+
+    compact_json           = _plotly_to_json(fig_compact,     'compact')
+    portrait_interactive   = _plotly_to_json(fig_port_plotly, 'portrait')
+    landscape_interactive  = _plotly_to_json(fig_land_plotly, 'landscape')
+
+    return portrait_b64, landscape_b64, compact_json, portrait_interactive, landscape_interactive, messages

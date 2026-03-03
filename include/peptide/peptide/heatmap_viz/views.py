@@ -347,13 +347,15 @@ def plot(request):
         }, status=400)
 
     # Generate heatmap
-    portrait_b64, landscape_b64, plot_msgs = data_processor.generate_heatmap(
-        available, plot_params
-    )
+    portrait_b64, landscape_b64, compact_json, \
+        portrait_interactive, landscape_interactive, plot_msgs = data_processor.generate_heatmap(
+            available, plot_params
+        )
 
     all_msgs = build_msgs + plot_msgs
 
-    if portrait_b64 is None and landscape_b64 is None:
+    if portrait_b64 is None and landscape_b64 is None and compact_json is None \
+            and portrait_interactive is None and landscape_interactive is None:
         return JsonResponse({
             'error': 'No heatmap generated.',
             'messages': all_msgs,
@@ -361,8 +363,11 @@ def plot(request):
 
     return JsonResponse({
         'success': True,
-        'portrait': portrait_b64,
-        'landscape': landscape_b64,
+        'portrait':              portrait_b64,
+        'landscape':             landscape_b64,
+        'compact':               compact_json,
+        'portrait_interactive':  portrait_interactive,
+        'landscape_interactive': landscape_interactive,
         'messages': all_msgs,
     })
 

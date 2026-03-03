@@ -4,6 +4,7 @@
 {% block 'head' %}
 <title>Sequence Heatmap Dashboard – MBPDb</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
 <style>
 .hm-page { padding: 10px 20px 80px; }
 .hm-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
@@ -71,6 +72,16 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 .heatmap-img-container { margin-bottom: 20px; }
 .heatmap-img-container h4 { font-size: 1rem; font-weight: 600; margin-bottom: 8px; }
 .heatmap-img-container img { max-width: 100%; border: 1px solid #dee2e6; border-radius: 4px; }
+.compact-plot-container { margin-bottom: 20px; }
+.compact-plot-container h4 { font-size: 1rem; font-weight: 600; margin-bottom: 8px; }
+#compact-plotly-div { border: 1px solid #dee2e6; border-radius: 4px; background: #fff; min-height: 200px; }
+
+.interactive-plot-container { margin-top: 12px; margin-bottom: 20px; }
+.interactive-plot-container h5 {
+    font-size: 0.9rem; font-weight: 600; margin-bottom: 6px; color: #01579b;
+    display: flex; align-items: center; gap: 6px;
+}
+.interactive-plotly-div { border: 1px solid #90caf9; border-radius: 4px; background: #fff; min-height: 400px; }
 
 .hidden { display: none !important; }
 .page-box { max-width: 960px; margin: 0 auto; }
@@ -291,6 +302,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                             <label><input type="radio" name="hm-orientation" value="Landscape" checked disabled> Landscape</label>
                             <label><input type="radio" name="hm-orientation" value="Portrait" disabled> Portrait</label>
                             <label><input type="radio" name="hm-orientation" value="Both" disabled> Both</label>
+                            <label><input type="radio" name="hm-orientation" value="Compact" disabled> Compact (Interactive)</label>
                         </div>
                     </div>
 
@@ -440,6 +452,9 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             <button class="btn-dl" id="dl-landscape-btn" disabled>
                 <i class="fas fa-download"></i> Download Landscape PNG
             </button>
+            <button class="btn-dl" id="dl-compact-btn" disabled style="background:#00838f;">
+                <i class="fas fa-download"></i> Download Compact JSON
+            </button>
         </div>
 
         <div id="plot-messages"></div>
@@ -452,10 +467,22 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
         <div id="portrait-container" class="heatmap-img-container hidden">
             <h4><i class="fas fa-image"></i> Portrait Layout</h4>
             <img id="portrait-img" src="" alt="Portrait Heatmap">
+            <div id="portrait-interactive-container" class="interactive-plot-container hidden">
+                <h5><i class="fas fa-mouse-pointer"></i> Portrait — Interactive (hover for details)</h5>
+                <div id="portrait-interactive-div" class="interactive-plotly-div"></div>
+            </div>
         </div>
         <div id="landscape-container" class="heatmap-img-container hidden">
             <h4><i class="fas fa-image"></i> Landscape Layout</h4>
             <img id="landscape-img" src="" alt="Landscape Heatmap">
+            <div id="landscape-interactive-container" class="interactive-plot-container hidden">
+                <h5><i class="fas fa-mouse-pointer"></i> Landscape — Interactive (hover for details)</h5>
+                <div id="landscape-interactive-div" class="interactive-plotly-div"></div>
+            </div>
+        </div>
+        <div id="compact-container" class="compact-plot-container hidden">
+            <h4><i class="fas fa-chart-bar"></i> Compact Layout (Interactive)</h4>
+            <div id="compact-plotly-div"></div>
         </div>
     </div>
 
@@ -466,8 +493,9 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 'use strict';
 
 const CSRF = '{{ csrf_token }}';
-let currentPortraitB64 = null;
+let currentPortraitB64  = null;
 let currentLandscapeB64 = null;
+let currentCompactJson  = null;
 let hasFunctions = false;
 
 function getCsrf() { return CSRF; }
@@ -919,6 +947,7 @@ async function generateHeatmap() {
         legend_title_3:       document.getElementById('legend-title-3').value || 'Average Abundance:',
         plot_portrait:        orientation === 'Portrait' || orientation === 'Both',
         plot_landscape:       orientation === 'Landscape' || orientation === 'Both',
+        plot_compact:         orientation === 'Compact',
         filter_type:          filterType,
         log_transform:        document.getElementById('log-transform').checked,
         manual_y_axis:        document.getElementById('manual-y-axis').checked,
@@ -960,6 +989,26 @@ async function generateHeatmap() {
 
     currentPortraitB64  = data.portrait;
     currentLandscapeB64 = data.landscape;
+    currentCompactJson  = data.compact || null;
+
+    // ── helper: render a Plotly interactive panel ─────────────────────────────
+    function renderInteractive(jsonStr, divId, containerId) {
+        const cont = document.getElementById(containerId);
+        const div  = document.getElementById(divId);
+        if (!jsonStr) { cont.classList.add('hidden'); return; }
+        try {
+            const spec = JSON.parse(jsonStr);
+            Plotly.react(div, spec.data, spec.layout, {
+                responsive: true,
+                scrollZoom: true,
+                displayModeBar: true,
+            });
+            cont.classList.remove('hidden');
+        } catch(e) {
+            cont.classList.add('hidden');
+            appendStatus(msgs, `Warning: could not render interactive plot (${containerId}).`, 'warning');
+        }
+    }
 
     const portCont = document.getElementById('portrait-container');
     if (data.portrait) {
@@ -969,6 +1018,11 @@ async function generateHeatmap() {
     } else {
         portCont.classList.add('hidden');
     }
+    renderInteractive(
+        data.portrait_interactive || null,
+        'portrait-interactive-div',
+        'portrait-interactive-container'
+    );
 
     const landCont = document.getElementById('landscape-container');
     if (data.landscape) {
@@ -977,6 +1031,33 @@ async function generateHeatmap() {
         document.getElementById('dl-landscape-btn').disabled = false;
     } else {
         landCont.classList.add('hidden');
+    }
+    renderInteractive(
+        data.landscape_interactive || null,
+        'landscape-interactive-div',
+        'landscape-interactive-container'
+    );
+
+    // ── Compact interactive Plotly chart ──────────────────────────────────────
+    const compactCont = document.getElementById('compact-container');
+    const compactDiv  = document.getElementById('compact-plotly-div');
+    if (data.compact) {
+        try {
+            const figSpec = JSON.parse(data.compact);
+            Plotly.react(compactDiv, figSpec.data, figSpec.layout, {
+                responsive: true,
+                scrollZoom: true,
+                displayModeBar: true,
+                modeBarButtonsToAdd: ['zoom2d', 'pan2d', 'resetScale2d'],
+            });
+            compactCont.classList.remove('hidden');
+            document.getElementById('dl-compact-btn').disabled = false;
+        } catch(e) {
+            appendStatus(msgs, 'Warning: could not render compact interactive plot.', 'warning');
+            compactCont.classList.add('hidden');
+        }
+    } else {
+        compactCont.classList.add('hidden');
     }
 
     document.getElementById('step3-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -999,6 +1080,15 @@ async function downloadImg(b64, orientation) {
 
 document.getElementById('dl-portrait-btn').addEventListener('click',  () => { if (currentPortraitB64)  downloadImg(currentPortraitB64,  'portrait');  });
 document.getElementById('dl-landscape-btn').addEventListener('click', () => { if (currentLandscapeB64) downloadImg(currentLandscapeB64, 'landscape'); });
+
+document.getElementById('dl-compact-btn').addEventListener('click', () => {
+    if (!currentCompactJson) return;
+    const blob = new Blob([currentCompactJson], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'heatmap_compact.json'; a.click();
+    URL.revokeObjectURL(url);
+});
 
 // ── Color swatch previews ─────────────────────────────────────────
 const COLOR_GRADIENTS = {

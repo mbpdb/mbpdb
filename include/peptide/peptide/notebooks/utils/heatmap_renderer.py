@@ -606,18 +606,21 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                 hm_selected_color, lp_selected_color, avglp_selected_color,
                 xaxis_label, yaxis_label, yaxis_position, legend_title_input_1, legend_title_input_2,
                 legend_title_input_3, plot_land, plot_port, filter_type, log_transform,
-                manual_y_axis, y_min_manual, y_max_manual):
+                manual_y_axis, y_min_manual, y_max_manual, plot_compact=False):
     import matplotlib.pyplot as plt
     all_errors = []
 
     if not available_data_variables_dict:  # Check if data is available
         all_errors.append('No data is available for plotting.')
-        return (None, None, all_errors, [])  # Return tuple with errors
+        return (None, None, None, None, None, all_errors, [])  # Return tuple with errors
 
     result = process_available_data(available_data_variables_dict, filter_type, selected_functions,  selected_peptides, bio_or_pep, log_transform, manual_y_axis, y_min_manual, y_max_manual)
-    # Initialize fig_port and fig_land to None
-    fig_port_return = None
-    fig_land_return = None
+    # Initialize fig_port, fig_land, fig_compact, and interactive returns to None
+    fig_port_return         = None
+    fig_land_return         = None
+    fig_compact_return      = None
+    fig_port_plotly_return  = None
+    fig_land_plotly_return  = None
 
     # Unpack the dictionary into individual global variables
     import _settings as settings
@@ -670,7 +673,7 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
 
         if config_errors:
             all_errors.extend(config_errors)
-            return None, None, all_errors, []
+            return None, None, None, None, None, all_errors, []
 
         else:
             """ #                                       Function Call to Generate Plot
@@ -855,17 +858,85 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                         all_errors.append('You have too few peptides for proper heatmapping.')
             else:
                 fig_land = None
+
+            # ── Interactive Plotly plots for portrait / landscape ─────────────
+            _interactive_params = dict(
+                xaxis_label      = xaxis_label,
+                yaxis_label      = yaxis_label,
+                legend_title     = selected_legend_title,
+                cmap             = cmap,
+                avg_cmap         = avg_cmap,
+                lp_selected_color= lp_selected_color,
+                selected_peptides= selected_peptides,
+                selected_functions= selected_functions,
+                ms_average_choice= ms_average_choice,
+                bio_or_pep       = bio_or_pep,
+                filter_type      = filter_type,
+                log_transform    = log_transform,
+                y_ticks          = y_ticks,
+            )
+
+            fig_port_plotly = None
+            if plot_port:
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', UserWarning)
+                    try:
+                        fig_port_plotly = visualize_sequence_heatmap_interactive(
+                            available_data_variables_dict,
+                            'Portrait',
+                            **_interactive_params,
+                        )
+                    except Exception as exc:
+                        all_errors.append(f'Error generating portrait interactive plot: {exc}')
+
+            fig_land_plotly = None
+            if plot_land:
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', UserWarning)
+                    try:
+                        fig_land_plotly = visualize_sequence_heatmap_interactive(
+                            available_data_variables_dict,
+                            'Landscape',
+                            **_interactive_params,
+                        )
+                    except Exception as exc:
+                        all_errors.append(f'Error generating landscape interactive plot: {exc}')
+
+            # ── Compact interactive Plotly plot ───────────────────────────────
+            fig_compact = None
+            if plot_compact:
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', UserWarning)
+                    try:
+                        fig_compact = visualize_sequence_heatmap_compact(
+                            available_data_variables_dict,
+                            xaxis_label,
+                            yaxis_label,
+                            selected_legend_title,
+                            cmap,
+                            y_ticks,
+                            log_transform,
+                        )
+                    except Exception as exc:
+                        all_errors.append(f'Error generating compact plot: {exc}')
+                        fig_compact = None
+
         # Collect generated figures
         if plot_port:
             if fig_port is not None and hasattr(fig_port, 'axes') and len(fig_port.axes) > 0:
                 fig_port_return = fig_port
+            fig_port_plotly_return = fig_port_plotly  # may be None if generation failed
 
         if plot_land:
             # Check if fig_land is defined and has axes
             if fig_land is not None and hasattr(fig_land, 'axes') and len(fig_land.axes) > 0:
                 fig_land_return = fig_land
+            fig_land_plotly_return = fig_land_plotly  # may be None if generation failed
 
-        if not plot_port and not plot_land:
+        if plot_compact:
+            fig_compact_return = fig_compact  # Plotly figure (not matplotlib)
+
+        if not plot_port and not plot_land and not plot_compact:
             all_errors.append("One or both of the create plot checkbox must be selected to generate a plot.")
 
         # Collect missing data notifications for user feedback
@@ -873,10 +944,12 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
             available_data_variables_dict, selected_peptides, selected_functions, bio_or_pep
         )
 
-        return fig_port_return, fig_land_return, all_errors, missing_data_notifications  # Return the figures with errors and notifications
+        return (fig_port_return, fig_land_return, fig_compact_return,
+                fig_port_plotly_return, fig_land_plotly_return,
+                all_errors, missing_data_notifications)
     else:
         all_errors.append('Reselect "Variable Options", no data is available for plotting.')
-        return None, None, all_errors, []  # Return None values with errors if no result
+        return None, None, None, None, None, all_errors, []  # Return None values with errors if no result
 
 """_________________________________________Data Visualization Functions_________________________________"""
 # Function to plot rows of amino acids with backgrounds colored
@@ -1695,6 +1768,560 @@ def plot_row_landscape(ax, amino_acids):
                 fontsize=aa_font_size)
 
 
+"""_______________________________Interactive Plotly Plot (Landscape / Portrait)_____________"""
+def visualize_sequence_heatmap_interactive(
+    available_data_variables_dict,
+    orientation,          # 'Landscape' or 'Portrait'
+    xaxis_label,
+    yaxis_label,
+    legend_title,         # list [title1, title2, title3, ...]
+    cmap,                 # matplotlib colormap for heatmap (peptide count colours)
+    avg_cmap,             # matplotlib colormap for averaged line colours
+    lp_selected_color,    # colourmap name for individual peptide lines
+    selected_peptides,
+    selected_functions,
+    ms_average_choice,    # 'yes' | 'no' | 'only'
+    bio_or_pep,           # 'no' | '1' | '2'
+    filter_type,
+    log_transform,
+    y_ticks,
+):
+    """
+    Plotly interactive version of the landscape / portrait heatmap.
+
+    Layout (shared x-axis, top → bottom):
+      Row 1       — Line-plot panel (averaged MS lines and/or individual peptide lines)
+      Rows 2…n+1  — Heatmap-bar panel per variable
+                      bar colour  = peptide count  (cmap)
+                      bar height  = averaged abundance
+
+    Hover text
+      Line traces       : Position | Amino Acid | Abundance | Variable
+                          [+ Peptide | Function when bioactive mode]
+      Heatmap bar traces: Position | Amino Acid | Peptide Count | Abundance
+
+    Returns a plotly.graph_objects.Figure, or None on failure.
+    """
+    try:
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+        from matplotlib.colors import to_rgba
+        import matplotlib.pyplot as plt
+    except ImportError:
+        logger.error("plotly is required for interactive heatmap: pip install plotly")
+        return None
+
+    var_keys = list(available_data_variables_dict.keys())
+    num_vars = len(var_keys)
+    print(f"[interactive DEBUG] >>> entering {orientation} interactive plot, "
+          f"num_vars={num_vars}, ms_average_choice={ms_average_choice!r}, "
+          f"bio_or_pep={bio_or_pep!r}, filter_type={filter_type!r}, "
+          f"log_transform={log_transform}, y_ticks={y_ticks}")
+    if num_vars == 0:
+        return None
+
+    # ── y-axis tick values ────────────────────────────────────────────────────
+    tick1 = float(y_ticks[0])  if y_ticks                else 0.0
+    tick2 = float(y_ticks[1])  if len(y_ticks) > 1       else (tick1 + (float(y_ticks[-1]) if y_ticks else 1.0)) / 2
+    tick3 = float(y_ticks[-1]) if y_ticks                else 1.0
+
+    max_seq_len = max(
+        len(available_data_variables_dict[v].get('AA_list', []))
+        for v in var_keys
+    )
+
+    # ── decide whether to show the plain protein-sequence row ────────────────
+    # Mirrors plot_row_landscape: only shown when all variables share one protein.
+    _prot_ids = list(dict.fromkeys(
+        vd.get('protein_id') or vd.get('protein_name', '')
+        for vd in available_data_variables_dict.values()
+    ))
+    _prot_ids = [p for p in _prot_ids if p]
+    single_protein = len(_prot_ids) <= 1
+
+    # protein AA list for the sequence strip (use first variable's AA_list)
+    protein_aa_list = []
+    if single_protein and var_keys:
+        protein_aa_list = list(available_data_variables_dict[var_keys[0]].get('AA_list', []))
+
+    # ── pixel-height row plan (no overlap) ───────────────────────────────────
+    # Row order (top → bottom, matching Matplotlib landscape):
+    #   1. Line-plot panel
+    #   2. Plain AA-sequence strip  (only if single protein)
+    #   3..n+2 (or 2..n+1): one colored tile row per variable
+    LINE_PX = 260       # line-plot row height
+    SEQ_PX  = 26        # plain AA-sequence strip
+    HM_PX   = 26        # each colored heatmap tile row
+
+    rows_meta = [('line', None)]            # (type, var_key_or_None)
+    if single_protein and protein_aa_list:
+        rows_meta.append(('seq', None))
+    for vk in var_keys:
+        rows_meta.append(('hm', vk))
+
+    num_rows   = len(rows_meta)
+    px_heights = [LINE_PX if r[0] == 'line' else (SEQ_PX if r[0] == 'seq' else HM_PX)
+                  for r in rows_meta]
+    total_px   = sum(px_heights)
+    row_heights_frac = [h / total_px for h in px_heights]
+
+    # pre-compute paper-space domain centres for left-side annotations
+    # In Plotly rows go top → bottom; domain y runs bottom=0 → top=1
+    _cumfrac   = [sum(row_heights_frac[:k]) for k in range(num_rows + 1)]
+    row_y_top    = [1.0 - _cumfrac[k]     for k in range(num_rows)]
+    row_y_bottom = [1.0 - _cumfrac[k + 1] for k in range(num_rows)]
+    row_y_center = [(row_y_top[k] + row_y_bottom[k]) / 2 for k in range(num_rows)]
+
+    fig = make_subplots(
+        rows=num_rows, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0,     # zero gap → no overlap
+        row_heights=row_heights_frac,
+    )
+
+    # ── helper: matplotlib colour → Plotly rgba string ───────────────────────
+    def _rgba(mpl_color):
+        if mpl_color == 'white':
+            return 'rgba(255,255,255,1.0)'
+        try:
+            r, g, b, a = to_rgba(mpl_color)
+            return f'rgba({int(r*255)},{int(g*255)},{int(b*255)},{a:.3f})'
+        except Exception:
+            return 'rgba(180,180,180,1.0)'
+
+    # ── colour map objects ────────────────────────────────────────────────────
+    avg_cmap_obj = avg_cmap if not isinstance(avg_cmap, str) else plt.get_cmap(avg_cmap)
+    lp_cmap_obj  = plt.get_cmap(lp_selected_color) if isinstance(lp_selected_color, str) else lp_selected_color
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # ROW 1 — line-plot panel
+    # ══════════════════════════════════════════════════════════════════════════
+
+    # ── 1a. averaged MS lines (one per variable) ─────────────────────────────
+    print(f"[interactive DEBUG] SECTION 1a: averaged lines (ms_average_choice={ms_average_choice!r})")
+    if ms_average_choice in ('yes', 'only'):
+        for var_idx, var_key in enumerate(var_keys):
+            vd      = available_data_variables_dict[var_key]
+            ms_data = vd.get('ms_data_list', [])
+            aa_list = vd.get('AA_list', [])
+            label   = vd.get('label', var_key)
+            color   = _rgba(avg_cmap_obj(var_idx % avg_cmap_obj.N))
+            print(f"[interactive DEBUG]   1a var={var_key!r} label={label!r} "
+                  f"ms_data type={type(ms_data).__name__} len={len(ms_data) if ms_data is not None else 'None'} "
+                  f"aa_list len={len(aa_list)}")
+
+            if isinstance(ms_data, (pd.DataFrame, pd.Series)):
+                x_vals = list(ms_data.index)
+                y_vals = list(ms_data.values)
+            else:
+                x_vals = list(range(1, len(ms_data) + 1))
+                y_vals = list(ms_data)
+
+            aa_at = [aa_list[x - 1] if 0 < x <= len(aa_list) else '?' for x in x_vals]
+            try:
+                hover = [
+                    f"Position: {x}<br>Amino Acid: {aa}<br>Variable: {label}<br>Abundance: {float(y):.3e}"
+                    for x, aa, y in zip(x_vals, aa_at, y_vals)
+                ]
+            except Exception as _he:
+                print(f"[interactive DEBUG]   1a hover build failed: {_he}")
+                hover = [f"Position: {x}" for x in x_vals]
+            fig.add_trace(
+                go.Scatter(
+                    x=x_vals, y=y_vals,
+                    mode='lines',
+                    name=label,
+                    line=dict(color=color, width=1.5),
+                    hoverinfo='text',
+                    hovertext=hover,
+                    legendgroup='avg_lines',
+                    showlegend=True,
+                ),
+                row=1, col=1,
+            )
+
+    # ── 1b. individual peptide / bioactive-function lines ─────────────────────
+    print(f"[interactive DEBUG] SECTION 1b: individual peptide lines")
+    if (bio_or_pep != 'no' or filter_type in ('bioactive-only', 'functional-only')) \
+            and ms_average_choice != 'only':
+        plotted_labels = set()
+
+        for var_idx, var_key in enumerate(var_keys):
+            vd      = available_data_variables_dict[var_key]
+            label   = vd.get('label', var_key)
+            bp_abs  = vd.get('bioactive_peptide_abs_df')
+            bp_func = vd.get('bioactive_peptide_func_df')
+            aa_list = vd.get('AA_list', [])
+
+            if bp_abs is None or bp_abs.empty:
+                continue
+
+            # apply the same filter logic as the Matplotlib functions
+            filtered_abs, filtered_func, _ = filter_data_by_selection(
+                bp_abs, bp_func, selected_peptides, selected_functions,
+                bio_or_pep, filter_type, ms_average_choice, label,
+            )
+            if filtered_abs is None or filtered_abs.empty:
+                continue
+
+            # resolve effective function list (mirrors landscape logic)
+            eff_bio    = bio_or_pep
+            eff_funcs  = list(selected_functions)
+            if filter_type == 'bioactive-only' and bio_or_pep == 'no':
+                all_funcs = set()
+                if filtered_func is not None and not filtered_func.empty:
+                    for col in filtered_func.columns:
+                        for val in filtered_func[col].dropna():
+                            for part in str(val).split(';'):
+                                part = part.strip()
+                                if part and part != 'nan':
+                                    all_funcs.add(part)
+                if all_funcs:
+                    eff_bio   = '2'
+                    eff_funcs = sorted(all_funcs)
+
+            # colour map for individual lines
+            items = (list(selected_peptides) if eff_bio == '1' else eff_funcs) if eff_bio != 'no' else []
+            n_items    = max(len(items), 1)
+            lp_colors  = lp_cmap_obj(np.linspace(0, 1, n_items))
+            item_cmap  = {item: lp_colors[i % n_items] for i, item in enumerate(items)}
+            item_cmap['Multiple'] = (0.0, 0.0, 0.0, 1.0)
+
+            for col in filtered_abs.columns:
+                if col == 'average':
+                    continue
+                y_series = pd.to_numeric(filtered_abs[col], errors='coerce').replace(0, np.nan)
+                if y_series.isna().all():
+                    continue
+
+                x_vals = list(y_series.index)
+                y_vals = list(y_series.values)
+                aa_at  = [aa_list[x - 1] if 0 < x <= len(aa_list) else '?' for x in x_vals]
+
+                # determine label and function string
+                pep_label = col
+                func_str  = ''
+                if eff_bio == '2' and filtered_func is not None and col in filtered_func.columns:
+                    fvals = filtered_func[col].dropna()
+                    if not fvals.empty:
+                        found = set()
+                        for val in fvals:
+                            for sub in str(val).split(';'):
+                                sub = sub.strip()
+                                for func in eff_funcs:
+                                    if func.lower().replace(' ', '') == sub.lower().replace(' ', ''):
+                                        found.add(func)
+                        if len(found) > 1:
+                            pep_label = 'Multiple'
+                            func_str  = '; '.join(sorted(found))
+                        elif found:
+                            pep_label = next(iter(found))
+                            func_str  = pep_label
+
+                line_color = _rgba(item_cmap.get(pep_label, (0.5, 0.5, 0.5, 1.0)))
+                hover = [
+                    f"Position: {x}<br>Amino Acid: {aa}<br>Variable: {label}"
+                    f"<br>Abundance: {y:.3e}<br>Peptide: {col}"
+                    + (f"<br>Function: {func_str}" if func_str else "")
+                    for x, aa, y in zip(x_vals, aa_at, y_vals)
+                    if not pd.isna(y)
+                ]
+
+                show_leg = pep_label not in plotted_labels
+                plotted_labels.add(pep_label)
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=x_vals, y=y_vals,
+                        mode='lines',
+                        name=pep_label,
+                        line=dict(color=line_color, width=1.2),
+                        hoverinfo='text',
+                        hovertext=hover,
+                        legendgroup='pep_lines',
+                        showlegend=show_leg,
+                    ),
+                    row=1, col=1,
+                )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # ROW 2 (optional) — plain protein-sequence strip
+    # ══════════════════════════════════════════════════════════════════════════
+    print(f"[interactive DEBUG] SECTION 2: plain AA sequence row "
+          f"(single_protein={single_protein}, len={len(protein_aa_list)})")
+    if single_protein and protein_aa_list:
+        seq_row_idx = next(k for k, r in enumerate(rows_meta) if r[0] == 'seq')
+        seq_row_num = seq_row_idx + 1          # 1-indexed for Plotly
+        positions_seq = list(range(1, len(protein_aa_list) + 1))
+        show_seq_text = len(protein_aa_list) <= 300
+        seq_text = protein_aa_list if show_seq_text else [''] * len(protein_aa_list)
+
+        fig.add_trace(
+            go.Bar(
+                x=positions_seq,
+                y=[1.0] * len(protein_aa_list),
+                text=seq_text,
+                textposition='inside',
+                textfont=dict(size=8, color='#333333'),
+                insidetextanchor='middle',
+                textangle=0,           # force letters upright — never sideways
+                marker_color='rgba(230,230,230,1.0)',   # neutral light-grey
+                marker_line_width=0,
+                width=1.0,
+                hoverinfo='text',
+                hovertext=[f"Position: {p}<br>Amino Acid: {aa}"
+                           for p, aa in zip(positions_seq, protein_aa_list)],
+                showlegend=False,
+                name='Protein Sequence',
+            ),
+            row=seq_row_num, col=1,
+        )
+        fig.update_yaxes(
+            range=[0, 1], showgrid=False,
+            showticklabels=False, ticks='',
+            row=seq_row_num, col=1,
+        )
+        fig.update_xaxes(showticklabels=False, row=seq_row_num, col=1)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # ROWS — colored heatmap tile rows (one per variable)
+    # ══════════════════════════════════════════════════════════════════════════
+    print(f"[interactive DEBUG] SECTION 3: heatmap tile rows (num_vars={num_vars})")
+    for i, var_key in enumerate(var_keys):
+        vd          = available_data_variables_dict[var_key]
+        hm_label    = vd.get('label', var_key)
+
+        # --- safe extraction: avoid `series or []` which raises ambiguous-truth error ---
+        _raw_counts = vd.get('peptide_counts')
+        print(f"[interactive DEBUG] var={var_key!r}  peptide_counts type={type(_raw_counts).__name__}  "
+              f"len={len(_raw_counts) if _raw_counts is not None else 'None'}")
+        if _raw_counts is None:
+            counts_list = []
+        else:
+            try:
+                counts_list = list(_raw_counts)
+            except Exception as _e:
+                print(f"[interactive DEBUG]   counts_list conversion failed: {_e}")
+                counts_list = []
+
+        _raw_ms = vd.get('ms_data_list')
+        print(f"[interactive DEBUG]   ms_data_list type={type(_raw_ms).__name__}  "
+              f"len={len(_raw_ms) if _raw_ms is not None else 'None'}")
+        ms_data = _raw_ms if _raw_ms is not None else []
+
+        aa_list = vd.get('AA_list', [])
+        print(f"[interactive DEBUG]   AA_list len={len(aa_list)}")
+
+        if len(counts_list) == 0:
+            hm_df = vd.get('heatmap_df')
+            if hm_df is not None and not hm_df.empty:
+                print(f"[interactive DEBUG]   falling back to heatmap_df (rows={len(hm_df)})")
+                counts_list = hm_df['count'].tolist()
+                ms_data     = hm_df['average'].fillna(0).tolist()
+                aa_list     = hm_df['AA'].tolist()
+
+        if len(counts_list) == 0:
+            print(f"[interactive DEBUG]   SKIPPING {var_key!r} — no count data")
+            continue
+
+        positions      = list(range(1, len(counts_list) + 1))
+        bar_colors_mpl = get_grouped_colors(counts_list, max_count, num_colors, plot_zero, cmap)
+        bar_colors     = [_rgba(c) for c in bar_colors_mpl]
+
+        # --- normalise ms_data to a plain Python list ---
+        if isinstance(ms_data, (pd.DataFrame, pd.Series)):
+            ms_data = list(ms_data.values if hasattr(ms_data, 'values') else ms_data)
+        elif not isinstance(ms_data, list):
+            try:
+                ms_data = list(ms_data)
+            except Exception as _e:
+                print(f"[interactive DEBUG]   ms_data list() failed: {_e}")
+                ms_data = [0.0] * len(counts_list)
+
+        # safe float helper for abundance hover text
+        def _safe_float(v):
+            try:
+                f = float(v)
+                return f if f == f else 0.0   # NaN → 0
+            except (TypeError, ValueError):
+                return 0.0
+
+        # abundance values for hover (ms_data may be shorter than counts if fallback used)
+        abun_vals = [_safe_float(ms_data[k]) if k < len(ms_data) else 0.0
+                     for k in range(len(counts_list))]
+
+        print(f"[interactive DEBUG]   counts_list len={len(counts_list)}  "
+              f"ms_data len={len(ms_data)}  aa_list len={len(aa_list)}  "
+              f"abun_vals[:5]={abun_vals[:5]}")
+
+        # ── Amino-acid tile row — identical appearance to portrait/landscape ──
+        # All tiles have uniform height=1; colour = peptide count (same cmap).
+        # AA letters are already printed in the plain-sequence strip above, so
+        # we do NOT repeat them here (no text on the colored tile rows).
+        # Abundance is visible in the line-plot row and in hover text.
+        uniform_heights = [1.0] * len(counts_list)
+
+        hover = [
+            f"Position: {pos}<br>Amino Acid: {aa}<br>"
+            f"Peptide Count: {cnt}<br>Abundance: {abun:.3e}"
+            for pos, aa, cnt, abun in zip(positions, aa_list, counts_list, abun_vals)
+        ]
+
+        # find which Plotly row this variable maps to via rows_meta
+        hm_row_idx = next(k for k, r in enumerate(rows_meta) if r[0] == 'hm' and r[1] == var_key)
+        row = hm_row_idx + 1    # 1-indexed
+
+        fig.add_trace(
+            go.Bar(
+                x=positions,
+                y=uniform_heights,
+                text=[''] * len(counts_list),   # no text on colored rows
+                textangle=0,
+                marker_color=bar_colors,
+                marker_line_width=0,
+                width=1.0,
+                hoverinfo='text',
+                hovertext=hover,
+                showlegend=False,
+                name=hm_label,
+            ),
+            row=row, col=1,
+        )
+
+        # y-axis: fixed [0,1], completely silent — mirrors ax.axis('off')
+        fig.update_yaxes(
+            type='linear', range=[0, 1],
+            showgrid=False, showticklabels=False, ticks='',
+            row=row, col=1,
+        )
+
+        # variable name label on the left (mirrors ax.text(0, 0.5, var_name, ha='right'))
+        fig.add_annotation(
+            text=hm_label,
+            xref='paper', yref='paper',
+            x=-0.01,
+            y=row_y_center[hm_row_idx],
+            xanchor='right', yanchor='middle',
+            showarrow=False,
+            font=dict(size=10),
+        )
+
+    # ── y-axis for line-plot row (row 1) ─────────────────────────────────────
+    if log_transform and tick1 > 0:
+        import math
+        lp_range = [math.log10(tick1), math.log10(tick3)]
+        lp_type  = 'log'
+    else:
+        lp_range = [tick1, tick3]
+        lp_type  = 'linear'
+
+    # Format tick labels the same way the static landscape does: 3 sig-fig
+    # scientific notation (e.g. 3.21e-08) shown directly on the y-axis.
+    def _fmt_tick(v):
+        if v == 0:
+            return '0'
+        return f"{v:.3g}"
+
+    fig.update_yaxes(
+        title=dict(text=yaxis_label or 'Averaged Peptide Abundance', font=dict(size=11)),
+        type=lp_type,
+        range=lp_range,
+        showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+        tickvals=[tick1, tick2, tick3],
+        ticktext=[_fmt_tick(tick1), _fmt_tick(tick2), _fmt_tick(tick3)],
+        showticklabels=True,
+        ticks='outside', ticklen=6, tickwidth=2,
+        row=1, col=1,
+    )
+
+    # ── x-axes (shared; only show ticks/label on the very bottom row) ────────
+    # Hard-clamp the x range to [0.5, max_seq_len + 0.5]:
+    #   • autorange=False  — prevents Plotly from auto-expanding on reset
+    #   • minallowed/maxallowed — stops pan/zoom from leaving the sequence
+    #     (Plotly ≥ 5.17; silently ignored on older installs)
+    x_label_str  = xaxis_label or 'Protein Sequence Position'
+    x_min        = 0.5
+    x_max        = max_seq_len + 0.5
+    x_common = dict(
+        autorange=False,
+        range=[x_min, x_max],
+        minallowed=x_min,
+        maxallowed=x_max,
+        showgrid=True, gridwidth=1,
+        gridcolor='rgba(200,200,200,0.4)',
+        zeroline=False,
+    )
+    for r in range(1, num_rows + 1):
+        if r == num_rows:
+            fig.update_xaxes(
+                title=dict(text=x_label_str, font=dict(size=12)),
+                dtick=20, tick0=20, tickfont=dict(size=10),
+                **x_common, row=r, col=1,
+            )
+        else:
+            fig.update_xaxes(showticklabels=False, **x_common, row=r, col=1)
+
+    # ── legend: peptide-count colour scale only (abundance is on the y-axis) ──
+    legend_title_pep = legend_title[1] if len(legend_title) > 1 else 'Peptide Counts:'
+
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None], mode='markers',
+        marker=dict(size=0, opacity=0),
+        name=f"<b>{legend_title_pep}</b>",
+        showlegend=True, legendgroup='pep_count_hdr',
+    ))
+    hm_handles, hm_labels = create_heatmap_legend_handles(cmap, num_colors, max_count, plot_zero)
+    for lbl, handle in zip(hm_labels, hm_handles):
+        fc = handle.get_facecolor()
+        r_c, g_c, b_c, a_c = fc
+        fig.add_trace(go.Scatter(
+            x=[None], y=[None], mode='markers',
+            marker=dict(
+                size=14,
+                color=f'rgba({int(r_c*255)},{int(g_c*255)},{int(b_c*255)},{a_c:.3f})',
+                symbol='square', line=dict(width=1, color='black'),
+            ),
+            name=lbl, showlegend=True, legendgroup='pep_count',
+        ))
+
+    # Abundance tick values are shown directly on the y-axis of row 1;
+    # no need to duplicate them in the legend.
+
+    # ── overall layout ────────────────────────────────────────────────────────
+    protein_names = list(dict.fromkeys(
+        vd.get('protein_name', '') for vd in available_data_variables_dict.values()
+    ))
+    protein_names = [n for n in protein_names if n]
+    title_str = (
+        f"{orientation} Interactive Heatmap — {', '.join(protein_names)}"
+        if protein_names else f"{orientation} Interactive Heatmap"
+    )
+
+    # total figure height = sum of pixel heights for every row + margins
+    fig_height = total_px + 100   # 100px = top+bottom margin
+
+    fig.update_layout(
+        title=dict(text=title_str, font=dict(size=15), x=0.5),
+        height=fig_height,
+        bargap=0, bargroupgap=0,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        showlegend=True,
+        margin=dict(l=110, r=180, t=60, b=60),  # l=110 for variable-name annotations
+        legend=dict(
+            yanchor="top", y=0.99,
+            xanchor="left", x=1.01,
+            bordercolor="black", borderwidth=1,
+            orientation="v",
+            bgcolor="rgba(255,255,255,0.9)",
+            font=dict(size=11),
+            itemsizing='constant',
+            groupclick="toggleitem",
+        ),
+    )
+    return fig
+
+
 ### def visualize_sequence_heatmap_individual_lines(available_data_variables_dict, amino_acid_height, lineplot_height, indices_height, filename, xaxis_label, yaxis_label, legend_title, yaxis_position):
 def visualize_sequence_heatmap_lanscape(available_data_variables_dict,
                                                          amino_acid_height,
@@ -1910,6 +2537,258 @@ def visualize_sequence_heatmap_lanscape(available_data_variables_dict,
         if footnote_list and footnote:  # Log footnote content for debugging/reference
             _log_validation(footnote.replace(chr(10), ' '), level="info")
     return fig, all_errors
+
+"""_______________________________Compact Interactive Plot (Plotly)__________________________"""
+def visualize_sequence_heatmap_compact(
+    available_data_variables_dict,
+    xaxis_label,
+    yaxis_label,
+    legend_title,
+    cmap,
+    y_ticks,
+    log_transform,
+):
+    """
+    Generate an interactive Plotly compact heatmap.
+
+    Bar height  = averaged peptide abundance (ms_data_list).
+    Bar colour  = peptide count at each position (colour-coded via cmap).
+
+    Uses pre-processed data populated by process_available_data() so all
+    filter-type / data-source selections are already reflected.
+
+    Returns a plotly.graph_objects.Figure, or None on failure.
+    """
+    try:
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+        from matplotlib.colors import to_rgba
+    except ImportError:
+        logger.error("plotly is required for compact heatmap: pip install plotly")
+        return None
+
+    var_keys = list(available_data_variables_dict.keys())
+    num_vars = len(var_keys)
+    if num_vars == 0:
+        return None
+
+    max_seq_len = max(
+        len(available_data_variables_dict[v].get('protein_sequence', ''))
+        for v in var_keys
+    )
+
+    # ── y-axis tick values ─────────────────────────────────────────────────────
+    tick1 = float(y_ticks[0]) if y_ticks else 0.0
+    tick2 = float(y_ticks[1]) if len(y_ticks) > 1 else (tick1 + (float(y_ticks[-1]) if y_ticks else 1.0)) / 2
+    tick3 = float(y_ticks[-1]) if y_ticks else 1.0
+
+    # ── build subplots ─────────────────────────────────────────────────────────
+    fig = make_subplots(
+        rows=num_vars,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.03,
+        subplot_titles=[""] * num_vars,
+    )
+
+    def _rgba_str(mpl_color):
+        """Convert matplotlib colour (rgba tuple or 'white') to Plotly rgba string."""
+        if mpl_color == 'white':
+            return 'rgba(255,255,255,1.0)'
+        try:
+            r, g, b, a = to_rgba(mpl_color)
+            return f'rgba({int(r * 255)},{int(g * 255)},{int(b * 255)},{a:.3f})'
+        except Exception:
+            return 'rgba(200,200,200,1.0)'
+
+    # ── per-variable bar traces ────────────────────────────────────────────────
+    for i, var_key in enumerate(var_keys):
+        var_data = available_data_variables_dict[var_key]
+        row = i + 1
+        label = var_data.get('label', var_key)
+
+        # prefer pre-processed data written by process_available_data()
+        counts_raw = var_data.get('peptide_counts')
+        ms_data    = var_data.get('ms_data_list', [])
+        aa_list    = var_data.get('AA_list', [])
+
+        if counts_raw is None or len(ms_data) == 0:
+            # fall back to raw heatmap_df
+            heatmap_df = var_data.get('heatmap_df')
+            if heatmap_df is None or heatmap_df.empty:
+                continue
+            counts_list = heatmap_df['count'].tolist()
+            ms_data     = heatmap_df['average'].fillna(0).tolist()
+            aa_list     = heatmap_df['AA'].tolist()
+        else:
+            counts_list = list(counts_raw)
+
+        positions = list(range(1, len(counts_list) + 1))
+
+        # colour bars by peptide count
+        bar_colors_mpl = get_grouped_colors(counts_list, max_count, num_colors, plot_zero, cmap)
+        bar_colors = [_rgba_str(c) for c in bar_colors_mpl]
+
+        # bar heights — keep a tiny floor so log scale stays happy
+        min_height = max(tick1 * 0.01, 1e-12) if tick1 > 0 else 1e-10
+        heights = [
+            max(float(ms), min_height) if (ms and float(ms) > 0) else min_height
+            for ms in ms_data
+        ]
+
+        fig.add_trace(
+            go.Bar(
+                x=positions,
+                y=heights,
+                marker_color=bar_colors,
+                marker_line_width=0,
+                width=1.0,
+                hoverinfo='text',
+                hovertext=[
+                    f"Position: {pos}<br>Amino Acid: {aa}<br>"
+                    f"Peptide Count: {cnt}<br>Abundance: {h:.3e}"
+                    for pos, aa, cnt, h in zip(positions, aa_list, counts_list, heights)
+                ],
+                showlegend=False,
+                name=label,
+            ),
+            row=row, col=1,
+        )
+
+        # y-axis settings for this subplot
+        if log_transform and tick1 > 0:
+            import math
+            y_range   = [math.log10(tick1), math.log10(tick3)]
+            axis_type = 'log'
+            tick_vals = [tick1, tick2, tick3]
+        else:
+            y_range   = [tick1, tick3]
+            axis_type = 'linear'
+            tick_vals = [tick1, tick2, tick3]
+
+        fig.update_yaxes(
+            title=dict(text=label, font=dict(size=12), standoff=5),
+            type=axis_type,
+            showgrid=True,
+            gridwidth=1,
+            gridcolor='rgba(0,0,0,0.3)',
+            range=y_range,
+            tickvals=tick_vals,
+            ticktext=["", "", ""],   # tick marks without text labels
+            showticklabels=False,
+            ticks="outside",
+            ticklen=6,
+            tickwidth=2,
+            row=row, col=1,
+        )
+
+    # ── legend: peptide count colour scale ────────────────────────────────────
+    legend_title_pep  = legend_title[1] if len(legend_title) > 1 else 'Peptide Counts:'
+    legend_title_abun = legend_title[2] if len(legend_title) > 2 else 'Average Abundance:'
+
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None], mode='markers',
+        marker=dict(size=0, opacity=0),
+        name=f"<b>{legend_title_pep}</b>",
+        showlegend=True,
+        legendgroup='pep_count_header',
+    ))
+
+    heatmap_legend_handles, heatmap_legend_labels = create_heatmap_legend_handles(
+        cmap, num_colors, max_count, plot_zero
+    )
+    for lbl, handle in zip(heatmap_legend_labels, heatmap_legend_handles):
+        fc = handle.get_facecolor()
+        r, g, b, a = fc
+        fig.add_trace(go.Scatter(
+            x=[None], y=[None], mode='markers',
+            marker=dict(
+                size=14, color=f'rgba({int(r*255)},{int(g*255)},{int(b*255)},{a:.3f})',
+                symbol='square', line=dict(width=1, color='black'),
+            ),
+            name=lbl,
+            showlegend=True,
+            legendgroup='pep_count',
+        ))
+
+    # ── legend: abundance y-range reference ───────────────────────────────────
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None], mode='markers',
+        marker=dict(size=0, opacity=0),
+        name=f"<b>{legend_title_abun}</b>",
+        showlegend=True,
+        legendgroup='abundance_header',
+    ))
+    for tick_val, tick_lbl in zip([tick1, tick2, tick3], ['Min', 'Mid', 'Max']):
+        fig.add_trace(go.Scatter(
+            x=[None], y=[None], mode='markers',
+            marker=dict(size=10, symbol='line-ew', color='black', line=dict(width=2)),
+            name=f"{tick_lbl}: {tick_val:.3g}",
+            showlegend=True,
+            legendgroup='abundance_ticks',
+        ))
+
+    # ── x-axes ────────────────────────────────────────────────────────────────
+    x_label_str = xaxis_label or 'Protein Sequence Position'
+    for i in range(1, num_vars + 1):
+        common = dict(
+            showgrid=True,
+            gridwidth=1,
+            gridcolor='rgba(200,200,200,0.5)',
+            range=[0, max_seq_len + 1],
+            zeroline=False,
+        )
+        if i == num_vars:
+            fig.update_xaxes(
+                title=dict(text=x_label_str, font=dict(size=13)),
+                dtick=20,
+                **common,
+                row=i, col=1,
+            )
+        else:
+            fig.update_xaxes(
+                showticklabels=False,
+                **common,
+                row=i, col=1,
+            )
+
+    # ── overall layout ────────────────────────────────────────────────────────
+    protein_names = list(dict.fromkeys(
+        vd.get('protein_name', '') for vd in available_data_variables_dict.values()
+    ))
+    protein_names = [n for n in protein_names if n]
+    title_str = (
+        f"Compact Heatmap — {', '.join(protein_names)}"
+        if protein_names else "Compact Heatmap"
+    )
+
+    row_height = max(130, 600 // max(num_vars, 1))
+    fig.update_layout(
+        title=dict(text=title_str, font=dict(size=15), x=0.5),
+        height=max(row_height * num_vars + 80, 300),
+        bargap=0,
+        bargroupgap=0,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        showlegend=True,
+        margin=dict(l=60, r=180, t=60, b=60),
+        legend=dict(
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=1.01,
+            bordercolor="black",
+            borderwidth=1,
+            orientation="v",
+            bgcolor="rgba(255,255,255,0.9)",
+            font=dict(size=11),
+            itemsizing='constant',
+            groupclick="toggleitem",
+        ),
+    )
+
+    return fig
+
 
 """_______________________________Portrait Plot______________________________________________"""
 def visualize_sequence_heatmap_portrait(available_data_variables_dict,
