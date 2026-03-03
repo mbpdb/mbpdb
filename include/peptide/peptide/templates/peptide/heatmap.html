@@ -102,6 +102,26 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 .rg-field > .rg-label {
     font-weight: 600; font-size: .82rem; margin-bottom: 4px; display: block; color: #333;
 }
+/* Unified items-selector inactive/greyed state */
+.items-inactive { opacity: .48; pointer-events: none; }
+
+/* Segmented overlay / data-source control */
+.seg-control {
+    display: flex; border: 1px solid #ced4da; border-radius: 6px;
+    overflow: hidden; width: 100%;
+}
+.seg-btn {
+    flex: 1; border: none; border-right: 1px solid #ced4da;
+    background: #f8f9fa; padding: 5px 6px;
+    font-size: .82rem; font-weight: 400; font-family: inherit; color: #555;
+    cursor: pointer; text-align: center; line-height: 1.25;
+    transition: background .12s, color .12s;
+}
+.seg-btn:last-child { border-right: none; }
+.seg-btn:hover:not([disabled]) { background: #e2ecf9; color: #1565c0; }
+.seg-btn.seg-active { background: #1976d2; color: #fff; font-weight: 600; }
+.seg-btn[disabled]  { opacity: .42; cursor: not-allowed; }
+.seg-ctl-disabled .seg-btn { opacity: .42; cursor: not-allowed; pointer-events: none; }
 </style>
 {% endblock %}
 
@@ -222,58 +242,58 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                     <u>Visualization Settings:</u>
                 </div>
 
-                <!-- 2-col radio grid -->
+                <!-- Data Source & Overlay — segmented control -->
+                <div style="margin-bottom:12px;">
+                    <span class="rg-label" style="margin-bottom:5px; font-weight:600; font-size:.82rem;">Data Source &amp; Overlay</span>
+                    <div class="seg-control seg-ctl-disabled" id="overlay-seg-control">
+                        <button class="seg-btn seg-active" data-value="all-peptides" disabled>
+                            All Peptides from Dataset
+                        </button>
+                        <button class="seg-btn" data-value="pep-intervals" disabled>
+                            Peptide Intervals
+                        </button>
+                        <button class="seg-btn" data-value="bio-functions" id="seg-bio-functions" disabled>
+                            Bioactive Functions
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Unified items selector — greyed when All Peptides is selected -->
+                <div id="items-selector-block" class="items-inactive" style="margin-bottom:12px;">
+                    <label style="font-weight:600; font-size:.82rem; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+                        <span id="items-selector-label-text">Select Items</span>
+                        <span id="items-selector-spinner" class="hidden">
+                            <i class="fas fa-circle-notch spin" style="color:#1976d2;"></i>
+                        </span>
+                    </label>
+                    <select id="items-selector" class="multi-select" multiple size="5" disabled
+                            style="height:110px; font-size:.80rem; font-family:monospace;"></select>
+                    <small id="items-selector-hint" class="text-muted" style="display:block; margin-top:2px;">
+                        Select Peptide Intervals or Bioactive Functions above to enable
+                    </small>
+                </div>
+
+                <!-- 2-col radio grid: Display Lines + Plot Orientation -->
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 18px;">
 
                     <div class="rg-field">
-                        <span class="rg-label">Peptide Filter</span>
-                        <div class="radio-group rg-disabled" id="rg-filter-type" style="flex-direction:column; gap:4px; align-items:flex-start;">
-                            <label><input type="radio" name="filter-type" value="all-peptides" checked disabled> All Peptides</label>
-                            <label><input type="radio" name="filter-type" value="bioactive-only" disabled> All Functional</label>
-                            <label><input type="radio" name="filter-type" value="functional-only" disabled> Selected Functional</label>
+                        <span class="rg-label">Display Lines</span>
+                        <div class="radio-group rg-disabled" id="rg-lines" style="flex-direction:column; gap:4px; align-items:flex-start;">
+                            <label><input type="radio" name="ms-average" value="no" disabled> Individual Only</label>
+                            <label><input type="radio" name="ms-average" value="yes" checked disabled> Individual + Averaged</label>
+                            <label><input type="radio" name="ms-average" value="only" disabled> Averaged Only</label>
                         </div>
                     </div>
 
                     <div class="rg-field">
                         <span class="rg-label">Plot Orientation</span>
                         <div class="radio-group rg-disabled" id="rg-orientation" style="flex-direction:column; gap:4px; align-items:flex-start;">
-                            <label><input type="radio" name="hm-orientation" value="Portrait" checked disabled> Portrait</label>
-                            <label><input type="radio" name="hm-orientation" value="Landscape" disabled> Landscape</label>
+                            <label><input type="radio" name="hm-orientation" value="Landscape" checked disabled> Landscape</label>
+                            <label><input type="radio" name="hm-orientation" value="Portrait" disabled> Portrait</label>
                             <label><input type="radio" name="hm-orientation" value="Both" disabled> Both</label>
                         </div>
                     </div>
 
-                </div>
-
-                <!-- Specific Overlay -->
-                <div style="margin-top:10px; max-width:200px;">
-                    <label style="font-weight:600; font-size:.82rem; margin-bottom:4px; display:block;">Specific Overlay</label>
-                    <select id="bio-or-pep" disabled style="width:100%; max-width:200px; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
-                        <option value="no">None</option>
-                        <option value="1">Selected Peptide Interval(s)</option>
-                        <option value="2" id="bio-or-pep-func-opt">Selected Bioactive Function(s)</option>
-                    </select>
-                </div>
-                <div id="specific-options-block" class="hidden" style="margin-top:8px; max-width:200px;">
-                    <label style="font-weight:600; font-size:.82rem; margin-bottom:4px; display:block;" id="specific-options-label">
-                        Select Items
-                    </label>
-                    <select id="specific-selector" class="multi-select" multiple size="5" disabled
-                            style="height:110px; font-size:.80rem; font-family:monospace; max-width:200px;"></select>
-                    <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
-                    <span id="specific-spinner" class="hidden" style="font-size:.82rem; margin-left:6px;">
-                        <i class="fas fa-circle-notch spin" style="color:#1976d2;"></i>
-                    </span>
-                </div>
-
-                <!-- Plot Averaged -->
-                <div style="margin-top:10px; max-width:200px;">
-                    <label style="font-weight:600; font-size:.82rem; margin-bottom:4px; display:block;">Plot Averaged</label>
-                    <select id="ms-average" disabled style="width:100%; max-width:200px; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
-                        <option value="yes">Yes (show averaged)</option>
-                        <option value="no">No (individual only)</option>
-                        <option value="only">Only Averaged</option>
-                    </select>
                 </div>
 
                 <!-- Checkboxes -->
@@ -287,16 +307,24 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                 </div>
 
                 <!-- Manual Y-axis inputs (conditional) -->
-                <div id="manual-y-inputs" class="hidden" style="display:flex; gap:12px; margin-top:8px; flex-wrap:wrap;">
-                    <div>
-                        <label style="font-weight:600; font-size:.82rem;">Y Min</label>
-                        <input type="number" id="y-min" value="0" step="0.01"
-                               style="width:90px; border:1px solid #ced4da; border-radius:4px; padding:4px 6px; font-size:.82rem;">
+                <div id="manual-y-inputs" class="hidden" style="margin-top:6px;">
+                    <div class="seg-control" id="y-scale-seg" style="display:inline-flex; margin-bottom:8px; max-width:100px;">
+                        <button class="seg-btn seg-active" data-value="linear" style="font-size:.68rem; padding:2px 4px; flex:1;">Linear</button>
+                        <button class="seg-btn" data-value="power10" style="font-size:.68rem; padding:2px 4px; flex:1;">10<sup>n</sup></button>
                     </div>
-                    <div>
-                        <label style="font-weight:600; font-size:.82rem;">Y Max</label>
-                        <input type="number" id="y-max" value="1" step="0.01"
-                               style="width:90px; border:1px solid #ced4da; border-radius:4px; padding:4px 6px; font-size:.82rem;">
+                    <div style="display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+                        <div>
+                            <label style="font-weight:600; font-size:.82rem;">Y Min</label>
+                            <input type="number" id="y-min" value="0" step="0.01"
+                                   style="width:90px; border:1px solid #ced4da; border-radius:4px; padding:4px 6px; font-size:.82rem; display:block;">
+                            <small id="y-min-preview" style="display:block; font-size:.80rem; color:#1976d2; margin-top:2px; min-height:1em;"></small>
+                        </div>
+                        <div>
+                            <label style="font-weight:600; font-size:.82rem;">Y Max</label>
+                            <input type="number" id="y-max" value="1" step="0.01"
+                                   style="width:90px; border:1px solid #ced4da; border-radius:4px; padding:4px 6px; font-size:.82rem; display:block;">
+                            <small id="y-max-preview" style="display:block; font-size:.80rem; color:#1976d2; margin-top:2px; min-height:1em;"></small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -458,6 +486,10 @@ function getRadioValue(name) {
     const checked = document.querySelector(`input[name="${name}"]:checked`);
     return checked ? checked.value : '';
 }
+function getSegValue() {
+    const active = document.querySelector('#overlay-seg-control .seg-btn.seg-active');
+    return active ? active.dataset.value : 'all-peptides';
+}
 
 // ── Enable step 2 controls after upload ───────────────────────────
 function enableStep2() {
@@ -469,8 +501,12 @@ function enableStep2() {
         rg.querySelectorAll('input[type=radio]').forEach(r => r.disabled = false);
     });
     document.getElementById('manual-y-inputs').classList.add('hidden');
-    const funcOpt = document.getElementById('bio-or-pep-func-opt');
-    if (funcOpt) funcOpt.disabled = !hasFunctions;
+    // Enable segmented control; bio-functions button only when file has function data
+    const segCtl = document.getElementById('overlay-seg-control');
+    if (segCtl) segCtl.classList.remove('seg-ctl-disabled');
+    const bioFuncBtn = document.getElementById('seg-bio-functions');
+    if (bioFuncBtn) bioFuncBtn.disabled = !hasFunctions;
+    applyItemsSelectorState(false);
 }
 
 // ── Upload ────────────────────────────────────────────────────────
@@ -617,26 +653,21 @@ function getMissingSeqPids(proteinIds) {
     });
 }
 
-// ── Fetch specific options (peptide intervals or bioactive functions) ──
-async function fetchSpecificOptions() {
-    const bioOrPep = document.getElementById('bio-or-pep').value;
-    if (bioOrPep === 'no') return;
+// ── Unified items-selector state tracking ────────────────────────
+let itemsSelectorMode = 'none'; // 'none' | 'bio' | 'pep'
 
-    const block = document.getElementById('specific-options-block');
-    const label = document.getElementById('specific-options-label');
-    const sel   = document.getElementById('specific-selector');
-    const spin  = document.getElementById('specific-spinner');
-
-    // Remember current selections so we can restore them after refresh
+// Load options into the unified items-selector
+async function loadItemsSelector(mode, includeAllOption) {
+    const sel  = document.getElementById('items-selector');
+    const spin = document.getElementById('items-selector-spinner');
     const prevSelected = new Set(getMultiSelectValues(sel));
 
-    block.classList.remove('hidden');
-    label.textContent = bioOrPep === '1' ? 'Select Peptide Interval(s)' : 'Select Bioactive Function(s)';
     sel.innerHTML = '';
     spin.classList.remove('hidden');
 
     const selectedProteins = getMultiSelectValues(document.getElementById('protein-selector'));
     const selectedVarKeys  = getMultiSelectValues(document.getElementById('varkey-selector'));
+    const bioOrPep         = mode === 'pep' ? '1' : '2';
 
     try {
         const resp = await fetch('/heatmap/get-specific-options/', {
@@ -651,6 +682,11 @@ async function fetchSpecificOptions() {
         const data = await resp.json();
         spin.classList.add('hidden');
         if (data.options && data.options.length) {
+            if (includeAllOption) {
+                const allOpt = new Option('All Available Functions', '__all_functional__');
+                if (prevSelected.has('__all_functional__')) allOpt.selected = true;
+                sel.add(allOpt);
+            }
             data.options.forEach(opt => {
                 const o = new Option(opt.label, opt.value);
                 if (prevSelected.has(opt.value)) o.selected = true;
@@ -665,16 +701,76 @@ async function fetchSpecificOptions() {
     }
 }
 
-// ── bio_or_pep overlay type handler ──────────────────────────────
-document.getElementById('bio-or-pep').addEventListener('change', async function() {
-    const val = this.value;
-    const block = document.getElementById('specific-options-block');
-    const sel   = document.getElementById('specific-selector');
-    if (val === 'no') { block.classList.add('hidden'); sel.innerHTML = ''; return; }
-    await fetchSpecificOptions();
+// Determine what the unified items-selector should show and update it.
+// Also greys "Individual Only" when All Peptides is active (no lines without a selection).
+async function applyItemsSelectorState(reload) {
+    const segVal  = getSegValue();
+    const block   = document.getElementById('items-selector-block');
+    const sel     = document.getElementById('items-selector');
+    const labelEl = document.getElementById('items-selector-label-text');
+    const hintEl  = document.getElementById('items-selector-hint');
+
+    // Restrict Display Lines options based on seg selection.
+    // "All Peptides" has no individual lines to show — only "Averaged Only" is valid.
+    const msNoInput   = document.querySelector('input[name="ms-average"][value="no"]');
+    const msYesInput  = document.querySelector('input[name="ms-average"][value="yes"]');
+    const msOnlyInput = document.querySelector('input[name="ms-average"][value="only"]');
+    const msNoLabel   = msNoInput  ? msNoInput.closest('label')  : null;
+    const msYesLabel  = msYesInput ? msYesInput.closest('label') : null;
+    if (segVal === 'all-peptides') {
+        if (msNoLabel)   msNoLabel.style.opacity  = '.38';
+        if (msYesLabel)  msYesLabel.style.opacity = '.38';
+        if (msNoInput)   msNoInput.disabled  = true;
+        if (msYesInput)  msYesInput.disabled = true;
+        if (msOnlyInput) msOnlyInput.checked = true;
+    } else {
+        if (msNoLabel)  msNoLabel.style.opacity  = '';
+        if (msYesLabel) msYesLabel.style.opacity = '';
+        if (msNoInput)  msNoInput.disabled  = false;
+        if (msYesInput) msYesInput.disabled = false;
+    }
+
+    if (segVal === 'all-peptides') {
+        block.classList.add('items-inactive');
+        sel.disabled = true;
+        Array.from(sel.options).forEach(o => { o.selected = false; });
+        labelEl.textContent = 'Select Items';
+        hintEl.textContent  = 'Select Peptide Intervals or Bioactive Functions above to enable';
+        itemsSelectorMode   = 'none';
+        return;
+    }
+
+    block.classList.remove('items-inactive');
+    sel.disabled = false;
+
+    if (segVal === 'pep-intervals') {
+        const modeChanged  = (itemsSelectorMode !== 'pep');
+        itemsSelectorMode  = 'pep';
+        labelEl.textContent = 'Select Peptide Interval(s)';
+        hintEl.textContent  = 'Hold Ctrl/Cmd to select multiple';
+        if (reload || modeChanged) await loadItemsSelector('pep', false);
+    } else {
+        // bio-functions
+        const modeChanged  = (itemsSelectorMode !== 'bio');
+        itemsSelectorMode  = 'bio';
+        labelEl.textContent = 'Select Bioactive Function(s)';
+        hintEl.textContent  = 'Hold Ctrl/Cmd to select · All Available Functions = all bioactive peptides';
+        if (reload || modeChanged) await loadItemsSelector('bio', true);
+    }
+}
+
+// ── Segmented overlay / data-source control ───────────────────────
+document.querySelectorAll('#overlay-seg-control .seg-btn').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+        if (this.disabled) return;
+        document.querySelectorAll('#overlay-seg-control .seg-btn')
+            .forEach(b => b.classList.remove('seg-active'));
+        this.classList.add('seg-active');
+        await applyItemsSelectorState(true);
+    });
 });
 
-// Re-fetch options when protein or variable selection changes (keeps dropdown fresh)
+// Re-fetch items when protein or variable selection changes
 document.getElementById('protein-selector').addEventListener('change', async function() {
     const missingSelected = getMissingSeqPids(
         Array.from(this.selectedOptions).map(o => o.value)
@@ -684,22 +780,62 @@ document.getElementById('protein-selector').addEventListener('change', async fun
         const { fetched, failed } = await autoFetchSequences(missingSelected, dummySpan);
         _showAutoFetchResult(fetched, failed, document.getElementById('autofetch-msgs'), true);
     }
-    if (document.getElementById('bio-or-pep').value !== 'no') {
-        await fetchSpecificOptions();
-    }
+    await applyItemsSelectorState(true);
 });
 
 document.getElementById('varkey-selector').addEventListener('change', async function() {
-    if (document.getElementById('bio-or-pep').value !== 'no') {
-        await fetchSpecificOptions();
-    }
+    await applyItemsSelectorState(true);
 });
 
-// ── Manual Y-axis toggle ──────────────────────────────────────────
+// ── Manual Y-axis toggle & scale mode ────────────────────────────
+function getYScaleMode() {
+    const active = document.querySelector('#y-scale-seg .seg-btn.seg-active');
+    return active ? active.dataset.value : 'linear';
+}
+
+function fmtSuperscript(n) {
+    // Convert digits/sign to unicode superscript for display
+    const map = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻','.':'·'};
+    return String(n).split('').map(c => map[c] !== undefined ? map[c] : c).join('');
+}
+
+function updateYPreviews() {
+    const mode = getYScaleMode();
+    const minP = document.getElementById('y-min-preview');
+    const maxP = document.getElementById('y-max-preview');
+    const minV = parseFloat(document.getElementById('y-min').value);
+    const maxV = parseFloat(document.getElementById('y-max').value);
+
+    if (mode === 'power10') {
+        minP.textContent = isNaN(minV) ? '' : '= 10' + fmtSuperscript(minV);
+        maxP.textContent = isNaN(maxV) ? '' : '= 10' + fmtSuperscript(maxV);
+    } else {
+        minP.textContent = '';
+        maxP.textContent = '';
+    }
+}
+
+function resolveYValue(raw) {
+    const v = parseFloat(raw) || 0;
+    return getYScaleMode() === 'power10' ? Math.pow(10, v) : v;
+}
+
 document.getElementById('manual-y-axis').addEventListener('change', function() {
     const inputs = document.getElementById('manual-y-inputs');
-    if (this.checked) { inputs.classList.remove('hidden'); inputs.style.display = 'flex'; }
+    if (this.checked) { inputs.classList.remove('hidden'); inputs.style.display = 'block'; }
     else              { inputs.classList.add('hidden'); inputs.style.display = ''; }
+});
+
+document.querySelectorAll('#y-scale-seg .seg-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('#y-scale-seg .seg-btn').forEach(b => b.classList.remove('seg-active'));
+        this.classList.add('seg-active');
+        updateYPreviews();
+    });
+});
+
+['y-min', 'y-max'].forEach(function(id) {
+    document.getElementById(id).addEventListener('input', updateYPreviews);
 });
 
 // ── Generate heatmap ──────────────────────────────────────────────
@@ -740,17 +876,36 @@ async function generateHeatmap() {
     }
     spinnerText.textContent = 'Generating… (this may take 10–15 s)';
 
-    const filterType  = getRadioValue('filter-type');
+    const segVal      = getSegValue();
     const orientation = getRadioValue('hm-orientation');
-    const bioOrPep    = document.getElementById('bio-or-pep').value;
 
-    let selectedPeptides  = [];
+    // Map segmented control + items-selector to backend params
+    const itemsValues     = getMultiSelectValues(document.getElementById('items-selector'));
+    let filterType        = 'all-peptides';
+    let bioOrPep          = 'no';
     let selectedFunctions = [];
-    if (bioOrPep === '1')      selectedPeptides  = getMultiSelectValues(document.getElementById('specific-selector'));
-    else if (bioOrPep === '2') selectedFunctions = getMultiSelectValues(document.getElementById('specific-selector'));
+    let selectedPeptides  = [];
+
+    if (segVal === 'pep-intervals') {
+        filterType       = 'all-peptides';
+        bioOrPep         = '1';
+        selectedPeptides = itemsValues;
+    } else if (segVal === 'bio-functions') {
+        const realFuncs = itemsValues.filter(v => v !== '__all_functional__');
+        if (itemsValues.includes('__all_functional__') || realFuncs.length === 0) {
+            // "All Available Functions" → filter to all bioactive peptides, no specific overlay
+            filterType = 'bioactive-only';
+            bioOrPep   = 'no';
+        } else {
+            // Specific functions → filter dataset AND show overlay bands for those functions
+            filterType        = 'functional-only';
+            bioOrPep          = '2';
+            selectedFunctions = realFuncs;
+        }
+    }
 
     const plotParams = {
-        ms_average_choice:    document.getElementById('ms-average').value,
+        ms_average_choice:    getRadioValue('ms-average'),
         bio_or_pep:           bioOrPep,
         selected_peptides:    selectedPeptides,
         selected_functions:   selectedFunctions,
@@ -767,8 +922,8 @@ async function generateHeatmap() {
         filter_type:          filterType,
         log_transform:        document.getElementById('log-transform').checked,
         manual_y_axis:        document.getElementById('manual-y-axis').checked,
-        y_min:                parseFloat(document.getElementById('y-min').value) || 0,
-        y_max:                parseFloat(document.getElementById('y-max').value) || 1,
+        y_min:                resolveYValue(document.getElementById('y-min').value),
+        y_max:                resolveYValue(document.getElementById('y-max').value) || 1,
     };
 
     let resp;

@@ -115,8 +115,8 @@ def calculate_centralized_y_limits(available_data_variables_dict, selected_pepti
                 all_min_values.extend(ms_values)
                 all_max_values.extend(ms_values)
 
-        # Get individual peptide data if needed
-        if bio_or_pep != 'no' and ms_average_choice != 'only':
+        # Get individual peptide data if needed (mirrors the visualization-loop guard)
+        if (bio_or_pep != 'no' or filter_type in ('bioactive-only', 'functional-only')) and ms_average_choice != 'only':
             bp_abs = available_data_variables_dict[var]['bioactive_peptide_abs_df']
             bp_func = available_data_variables_dict[var]['bioactive_peptide_func_df']
             var_name = available_data_variables_dict[var]['label']
@@ -429,11 +429,6 @@ def process_available_data(available_data_variables_dict, filter_type, selected_
         elif filter_type == 'bioactive-only':
             df = available_data_variables_dict[var]['filtered_heatmap_df']
         elif filter_type == 'functional-only':
-            if not selected_functions and bio_or_pep == '2':
-                errors.append(f'Invalid menu selection or there are no results available to display for {var}. Please select "Bioactive Functions" for "Plot Specific Peptides", with at least one function containing data from the "Specific Options" dropdown menu selected.')
-            if not selected_peptides and bio_or_pep == '1':
-                errors.append(f'Invalid menu selection or there are no results available to display for {var}. Please select "Peptide Intervals" for "Plot Specific Peptides", with at least one peptide interval containing data from the "Specific Options" dropdown menu selected.')
-
             # Filter both functional and Abundance data for specific functions
             func_df = available_data_variables_dict[var]['function_heatmap_df']
             if func_df is not None and not func_df.empty:
@@ -471,6 +466,21 @@ def process_available_data(available_data_variables_dict, filter_type, selected_
                     df = None
             else:
                 df = None
+
+        # When specific peptide intervals are selected, narrow the heatmap data to only
+        # those intervals so that peptide_counts and ms_data (heatmap colours + line
+        # averages) reflect the selection rather than all peptides.
+        if bio_or_pep == '1' and selected_peptides and df is not None and not df.empty:
+            try:
+                pep_cols = [col for col in selected_peptides if col in df.columns]
+                if pep_cols:
+                    keep = [c for c in ['AA'] + pep_cols if c in df.columns]
+                    df = df[keep].copy()
+                    non_zero = df[pep_cols].gt(0)
+                    df['count']   = non_zero.sum(axis=1)
+                    df['average'] = df[pep_cols].where(non_zero).mean(axis=1)
+            except Exception:
+                pass  # fall back to the unfiltered dataframe on any error
 
         # Get counts and MS data
         if df is None or df.empty or 'count' not in df.columns or 'average' not in df.columns:
@@ -643,8 +653,10 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
         # Comprehensive validation of plotting configuration
         config_errors = []
 
-        # Scenario 1: No averaged data + no specific peptides selected
-        if ms_average_choice == 'no' and (not bio_or_pep or bio_or_pep == 'no'):
+        # Scenario 1: No averaged data + no specific peptides selected.
+        # filter_type='bioactive-only' is itself a valid data source (all bioactive
+        # peptides), so it must be excluded from this check even when bio_or_pep='no'.
+        if ms_average_choice == 'no' and (not bio_or_pep or bio_or_pep == 'no') and filter_type not in ('bioactive-only', 'functional-only'):
             config_errors.append('Invalid configuration: "Plot Averaged Data" is set to "No" and "Plot Specific Peptides" is not selected. Please enable at least one data source for plotting.')
 
         # Scenario 2: Peptide intervals selected but no actual intervals provided
@@ -655,27 +667,6 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
         elif bio_or_pep == '2' and (not selected_functions or len(selected_functions) == 0):
             config_errors.append('Invalid configuration: "Plot Specific Peptides" is set to "Bioactive Functions" but no bioactive functions are selected. Please select bioactive functions from the "Specific Options" dropdown or change the plotting configuration.')
 
-        # Scenario 4: Only averaged data but filter is set to selected peptides/functions
-        elif ms_average_choice == 'only' and filter_type in ['peptide-only', 'functional-only']:
-            if filter_type == 'peptide-only':
-                config_errors.append('Invalid configuration: "Plot Averaged Data" is set to "Only" but "Plot Filter" is set to "Selected Peptides Only". When plotting only averaged data, use "All Peptides" or "All Functional Peptides" filter.')
-            else:
-                config_errors.append('Invalid configuration: "Plot Averaged Data" is set to "Only" but "Plot Filter" is set to "Selected Functions Only". When plotting only averaged data, use "All Peptides" or "All Functional Peptides" filter.')
-
-        # Scenario 5: Additional edge case - no data will be available for plotting
-        elif ms_average_choice == 'no' and bio_or_pep != 'no' and filter_type in ['peptide-only', 'functional-only']:
-            if bio_or_pep == '1' and filter_type == 'functional-only':
-                config_errors.append('Invalid configuration: "Plot Specific Peptides" is set to "Peptide Intervals" but "Plot Filter" is set to "Selected Functions Only". These settings are incompatible. Either change to "Selected Peptides Only" filter or switch to "Bioactive Functions" for specific peptides.')
-            elif bio_or_pep == '2' and filter_type == 'peptide-only':
-                config_errors.append('Invalid configuration: "Plot Specific Peptides" is set to "Bioactive Functions" but "Plot Filter" is set to "Selected Peptides Only". These settings are incompatible. Either change to "Selected Functions Only" filter or switch to "Peptide Intervals" for specific peptides.')
-
-        # Scenario 6: All Functional Peptides filter with Peptide Intervals selection
-        elif bio_or_pep == '1' and filter_type == 'all-functional':
-            config_errors.append('Invalid configuration: "Plot Specific Peptides" is set to "Peptide Intervals" but "Plot Filter" is set to "All Functional Peptides". These settings are incompatible. Either change to "All Peptides" filter or switch to "Bioactive Functions" for specific peptides.')
-
-        # Scenario 7: All Peptides filter with Bioactive Functions selection (opposite case)
-        #elif bio_or_pep == '2' and filter_type == 'all-peptides':
-        #    config_errors.append('Invalid configuration: "Plot Specific Peptides" is set to "Bioactive Functions" but "Plot Filter" is set to "All Peptides". These settings are incompatible. Either change to "All Functional Peptides" filter or switch to "Peptide Intervals" for specific peptides.')
 
         if config_errors:
             all_errors.extend(config_errors)
@@ -686,31 +677,29 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
             #---------------------------------------------------------------------------------------------------------------------------------------------
             """
 
-            if plot_port and bio_or_pep:
-                # Temporarily suppress specific warning
+            fig_port = None
+            if plot_port and ms_average_choice in ['yes', 'only']:
+                # Portrait only renders averaged data; individual-only mode is silently skipped.
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore', UserWarning)
-                    if ms_average_choice in ['yes', 'only']:
-                        fig_port = visualize_sequence_heatmap_portrait(
-                            available_data_variables_dict,
-                            0.001,
-                            lineplot_height,
-                            1,
-                            xaxis_label,
-                            yaxis_label,
-                            selected_legend_title,
-                            cmap,
-                            avg_cmap,
-                            lp_selected_color,
-                            avglp_selected_color,
-                            selected_functions,
-                            ms_average_choice,
-                            bio_or_pep,
-                            log_transform,
-                            y_ticks,
-                            78)  # removed chunk_size= to make it a positional argument
-                    else:
-                        all_errors.append('No was selected earlier regarding the plotting of averaged Abundances, preventing the plotting of the averaged plot.')
+                    fig_port = visualize_sequence_heatmap_portrait(
+                        available_data_variables_dict,
+                        0.001,
+                        lineplot_height,
+                        1,
+                        xaxis_label,
+                        yaxis_label,
+                        selected_legend_title,
+                        cmap,
+                        avg_cmap,
+                        lp_selected_color,
+                        avglp_selected_color,
+                        selected_functions,
+                        ms_average_choice,
+                        bio_or_pep,
+                        log_transform,
+                        y_ticks,
+                        78)
                     if max_count <= 1:
                         # Check if this is due to missing function data
                         if bio_or_pep == '2' and selected_functions:
@@ -864,15 +853,10 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                         all_errors.append('You have too few peptides for proper heatmapping.')
             else:
                 fig_land = None
-        # Fixed return statement logic to check if the variables exist and have valid axes
+        # Collect generated figures
         if plot_port:
-            if bio_or_pep != 'no':
-                all_errors.append('The portrait plot only supports plotting averaged Abundance of peptides which is not formatted to be combined with specified peptide intervals or functions.')
-                fig_port_return = None
-            else:
-                # Check if fig_port is defined and has axes
-                if fig_port is not None and hasattr(fig_port, 'axes') and len(fig_port.axes) > 0:
-                    fig_port_return = fig_port
+            if fig_port is not None and hasattr(fig_port, 'axes') and len(fig_port.axes) > 0:
+                fig_port_return = fig_port
 
         if plot_land:
             # Check if fig_land is defined and has axes
@@ -1198,24 +1182,15 @@ def process_chunk_data(ax2, chunk_abs, chunk_func, chunk_size, i, y_ticks, handl
     for col in chunk_abs.columns:
         if col != 'average':
             try:
-                # Force y_values to be numeric and drop NaN/zeros
                 y_values = pd.to_numeric(chunk_abs[col], errors='coerce')
-                y_values = y_values[y_values > 0]
+                # Replace zeros with NaN — matplotlib will break the line at these
+                # positions rather than drawing a bridge across the gap.
+                y_values = y_values.replace(0, np.nan)
 
-                if not y_values.empty:
+                if y_values.notna().any():
                     columns_processed += 1
-                    # Ensure x_values and y_values are proper arrays for matplotlib
                     x_values = list(y_values.index)
                     y_values_list = list(y_values.values)
-
-                    # Additional validation
-                    if len(x_values) != len(y_values_list):
-                        errors.append(f"Mismatch in data lengths for column {col}: x_values={len(x_values)}, y_values_list={len(y_values_list)}")
-                        continue
-
-                    if len(x_values) == 0:
-                        errors.append(f"Empty data for column {col}")
-                        continue
 
                     # Get a default label
                     label_value = col
@@ -1501,11 +1476,12 @@ def create_custom_legends(fig, labels, handles, var_name_list, legend_titles, he
     color_title = legend_titles[2]
 
     if ms_average_choice == 'yes':
-        if bio_or_pep != 'no':
+        # Show function colour section whenever individual function lines exist,
+        # regardless of whether bio_or_pep is 'no' (All Available Functions) or '2'.
+        if other_handles:
             combined_handles = [line_color] + other_handles + [average_color] + averaged_handles
             combined_labels = [color_title] + other_labels + [avgline_color_title] + averaged_labels
-
-        else: #if bio_or_pep == 'no':
+        else:
             combined_handles = [average_color] + averaged_handles
             combined_labels = [avgline_color_title] + averaged_labels
 
@@ -1513,9 +1489,14 @@ def create_custom_legends(fig, labels, handles, var_name_list, legend_titles, he
         combined_handles = [average_color] + averaged_handles
         combined_labels = [avgline_color_title] + averaged_labels
 
-    if ms_average_choice == 'no' and bio_or_pep != 'no':
-        combined_handles = [line_color] + other_handles + [line_type] + new_handles_samples
-        combined_labels = [color_title] + other_labels + [line_type_title] + [key for key in sample_handles_dict.keys()]
+    if ms_average_choice == 'no':
+        if other_handles:
+            # Two-section legend: function colours + sample-group line types.
+            # Triggered whenever individual function/interval lines are present,
+            # covering both bio_or_pep='2' (specific functions) and bio_or_pep='no'
+            # (All Available Functions, where effective_bio_or_pep was '2' internally).
+            combined_handles = [line_color] + other_handles + [line_type] + new_handles_samples
+            combined_labels = [color_title] + other_labels + [line_type_title] + [key for key in sample_handles_dict.keys()]
 
     legend_peptide_count = None
     if plot_type == "land":
@@ -1788,14 +1769,40 @@ def visualize_sequence_heatmap_lanscape(available_data_variables_dict,
         #else:
         line_style = style_map[var_name]  # Get assigned line style from the style map
 
-        if bio_or_pep != 'no' and ms_average_choice != 'only':
+        # Draw individual peptide lines when:
+        # - specific intervals/functions are selected (bio_or_pep != 'no'), OR
+        # - all bioactive/functional peptides are the data source (filter_type ends in '-only')
+        if (bio_or_pep != 'no' or filter_type in ('bioactive-only', 'functional-only')) and ms_average_choice != 'only':
             filtered_bp_abs, filtered_bp_fun, filter_errors = filter_data_by_selection(bp_abs, bp_func, selected_peptides,
                                                                         selected_functions, bio_or_pep, filter_type, ms_average_choice, var_name)
 
+            # Resolve the effective function list.
+            # For "All Available Functions" (bioactive-only, bio_or_pep='no') derive every
+            # distinct function name from bp_func so individual lines are coloured and
+            # labelled by function. For specific-functions mode the list is already set.
+            effective_bio_or_pep = bio_or_pep
+            effective_functions  = list(selected_functions)
+            if filter_type == 'bioactive-only' and bio_or_pep == 'no':
+                all_funcs = set()
+                if bp_func is not None and not bp_func.empty:
+                    for col in bp_func.columns:
+                        for val in bp_func[col].dropna():
+                            for part in str(val).split(';'):
+                                part = part.strip()
+                                if part and part != 'nan':
+                                    all_funcs.add(part)
+                if all_funcs:
+                    effective_bio_or_pep = '2'
+                    effective_functions  = sorted(all_funcs)
+
+            # Pass individual peptide intervals directly — process_chunk_data with
+            # bio_or_pep='2' colours and labels each line by its bioactive function,
+            # deduplicates function names in the legend, and assigns 'Multiple' to
+            # peptides that belong to more than one selected function.
             footnote_list, process_errors, min_vals, max_vals = process_chunk_data(ax1, filtered_bp_abs, filtered_bp_fun, chunk_size, 0, y_ticks, handles,
                                             labels, sample_list, var_name_list, line_style, var_name, var_ms_data,
-                                            selected_peptides, selected_functions, lp_selected_color, ms_average_choice,
-                                            log_transform, bio_or_pep)
+                                            selected_peptides, effective_functions, lp_selected_color, ms_average_choice,
+                                            log_transform, effective_bio_or_pep)
             # Collect all errors
             all_errors.extend(filter_errors)
             all_errors.extend(process_errors)
@@ -1884,9 +1891,6 @@ def visualize_sequence_heatmap_lanscape(available_data_variables_dict,
     plt.tight_layout()
     fig.canvas.draw()
     fig.text(_auto_yaxis_x(fig), 0.90, yaxis_label, va='top', rotation='vertical', fontsize=16)
-
-    if ms_average_choice == 'only' and bio_or_pep == '1':
-        all_errors.append('The selection of Plot Averaged Data option "only" and Plot Specific Peptides option "Peptide Intervals" is invalid. Only the average Abundance will be plotted.')
 
     if bio_or_pep == '2' and ms_average_choice != 'only':
         if footnote_list and footnote:  # Log footnote content for debugging/reference
