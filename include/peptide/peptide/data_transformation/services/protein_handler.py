@@ -516,11 +516,13 @@ def apply_protein_decisions(df, decisions, protein_dict):
             elif has_custom or (has_remove and has_custom):
                 proteins_in_combo = set(combo.split('; ')) if '; ' in combo else {combo}
                 modified_proteins = proteins_in_combo.copy()
+                custom_mappings = {}  # Track old->new protein ID mappings
 
                 for protein, decision in protein_decisions.items():
                     d_upper = decision.upper()
                     if d_upper.startswith('CUSTOM:'):
                         new_protein_id = decision.split(':', 1)[1].strip()
+                        custom_mappings[protein] = new_protein_id
                         if protein in modified_proteins:
                             modified_proteins.remove(protein)
                             modified_proteins.add(new_protein_id)
@@ -529,6 +531,76 @@ def apply_protein_decisions(df, decisions, protein_dict):
 
                 if modified_proteins:
                     processed_df.at[processed_df.index[idx], 'Protein'] = '; '.join(sorted(modified_proteins))
+
+                    # Update Positions in Proteins with custom mappings, mirroring notebook logic
+                    positions = row.get('Positions in Proteins', '')
+                    if positions and str(positions) != 'Unknown' and not pd.isna(positions):
+                        new_positions = []
+                        updated_start = None
+                        updated_end = None
+
+                        pos_str = str(positions)
+                        if '; ' in pos_str:
+                            pos_parts = pos_str.split('; ')
+                        elif '/ ' in pos_str:
+                            pos_parts = pos_str.split('/ ')
+                        else:
+                            pos_parts = [pos_str]
+
+                        for pos_part in pos_parts:
+                            pos_modified = False
+
+                            # Replace old protein ID with new one for CUSTOM mappings
+                            for old_protein, new_protein in custom_mappings.items():
+                                if pos_part.strip().startswith(old_protein + ' ') or pos_part.strip().startswith(old_protein + '['):
+                                    if '[' in pos_part and ']' in pos_part:
+                                        range_start_idx = pos_part.find('[')
+                                        range_end_idx = pos_part.find(']') + 1
+                                        range_part = pos_part[range_start_idx:range_end_idx]
+                                        new_pos = f"{new_protein} {range_part}"
+                                        # Extract start/end when result is a single protein
+                                        try:
+                                            range_content = range_part[1:-1]  # strip brackets
+                                            if '-' in range_content:
+                                                start_str, end_str = range_content.split('-', 1)
+                                                if len(modified_proteins) == 1:
+                                                    updated_start = int(start_str.strip())
+                                                    updated_end = int(end_str.strip())
+                                        except Exception:
+                                            pass
+                                    else:
+                                        new_pos = new_protein
+                                    new_positions.append(new_pos)
+                                    pos_modified = True
+                                    break
+
+                            # If not a custom-mapped position, keep it if its protein is still present
+                            if not pos_modified:
+                                for protein in modified_proteins:
+                                    if pos_part.strip().startswith(protein + ' ') or pos_part.strip().startswith(protein + '['):
+                                        new_positions.append(pos_part.strip())
+                                        # Extract start/end when result is a single protein
+                                        if len(modified_proteins) == 1 and '[' in pos_part and ']' in pos_part:
+                                            try:
+                                                range_part = pos_part[pos_part.find('[') + 1:pos_part.find(']')]
+                                                if '-' in range_part:
+                                                    start_str, end_str = range_part.split('-', 1)
+                                                    updated_start = int(start_str.strip())
+                                                    updated_end = int(end_str.strip())
+                                            except Exception:
+                                                pass
+                                        break
+
+                        if new_positions:
+                            processed_df.at[processed_df.index[idx], 'Positions in Proteins'] = '; '.join(new_positions)
+                            # Update start/end columns for single-protein result
+                            if updated_start is not None and updated_end is not None:
+                                if 'start' in processed_df.columns:
+                                    processed_df.at[processed_df.index[idx], 'start'] = updated_start
+                                if 'end' in processed_df.columns:
+                                    processed_df.at[processed_df.index[idx], 'end'] = updated_end
+                        else:
+                            processed_df.at[processed_df.index[idx], 'Positions in Proteins'] = 'Unknown'
                 else:
                     rows_to_remove.add(idx)
 
