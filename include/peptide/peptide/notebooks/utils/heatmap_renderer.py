@@ -678,8 +678,8 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
             """
 
             fig_port = None
-            if plot_port and ms_average_choice in ['yes', 'only']:
-                # Portrait only renders averaged data; individual-only mode is silently skipped.
+            if plot_port:
+                # Portrait always renders averaged data regardless of Display Lines mode.
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore', UserWarning)
                     fig_port = visualize_sequence_heatmap_portrait(
@@ -694,9 +694,11 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                         avg_cmap,
                         lp_selected_color,
                         avglp_selected_color,
+                        selected_peptides,
                         selected_functions,
                         ms_average_choice,
                         bio_or_pep,
+                        filter_type,
                         log_transform,
                         y_ticks,
                         78)
@@ -1519,13 +1521,25 @@ def create_custom_legends(fig, labels, handles, var_name_list, legend_titles, he
     # Create a single combined legend
     elif plot_type == "port":
 
-        # Combine heatmap handles with other handles for a single legend
-        combined_handles = [line_color] + other_handles + [pep_count_placeholder] + heatmap_legend_handles
-        combined_labels = [avgline_color_title] + other_labels + [legend_titles[1]] + heatmap_legend_labels
+        if other_handles and ms_average_choice in ('no', 'yes'):
+            # Individual function/interval lines are present (with or without an averaged
+            # overlay).  The combined_handles/combined_labels for both 'no' and 'yes' modes
+            # are already built in the ms_average_choice blocks above — just append the
+            # heatmap peptide-count section for portrait.
+            port_combined_handles = combined_handles + [pep_count_placeholder] + heatmap_legend_handles
+            port_combined_labels  = combined_labels  + [legend_titles[1]] + heatmap_legend_labels
+        else:
+            # Averaged-only or no-overlay mode — labels stored as 'Averaged {var_name}'
+            # land in averaged_handles/averaged_labels after the split above.
+            # Fall back to other_handles for any legacy calls using bare var_name labels.
+            port_line_handles = averaged_handles if averaged_handles else other_handles
+            port_line_labels  = averaged_labels  if averaged_handles else other_labels
+            port_combined_handles = [average_color] + port_line_handles + [pep_count_placeholder] + heatmap_legend_handles
+            port_combined_labels  = [avgline_color_title] + port_line_labels + [legend_titles[1]] + heatmap_legend_labels
 
         # Create a single combined legend with just the combined handles (no need for additional labels)
-        combined_legend = fig.legend(handles=combined_handles,
-                                     labels=combined_labels,
+        combined_legend = fig.legend(handles=port_combined_handles,
+                                     labels=port_combined_labels,
                                      loc='upper left',
                                      bbox_to_anchor=(0.9025, 0.875),
                                      fontsize=14)
@@ -1909,9 +1923,11 @@ def visualize_sequence_heatmap_portrait(available_data_variables_dict,
                                              avg_cmap,
                                              lp_selected_color,
                                              avglp_selected_color,
+                                             selected_peptides,
                                              selected_functions,
                                              ms_average_choice,
                                              bio_or_pep,
+                                             filter_type,
                                              log_transform,
                                              y_ticks,
                                              chunk_size):
@@ -1924,6 +1940,7 @@ def visualize_sequence_heatmap_portrait(available_data_variables_dict,
         len(available_data_variables_dict), (20, 0.1))
     plot_zero == 'no'
     handles, labels, sample_list, var_name_list = [], [], [], []
+    style_map = assign_line_styles(available_data_variables_dict)
 
     for var in available_data_variables_dict:
         num_sets = len(available_data_variables_dict[var]['amino_acids_chunks'])
@@ -1967,15 +1984,58 @@ def visualize_sequence_heatmap_portrait(available_data_variables_dict,
             var_ms_data = available_data_variables_dict[var]['ms_data_chunks'][i]
             var_name = available_data_variables_dict[var]['label']
             var_colors = get_grouped_colors(var_counts, max_count, num_colors, plot_zero, cmap)
-            line_style = '-'
+            bp_abs  = available_data_variables_dict[var]['bioactive_peptide_abs_df']
+            bp_func = available_data_variables_dict[var]['bioactive_peptide_func_df']
+            line_style = style_map[var_name]
 
-            # Plot MS data using plot_average_ms_data and handle the returned line object
-            line, label, _, average_y_values = plot_average_ms_data(ax2, var_ms_data, var_name, var_index, y_ticks, i, chunk_size,
-                                                  avg_cmap, log_transform, line_style='-')
-            ax1.tick_params(axis='y', labelsize=10)
-            handles.append(line)
-            labels.append(label)
-            var_name_list.append(var_name)
+            # Draw individual peptide lines (same logic as landscape) when
+            # bioactive/functional overlay is active and not averaged-only mode.
+            if (bio_or_pep != 'no' or filter_type in ('bioactive-only', 'functional-only')) and ms_average_choice != 'only':
+                filtered_bp_abs, filtered_bp_fun, _ = filter_data_by_selection(
+                    bp_abs, bp_func, selected_peptides, selected_functions,
+                    bio_or_pep, filter_type, ms_average_choice, var_name)
+
+                effective_bio_or_pep = bio_or_pep
+                effective_functions  = list(selected_functions)
+                if filter_type == 'bioactive-only' and bio_or_pep == 'no':
+                    all_funcs = set()
+                    if bp_func is not None and not bp_func.empty:
+                        for col in bp_func.columns:
+                            for val in bp_func[col].dropna():
+                                for part in str(val).split(';'):
+                                    part = part.strip()
+                                    if part and part != 'nan':
+                                        all_funcs.add(part)
+                    if all_funcs:
+                        effective_bio_or_pep = '2'
+                        effective_functions  = sorted(all_funcs)
+
+                process_chunk_data(ax2, filtered_bp_abs, filtered_bp_fun, chunk_size, i, y_ticks, handles,
+                                   labels, sample_list, var_name_list, line_style, var_name, var_ms_data,
+                                   selected_peptides, effective_functions, lp_selected_color, ms_average_choice,
+                                   log_transform, effective_bio_or_pep)
+
+            if ms_average_choice in ['yes', 'only']:
+                # Plot averaged line alongside (or instead of) individual lines.
+                line, label, _, average_y_values = plot_average_ms_data(
+                    ax2, var_ms_data, f'Averaged {var_name}', var_index, y_ticks, i, chunk_size,
+                    avg_cmap, log_transform, line_style=line_style)
+                ax1.tick_params(axis='y', labelsize=14)
+                handles.append(line)
+                labels.append(f'{label}')
+                sample_list.append(line_style)
+                var_name_list.append(var_name)
+
+            if ms_average_choice == 'no' and bio_or_pep == 'no' and filter_type not in ('bioactive-only', 'functional-only'):
+                # Pure averaged fallback when no overlay is active.
+                line, label, _, average_y_values = plot_average_ms_data(
+                    ax2, var_ms_data, f'Averaged {var_name}', var_index, y_ticks, i, chunk_size,
+                    avg_cmap, log_transform, line_style=line_style)
+                ax1.tick_params(axis='y', labelsize=14)
+                handles.append(line)
+                labels.append(f'{label}')
+                sample_list.append(line_style)
+                var_name_list.append(var_name)
 
             # Plot indices below the MS line plot
             ax = axes[axis_number * i + 1]

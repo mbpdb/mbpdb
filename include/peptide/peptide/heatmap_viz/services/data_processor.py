@@ -474,12 +474,6 @@ def generate_heatmap(
         return None, None, ['No data available for plotting.']
 
     pp = dict(plot_params)
-    # Portrait mode cannot show specific peptide-interval or function overlays
-    # (heatmap_renderer explicitly returns None for portrait when bio_or_pep != 'no').
-    # Force landscape-only when a specific overlay is active.
-    if pp.get('bio_or_pep', 'no') != 'no':
-        pp['plot_landscape'] = True
-        pp['plot_portrait'] = False
 
     try:
         fig_port, fig_land, errors, notifications = update_plot(
