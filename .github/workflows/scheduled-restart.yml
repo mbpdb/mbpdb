@@ -2,8 +2,8 @@ name: Scheduled Container Restart
 
 on:
   schedule:
-    # Runs every 6 hours (at 0:00, 6:00, 12:00, 18:00 UTC)
-    - cron: '0 */6 * * *'
+    # Runs every 12 hours (at 0:00, 12:00 UTC)
+    - cron: '0 */12 * * *'
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
