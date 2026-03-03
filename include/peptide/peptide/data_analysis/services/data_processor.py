@@ -233,9 +233,24 @@ def get_color_sequence(n_colors: int, scheme: str = 'HSV') -> list:
 
 
 def get_single_color(scheme: str = 'HSV') -> str:
-    """Return a single representative colour for the scheme."""
-    colors = get_color_sequence(3, scheme)
-    return colors[0] if colors else '#4285F4'
+    """Return a single representative colour for the scheme.
+    For named single-colour schemes, returns that colour.
+    For palette/gradient schemes, returns Carolina Blue (#4B9CD3).
+    """
+    if scheme.startswith('---'):
+        scheme = 'HSV'
+    single_colors = {
+        'red', 'green', 'blue', 'yellow', 'purple', 'orange', 'cyan',
+        'magenta', 'pink', 'brown', 'black', 'white', 'gray', 'darkblue',
+        'darkgreen', 'darkred', 'darkorange', 'darkpurple', 'lightblue',
+        'lightgreen', 'lightred', 'gold', 'silver', 'teal', 'navy', 'maroon',
+        'olive', 'lime', 'aqua', 'indigo', 'violet', 'turquoise', 'coral',
+        'crimson', 'salmon', 'sienna', 'tan', 'khaki', 'plum', 'orchid',
+        'steelblue', 'seagreen', 'mediumpurple', 'slategray',
+    }
+    if scheme.lower() in single_colors:
+        return scheme.lower()
+    return '#4B9CD3'  # Carolina Blue default for palette/gradient/HSV schemes
 
 
 # ---------------------------------------------------------------------------
@@ -419,7 +434,11 @@ class DataAnalysisState:
         function_mask = pd.Series(True, index=df.index)
 
         # Protein filter – match by ID against the 'Protein' column (semicolon-separated IDs).
-        if self.plot_filter in ('Selected Protein(s)', 'Both') and 'Protein' in df.columns:
+        # When plot_minor=True, skip the protein restriction so all protein rows remain in
+        # filtered_df; process_protein_data() will aggregate non-selected ones into "Minor Proteins".
+        if (self.plot_filter in ('Selected Protein(s)', 'Both')
+                and 'Protein' in df.columns
+                and not self.plot_minor):
             if 'All Proteins (No Filter)' not in self.selected_proteins_raw:
                 sel_ids = set(self.selected_proteins)
                 protein_mask = df['Protein'].fillna('').apply(
@@ -431,6 +450,10 @@ class DataAnalysisState:
         if has_function and self.plot_filter in ('Selected Function(s)', 'Both', 'Functional vs Non-Functional Peptides'):
             if self.plot_filter == 'Functional vs Non-Functional Peptides':
                 pass  # don't filter here
+            elif self.plot_minor:
+                # When grouping minor functions, keep all functional rows so
+                # create_function_df() can aggregate non-selected ones into "Minor Functions".
+                function_mask = df['function'].notna() & (df['function'] != '')
             elif 'All Functional Peptides' in self.selected_functions_raw:
                 function_mask = df['function'].notna() & (df['function'] != '')
             elif 'Non-Functional Peptides' in self.selected_functions_raw:
@@ -470,12 +493,22 @@ class DataAnalysisState:
             count_sem = 0.0
             if isinstance(gd, list) and len(gd) > 1:
                 rep_vals = []
+                rep_counts = []
                 for rep_col in gd:
                     if rep_col in self.filtered_df.columns:
-                        vals = pd.to_numeric(self.filtered_df[rep_col], errors='coerce').dropna()
-                        rep_vals.append(vals.sum())
+                        vals = pd.to_numeric(self.filtered_df[rep_col], errors='coerce')
+                        rep_vals.append(vals.fillna(0).sum())
+                        nonzero_mask = vals.notna() & (vals > 0)
+                        if 'Unique Peptide ID' in self.filtered_df.columns:
+                            rep_counts.append(
+                                self.filtered_df.loc[nonzero_mask, 'Unique Peptide ID'].nunique()
+                            )
+                        else:
+                            rep_counts.append(int(nonzero_mask.sum()))
                 if len(rep_vals) > 1:
                     abundance_sem = float(np.std(rep_vals, ddof=1) / np.sqrt(len(rep_vals)))
+                if len(rep_counts) > 1:
+                    count_sem = float(np.std(rep_counts, ddof=1) / np.sqrt(len(rep_counts)))
 
             total_results[group_name] = {
                 'total_Abundance': float(total_abundance),

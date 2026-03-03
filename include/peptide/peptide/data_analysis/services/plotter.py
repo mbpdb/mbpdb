@@ -40,7 +40,7 @@ def _make_title(state: DataAnalysisState) -> str:
                 parts.append('Filtered By: ' + ', '.join(state.selected_protein_names[:3]))
             if state.selected_functions and state.plot_filter in ('Selected Function(s)', 'Both'):
                 parts.append('Function: ' + ', '.join(state.selected_functions[:3]))
-        title = ' | '.join(parts) if parts else 'Data Analysis'
+        title = ' | '.join(parts) if parts else f'{state.abs_or_count} Distribution - {state.orientation}'
     return title
 
 
@@ -195,7 +195,7 @@ def create_grouped_bar_plot(state: DataAnalysisState):
     use_count = state.use_count
     use_log = state.log_transform
 
-    if orientation == 'By Function' or (orientation == 'By Sample' and plot_filter == 'Selected Function(s)'):
+    if orientation == 'By Function' or (orientation == 'By Sample' and plot_filter in ('Selected Function(s)', 'Functional vs Non-Functional Peptides')):
         if not state.function_distribution_dict:
             return None
         if orientation == 'By Sample':
@@ -810,10 +810,17 @@ def create_pie_charts(state: DataAnalysisState):
             row_idx = i // cols + 1
             col_idx = i % cols + 1
             col_key = (f'Count_{group}' if use_count else f'Avg_{group}')
-            pie_df = df[df[col_key] > 0] if col_key in df.columns else df
+            if col_key in df.columns:
+                pie_df = df[df[items_col].isin(items) & (df[col_key] > 0)]
+            else:
+                pie_df = df[df[items_col].isin(items)]
             labels = list(pie_df[items_col])
             vals = [float(v) for v in pie_df.get(col_key, pd.Series([0] * len(pie_df)))]
             colors = get_color_sequence(len(labels), state.color_scheme)
+            colors = [
+                '#808080' if lbl in ('Minor Proteins', 'Minor Functions') else c
+                for lbl, c in zip(labels, colors)
+            ]
 
             hover_fmt = "%{label}: %{value:,.0f}<br><extra></extra>" if use_count else "%{label}: %{value:.2e}<br><extra></extra>"
             fig.add_trace(go.Pie(
@@ -894,7 +901,7 @@ def create_correlation_plot(state: DataAnalysisState):
         x_vals = np.log10(fdf[col1])
         y_vals = np.log10(fdf[col2])
         tickfmt = '.0f'
-        x_label, y_label = f'Log₁₀ ({g1})', f'Log₁₀ ({g2})'
+        x_label, y_label = f'Log<sub>10</sub> ({g1})', f'Log<sub>10</sub> ({g2})'
     else:
         x_vals = fdf[col1]
         y_vals = fdf[col2]
@@ -1022,7 +1029,7 @@ def create_correlation_splom(state: DataAnalysisState):
     for g in valid_groups:
         col = f'Avg_{g}'
         vals = np.log10(fdf[col]) if use_log else fdf[col]
-        dimensions.append(dict(values=vals, label=f'Log₁₀ ({g})' if use_log else g))
+        dimensions.append(dict(values=vals, label=f'Log<sub>10</sub> ({g})' if use_log else g))
         all_vals.extend(vals)
 
     id_col = 'Unique Peptide ID'

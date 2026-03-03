@@ -82,8 +82,8 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
 .page-box { max-width: 960px; margin: 0 auto; }
 .color-swatch {
-    width: 72px; height: 22px; border-radius: 3px; border: 1px solid #ccc;
-    flex-shrink: 0; display: inline-block;
+    width: 72px; min-width: 0; height: 22px; border-radius: 3px; border: 1px solid #ccc;
+    flex-shrink: 1; display: inline-block; overflow: hidden;
 }
 
 .step-disabled { opacity: .55; pointer-events: none; }
@@ -106,9 +106,9 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 }
 .radio-group.rg-disabled label { opacity: .55; cursor: not-allowed; }
 .radio-group.rg-disabled input[type=radio] { cursor: not-allowed; }
-.rg-field { margin-bottom: 8px; }
+.rg-field { margin-bottom: 4px; }
 .rg-field > .rg-label {
-    font-weight: 600; font-size: .82rem; margin-bottom: 4px; display: block; color: #333;
+    font-weight: 600; font-size: .82rem; margin-bottom: 2px; display: block; color: #333;
 }
 </style>
 {% endblock %}
@@ -120,7 +120,6 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
         <i class="fas fa-chart-bar icon"></i>
         <h1>Data Analysis Dashboard</h1>
         <div style="margin-left:auto; display:flex; gap:8px; flex-shrink:0;">
-            <button id="go-to-hm-btn" class="btn-back-dt"><i class="fas fa-th"></i> Heatmap Dashboard</button>
             <a href="/data_transformation/" class="btn-back-dt"><i class="fas fa-arrow-left"></i> Data Transformation</a>
         </div>
     </div>
@@ -174,21 +173,19 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             Select Variables &amp; Settings
         </div>
 
-        <!-- Sample Groups (full width) -->
-        <div class="selector-block" style="margin-bottom:14px;">
-            <label><i class="fas fa-layer-group"></i> Sample Groups</label>
-            <select id="group-selector" class="multi-select" multiple size="5" disabled></select>
-            <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
-        </div>
-
-        <!-- Proteins + Functions (2-col) -->
+        <!-- Sample Groups + Proteins + Functions (shared grid) -->
         <div class="selector-grid" style="margin-bottom:14px;">
-            <div class="selector-block">
+            <div class="selector-block" style="grid-row:1; grid-column:1;">
+                <label><i class="fas fa-layer-group"></i> Sample Groups</label>
+                <select id="group-selector" class="multi-select" multiple size="5" disabled></select>
+                <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+            </div>
+            <div class="selector-block" style="grid-row:2; grid-column:1;">
                 <label><i class="fas fa-dna"></i> Proteins <small class="text-muted">(sorted by abundance)</small></label>
                 <select id="protein-selector" class="multi-select" multiple size="5" disabled></select>
                 <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
             </div>
-            <div class="selector-block" id="function-selector-block" style="display:none;">
+            <div class="selector-block" id="function-selector-block" style="grid-row:2; grid-column:2; display:none;">
                 <label><i class="fas fa-flask"></i> Functions</label>
                 <select id="function-selector" class="multi-select" multiple size="5" disabled></select>
                 <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
@@ -196,7 +193,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
         </div>
 
         <!-- Plot Filter (below selectors) -->
-        <div style="margin-bottom:14px; max-width:320px;">
+        <div style="margin-bottom:14px; max-width:200px;">
             <label style="font-weight:600; font-size:.82rem; margin-bottom:4px; display:block;">
                 <i class="fas fa-filter"></i> Plot Filter
             </label>
@@ -212,7 +209,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
         <hr style="margin:14px 0;">
 
         <!-- 2-column settings layout -->
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:4px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:2px;">
 
             <!-- Left: Visualization Settings -->
             <div>
@@ -220,7 +217,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                     <u>Visualization Settings:</u>
                 </div>
                 <!-- 2x2 grid of radio groups, vertical options -->
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 18px;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 12px;">
 
                     <div class="rg-field">
                         <span class="rg-label">Plot Type</span>
@@ -260,7 +257,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                 </div>
 
                 <!-- Correlation type (conditional, in left column) -->
-                <div class="rg-field" id="corr-type-block" style="display:none; margin-top:10px;">
+                <div class="rg-field" id="corr-type-block" style="display:none; margin-top:6px;">
                     <span class="rg-label">Correlation Type</span>
                     <div class="radio-group" id="rg-correlation-type" style="flex-direction:column; gap:4px; align-items:flex-start;">
                         <label><input type="radio" name="correlation-type" value="Pearson" checked> Pearson</label>
@@ -269,22 +266,22 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                 </div>
 
                 <!-- Checkboxes under Visualization Settings -->
-                <div style="margin-top:10px; display:flex; flex-direction:column; gap:6px;">
+                <div style="margin-top:6px; display:flex; flex-direction:column; gap:4px;">
                     <label class="checkbox-row">
                         <input type="checkbox" id="log-transform" checked disabled> Log&#x2081;&#x2080; transform y-axis
                     </label>
                     <label class="checkbox-row">
-                        <input type="checkbox" id="plot-minor" disabled> Show minor groups
+                        <input type="checkbox" id="plot-minor" disabled> Group Unselected Proteins or Functions
                     </label>
                 </div>
             </div>
 
             <!-- Right: Appearance Settings -->
-            <div style="min-width:0;">
-                <div style="font-weight:700; font-size:.95rem; margin-bottom:8px;">
+            <div style="min-width:0; max-width:380px;">
+                <div style="font-weight:700; font-size:.95rem; margin-bottom:6px;">
                     <u>Appearance Settings:</u>
                 </div>
-                <div style="display:flex; flex-direction:column; gap:6px;">
+                <div style="display:flex; flex-direction:column; gap:4px;">
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">X-Axis Label</label>
                         <input type="text" id="xlabel" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
@@ -303,7 +300,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">Color Scheme</label>
-                        <select id="color-scheme" disabled style="width:150px; flex-shrink:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <select id="color-scheme" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
                             <optgroup label="Default">
                                 <option value="HSV">HSV (Default)</option>
                             </optgroup>
@@ -494,16 +491,24 @@ function populateSelectors(data) {
 
     const protSel = document.getElementById('protein-selector');
     protSel.innerHTML = '';
-    protSel.add(new Option('All Proteins (No Filter)', 'All Proteins (No Filter)', true, true));
-    data.proteins.forEach(p => protSel.add(new Option(p.label, p.id)));
+    protSel.add(new Option('All Proteins (No Filter)', 'All Proteins (No Filter)', false, false));
+    const numProt = Math.min(10, data.proteins.length);
+    data.proteins.forEach((p, i) => {
+        const sel = i < numProt;
+        protSel.add(new Option(p.label, p.id, sel, sel));
+    });
 
     const fnBlock = document.getElementById('function-selector-block');
     const fnSel   = document.getElementById('function-selector');
     if (data.has_functions && data.functions && data.functions.length) {
         fnBlock.style.display = '';
         fnSel.innerHTML = '';
-        fnSel.add(new Option('All Functional Peptides', 'All Functional Peptides', true, true));
-        data.functions.forEach(f => fnSel.add(new Option(f, f)));
+        fnSel.add(new Option('All Functional Peptides', 'All Functional Peptides', false, false));
+        const numFn = Math.min(10, data.functions.length);
+        data.functions.forEach((f, i) => {
+            const sel = i < numFn;
+            fnSel.add(new Option(f, f, sel, sel));
+        });
     } else {
         fnBlock.style.display = 'none';
         const pf = document.getElementById('plot-filter');
@@ -514,14 +519,48 @@ function populateSelectors(data) {
     }
 }
 
-// ── Dynamic UI: show/hide correlation type when plot type changes ─
-document.getElementById('rg-plot-type').addEventListener('click', function() {
-    const val = getRadioValue('plot-type');
+// ── Dynamic UI: plot type changes (correlation block + metric/log greying) ─
+function applyPlotTypeGreying() {
+    const plotType = getRadioValue('plot-type');
     document.getElementById('corr-type-block').style.display =
-        val === 'Corr. Scatter Plots' ? '' : 'none';
-});
+        plotType === 'Corr. Scatter Plots' ? '' : 'none';
 
-// ── Plot filter: grey protein/function selectors accordingly ─────
+    const step2Active = !document.getElementById('step2-card').classList.contains('step-disabled');
+    const logChk  = document.getElementById('log-transform');
+    const logLabel = logChk.closest('label');
+
+    // Pie Charts and Corr. Scatter Plots → force Absolute metric, grey out Relative
+    const lockAbsolute = plotType === 'Pie Charts' || plotType === 'Corr. Scatter Plots';
+    const relInput = document.querySelector('input[name="metric-type"][value="Relative"]');
+    const relLabel = relInput ? relInput.closest('label') : null;
+    const absInput = document.querySelector('input[name="metric-type"][value="Absolute"]');
+    if (lockAbsolute) {
+        if (absInput) absInput.checked = true;
+        if (relInput) relInput.disabled = true;
+        if (relLabel) relLabel.style.opacity = '0.45';
+    } else {
+        if (relInput && step2Active) relInput.disabled = false;
+        if (relLabel) relLabel.style.opacity = '';
+    }
+
+    // Grey out log transform when Pie, or when metric is Relative
+    const isRelative = getRadioValue('metric-type') === 'Relative';
+    const isPie = plotType === 'Pie Charts';
+    if (isPie || isRelative) {
+        logChk.checked = false;
+        if (step2Active) logChk.disabled = true;
+        if (logLabel) logLabel.style.opacity = '0.45';
+    } else {
+        if (step2Active) logChk.disabled = false;
+        if (logLabel) logLabel.style.opacity = '';
+    }
+}
+document.getElementById('rg-plot-type').addEventListener('click', applyPlotTypeGreying);
+
+// ── Item 13: Relative metric → uncheck and grey log transform ────
+document.getElementById('rg-metric-type').addEventListener('click', applyPlotTypeGreying);
+
+// ── Plot filter: grey protein/function selectors + orientation ───
 function applyPlotFilterGreying() {
     const filterVal = document.getElementById('plot-filter').value;
     const protSel   = document.getElementById('protein-selector');
@@ -529,8 +568,7 @@ function applyPlotFilterGreying() {
     const fnBlock   = document.getElementById('function-selector-block');
 
     const enableProt = filterVal === 'Selected Protein(s)' || filterVal === 'Both';
-    const enableFn   = (filterVal === 'Selected Function(s)' || filterVal === 'Both' ||
-                        filterVal === 'Functional vs Non-Functional Peptides');
+    const enableFn   = filterVal === 'Selected Function(s)' || filterVal === 'Both';
 
     // Grey out protein selector when not relevant
     protSel.disabled = !enableProt;
@@ -540,6 +578,26 @@ function applyPlotFilterGreying() {
     if (fnBlock.style.display !== 'none') {
         fnSel.disabled = !enableFn;
         fnSel.style.opacity = enableFn ? '1' : '0.45';
+    }
+
+    // Item 12: Grey out invalid orientation options based on filter
+    const byFnInput   = document.querySelector('input[name="plot-orientation"][value="By Function"]');
+    const byProtInput = document.querySelector('input[name="plot-orientation"][value="By Protein"]');
+    const bySampInput = document.querySelector('input[name="plot-orientation"][value="By Sample"]');
+    if (byFnInput && byProtInput && bySampInput) {
+        // Filtering by protein only → "By Function" is invalid
+        const disableByFn = filterVal === 'Selected Protein(s)';
+        // Filtering by function only → "By Protein" is invalid
+        const disableByProt = filterVal === 'Selected Function(s)' ||
+                              filterVal === 'Functional vs Non-Functional Peptides';
+
+        byFnInput.disabled = disableByFn;
+        byFnInput.closest('label').style.opacity = disableByFn ? '0.45' : '';
+        if (disableByFn && byFnInput.checked) bySampInput.checked = true;
+
+        byProtInput.disabled = disableByProt;
+        byProtInput.closest('label').style.opacity = disableByProt ? '0.45' : '';
+        if (disableByProt && byProtInput.checked) bySampInput.checked = true;
     }
 }
 
@@ -557,6 +615,23 @@ async function generatePlot() {
     btn.disabled = true;
     spinner.style.display = 'inline-flex';
     plotMsgs.innerHTML = '';
+
+    // Item 12: Validate filter / orientation compatibility
+    const _filterVal = document.getElementById('plot-filter').value;
+    const _orientVal = getRadioValue('plot-orientation');
+    if (_filterVal === 'Selected Protein(s)' && _orientVal === 'By Function') {
+        plotMsgs.innerHTML = '<div class="status-box status-error"><strong>Invalid combination:</strong> ' +
+            '"Selected Protein(s)" filter cannot be used with "By Function" orientation. ' +
+            'Switch to "By Sample" or "By Protein" orientation.</div>';
+        btn.disabled = false; spinner.style.display = 'none'; return;
+    }
+    if ((_filterVal === 'Selected Function(s)' || _filterVal === 'Functional vs Non-Functional Peptides')
+            && _orientVal === 'By Protein') {
+        plotMsgs.innerHTML = '<div class="status-box status-error"><strong>Invalid combination:</strong> ' +
+            'Function-based filter cannot be used with "By Protein" orientation. ' +
+            'Switch to "By Sample" or "By Function" orientation.</div>';
+        btn.disabled = false; spinner.style.display = 'none'; return;
+    }
 
     const selectedGroups    = getMultiSelectValues(document.getElementById('group-selector'));
     const selectedProteins  = getMultiSelectValues(document.getElementById('protein-selector'));
@@ -718,40 +793,6 @@ if (new URLSearchParams(window.location.search).get('from_dt') === '1') {
 }
 
 })();
-
-document.getElementById('go-to-hm-btn').addEventListener('click', function() {
-    var btn = this;
-    btn.style.opacity = '0.6';
-    btn.style.pointerEvents = 'none';
-    btn.innerHTML = '<i class="fas fa-circle-notch spin"></i> Transferring...';
-    fetch('/heatmap/transfer-from-da/', {
-        method: 'POST',
-        headers: {'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest'}
-    }).then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.success) {
-            try { sessionStorage.setItem('hm_from_dt', JSON.stringify(data)); } catch(e) {}
-            window.location.href = '/heatmap/?from_dt=1';
-        } else {
-            // Fall back to DT transfer if no DA session
-            return fetch('/heatmap/transfer-from-dt/', {
-                method: 'POST',
-                headers: {'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest'}
-            }).then(function(r2) { return r2.json(); })
-            .then(function(data2) {
-                if (data2.success) {
-                    try { sessionStorage.setItem('hm_from_dt', JSON.stringify(data2)); } catch(e) {}
-                }
-                window.location.href = '/heatmap/?from_dt=1';
-            });
-        }
-    }).catch(function() {
-        btn.style.opacity = '';
-        btn.style.pointerEvents = '';
-        btn.innerHTML = '<i class="fas fa-th"></i> Heatmap Dashboard';
-        window.location.href = '/heatmap/';
-    });
-});
 
 // Load example for data analysis
 document.getElementById('da-load-example').addEventListener('click', function(e) {
