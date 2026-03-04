@@ -76,12 +76,13 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 .compact-plot-container h4 { font-size: 1rem; font-weight: 600; margin-bottom: 8px; }
 #compact-plotly-div { border: 1px solid #dee2e6; border-radius: 4px; background: #fff; min-height: 200px; }
 
-.interactive-plot-container { margin-top: 12px; margin-bottom: 20px; }
+.interactive-plot-container { margin-top: 12px; margin-bottom: 20px; width: 100%; }
 .interactive-plot-container h5 {
     font-size: 0.9rem; font-weight: 600; margin-bottom: 6px; color: #01579b;
     display: flex; align-items: center; gap: 6px;
 }
-.interactive-plotly-div { border: 1px solid #90caf9; border-radius: 4px; background: #fff; min-height: 400px; }
+.interactive-plotly-div { border: 1px solid #90caf9; border-radius: 4px; background: #fff; min-height: 500px; width: 100%; }
+#landscape-interactive-div { min-height: 600px; }
 
 .hidden { display: none !important; }
 .page-box { max-width: 960px; margin: 0 auto; }
@@ -115,6 +116,27 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 }
 /* Unified items-selector inactive/greyed state */
 .items-inactive { opacity: .48; pointer-events: none; }
+
+/* Beta badge on radio labels */
+.beta-label {
+    font-style: italic;
+    color: #6a1b9a;
+}
+.beta-badge {
+    display: inline-block;
+    font-size: .68rem;
+    font-weight: 700;
+    font-style: normal;
+    letter-spacing: .03em;
+    color: #fff;
+    background: linear-gradient(135deg, #8e24aa, #5c6bc0);
+    border-radius: 3px;
+    padding: 1px 5px;
+    margin-left: 4px;
+    vertical-align: middle;
+    line-height: 1.4;
+    box-shadow: 0 1px 2px rgba(0,0,0,.25);
+}
 
 /* Segmented overlay / data-source control */
 .seg-control {
@@ -301,8 +323,8 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                         <div class="radio-group rg-disabled" id="rg-orientation" style="flex-direction:column; gap:4px; align-items:flex-start;">
                             <label><input type="radio" name="hm-orientation" value="Landscape" checked disabled> Landscape</label>
                             <label><input type="radio" name="hm-orientation" value="Portrait" disabled> Portrait</label>
-                            <label><input type="radio" name="hm-orientation" value="Both" disabled> Both</label>
-                            <label><input type="radio" name="hm-orientation" value="Compact" disabled> Compact (Interactive)</label>
+                            <label class="beta-label"><input type="radio" name="hm-orientation" value="Interactive Landscape" disabled> Interactive Landscape <span class="beta-badge">BETA</span></label>
+                            <label class="beta-label"><input type="radio" name="hm-orientation" value="Compact" disabled> Compact <span class="beta-badge">BETA</span></label>
                         </div>
                     </div>
 
@@ -446,14 +468,8 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
         </div>
 
         <div style="margin-bottom:12px; display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn-dl" id="dl-portrait-btn" disabled>
-                <i class="fas fa-download"></i> Download Portrait PNG
-            </button>
-            <button class="btn-dl" id="dl-landscape-btn" disabled>
-                <i class="fas fa-download"></i> Download Landscape PNG
-            </button>
-            <button class="btn-dl" id="dl-compact-btn" disabled style="background:#00838f;">
-                <i class="fas fa-download"></i> Download Compact JSON
+            <button class="btn-dl" id="dl-plot-btn" disabled>
+                <i class="fas fa-download"></i> <span id="dl-plot-label">Download Plot</span>
             </button>
         </div>
 
@@ -493,9 +509,11 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 'use strict';
 
 const CSRF = '{{ csrf_token }}';
-let currentPortraitB64  = null;
-let currentLandscapeB64 = null;
-let currentCompactJson  = null;
+let currentPortraitB64              = null;
+let currentLandscapeB64             = null;
+let currentCompactJson              = null;
+let currentLandscapeInteractiveJson = null;
+let currentOrientation              = 'Landscape';
 let hasFunctions = false;
 
 function getCsrf() { return CSRF; }
@@ -945,9 +963,11 @@ async function generateHeatmap() {
         legend_title_1:       document.getElementById('legend-title-1').value || 'Sample Type:',
         legend_title_2:       document.getElementById('legend-title-2').value || 'Peptide Counts:',
         legend_title_3:       document.getElementById('legend-title-3').value || 'Average Abundance:',
-        plot_portrait:        orientation === 'Portrait' || orientation === 'Both',
-        plot_landscape:       orientation === 'Landscape' || orientation === 'Both',
-        plot_compact:         orientation === 'Compact',
+        plot_portrait:                orientation === 'Portrait',
+        plot_landscape:               orientation === 'Landscape' || orientation === 'Interactive Landscape',
+        plot_compact:                 orientation === 'Compact',
+        plot_landscape_interactive:   orientation === 'Interactive Landscape',
+        plot_portrait_interactive:    false,
         filter_type:          filterType,
         log_transform:        document.getElementById('log-transform').checked,
         manual_y_axis:        document.getElementById('manual-y-axis').checked,
@@ -987,9 +1007,10 @@ async function generateHeatmap() {
     if (data.messages && data.messages.length)
         data.messages.forEach(m => appendStatus(msgs, m, 'info'));
 
-    currentPortraitB64  = data.portrait;
-    currentLandscapeB64 = data.landscape;
-    currentCompactJson  = data.compact || null;
+    currentPortraitB64              = data.portrait;
+    currentLandscapeB64             = data.landscape;
+    currentCompactJson              = data.compact || null;
+    currentLandscapeInteractiveJson = data.landscape_interactive || null;
 
     // ── helper: render a Plotly interactive panel ─────────────────────────────
     function renderInteractive(jsonStr, divId, containerId) {
@@ -998,12 +1019,17 @@ async function generateHeatmap() {
         if (!jsonStr) { cont.classList.add('hidden'); return; }
         try {
             const spec = JSON.parse(jsonStr);
-            Plotly.react(div, spec.data, spec.layout, {
+            // Override width in layout so Plotly fills the container, not a fixed server-side width
+            const layout = Object.assign({}, spec.layout, { autosize: true, width: undefined });
+            Plotly.react(div, spec.data, layout, {
                 responsive: true,
                 scrollZoom: true,
                 displayModeBar: true,
+                useResizeObserver: true,
             });
             cont.classList.remove('hidden');
+            // Force a resize after the container becomes visible
+            requestAnimationFrame(() => Plotly.Plots.resize(div));
         } catch(e) {
             cont.classList.add('hidden');
             appendStatus(msgs, `Warning: could not render interactive plot (${containerId}).`, 'warning');
@@ -1014,7 +1040,6 @@ async function generateHeatmap() {
     if (data.portrait) {
         document.getElementById('portrait-img').src = 'data:image/png;base64,' + data.portrait;
         portCont.classList.remove('hidden');
-        document.getElementById('dl-portrait-btn').disabled = false;
     } else {
         portCont.classList.add('hidden');
     }
@@ -1026,9 +1051,15 @@ async function generateHeatmap() {
 
     const landCont = document.getElementById('landscape-container');
     if (data.landscape) {
-        document.getElementById('landscape-img').src = 'data:image/png;base64,' + data.landscape;
+        // For 'Interactive Landscape (Beta)' hide the static image, show only interactive
+        const landImg = document.getElementById('landscape-img');
+        if (orientation === 'Interactive Landscape') {
+            landImg.style.display = 'none';
+        } else {
+            landImg.style.display = '';
+            landImg.src = 'data:image/png;base64,' + data.landscape;
+        }
         landCont.classList.remove('hidden');
-        document.getElementById('dl-landscape-btn').disabled = false;
     } else {
         landCont.classList.add('hidden');
     }
@@ -1051,7 +1082,6 @@ async function generateHeatmap() {
                 modeBarButtonsToAdd: ['zoom2d', 'pan2d', 'resetScale2d'],
             });
             compactCont.classList.remove('hidden');
-            document.getElementById('dl-compact-btn').disabled = false;
         } catch(e) {
             appendStatus(msgs, 'Warning: could not render compact interactive plot.', 'warning');
             compactCont.classList.add('hidden');
@@ -1060,34 +1090,97 @@ async function generateHeatmap() {
         compactCont.classList.add('hidden');
     }
 
+    // ── Enable unified download button based on what was generated ────────────
+    currentOrientation = orientation;
+    _updateDownloadBtn();
+
     document.getElementById('step3-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ── Download ──────────────────────────────────────────────────────
-async function downloadImg(b64, orientation) {
+// ── Download helpers ──────────────────────────────────────────────
+async function downloadImg(b64, orientationName) {
     const resp = await fetch('/heatmap/download-plot/', {
         method: 'POST',
         headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_b64: b64, orientation }),
+        body: JSON.stringify({ image_b64: b64, orientation: orientationName }),
     });
     if (!resp.ok) { alert('Download failed'); return; }
     const blob = await resp.blob();
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href = url; a.download = `heatmap_${orientation}.png`; a.click();
+    a.href = url; a.download = `heatmap_${orientationName}.png`; a.click();
     URL.revokeObjectURL(url);
 }
 
-document.getElementById('dl-portrait-btn').addEventListener('click',  () => { if (currentPortraitB64)  downloadImg(currentPortraitB64,  'portrait');  });
-document.getElementById('dl-landscape-btn').addEventListener('click', () => { if (currentLandscapeB64) downloadImg(currentLandscapeB64, 'landscape'); });
-
-document.getElementById('dl-compact-btn').addEventListener('click', () => {
-    if (!currentCompactJson) return;
-    const blob = new Blob([currentCompactJson], { type: 'application/json' });
+async function downloadPlotlyHtml(jsonStr, title, filename) {
+    const figSpec = JSON.parse(jsonStr);
+    const htmlStr = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>${title}</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"><\/script>
+<style>body{margin:0;padding:10px;} #plot{width:100%;}<\/style>
+</head><body>
+<div id="plot"></div>
+<script>
+Plotly.newPlot('plot', ${JSON.stringify(figSpec.data)}, Object.assign({}, ${JSON.stringify(figSpec.layout)}, {autosize:true}), {responsive:true,scrollZoom:true,displayModeBar:true});
+window.addEventListener('resize', function(){ Plotly.Plots.resize(document.getElementById('plot')); });
+<\/script>
+</body></html>`;
+    try {
+        const resp = await fetch('/heatmap/save-compact-plot/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ html: htmlStr }),
+        });
+        if (resp.ok) { window.location.href = '/heatmap/download-compact-plot/'; return; }
+    } catch(e) { /* fall through */ }
+    const blob = new Blob([htmlStr], { type: 'text/html' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href = url; a.download = 'heatmap_compact.json'; a.click();
+    a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
+}
+
+// ── Update download button label & enabled state ──────────────────
+function _updateDownloadBtn() {
+    const btn   = document.getElementById('dl-plot-btn');
+    const label = document.getElementById('dl-plot-label');
+    const o     = currentOrientation;
+    let hasData = false;
+    let text    = 'Download Plot';
+
+    if (o === 'Portrait' && currentPortraitB64) {
+        hasData = true; text = 'Download Portrait PNG';
+    } else if (o === 'Landscape' && currentLandscapeB64) {
+        hasData = true; text = 'Download Landscape PNG';
+    } else if (o === 'Interactive Landscape' && currentLandscapeInteractiveJson) {
+        hasData = true; text = 'Download Interactive Landscape HTML';
+    } else if (o === 'Compact' && currentCompactJson) {
+        hasData = true; text = 'Download Compact HTML';
+    }
+
+    label.textContent = text;
+    btn.disabled = !hasData;
+}
+
+// Update label whenever the orientation radio changes
+document.querySelectorAll('input[name="hm-orientation"]').forEach(r =>
+    r.addEventListener('change', _updateDownloadBtn)
+);
+
+// ── Unified download handler ──────────────────────────────────────
+document.getElementById('dl-plot-btn').addEventListener('click', async () => {
+    const o = currentOrientation;
+    if (o === 'Portrait' && currentPortraitB64) {
+        downloadImg(currentPortraitB64, 'portrait');
+    } else if (o === 'Landscape' && currentLandscapeB64) {
+        downloadImg(currentLandscapeB64, 'landscape');
+    } else if (o === 'Interactive Landscape' && currentLandscapeInteractiveJson) {
+        await downloadPlotlyHtml(currentLandscapeInteractiveJson,
+            'Interactive Landscape Heatmap', 'heatmap_landscape_interactive.html');
+    } else if (o === 'Compact' && currentCompactJson) {
+        await downloadPlotlyHtml(currentCompactJson,
+            'Compact Heatmap', 'heatmap_compact.html');
+    }
 });
 
 // ── Color swatch previews ─────────────────────────────────────────

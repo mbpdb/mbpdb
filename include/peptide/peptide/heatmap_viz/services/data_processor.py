@@ -452,6 +452,52 @@ def build_available_data_variables(
 
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _derive_xaxis_label(available_data_variables_dict: dict) -> str:
+    """
+    Mirror the notebook's `process_data_variables` logic for `protein_name_short`.
+
+    Collect all unique protein IDs and protein names from the variable dict,
+    then build a label of the form "<Name> Sequence".
+
+    Rules (matching the notebook exactly):
+    - Multiple IDs, single unique name  → "<name> Sequence"
+    - Multiple IDs, multiple names      → "<name1>_<name2> Sequence"
+    - Single ID / single name           → "<name> Sequence"
+    If no names are found, fall back to "<protein_id> Sequence" or
+    'Protein Sequence Position'.
+    """
+    protein_id_list   = []
+    protein_name_list = []
+
+    for vd in available_data_variables_dict.values():
+        pid   = vd.get('protein_id',   '')
+        pname = vd.get('protein_name', '')
+        if pid:
+            protein_id_list.append(str(pid))
+        if pname:
+            protein_name_list.append(str(pname))
+
+    unique_ids   = list(dict.fromkeys(protein_id_list))    # ordered dedup
+    unique_names = list(dict.fromkeys(protein_name_list))  # ordered dedup
+
+    if len(unique_ids) > 1 and len(unique_names) == 1:
+        protein_name_short = unique_names[0]
+    elif len(unique_ids) > 1 and len(unique_names) > 1:
+        protein_name_short = '_'.join(unique_names)
+    elif unique_names:
+        protein_name_short = unique_names[0]
+    elif unique_ids:
+        protein_name_short = unique_ids[0]
+    else:
+        return 'Protein Sequence Position'
+
+    return f"{protein_name_short} Sequence"
+
+
 # Generate heatmap plot
 # ---------------------------------------------------------------------------
 
@@ -480,6 +526,11 @@ def generate_heatmap(
 
     pp = dict(plot_params)
 
+    # Auto-derive the x-axis label from protein name(s) when the user has left
+    # the field blank — mirrors the notebook's `protein_name_short + " Sequence"` logic.
+    user_xaxis_label = pp.get('xaxis_label', '').strip()
+    resolved_xaxis_label = user_xaxis_label if user_xaxis_label else _derive_xaxis_label(available_data_variables_dict)
+
     try:
         fig_port, fig_land, fig_compact, fig_port_plotly, fig_land_plotly, errors, notifications = update_plot(
             available_data_variables_dict,
@@ -490,7 +541,7 @@ def generate_heatmap(
             hm_selected_color=pp.get('hm_selected_color', 'RdYlGn_r'),
             lp_selected_color=pp.get('lp_selected_color', 'Set3'),
             avglp_selected_color=pp.get('avglp_selected_color', 'Dark2'),
-            xaxis_label=pp.get('xaxis_label', ''),
+            xaxis_label=resolved_xaxis_label,
             yaxis_label=pp.get('yaxis_label', '') or 'Averaged Peptide Abundance',
             yaxis_position=pp.get('yaxis_position', 5),
             legend_title_input_1=pp.get('legend_title_1', 'Sample Type:'),
@@ -504,6 +555,8 @@ def generate_heatmap(
             y_min_manual=pp.get('y_min', 0.0),
             y_max_manual=pp.get('y_max', 1.0),
             plot_compact=pp.get('plot_compact', False),
+            plot_landscape_interactive=pp.get('plot_landscape_interactive', False),
+            plot_portrait_interactive=pp.get('plot_portrait_interactive', False),
         )
     except Exception as exc:
         return None, None, None, None, None, [f'Error generating heatmap: {exc}\n{traceback.format_exc()}']

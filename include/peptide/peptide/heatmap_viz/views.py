@@ -373,6 +373,47 @@ def plot(request):
 
 
 # ---------------------------------------------------------------------------
+# Save / download compact interactive plot as HTML
+# ---------------------------------------------------------------------------
+
+@require_POST
+def save_compact_plot(request):
+    """Save a client-generated compact plot HTML to the session work dir."""
+    try:
+        data = json.loads(request.body)
+        html_content = data.get('html', '')
+    except Exception:
+        return JsonResponse({'error': 'Invalid body.'}, status=400)
+
+    if not html_content:
+        return JsonResponse({'error': 'No HTML content provided.'}, status=400)
+
+    work_dir = _get_work_dir(request)
+    plot_path = os.path.join(work_dir, 'compact_plot.html')
+    with open(plot_path, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+
+    return JsonResponse({'success': True})
+
+
+@require_GET
+def download_compact_plot(request):
+    """Return the previously saved compact plot as a self-contained HTML file."""
+    work_dir = request.session.get('hm_work_dir')
+    if not work_dir:
+        return HttpResponse('No session data found.', status=400)
+
+    plot_path = os.path.join(work_dir, 'compact_plot.html')
+    if not os.path.exists(plot_path):
+        return HttpResponse('No compact plot has been generated yet.', status=404)
+
+    with open(plot_path, 'rb') as f:
+        response = HttpResponse(f.read(), content_type='text/html')
+        response['Content-Disposition'] = 'attachment; filename="heatmap_compact.html"'
+        return response
+
+
+# ---------------------------------------------------------------------------
 # Download plot as PNG
 # ---------------------------------------------------------------------------
 

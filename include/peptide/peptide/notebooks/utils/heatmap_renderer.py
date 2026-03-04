@@ -601,18 +601,58 @@ def process_available_data(available_data_variables_dict, filter_type, selected_
 
     }
 
+# ---------------------------------------------------------------------------
+# Helper: derive x-axis label from protein name(s) in the variable dict.
+# Mirrors the notebook's `process_data_variables` / `protein_name_short` logic.
+# ---------------------------------------------------------------------------
+def _derive_xaxis_label(available_data_variables_dict: dict) -> str:
+    """Return '<ProteinName> Sequence' derived from protein_name / protein_id fields."""
+    pid_list   = []
+    pname_list = []
+    for vd in available_data_variables_dict.values():
+        pid   = vd.get('protein_id',   '')
+        pname = vd.get('protein_name', '')
+        if pid:
+            pid_list.append(str(pid))
+        if pname:
+            pname_list.append(str(pname))
+
+    unique_ids   = list(dict.fromkeys(pid_list))
+    unique_names = list(dict.fromkeys(pname_list))
+
+    if len(unique_ids) > 1 and len(unique_names) == 1:
+        short = unique_names[0]
+    elif len(unique_ids) > 1 and len(unique_names) > 1:
+        short = '_'.join(unique_names)
+    elif unique_names:
+        short = unique_names[0]
+    elif unique_ids:
+        short = unique_ids[0]
+    else:
+        return 'Protein Sequence Position'
+
+    return f"{short} Sequence"
+
+
 # Update plot function
 def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, selected_peptides, selected_functions,
                 hm_selected_color, lp_selected_color, avglp_selected_color,
                 xaxis_label, yaxis_label, yaxis_position, legend_title_input_1, legend_title_input_2,
                 legend_title_input_3, plot_land, plot_port, filter_type, log_transform,
-                manual_y_axis, y_min_manual, y_max_manual, plot_compact=False):
+                manual_y_axis, y_min_manual, y_max_manual, plot_compact=False,
+                plot_landscape_interactive=False, plot_portrait_interactive=False):
     import matplotlib.pyplot as plt
     all_errors = []
 
     if not available_data_variables_dict:  # Check if data is available
         all_errors.append('No data is available for plotting.')
         return (None, None, None, None, None, all_errors, [])  # Return tuple with errors
+
+    # If the caller supplied no x-axis label, auto-derive it from protein name(s)
+    # exactly as the notebook does when it sets xaxis_label_input to
+    # f"{protein_name_short} Sequence".
+    if not (xaxis_label or '').strip():
+        xaxis_label = _derive_xaxis_label(available_data_variables_dict)
 
     result = process_available_data(available_data_variables_dict, filter_type, selected_functions,  selected_peptides, bio_or_pep, log_transform, manual_y_axis, y_min_manual, y_max_manual)
     # Initialize fig_port, fig_land, fig_compact, and interactive returns to None
@@ -877,7 +917,7 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
             )
 
             fig_port_plotly = None
-            if plot_port:
+            if plot_portrait_interactive:
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore', UserWarning)
                     try:
@@ -890,7 +930,7 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                         all_errors.append(f'Error generating portrait interactive plot: {exc}')
 
             fig_land_plotly = None
-            if plot_land:
+            if plot_landscape_interactive:
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore', UserWarning)
                     try:
@@ -1813,10 +1853,6 @@ def visualize_sequence_heatmap_interactive(
 
     var_keys = list(available_data_variables_dict.keys())
     num_vars = len(var_keys)
-    print(f"[interactive DEBUG] >>> entering {orientation} interactive plot, "
-          f"num_vars={num_vars}, ms_average_choice={ms_average_choice!r}, "
-          f"bio_or_pep={bio_or_pep!r}, filter_type={filter_type!r}, "
-          f"log_transform={log_transform}, y_ticks={y_ticks}")
     if num_vars == 0:
         return None
 
@@ -1850,7 +1886,7 @@ def visualize_sequence_heatmap_interactive(
     #   2. Plain AA-sequence strip  (only if single protein)
     #   3..n+2 (or 2..n+1): one colored tile row per variable
     LINE_PX = 260       # line-plot row height
-    SEQ_PX  = 26        # plain AA-sequence strip
+    SEQ_PX  = 60        # plain AA-sequence strip (tall enough for legible letters)
     HM_PX   = 26        # each colored heatmap tile row
 
     rows_meta = [('line', None)]            # (type, var_key_or_None)
@@ -1898,7 +1934,6 @@ def visualize_sequence_heatmap_interactive(
     # ══════════════════════════════════════════════════════════════════════════
 
     # ── 1a. averaged MS lines (one per variable) ─────────────────────────────
-    print(f"[interactive DEBUG] SECTION 1a: averaged lines (ms_average_choice={ms_average_choice!r})")
     if ms_average_choice in ('yes', 'only'):
         for var_idx, var_key in enumerate(var_keys):
             vd      = available_data_variables_dict[var_key]
@@ -1906,10 +1941,6 @@ def visualize_sequence_heatmap_interactive(
             aa_list = vd.get('AA_list', [])
             label   = vd.get('label', var_key)
             color   = _rgba(avg_cmap_obj(var_idx % avg_cmap_obj.N))
-            print(f"[interactive DEBUG]   1a var={var_key!r} label={label!r} "
-                  f"ms_data type={type(ms_data).__name__} len={len(ms_data) if ms_data is not None else 'None'} "
-                  f"aa_list len={len(aa_list)}")
-
             if isinstance(ms_data, (pd.DataFrame, pd.Series)):
                 x_vals = list(ms_data.index)
                 y_vals = list(ms_data.values)
@@ -1924,7 +1955,6 @@ def visualize_sequence_heatmap_interactive(
                     for x, aa, y in zip(x_vals, aa_at, y_vals)
                 ]
             except Exception as _he:
-                print(f"[interactive DEBUG]   1a hover build failed: {_he}")
                 hover = [f"Position: {x}" for x in x_vals]
             fig.add_trace(
                 go.Scatter(
@@ -1941,7 +1971,6 @@ def visualize_sequence_heatmap_interactive(
             )
 
     # ── 1b. individual peptide / bioactive-function lines ─────────────────────
-    print(f"[interactive DEBUG] SECTION 1b: individual peptide lines")
     if (bio_or_pep != 'no' or filter_type in ('bioactive-only', 'functional-only')) \
             and ms_average_choice != 'only':
         plotted_labels = set()
@@ -2047,8 +2076,6 @@ def visualize_sequence_heatmap_interactive(
     # ══════════════════════════════════════════════════════════════════════════
     # ROW 2 (optional) — plain protein-sequence strip
     # ══════════════════════════════════════════════════════════════════════════
-    print(f"[interactive DEBUG] SECTION 2: plain AA sequence row "
-          f"(single_protein={single_protein}, len={len(protein_aa_list)})")
     if single_protein and protein_aa_list:
         seq_row_idx = next(k for k, r in enumerate(rows_meta) if r[0] == 'seq')
         seq_row_num = seq_row_idx + 1          # 1-indexed for Plotly
@@ -2062,7 +2089,7 @@ def visualize_sequence_heatmap_interactive(
                 y=[1.0] * len(protein_aa_list),
                 text=seq_text,
                 textposition='inside',
-                textfont=dict(size=8, color='#333333'),
+                textfont=dict(size=11, color='#333333'),
                 insidetextanchor='middle',
                 textangle=0,           # force letters upright — never sideways
                 marker_color='rgba(230,230,230,1.0)',   # neutral light-grey
@@ -2086,42 +2113,33 @@ def visualize_sequence_heatmap_interactive(
     # ══════════════════════════════════════════════════════════════════════════
     # ROWS — colored heatmap tile rows (one per variable)
     # ══════════════════════════════════════════════════════════════════════════
-    print(f"[interactive DEBUG] SECTION 3: heatmap tile rows (num_vars={num_vars})")
     for i, var_key in enumerate(var_keys):
         vd          = available_data_variables_dict[var_key]
         hm_label    = vd.get('label', var_key)
 
         # --- safe extraction: avoid `series or []` which raises ambiguous-truth error ---
         _raw_counts = vd.get('peptide_counts')
-        print(f"[interactive DEBUG] var={var_key!r}  peptide_counts type={type(_raw_counts).__name__}  "
-              f"len={len(_raw_counts) if _raw_counts is not None else 'None'}")
         if _raw_counts is None:
             counts_list = []
         else:
             try:
                 counts_list = list(_raw_counts)
             except Exception as _e:
-                print(f"[interactive DEBUG]   counts_list conversion failed: {_e}")
                 counts_list = []
 
         _raw_ms = vd.get('ms_data_list')
-        print(f"[interactive DEBUG]   ms_data_list type={type(_raw_ms).__name__}  "
-              f"len={len(_raw_ms) if _raw_ms is not None else 'None'}")
         ms_data = _raw_ms if _raw_ms is not None else []
 
         aa_list = vd.get('AA_list', [])
-        print(f"[interactive DEBUG]   AA_list len={len(aa_list)}")
 
         if len(counts_list) == 0:
             hm_df = vd.get('heatmap_df')
             if hm_df is not None and not hm_df.empty:
-                print(f"[interactive DEBUG]   falling back to heatmap_df (rows={len(hm_df)})")
                 counts_list = hm_df['count'].tolist()
                 ms_data     = hm_df['average'].fillna(0).tolist()
                 aa_list     = hm_df['AA'].tolist()
 
         if len(counts_list) == 0:
-            print(f"[interactive DEBUG]   SKIPPING {var_key!r} — no count data")
             continue
 
         positions      = list(range(1, len(counts_list) + 1))
@@ -2135,7 +2153,6 @@ def visualize_sequence_heatmap_interactive(
             try:
                 ms_data = list(ms_data)
             except Exception as _e:
-                print(f"[interactive DEBUG]   ms_data list() failed: {_e}")
                 ms_data = [0.0] * len(counts_list)
 
         # safe float helper for abundance hover text
@@ -2150,9 +2167,6 @@ def visualize_sequence_heatmap_interactive(
         abun_vals = [_safe_float(ms_data[k]) if k < len(ms_data) else 0.0
                      for k in range(len(counts_list))]
 
-        print(f"[interactive DEBUG]   counts_list len={len(counts_list)}  "
-              f"ms_data len={len(ms_data)}  aa_list len={len(aa_list)}  "
-              f"abun_vals[:5]={abun_vals[:5]}")
 
         # ── Amino-acid tile row — identical appearance to portrait/landscape ──
         # All tiles have uniform height=1; colour = peptide count (same cmap).
@@ -2240,7 +2254,7 @@ def visualize_sequence_heatmap_interactive(
     #   • minallowed/maxallowed — stops pan/zoom from leaving the sequence
     #     (Plotly ≥ 5.17; silently ignored on older installs)
     x_label_str  = xaxis_label or 'Protein Sequence Position'
-    x_min        = 0.5
+    x_min        = -1          # pad left so bar at position 1 (centre x=1, left edge x=0.5) is fully visible
     x_max        = max_seq_len + 0.5
     x_common = dict(
         autorange=False,
@@ -2303,11 +2317,15 @@ def visualize_sequence_heatmap_interactive(
     fig.update_layout(
         title=dict(text=title_str, font=dict(size=15), x=0.5),
         height=fig_height,
+        autosize=True,
         bargap=0, bargroupgap=0,
         plot_bgcolor='white',
         paper_bgcolor='white',
         showlegend=True,
         margin=dict(l=110, r=180, t=60, b=60),  # l=110 for variable-name annotations
+        # Force bar text to always render, even when bars are narrower than the text.
+        # Without this Plotly silently hides inside-text on narrow bars (e.g. 200+ AA sequence).
+        uniformtext=dict(mode='show', minsize=9),
         legend=dict(
             yanchor="top", y=0.99,
             xanchor="left", x=1.01,
@@ -2577,10 +2595,20 @@ def visualize_sequence_heatmap_compact(
         for v in var_keys
     )
 
-    # ── y-axis tick values ─────────────────────────────────────────────────────
+    # ── y-axis tick values (uniform across all subplots) ──────────────────────
     tick1 = float(y_ticks[0]) if y_ticks else 0.0
     tick2 = float(y_ticks[1]) if len(y_ticks) > 1 else (tick1 + (float(y_ticks[-1]) if y_ticks else 1.0)) / 2
     tick3 = float(y_ticks[-1]) if y_ticks else 1.0
+
+    # Pre-compute shared y-axis scale (identical for every subplot row)
+    if log_transform and tick1 > 0:
+        import math as _math
+        _y_range   = [_math.log10(max(tick1, 1e-300)), _math.log10(max(tick3, 1e-300))]
+        _axis_type = 'log'
+    else:
+        _y_range   = [tick1, tick3]
+        _axis_type = 'linear'
+    _tick_vals = [tick1, tick2, tick3]
 
     # ── build subplots ─────────────────────────────────────────────────────────
     fig = make_subplots(
@@ -2655,32 +2683,33 @@ def visualize_sequence_heatmap_compact(
             row=row, col=1,
         )
 
-        # y-axis settings for this subplot
-        if log_transform and tick1 > 0:
-            import math
-            y_range   = [math.log10(tick1), math.log10(tick3)]
-            axis_type = 'log'
-            tick_vals = [tick1, tick2, tick3]
-        else:
-            y_range   = [tick1, tick3]
-            axis_type = 'linear'
-            tick_vals = [tick1, tick2, tick3]
-
+        # y-axis settings — uniform scale enforced via autorange=False; labels in legend only
         fig.update_yaxes(
             title=dict(text=label, font=dict(size=12), standoff=5),
-            type=axis_type,
+            type=_axis_type,
+            range=_y_range,
+            autorange=False,
+            tickvals=_tick_vals,
+            showticklabels=False,
+            ticks='',
             showgrid=True,
             gridwidth=1,
             gridcolor='rgba(0,0,0,0.3)',
-            range=y_range,
-            tickvals=tick_vals,
-            ticktext=["", "", ""],   # tick marks without text labels
-            showticklabels=False,
-            ticks="outside",
-            ticklen=6,
-            tickwidth=2,
             row=row, col=1,
         )
+
+    # ── enforce uniform y-axis scale on every subplot (global pass) ───────────
+    fig.update_yaxes(
+        type=_axis_type,
+        range=_y_range,
+        autorange=False,
+        tickvals=_tick_vals,
+        showticklabels=False,
+        ticks='',
+        showgrid=True,
+        gridwidth=1,
+        gridcolor='rgba(0,0,0,0.3)',
+    )
 
     # ── legend: peptide count colour scale ────────────────────────────────────
     legend_title_pep  = legend_title[1] if len(legend_title) > 1 else 'Peptide Counts:'
@@ -2735,7 +2764,10 @@ def visualize_sequence_heatmap_compact(
             showgrid=True,
             gridwidth=1,
             gridcolor='rgba(200,200,200,0.5)',
-            range=[0, max_seq_len + 1],
+            range=[-1, max_seq_len + 0.5],
+            autorange=False,
+            minallowed=-1,
+            maxallowed=max_seq_len + 0.5,
             zeroline=False,
         )
         if i == num_vars:
