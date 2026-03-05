@@ -48,6 +48,53 @@
         });
     });
 
+    // -----------------------------------------------------------------------
+    // "Load example" links — fetch static example file and inject into input
+    // -----------------------------------------------------------------------
+    document.querySelectorAll('.dt-load-example').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            var url = link.getAttribute('data-url');
+            var inputId = link.getAttribute('data-input-id');
+            var input = document.getElementById(inputId);
+            var fileName = url.split('/').pop().replace(/\.[0-9a-f]{8,12}(\.[^.]+)$/, '$1');
+            var origHtml = link.innerHTML;
+
+            link.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:0.75rem;"></i> Loading...';
+            link.classList.add('loading');
+
+            fetch(url)
+                .then(function(r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.blob();
+                })
+                .then(function(blob) {
+                    var file = new File([blob], fileName, {type: blob.type || 'application/octet-stream'});
+                    var dt = new DataTransfer();
+                    dt.items.add(file);
+                    input.files = dt.files;
+                    input.dispatchEvent(new Event('change'));
+                    link.innerHTML = '<i class="fas fa-check" style="font-size:0.75rem;"></i> Loaded';
+                    link.classList.remove('loading');
+                    link.classList.add('loaded');
+                    // Reset after 3 s so it can be clicked again
+                    setTimeout(function() {
+                        link.innerHTML = origHtml;
+                        link.classList.remove('loaded');
+                    }, 3000);
+                })
+                .catch(function() {
+                    link.innerHTML = '<i class="fas fa-times" style="font-size:0.75rem;"></i> Failed';
+                    link.classList.remove('loading');
+                    link.style.color = '#dc3545';
+                    setTimeout(function() {
+                        link.innerHTML = origHtml;
+                        link.style.color = '';
+                    }, 3000);
+                });
+        });
+    });
+
     // Utility: AJAX helper
     function ajax(method, url, data, callback, errorCallback) {
         var xhr = new XMLHttpRequest();
@@ -69,7 +116,7 @@
             if (xhr.status >= 200 && xhr.status < 300) {
                 callback(resp);
             } else {
-                (errorCallback || showError)(resp.error || 'Request failed');
+                (errorCallback || showError)(resp.error || 'Request failed', resp);
             }
         };
         xhr.onerror = function() {
@@ -88,6 +135,13 @@
 
     function showError(msg) {
         var el = document.getElementById('dt-error');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+        setTimeout(function() { el.classList.add('hidden'); }, 10000);
+    }
+
+    function showStep2Error(msg) {
+        var el = document.getElementById('dt-error-step2');
         el.textContent = msg;
         el.classList.remove('hidden');
         setTimeout(function() { el.classList.add('hidden'); }, 10000);
@@ -127,27 +181,27 @@
             var summary = '<div class="dt-alert dt-alert-success">' +
                 'Loaded <strong>' + resp.rows + '</strong> rows, <strong>' + resp.columns + '</strong> columns. ' +
                 'Found <strong>' + resp.sequences + '</strong> unique sequences to search.</div>';
-            if (resp.has_mbpdb) {
-                summary += '<div class="dt-alert dt-alert-success">' +
-                    '<i class="fas fa-check-circle"></i> MBPDB file loaded: <strong>' +
-                    resp.mbpdb_rows + '</strong> records. Skipping BLAST search.</div>';
-            }
             if (resp.warning) {
                 summary += '<div class="dt-alert dt-alert-warning">' + resp.warning + '</div>';
             }
-            document.getElementById('upload-summary').innerHTML = summary;
-            document.getElementById('upload-results').classList.remove('hidden');
 
-            // If MBPDB data was uploaded, auto-fire the BLAST step (which will skip
-            // immediately) so the user doesn't have to click "Search MBPDB".
             if (resp.has_mbpdb) {
+                // MBPDB file provided — skip the Search/Skip step entirely.
+                // Fold everything into one combined "Upload Summary" card.
+                summary += '<div class="dt-alert dt-alert-success">' +
+                    '<i class="fas fa-check-circle"></i> MBPDB file loaded: <strong>' +
+                    resp.mbpdb_rows + '</strong> records. Skipping BLAST search.</div>';
                 ajax('POST', 'start-blast/', null, function(blastResp) {
-                    document.getElementById('blast-results').classList.remove('hidden');
-                    document.getElementById('blast-summary').innerHTML =
-                        '<div class="dt-alert dt-alert-info">' +
+                    summary += '<div class="dt-alert dt-alert-info">' +
                         '<i class="fas fa-database"></i> ' + blastResp.message +
                         ' (' + blastResp.count + ' records)</div>';
+                    document.getElementById('blast-results-heading').textContent = 'Upload Summary';
+                    document.getElementById('blast-summary').innerHTML = summary;
+                    document.getElementById('blast-results').classList.remove('hidden');
                 });
+            } else {
+                document.getElementById('upload-summary').innerHTML = summary;
+                document.getElementById('upload-results').classList.remove('hidden');
             }
         }, function(msg) {
             btn.disabled = false;
@@ -247,18 +301,223 @@
     }
 
     // -----------------------------------------------------------------------
-    // Step 2: Study Variable Grouping
+    // Step 2: Tech Replicate Assignment + Study Variable Grouping (combined)
     // -----------------------------------------------------------------------
+
+    var rawAvailableColumns = [];  // pre-collapse columns (for tech rep panel)
+    var autoTechDupMapping = {};   // always {}: kept for computeBioRepColumns signature only
+    var trAvailableColumns = [];   // raw columns available in tech rep panel
+    var trSelectedColumns = [];    // columns selected for the current tech rep group being built
+    var manualTechReps = [];       // [{name, columns}] — includes both auto-detected (pre-populated) and manually added groups
+
+    // Compute bio rep columns from raw columns + manualTechReps mapping.
+    // autoTechDupMapping is always empty; all groups live in manualTechReps.
+    function computeBioRepColumns() {
+        var colToBioRep = {};
+        // (autoTechDupMapping is always {}, kept for historical compat)
+        Object.keys(autoTechDupMapping).forEach(function(bioRep) {
+            autoTechDupMapping[bioRep].forEach(function(col) { colToBioRep[col] = bioRep; });
+        });
+        // Manual
+        manualTechReps.forEach(function(g) {
+            g.columns.forEach(function(col) { colToBioRep[col] = g.name; });
+        });
+
+        var result = [];
+        var inserted = {};
+        rawAvailableColumns.forEach(function(col) {
+            var bioRep = colToBioRep[col];
+            if (bioRep) {
+                if (!inserted[bioRep]) { result.push(bioRep); inserted[bioRep] = true; }
+            } else {
+                result.push(col);
+            }
+        });
+        return result;
+    }
 
     function loadStep2() {
         ajax('GET', 'step2/', null, function(resp) {
-            availableColumns = resp.columns || [];
+            rawAvailableColumns = resp.raw_columns || resp.columns || [];
+            var detectedMapping = resp.tech_dup_mapping || {};
+            trAvailableColumns = rawAvailableColumns;
+            trSelectedColumns = [];
+
+            // Pre-populate manualTechReps with any auto-detected groups so the
+            // user can review, remove, or add to them. autoTechDupMapping is
+            // cleared to avoid double-counting in computeBioRepColumns().
+            autoTechDupMapping = {};
+            manualTechReps = Object.keys(detectedMapping).map(function(bioRep) {
+                return {name: bioRep, columns: detectedMapping[bioRep]};
+            });
+
+            // Group panel uses bio rep columns (post-collapse)
+            availableColumns = computeBioRepColumns();
             selectedColumns = [];
+
+            // Restore previously saved groups (resume) or start fresh.
+            definedGroups = (resp.saved_groups && resp.saved_groups.length)
+                ? resp.saved_groups.slice()
+                : [];
+
+            // Reset inputs
+            document.getElementById('tr-bio-rep-name-input').value = '';
+            document.getElementById('tr-column-search').value = '';
+            document.getElementById('group-name-input').value = '';
+            document.getElementById('column-search').value = '';
+
+            renderTrColumnPanels('');
+            renderDefinedTechReps();
+            renderGroups();
             renderColumnPanels('');
+            document.getElementById('submit-groups-btn').disabled = (definedGroups.length === 0);
         });
     }
 
-    // Render the dual-panel column selector
+    // Format a column name for display: _repN suffix → (repN)
+    // e.g. "Sample_A_rep1" → "Sample_A (rep1)". Raw name is preserved as tooltip.
+    function fmtRepCol(col) {
+        return col.replace(/_rep(\d+)$/i, ' (rep$1)');
+    }
+
+    // Tech rep dual-panel: shows raw columns minus those already in a manual group
+    function renderTrColumnPanels(filter) {
+        var f = (filter || '').toLowerCase();
+        var availList = document.getElementById('tr-column-available-list');
+        var selList = document.getElementById('tr-column-selected-list');
+        var availCount = document.getElementById('tr-avail-count');
+        var selCount = document.getElementById('tr-selected-count');
+
+        var usedInGroups = {};
+        manualTechReps.forEach(function(g) { g.columns.forEach(function(c) { usedInGroups[c] = true; }); });
+
+        availList.innerHTML = '';
+        var shown = 0;
+        trAvailableColumns.forEach(function(col) {
+            if (trSelectedColumns.indexOf(col) !== -1) return;
+            if (usedInGroups[col]) return;
+            if (f && col.toLowerCase().indexOf(f) === -1) return;
+            shown++;
+            var div = document.createElement('div');
+            div.className = 'dt-col-item';
+            div.title = col;
+            div.textContent = fmtRepCol(col);
+            div.addEventListener('click', function() {
+                if (trSelectedColumns.indexOf(col) === -1) {
+                    trSelectedColumns.push(col);
+                    renderTrColumnPanels(document.getElementById('tr-column-search').value);
+                }
+            });
+            availList.appendChild(div);
+        });
+        if (!shown) availList.innerHTML = '<div class="dt-col-empty">No columns available</div>';
+        availCount.textContent = '(' + shown + ')';
+
+        selList.innerHTML = '';
+        if (!trSelectedColumns.length) {
+            selList.innerHTML = '<div class="dt-col-empty">Click columns to add</div>';
+        } else {
+            trSelectedColumns.forEach(function(col) {
+                var div = document.createElement('div');
+                div.className = 'dt-col-item selected-item';
+                div.title = col;
+                var txt = document.createElement('span');
+                txt.textContent = fmtRepCol(col);
+                txt.style.overflow = 'hidden';
+                txt.style.textOverflow = 'ellipsis';
+                var rm = document.createElement('span');
+                rm.className = 'dt-col-remove';
+                rm.textContent = '×';
+                rm.title = 'Remove';
+                rm.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var idx = trSelectedColumns.indexOf(col);
+                    if (idx !== -1) trSelectedColumns.splice(idx, 1);
+                    renderTrColumnPanels(document.getElementById('tr-column-search').value);
+                });
+                div.appendChild(txt);
+                div.appendChild(rm);
+                selList.appendChild(div);
+            });
+        }
+        selCount.textContent = '(' + trSelectedColumns.length + ')';
+    }
+
+    function renderDefinedTechReps() {
+        var list = document.getElementById('tr-groups-list');
+        list.innerHTML = '';
+        if (!manualTechReps.length) {
+            document.getElementById('tr-defined-groups').classList.add('hidden');
+            return;
+        }
+        document.getElementById('tr-defined-groups').classList.remove('hidden');
+        manualTechReps.forEach(function(g, i) {
+            var div = document.createElement('div');
+            div.className = 'dt-group-item';
+            // Count occurrences so duplicate column names are numbered in the display
+            var colCounts = {};
+            g.columns.forEach(function(c) { colCounts[c] = (colCounts[c] || 0) + 1; });
+            var colInstances = {};
+            var colLabels = g.columns.map(function(c) {
+                if (colCounts[c] > 1) {
+                    colInstances[c] = (colInstances[c] || 0) + 1;
+                    return escHtml(fmtRepCol(c)) + ' <span style="color:#888;font-size:0.8em;">[' + colInstances[c] + ']</span>';
+                }
+                return '<em>' + escHtml(fmtRepCol(c)) + '</em>';
+            });
+            div.innerHTML = '<span><strong>' + g.name + '</strong> &larr; ' +
+                colLabels.join(', ') + '</span>' +
+                '<span class="remove-group" data-idx="' + i + '"><i class="fas fa-times"></i></span>';
+            list.appendChild(div);
+        });
+        list.querySelectorAll('.remove-group').forEach(function(el) {
+            el.addEventListener('click', function() {
+                manualTechReps.splice(parseInt(this.getAttribute('data-idx')), 1);
+                renderDefinedTechReps();
+                renderTrColumnPanels(document.getElementById('tr-column-search').value);
+                // Refresh group panel to reflect removed tech rep group
+                availableColumns = computeBioRepColumns();
+                renderColumnPanels(document.getElementById('column-search').value);
+            });
+        });
+    }
+
+    document.getElementById('tech-rep-json-input').addEventListener('change', function() {
+        if (!this.files.length) return;
+        var formData = new FormData();
+        formData.append('tech_rep_file', this.files[0]);
+        ajax('POST', 'upload-tech-reps/', formData, function(resp) {
+            manualTechReps = resp.groups || [];
+            renderDefinedTechReps();
+            renderTrColumnPanels(document.getElementById('tr-column-search').value);
+            availableColumns = computeBioRepColumns();
+            renderColumnPanels(document.getElementById('column-search').value);
+        });
+    });
+
+    document.getElementById('tr-column-search').addEventListener('input', function() {
+        renderTrColumnPanels(this.value);
+    });
+
+    document.getElementById('tr-add-group-btn').addEventListener('click', function() {
+        var name = document.getElementById('tr-bio-rep-name-input').value.trim();
+        if (!name) { showStep2Error('Please enter a biological replicate name'); return; }
+        if (trSelectedColumns.length < 2) { showStep2Error('Please select at least 2 columns to form a technical replicate group'); return; }
+        manualTechReps.push({name: name, columns: trSelectedColumns.slice()});
+        document.getElementById('tr-bio-rep-name-input').value = '';
+        trSelectedColumns = [];
+        renderDefinedTechReps();
+        renderTrColumnPanels(document.getElementById('tr-column-search').value);
+        // Refresh group panel so the new bio rep name appears in available columns
+        availableColumns = computeBioRepColumns();
+        renderColumnPanels(document.getElementById('column-search').value);
+    });
+
+    document.getElementById('back-to-step1-btn').addEventListener('click', function() {
+        goToStep(1);
+    });
+
+    // Categorical group dual-panel
     function renderColumnPanels(filter) {
         var f = (filter || '').toLowerCase();
         var availList = document.getElementById('column-available-list');
@@ -266,11 +525,10 @@
         var availCount = document.getElementById('avail-count');
         var selCount = document.getElementById('selected-count');
 
-        // Available panel: columns not yet selected, filtered by search
         availList.innerHTML = '';
         var shown = 0;
         availableColumns.forEach(function(col) {
-            if (selectedColumns.indexOf(col) !== -1) return;  // already selected
+            if (selectedColumns.indexOf(col) !== -1) return;
             if (f && col.toLowerCase().indexOf(f) === -1) return;
             shown++;
             var div = document.createElement('div');
@@ -285,12 +543,9 @@
             });
             availList.appendChild(div);
         });
-        if (!shown) {
-            availList.innerHTML = '<div class="dt-col-empty">No columns available</div>';
-        }
+        if (!shown) availList.innerHTML = '<div class="dt-col-empty">No columns available</div>';
         availCount.textContent = '(' + shown + ')';
 
-        // Selected panel
         selList.innerHTML = '';
         if (!selectedColumns.length) {
             selList.innerHTML = '<div class="dt-col-empty">Click columns to add</div>';
@@ -336,15 +591,13 @@
             });
             renderGroups();
             document.getElementById('submit-groups-btn').disabled = false;
-            // Note: do NOT auto-advance — let the user review and continue manually
         });
     });
 
     document.getElementById('add-group-btn').addEventListener('click', function() {
         var name = document.getElementById('group-name-input').value.trim();
-        if (!name) { showError('Please enter a group name'); return; }
-        if (!selectedColumns.length) { showError('Please select at least one column'); return; }
-
+        if (!name) { showStep2Error('Please enter a group name'); return; }
+        if (!selectedColumns.length) { showStep2Error('Please select at least one column'); return; }
         definedGroups.push({name: name, columns: selectedColumns.slice()});
         renderGroups();
         document.getElementById('group-name-input').value = '';
@@ -361,11 +614,44 @@
             return;
         }
         document.getElementById('defined-groups').classList.remove('hidden');
+        var dragSrcIdx = null;
         definedGroups.forEach(function(g, i) {
             var div = document.createElement('div');
             div.className = 'dt-group-item';
-            div.innerHTML = '<span><strong>' + g.name + '</strong> (' + g.columns.length + ' columns)</span>' +
+            div.draggable = true;
+            div.innerHTML =
+                '<span class="dt-group-drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical"></i></span>' +
+                '<span style="flex:1;"><strong>' + escHtml(g.name) + '</strong> (' + g.columns.length + ' columns)</span>' +
                 '<span class="remove-group" data-idx="' + i + '"><i class="fas fa-times"></i></span>';
+
+            div.addEventListener('dragstart', function(e) {
+                dragSrcIdx = i;
+                e.dataTransfer.effectAllowed = 'move';
+                div.classList.add('dt-group-dragging');
+            });
+            div.addEventListener('dragend', function() {
+                div.classList.remove('dt-group-dragging');
+                list.querySelectorAll('.dt-group-item').forEach(function(el) {
+                    el.classList.remove('dt-group-drag-over');
+                });
+            });
+            div.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                list.querySelectorAll('.dt-group-item').forEach(function(el) {
+                    el.classList.remove('dt-group-drag-over');
+                });
+                if (dragSrcIdx !== i) div.classList.add('dt-group-drag-over');
+            });
+            div.addEventListener('drop', function(e) {
+                e.preventDefault();
+                if (dragSrcIdx !== null && dragSrcIdx !== i) {
+                    var moved = definedGroups.splice(dragSrcIdx, 1)[0];
+                    definedGroups.splice(i, 0, moved);
+                    renderGroups();
+                }
+            });
+
             list.appendChild(div);
         });
         list.querySelectorAll('.remove-group').forEach(function(el) {
@@ -387,27 +673,30 @@
         document.getElementById('submit-groups-btn').disabled = true;
     });
 
-    document.getElementById('back-to-step1-btn').addEventListener('click', function() {
-        goToStep(1);
-    });
-
+    // Save Groups: submit tech reps first (to save mapping), then submit groups
     document.getElementById('submit-groups-btn').addEventListener('click', function() {
         var btn = this;
         btn.disabled = true;
-        ajax('POST', 'submit-groups/', {groups: definedGroups}, function() {
-            goToStep(3);
-            loadStep3();
-        }, function(msg) { btn.disabled = false; showError(msg); });
+        ajax('POST', 'submit-tech-reps/', {tech_reps: manualTechReps}, function() {
+            ajax('POST', 'submit-groups/', {groups: definedGroups}, function() {
+                goToStep(3);
+                loadStep3();
+            }, function(msg) { btn.disabled = false; showStep2Error(msg); });
+        }, function(msg) { btn.disabled = false; showStep2Error(msg); });
     });
 
+    // Skip Grouping: still save tech reps, then skip groups using bio rep columns
     document.getElementById('skip-groups-btn').addEventListener('click', function() {
         var btn = this;
         btn.disabled = true;
-        ajax('POST', 'skip-groups/', {columns: selectedColumns}, function() {
-            btn.disabled = false;
-            goToStep(3);
-            loadStep3();
-        }, function(msg) { btn.disabled = false; showError(msg); });
+        ajax('POST', 'submit-tech-reps/', {tech_reps: manualTechReps}, function(resp) {
+            var bioRepCols = resp.columns || availableColumns;
+            ajax('POST', 'skip-groups/', {columns: bioRepCols}, function() {
+                btn.disabled = false;
+                goToStep(3);
+                loadStep3();
+            }, function(msg) { btn.disabled = false; showStep2Error(msg); });
+        }, function(msg) { btn.disabled = false; showStep2Error(msg); });
     });
 
     // -----------------------------------------------------------------------
@@ -476,17 +765,17 @@
             var html = '<strong>' + escHtml(combo.combo) + '</strong> (' + combo.occurrences + ' rows)<br>';
             html += '<div class="combo-options" style="margin-top: 8px;">';
 
-            // Mode 1: Keep combined (default)
+            // Mode 1: Keep combined
             html += '<label style="display: block; margin: 4px 0;">' +
-                '<input type="radio" name="combo_mode_' + idx + '" value="asis" checked> ' +
+                '<input type="radio" name="combo_mode_' + idx + '" value="asis"> ' +
                 'Keep combined ID</label>';
 
-            // Mode 2: Split — checkboxes revealed when this radio is selected
+            // Mode 2: Split — default selected, panel expanded
             html += '<label style="display: block; margin: 4px 0;">' +
-                '<input type="radio" name="combo_mode_' + idx + '" value="split"> ' +
+                '<input type="radio" name="combo_mode_' + idx + '" value="split" checked> ' +
                 'Split into individual proteins:</label>';
             html += '<div class="combo-split-panel" id="split_panel_' + idx + '" ' +
-                'style="display:none; margin-left:24px; margin-top:4px; padding:8px; ' +
+                'style="display:block; margin-left:24px; margin-top:4px; padding:8px; ' +
                 'background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px;">';
             html += '<div style="font-size:0.8rem; color:#888; margin-bottom:6px;">' +
                 'Checked proteins will each get their own row; unchecked proteins are removed.</div>';
@@ -539,8 +828,7 @@
 
     document.getElementById('back-to-step2-btn').addEventListener('click', function() {
         goToStep(2);
-        // Re-render column panel in case columns need to be shown again
-        renderColumnPanels(document.getElementById('column-search').value);
+        loadStep2();
     });
 
     document.getElementById('fetch-uniprot-btn').addEventListener('click', function() {
@@ -582,15 +870,6 @@
         }, function(msg) { btn.disabled = false; showError(msg); });
     });
 
-    // Download mapping key — navigates directly to the download endpoint
-    document.getElementById('download-protein-map-btn').addEventListener('click', function() {
-        var iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = 'download-protein-map/';
-        document.body.appendChild(iframe);
-        setTimeout(function() { document.body.removeChild(iframe); }, 10000);
-    });
-
     // Upload mapping key — auto-apply on file selection or drop
     document.getElementById('protein-map-input').addEventListener('change', function() {
         if (!this.files.length) return;
@@ -629,7 +908,7 @@
                     // Nothing selected in split mode → treat as keep combined
                     decisions[combo] = {action: 'ASIS'};
                 } else {
-                    decisions[combo] = {action: 'MULTI', protein_ids: selectedIds};
+                    decisions[combo] = {action: 'SPLIT', protein_ids: selectedIds};
                 }
             } else if (mode === 'custom') {
                 var customInput = row.querySelector('#custom_' + idx);
@@ -672,10 +951,22 @@
                 resp.columns + '</strong> columns.</div>';
 
             renderExportButtons(resp.exports);
-        }, function(msg) {
+            document.getElementById('viz-links-section').classList.remove('hidden');
+        }, function(msg, resp) {
             btn.disabled = false;
             document.getElementById('process-progress').classList.add('hidden');
             showError(msg);
+            var detail = (resp && (resp.detail || resp.traceback)) ? (resp.detail || resp.traceback) : null;
+            if (detail) {
+                document.getElementById('export-section').classList.remove('hidden');
+                document.getElementById('process-summary').innerHTML =
+                    '<div class="dt-alert dt-alert-danger">' +
+                    '<strong>Error:</strong> ' + escHtml(msg) +
+                    '<pre style="margin-top:8px;font-size:0.75rem;white-space:pre-wrap;' +
+                    'word-break:break-all;max-height:220px;overflow-y:auto;' +
+                    'background:#fff3;border-radius:3px;padding:6px;">' +
+                    escHtml(detail) + '</pre></div>';
+            }
         });
     });
 
@@ -695,6 +986,10 @@
             {key: 'summed_function', icon: 'fa-flask', label: 'Summed Functional Data'},
             {key: 'group_correlation', icon: 'fa-chart-line', label: 'Sample-to-Sample Correlations'},
             {key: 'replicate_correlation', icon: 'fa-chart-area', label: 'Replicate Correlations'},
+            {key: 'tech_rep_correlation', icon: 'fa-vials', label: 'Technical Replicate Correlations'},
+            {key: 'tech_rep_key', icon: 'fa-key', label: 'Technical Replicate Key'},
+            {key: 'protein_map', icon: 'fa-file-export', label: 'Protein Mapping Key',
+             download_url: 'download-protein-map/'},
         ];
 
         items.forEach(function(item) {
@@ -711,20 +1006,34 @@
                 var actions = document.createElement('div');
                 actions.className = 'dt-export-actions';
 
-                var viewBtn = document.createElement('button');
-                viewBtn.className = 'dt-export-view-btn';
-                viewBtn.innerHTML = '<i class="fas fa-eye"></i> View';
-                (function(key, label) {
-                    viewBtn.addEventListener('click', function() { viewExport(key, label); });
-                })(item.key, item.label);
-                actions.appendChild(viewBtn);
+                if (!item.no_view) {
+                    var viewBtn = document.createElement('button');
+                    viewBtn.className = 'dt-export-view-btn';
+                    viewBtn.innerHTML = '<i class="fas fa-eye"></i> View';
+                    (function(key, label) {
+                        viewBtn.addEventListener('click', function() { viewExport(key, label); });
+                    })(item.key, item.label);
+                    actions.appendChild(viewBtn);
+                }
 
                 var dlBtn = document.createElement('button');
                 dlBtn.className = 'dt-export-dl-btn';
                 dlBtn.innerHTML = '<i class="fas fa-download"></i> Download';
-                (function(key) {
-                    dlBtn.addEventListener('click', function() { downloadExport(key); });
-                })(item.key);
+                if (item.download_url) {
+                    (function(url) {
+                        dlBtn.addEventListener('click', function() {
+                            var iframe = document.createElement('iframe');
+                            iframe.style.display = 'none';
+                            iframe.src = url;
+                            document.body.appendChild(iframe);
+                            setTimeout(function() { document.body.removeChild(iframe); }, 10000);
+                        });
+                    })(item.download_url);
+                } else {
+                    (function(key) {
+                        dlBtn.addEventListener('click', function() { downloadExport(key); });
+                    })(item.key);
+                }
                 actions.appendChild(dlBtn);
 
                 row.appendChild(actions);
@@ -744,6 +1053,17 @@
         document.body.appendChild(iframe);
         setTimeout(function() { document.body.removeChild(iframe); }, 30000);
     }
+
+    document.getElementById('download-all-btn').addEventListener('click', function() {
+        var corrType = document.getElementById('correlation-type').value;
+        var logTrans = document.getElementById('log-transform').checked;
+        var url = 'download-all/?correlation_type=' + corrType + '&log_transform=' + logTrans;
+        var iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = url;
+        document.body.appendChild(iframe);
+        setTimeout(function() { document.body.removeChild(iframe); }, 60000);
+    });
 
     function viewExport(type, label) {
         var corrType = document.getElementById('correlation-type').value;
@@ -828,11 +1148,131 @@
         document.getElementById('dt-viewer-panel').classList.add('hidden');
     });
 
+    // -----------------------------------------------------------------------
+    // Visualization transfer buttons
+    // -----------------------------------------------------------------------
+
+    function transferToViz(transferUrl, btnId, btnLabel, iconClass, redirectUrl, storageKey) {
+        var btn = document.getElementById(btnId);
+        btn.disabled = true;
+        btn.innerHTML = '<span class="dt-spinner"></span> Transferring...';
+        document.getElementById('viz-transfer-status').innerHTML = '';
+        ajax('POST', transferUrl, null, function(resp) {
+            try { sessionStorage.setItem(storageKey, JSON.stringify(resp)); } catch(e) {}
+            window.location.href = redirectUrl;
+        }, function(msg) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas ' + iconClass + '"></i> ' + btnLabel;
+            document.getElementById('viz-transfer-status').innerHTML =
+                '<div class="dt-alert dt-alert-danger">' + escHtml(msg) + '</div>';
+        });
+    }
+
+    document.getElementById('open-in-da-btn').addEventListener('click', function() {
+        transferToViz('/data_analysis/transfer-from-dt/', 'open-in-da-btn',
+            'Open in Data Analysis', 'fa-chart-bar',
+            '/data_analysis/?from_dt=1', 'da_from_dt');
+    });
+    document.getElementById('open-in-hm-btn').addEventListener('click', function() {
+        transferToViz('/heatmap/transfer-from-dt/', 'open-in-hm-btn',
+            'Open in Heatmap Visualization', 'fa-th',
+            '/heatmap/?from_dt=1', 'hm_from_dt');
+    });
+
     document.getElementById('start-over-btn').addEventListener('click', function() {
         if (!confirm('This will clear all data. Continue?')) return;
         ajax('POST', 'cleanup/', null, function() {
             location.reload();
         });
+    });
+
+    // Restore a dropzone's visual filename display (mirrors the internal showFile closure)
+    function restoreDropzoneName(inputId, fileName) {
+        if (!fileName) return;
+        var input = document.getElementById(inputId);
+        if (!input) return;
+        var zone = input.closest('.dt-dropzone');
+        if (!zone) return;
+        zone.querySelector('.drop-text').classList.add('hidden');
+        var el = zone.querySelector('.file-name');
+        el.textContent = fileName;
+        el.classList.remove('hidden');
+    }
+
+    // -----------------------------------------------------------------------
+    // Resume banner — check for existing session on page load
+    // -----------------------------------------------------------------------
+    ajax('GET', 'session-state/', null, function(resp) {
+        if (!resp.has_session || !resp.has_data) return;
+
+        // Restore uploaded file names on the Step 1 dropzones
+        var fn = resp.file_names || {};
+        var savedFiles = resp.has_saved_files || {};
+        restoreDropzoneName('peptidomic_file', fn.peptidomic_file);
+        restoreDropzoneName('functional_file', fn.functional_file);
+        restoreDropzoneName('fasta_file',      fn.fasta_file);
+
+        // If saved file bytes are available, also reload them into the inputs
+        // so the form can be resubmitted without the user re-selecting files.
+        function reloadSavedFile(fileKey, inputId) {
+            if (!savedFiles[fileKey]) return;
+            fetch('reload-saved-file/' + fileKey + '/')
+                .then(function(r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    var origName = r.headers.get('X-Original-Filename') || fileKey;
+                    return r.blob().then(function(blob) {
+                        return {blob: blob, name: origName};
+                    });
+                })
+                .then(function(obj) {
+                    var file = new File([obj.blob], obj.name,
+                        {type: obj.blob.type || 'application/octet-stream'});
+                    var dt = new DataTransfer();
+                    dt.items.add(file);
+                    var input = document.getElementById(inputId);
+                    if (input) {
+                        input.files = dt.files;
+                        // Don't dispatch 'change' here — we don't want to
+                        // re-trigger the dropzone visual since names are already shown.
+                    }
+                })
+                .catch(function() { /* silent — user can still pick manually */ });
+        }
+
+        reloadSavedFile('peptidomic_file', 'peptidomic_file');
+        reloadSavedFile('functional_file', 'functional_file');
+        reloadSavedFile('fasta_file',      'fasta_file');
+
+        var banner = document.getElementById('dt-resume-banner');
+        var btns = document.getElementById('dt-resume-btns');
+
+        function makeResumeBtn(label, icon, onClick) {
+            var btn = document.createElement('button');
+            btn.className = 'dt-resume-btn';
+            btn.innerHTML = '<i class="fas ' + icon + '"></i> ' + label;
+            btn.addEventListener('click', function() {
+                banner.classList.add('hidden');
+                onClick();
+            });
+            btns.appendChild(btn);
+        }
+
+        makeResumeBtn('Upload Data', 'fa-upload', function() {
+            goToStep(1);
+        });
+        makeResumeBtn('Study Variables', 'fa-layer-group', function() {
+            goToStep(2); loadStep2();
+        });
+        makeResumeBtn('Protein Mapping', 'fa-dna', function() {
+            goToStep(3); loadStep3();
+        });
+        if (resp.has_processed) {
+            makeResumeBtn('Process &amp; Export', 'fa-cogs', function() {
+                goToStep(4);
+            });
+        }
+
+        banner.classList.remove('hidden');
     });
 
 })();
