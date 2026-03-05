@@ -46,6 +46,5 @@ README.md
 todo.txt
 dev.sh
 
-# Large/archived content that duplicates static files
-include/peptide/peptide/notebooks/archive
-include/peptide/peptide/notebooks/heatmap_images
+# legacy notebook version of peptiline
+include/peptide/peptide/notebooks
