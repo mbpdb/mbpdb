@@ -14,6 +14,8 @@ import copy
 import warnings
 from itertools import cycle
 
+import _settings as settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,35 +29,13 @@ def _log_validation(message: str, level: str = "warning") -> None:
         logger.warning(message)
 
 # ---------------------------------------------------------------------------
-# Rendering constants (formerly imported from notebooks/_settings.py)
+# Constants from settings (safe to load — no matplotlib)
 # ---------------------------------------------------------------------------
-plot_heatmap = 'yes'
-plot_zero    = 'no'
-chuck_size   = 78
-
-legend_title = [
-    'Sample Type:',
-    'Peptide Counts:',
-    'Bioactivity Function:',
-    'Peptide Interval:',
-    'Average Abundance:',
-]
-
-# Portrait heatmap layout settings: {num_variables: (lineplot_height, scale_factor)}
-port_hm_settings = {
-    1:  (35, 0.075),
-    2:  (20, 0.125),
-    3:  (20, 0.15),
-    4:  (20, 0.175),
-    5:  (20, 0.225),
-    6:  (20, 0.25),
-    7:  (20, 0.275),
-    8:  (20, 0.3),
-    9:  (20, 0.325),
-    10: (20, 0.36),
-    11: (20, 0.38),
-    12: (20, 0.41),
-}
+plot_heatmap     = settings.plot_heatmap
+plot_zero        = settings.plot_zero
+port_hm_settings = settings.port_hm_settings
+chuck_size       = settings.chuck_size
+legend_title     = settings.legend_title
 
 # ---------------------------------------------------------------------------
 # State globals — set by process_available_data()/update_plot() at runtime,
@@ -444,7 +424,7 @@ def process_available_data(available_data_variables_dict, filter_type, selected_
 
     # Process each variable's data for visualization
     for var in available_data_variables_dict:
-        if filter_type in ('all-peptides', 'All', 'all', ''):
+        if filter_type == 'all-peptides':
             df = available_data_variables_dict[var]['heatmap_df']
         elif filter_type == 'bioactive-only':
             df = available_data_variables_dict[var]['filtered_heatmap_df']
@@ -482,11 +462,10 @@ def process_available_data(available_data_variables_dict, filter_type, selected_
                         df['average'] = df.drop('AA', axis=1).where(non_zero_mask).mean(axis=1)
                     else:
                         df = None
+                else:
+                    df = None
             else:
                 df = None
-        else:
-            # Unknown filter_type — fall back to all peptides
-            df = available_data_variables_dict[var]['heatmap_df']
 
         # When specific peptide intervals are selected, narrow the heatmap data to only
         # those intervals so that peptide_counts and ms_data (heatmap colours + line
@@ -683,6 +662,8 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
     fig_port_plotly_return  = None
     fig_land_plotly_return  = None
 
+    # Unpack the dictionary into individual global variables
+    import _settings as settings
     if result:
         # Check for processing errors
         if 'errors' in result and result['errors']:
