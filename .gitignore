@@ -41,17 +41,11 @@ include/peptide/uploads/temp/
 # IDE files
 .idea/
 
-# Ignore heatmap images
-include/peptide/peptide/notebooks/heatmap_images/*
+# Notebooks folder — content synced to github.com/Kuhfeldrf/peptiline; not archived here
+include/peptide/peptide/notebooks/
 
 # Ignore Build.sh
 build.sh
-
-# Archive
-include/peptide/peptide/notebooks/archive/
-
-# Ignore needs_transformation folder
-include/peptide/peptide/notebooks/examples/needs_transformation/
 
 # Ignore any .venv folders
 .venv*/
@@ -63,21 +57,15 @@ lib64/
 
 #dictionary export folder
 protein_data_export/
-include/peptide/peptide/notebooks/example_peptide_data_nooverlapingproteins.csv
-include/peptide/peptide/notebooks/Peptidomics_result_Russell_short.csv
 
 # Zone Identifier
 *.Zone.Identifier
+*:Zone.Identifier
+*:sec.endpointdlp
 
 env/
-lib/
 *.pyc
 __pycache__/
 lfg.sh
-include/peptide/peptide/notebooks/heatmap_visualization_backup copy.ipynb
-include/peptide/peptide/notebooks/examples/results_from_data_transformation/correlation_analysis_pearson_log10_20260217_064402.xlsxZone.Identifier
 todo*
-include/peptide/peptide/notebooks/examples/*
-*:Zone.Identifier
-*:sec.endpointdlp
 dev.sh
