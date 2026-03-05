@@ -223,7 +223,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                 </div>
                 <div id="fasta-file-name" style="font-size:.78rem; color:#555; margin-top:3px;"></div>
                 <div style="margin-top:6px; font-size:0.82rem; color:#666;">
-                    <a href="/static/peptide/examples/example_fasta.fasta" download>
+                    <a href="/static/peptide/examples/example_protein_sequences.fasta" download>
                         <i class="fas fa-download"></i> Download example FASTA</a>
                     &middot;
                     <a href="#" id="hm-load-example-fasta" style="color:#1976d2; text-decoration:none;">
@@ -1270,7 +1270,7 @@ document.getElementById('hm-load-example-csv').addEventListener('click', functio
 });
 document.getElementById('hm-load-example-fasta').addEventListener('click', function(e) {
     e.preventDefault();
-    hmLoadExample('/static/peptide/examples/example_fasta.fasta', 'fasta-file-input', 'hm-load-example-fasta');
+    hmLoadExample('/static/peptide/examples/example_protein_sequences.fasta', 'fasta-file-input', 'hm-load-example-fasta');
 });
 </script>
 {% endblock %}

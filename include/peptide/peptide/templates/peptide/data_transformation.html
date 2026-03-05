@@ -146,7 +146,7 @@
                         <div class="file-name hidden"></div>
                     </div>
                     <div class="help-text">CSV, TSV, or XLSX file containing peptidomic results (Proteome Discoverer, MaxQuant, Skyline, etc.)</div>
-                    <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_peptidomic_data.csv' %}" download>Download example file</a> &middot; <a href="#" class="dt-load-example" data-input-id="peptidomic_file" data-url="{% static 'peptide/examples/data_transformation/example_peptidomic_data.csv' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
+                    <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/example_peptidomic_data.csv' %}" download>Download example file</a> &middot; <a href="#" class="dt-load-example" data-input-id="peptidomic_file" data-url="{% static 'peptide/examples/example_peptidomic_data.csv' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
                 </div>
                 <!-- Functional data OR BLAST threshold (same row) -->
                 <div class="dt-or-row">
@@ -158,7 +158,7 @@
                             <div class="file-name hidden"></div>
                         </div>
                         <div class="help-text">Pre-computed MBPDB results (columns: search_peptide, peptide, function) — skips BLAST search</div>
-                        <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_mbpdb_functional_data.csv' %}" download>Download example file</a> &middot; <a href="#" class="dt-load-example" data-input-id="functional_file" data-url="{% static 'peptide/examples/data_transformation/example_mbpdb_functional_data.csv' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
+                        <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/example_mbpdb_functional_data.csv' %}" download>Download example file</a> &middot; <a href="#" class="dt-load-example" data-input-id="functional_file" data-url="{% static 'peptide/examples/example_mbpdb_functional_data.csv' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
                     </div>
                     <div class="dt-or-divider">OR</div>
                     <div class="dt-blast-inline" id="blast-threshold-section">
@@ -188,7 +188,7 @@
                         <div class="file-name hidden"></div>
                     </div>
                     <div class="help-text">Additional FASTA protein sequences to supplement the default bovine/human milk protein database</div>
-                    <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_protein_sequences.fasta' %}" download>Download example file</a> &middot; <a href="#" class="dt-load-example" data-input-id="fasta_file" data-url="{% static 'peptide/examples/data_transformation/example_protein_sequences.fasta' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
+                    <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/example_protein_sequences.fasta' %}" download>Download example file</a> &middot; <a href="#" class="dt-load-example" data-input-id="fasta_file" data-url="{% static 'peptide/examples/example_protein_sequences.fasta' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
                 </div>
                 <button type="submit" class="dt-btn dt-btn-primary" id="upload-btn">
                     <i class="fas fa-upload"></i> Upload & Validate
@@ -244,7 +244,7 @@
                         <div class="file-name hidden"></div>
                     </div>
                     <div class="help-text">JSON file mapping bio replicate names to lists of technical replicate columns</div>
-                    <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_technical_replicates.json' %}" download>Example JSON</a></div>
+                    <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/example_technical_replicates.json' %}" download>Example JSON</a></div>
                 </div>
 
                 <div style="margin-bottom:8px;">
@@ -283,7 +283,7 @@
                     <div class="file-name hidden"></div>
                 </div>
                 <div class="help-text">JSON file mapping group names to abundance columns</div>
-                <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_study_variables.json' %}" download>Example JSON</a> &middot; <a href="#" class="dt-load-example" data-input-id="group-json-input" data-url="{% static 'peptide/examples/data_transformation/example_study_variables.json' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
+                <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/example_study_variables.json' %}" download>Example JSON</a> &middot; <a href="#" class="dt-load-example" data-input-id="group-json-input" data-url="{% static 'peptide/examples/example_study_variables.json' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
             </div>
 
             <div id="manual-grouping">
@@ -355,7 +355,7 @@
                     <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag & drop or click to select</div>
                     <div class="file-name hidden"></div>
                 </div>
-                <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/data_transformation/example_protein_mapping_key.json' %}" download>Download example file</a> &middot; <a href="#" class="dt-load-example" data-input-id="protein-map-input" data-url="{% static 'peptide/examples/data_transformation/example_protein_mapping_key.json' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
+                <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/example_protein_mapping_key.json' %}" download>Download example file</a> &middot; <a href="#" class="dt-load-example" data-input-id="protein-map-input" data-url="{% static 'peptide/examples/example_protein_mapping_key.json' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
                 <div id="protein-map-upload-status"></div>
             </div>
 
