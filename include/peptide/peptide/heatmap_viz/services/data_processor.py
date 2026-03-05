@@ -11,10 +11,8 @@ import traceback
 import numpy as np
 import pandas as pd
 
-# Add notebook dir to path so we can import heatmap_renderer and _settings
-_NOTEBOOK_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'notebooks')
-if _NOTEBOOK_DIR not in sys.path:
-    sys.path.insert(0, _NOTEBOOK_DIR)
+# heatmap_renderer, fasta_utils, and uniprot_client now live alongside this
+# file in heatmap_viz/services/ — no sys.path manipulation needed.
 
 
 # ---------------------------------------------------------------------------
@@ -157,14 +155,10 @@ def load_fasta_file(file_obj, merged_protein_ids: set | None = None) -> tuple[di
     If merged_protein_ids is provided, only include proteins that match.
     """
     try:
-        from utils.fasta_utils import validate_fasta_format, parse_fasta
-        from utils.uniprot_client import UniProtClient
-        _SPEC_TRANSLATE_LIST = []
-        try:
-            import _settings as settings
-            _SPEC_TRANSLATE_LIST = settings.SPEC_TRANSLATE_LIST
-        except Exception:
-            pass
+        from .fasta_utils import validate_fasta_format, parse_fasta
+        from peptide.utils.uniprot_client import UniProtClient
+        from django.conf import settings as _dj_settings
+        _SPEC_TRANSLATE_LIST = getattr(_dj_settings, 'SPEC_TRANSLATE_LIST', [])
     except ImportError:
         pass
 
@@ -229,7 +223,7 @@ def _parse_fasta_simple(content: str) -> dict:
 def fetch_sequence_from_uniprot(protein_id: str) -> str | None:
     """Fetch protein sequence from UniProt API. Returns sequence string or None."""
     try:
-        from utils.uniprot_client import UniProtClient
+        from peptide.utils.uniprot_client import UniProtClient
         client = UniProtClient()
         result = client.fetch_protein_info_with_sequence(protein_id)
         if result:
@@ -379,9 +373,9 @@ def build_available_data_variables(
     Build the available_data_variables_dict for the heatmap renderer.
     Returns (available_data_variables_dict, messages).
     """
-    # Import from heatmap_renderer (in notebooks/utils)
+    # Import from heatmap_renderer (heatmap_viz/services/heatmap_renderer.py)
     try:
-        from utils.heatmap_renderer import export_heatmap_data_to_dict
+        from .heatmap_renderer import export_heatmap_data_to_dict
     except ImportError:
         return {}, ['Could not import heatmap_renderer. Check notebook utils path.']
 
@@ -517,7 +511,7 @@ def generate_heatmap(
     import base64
 
     try:
-        from utils.heatmap_renderer import update_plot
+        from .heatmap_renderer import update_plot
     except ImportError:
         return None, None, None, ['Could not import heatmap_renderer.']
 

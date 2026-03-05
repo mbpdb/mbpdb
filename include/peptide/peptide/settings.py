@@ -186,6 +186,10 @@ CREATE_FASTA_INPUT = os.path.join(BASE_DIR, 'scripts/create_fasta_input.pl')
 COMBINE = os.path.join(BASE_DIR, 'scripts/combine.pl')
 PEPEX = os.path.join(BASE_DIR, 'scripts/pepex.pl')
 FASTA_FILES_DIR = os.path.join(BASE_DIR,'scripts/fasta_files')
+# Headers-only reference file (948 proteins) used to build the protein name/UniProt
+# dictionary in data transformation and visualization.  Full-sequence FASTA
+# (protein_database.fasta, 71 proteins) is reserved for BLAST/PEPEX tools.
+PROTEIN_HEADERS_FILE = os.path.join(FASTA_FILES_DIR, 'protein_headers.txt')
 FIX_WEIRD_CHARS = os.path.join(BASE_DIR, 'scripts/fix_weird_chars.pl')
 BLAST_DB = os.path.join(BASE_DIR,'peptide/blast_db')
 

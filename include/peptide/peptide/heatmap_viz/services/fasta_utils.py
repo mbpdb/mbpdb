@@ -6,7 +6,7 @@ heatmap_visualization and (formerly) data_transformation notebooks.
 import logging
 import re
 
-import _settings as settings
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 

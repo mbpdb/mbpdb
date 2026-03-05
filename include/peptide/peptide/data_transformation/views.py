@@ -122,11 +122,10 @@ def upload_files(request):
                 has_mbpdb = True
                 mbpdb_rows = len(func_df)
 
-        # Load default protein dictionary (bovine + human milk proteins)
-        default_fasta_path = os.path.join(
-            settings.FASTA_FILES_DIR, 'protein_database.fasta'
-        )
-        protein_dict = data_loader.parse_fasta_headers_file(default_fasta_path)
+        # Load default protein dictionary from the headers-only reference file
+        # (948 proteins: bovine, human, and other milk-relevant species).
+        # protein_database.fasta (71 full-sequence proteins) is kept for BLAST/PEPEX.
+        protein_dict = data_loader.parse_fasta_headers_file(settings.PROTEIN_HEADERS_FILE)
 
         # Handle optional FASTA file — merges on top of default dict
         fasta_file = request.FILES.get('fasta_file')

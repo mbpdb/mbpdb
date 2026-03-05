@@ -3,7 +3,6 @@ Celery tasks for long-running data transformation operations.
 """
 import re
 import time
-import sys
 import os
 
 from celery import shared_task
@@ -80,11 +79,7 @@ def fetch_uniprot_task(self, missing_protein_ids):
     cache.set(f'size_{task_id}', total)
     start_time = time.time()
 
-    # Import UniProt client
-    notebooks_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'notebooks')
-    if notebooks_dir not in sys.path:
-        sys.path.insert(0, notebooks_dir)
-    from utils.uniprot_client import UniProtClient
+    from peptide.utils.uniprot_client import UniProtClient
 
     # UniProt accession IDs are 6 or 10 alphanumeric chars.
     # IDs like "P02666A1" (isoform suffixes, 7-9 chars) are invalid and cause

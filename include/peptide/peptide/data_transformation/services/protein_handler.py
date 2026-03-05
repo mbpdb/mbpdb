@@ -2,8 +2,6 @@
 UniProt fetch and protein combination logic.
 Extracted from notebook ProteinCombinationHandler class (Cell 3).
 """
-import sys
-import os
 import time
 import re
 
@@ -12,12 +10,7 @@ import numpy as np
 
 from .data_loader import find_species, extract_protein_id
 
-# Add the notebooks directory to path so we can import uniprot_client
-_notebooks_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'notebooks')
-if _notebooks_dir not in sys.path:
-    sys.path.insert(0, _notebooks_dir)
-
-from utils.uniprot_client import fetch_uniprot_info_batch, fetch_uniprot_info, UniProtClient
+from peptide.utils.uniprot_client import fetch_uniprot_info_batch, fetch_uniprot_info, UniProtClient
 
 
 def extract_clean_protein_id(protein_string):
