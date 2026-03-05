@@ -1886,7 +1886,7 @@ def visualize_sequence_heatmap_interactive(
     #   2. Plain AA-sequence strip  (only if single protein)
     #   3..n+2 (or 2..n+1): one colored tile row per variable
     LINE_PX = 260       # line-plot row height
-    SEQ_PX  = 60        # plain AA-sequence strip (tall enough for legible letters)
+    SEQ_PX  = 25       # plain AA-sequence strip (tall enough for legible letters)
     HM_PX   = 26        # each colored heatmap tile row
 
     rows_meta = [('line', None)]            # (type, var_key_or_None)
@@ -2089,7 +2089,7 @@ def visualize_sequence_heatmap_interactive(
                 y=[1.0] * len(protein_aa_list),
                 text=seq_text,
                 textposition='inside',
-                textfont=dict(size=11, color='#333333'),
+                textfont=dict(size=13, color='#333333'),
                 insidetextanchor='middle',
                 textangle=0,           # force letters upright — never sideways
                 marker_color='rgba(230,230,230,1.0)',   # neutral light-grey
@@ -2167,6 +2167,90 @@ def visualize_sequence_heatmap_interactive(
         abun_vals = [_safe_float(ms_data[k]) if k < len(ms_data) else 0.0
                      for k in range(len(counts_list))]
 
+        # ── Build per-position peptide overlap map ────────────────────────────
+        # Maps 1-indexed position → list of (peptide_seq, start_pos_1indexed).
+        # Used to render the aligned sequence block in hover text.
+        _pep_hover_map = {}
+        _bp_abs_h  = vd.get('bioactive_peptide_abs_df')
+        _bp_func_h = vd.get('bioactive_peptide_func_df')
+        if _bp_abs_h is not None and not _bp_abs_h.empty:
+            try:
+                _fabs, _, _ = filter_data_by_selection(
+                    _bp_abs_h, _bp_func_h,
+                    selected_peptides, selected_functions,
+                    bio_or_pep, filter_type, ms_average_choice, hm_label,
+                )
+                if _fabs is None or _fabs.empty:
+                    _fabs = _bp_abs_h
+            except Exception:
+                _fabs = _bp_abs_h
+            for _col in list(_fabs.columns):
+                if _col in ('average', 'count', 'AA'):
+                    continue
+                _ys = pd.to_numeric(_fabs[_col], errors='coerce').replace(0, np.nan)
+                _valid = _ys.notna()
+                if not _valid.any():
+                    continue
+                # DataFrame index is 0-based; positions used in hover text are
+                # 1-based (range(1, …)).  Convert here so every key and _sp
+                # value in the map is 1-indexed, matching the pos argument
+                # received by _pep_block.
+                _sp = int(_valid[_valid].index.min()) + 1   # → 1-indexed start
+                for _p in _valid[_valid].index:
+                    _pep_hover_map.setdefault(int(_p) + 1, []).append((_col, _sp))
+
+        _MAX_PEP = 25   # cap to keep hover text manageable
+
+        def _pep_block(pos):
+            raw = _pep_hover_map.get(int(pos), [])
+            # Keep only peptides where the hovered position genuinely falls within
+            # the peptide.  Column names have the form "start-end" or "start-end UID";
+            # parse the true peptide length (end - start + 1) from that prefix rather
+            # than using len(col_label), which is the string length of the label and
+            # is almost always shorter than the actual residue span — causing the last
+            # several positions of every long peptide to be silently dropped.
+            def _pep_len(col):
+                m = re.match(r'^(\d+)-(\d+)', col)
+                return int(m.group(2)) - int(m.group(1)) + 1 if m else len(col)
+
+            entries = [(seq, st) for seq, st in raw
+                       if 0 <= int(pos) - st < _pep_len(seq)]
+            if not entries:
+                return ''
+            orig_len   = len(entries)
+            truncated  = orig_len > _MAX_PEP
+            shown      = entries[:_MAX_PEP]
+            offsets    = [int(pos) - s for _, s in shown]
+            max_off    = max(offsets)
+            n_dig      = len(str(orig_len))   # for consistent ID width
+            inner = []
+            for uid, ((seq, _st), off) in enumerate(zip(shown, offsets), start=1):
+                pad = max_off - off
+                nbsp = '&nbsp;' * pad
+                # Column label format: "start-end" or "start-end UID_SEQUENCE".
+                # The amino acid at peptide offset `off` sits inside the UID part,
+                # which begins after the "start-end " prefix.  Compute that prefix
+                # length so we bold the correct character rather than a digit/dash.
+                _pfx_m = re.match(r'^\d+-\d+\s+', seq)
+                _pfx   = len(_pfx_m.group(0)) if _pfx_m else len(seq)
+                _char_idx = _pfx + off
+                if 0 <= _char_idx < len(seq):
+                    # Plotly hover supports only <b><i><br> etc — <u> renders
+                    # as literal text.  Use square brackets + bold instead.
+                    seq_html = (nbsp + seq[:_char_idx]
+                                + f'[<b>{seq[_char_idx]}</b>]'
+                                + seq[_char_idx + 1:])
+                else:
+                    seq_html = nbsp + seq   # no sequence in label — show as-is
+                id_str = str(uid).rjust(n_dig)
+                inner.append(f'{id_str}.&nbsp;{seq_html}')
+            if truncated:
+                inner.append(f'&nbsp;&nbsp;&nbsp;… and {orig_len - _MAX_PEP} more')
+            block = '<br>'.join(inner)
+            return (
+                '<br><b>Overlapping Peptides:</b><br>'
+                f'<span style="font-family:monospace">{block}</span>'
+            )
 
         # ── Amino-acid tile row — identical appearance to portrait/landscape ──
         # All tiles have uniform height=1; colour = peptide count (same cmap).
@@ -2176,8 +2260,10 @@ def visualize_sequence_heatmap_interactive(
         uniform_heights = [1.0] * len(counts_list)
 
         hover = [
-            f"Position: {pos}<br>Amino Acid: {aa}<br>"
-            f"Peptide Count: {cnt}<br>Abundance: {abun:.3e}"
+            f"<b>{hm_label}</b><br>"
+            f"<b>Position: {pos} | {aa}</b><br>"
+            f"Peptide Count: {cnt}&nbsp;&nbsp;Averaged Abundance: {abun:.3e}"
+            + _pep_block(pos)
             for pos, aa, cnt, abun in zip(positions, aa_list, counts_list, abun_vals)
         ]
 
@@ -2674,7 +2760,7 @@ def visualize_sequence_heatmap_compact(
                 hoverinfo='text',
                 hovertext=[
                     f"Position: {pos}<br>Amino Acid: {aa}<br>"
-                    f"Peptide Count: {cnt}<br>Abundance: {h:.3e}"
+                    f"Peptide Count: {cnt}<br>Averaged Abundance: {h:.3e}"
                     for pos, aa, cnt, h in zip(positions, aa_list, counts_list, heights)
                 ],
                 showlegend=False,
