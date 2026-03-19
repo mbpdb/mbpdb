@@ -1249,14 +1249,12 @@ def _build_bioactivity_figure(protein, sequence, peptide_entries):
                 showticklabels=False,
                 showgrid=False,
                 zeroline=False,
-                fixedrange=True,
             ),
             yaxis_key: dict(
                 showticklabels=False,
                 showgrid=False,
                 zeroline=False,
                 range=[-(y_offset + 1.5) if y_offset > 0 else -2.5, 1.5],
-                fixedrange=True,
             ),
         })
 
@@ -1296,7 +1294,7 @@ def _build_bioactivity_figure(protein, sequence, peptide_entries):
             x=1.03,
             font=dict(size=11),
             tracegroupgap=10,
-            groupclick='toggleitem',
+            groupclick='togglegroup',
         ),
         margin=dict(t=80, b=30, l=30, r=220),
     )
