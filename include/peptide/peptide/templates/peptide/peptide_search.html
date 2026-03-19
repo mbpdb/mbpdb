@@ -25,8 +25,12 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 });
 </script>
 {% with tooltip_counter=999 %}
-    <!-- Advanced Search Toggle Button -->
-<button class="btn btn-default" type="button" id="toggleAdvancedOptions">Advanced Search Options</button>
+    <!-- Two buttons in the same row: Advanced Search Options and Bioactivity Visualization -->
+<div style="display:flex; gap:10px; align-items:center; margin-bottom:5px;">
+    <button class="btn btn-default" type="button" id="toggleAdvancedOptions">Advanced Search Options</button>
+    <button class="btn btn-default" type="button" id="toggleBioactivityViz">Visualize DB</button>
+</div>
+
 <!-- Advanced Search Options (Collapsed by default) -->
 <div class="collapsible-content" id="advancedSearchOptions">
     <table>
@@ -234,18 +238,85 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 </div>
     <br>
 </td></tr>
+
+</table>
+</div>
+
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+
+<!-- Bioactivity Visualization Options (Collapsed by default, separate from Advanced Search) -->
+<div class="collapsible-content" id="bioactivityVizOptions">
+    <table>
+{% with tooltip_counter=tooltip_counter|add:"-8" %}
+<tr><td style="padding-left:25px">
+    <div class="form-group row">
+        <label for="vizProteinSelect" class="col-form-label col-sm-2">Protein:</label>
+        <div class="col-sm-7 fixed-width-col">
+            <select placeholder="Choose a Protein" data-allow-clear="1" id="vizProteinSelect" style="width:100%;">
+                <option value=""></option>
+                {% for desc, pids in description_to_pid.items %}
+                    {% for pid in pids %}
+                        <option value="{{ pid }}">{{ desc }} ({{ pid }})</option>
+                    {% endfor %}
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-sm-1">
+            <div class="mytooltip" data-z-index="{{ tooltip_counter }}">
+                <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+                <div class="mytooltiptext" style="width:550px;">
+                    Select a protein to visualize its bioactive peptides mapped along the amino acid sequence.
+                </div>
+            </div>
+        </div>
+    </div>
+</td></tr>
 {% with tooltip_counter=tooltip_counter|add:"-1" %}
 
-</div>
+<tr><td style="padding-left:25px">
+    <div class="form-group row">
+        <label for="vizFunctionSelect" class="col-form-label col-sm-2">Function:</label>
+        <div class="col-sm-7 fixed-width-col">
+            <select multiple placeholder="All functions (optional filter)" data-allow-clear="1" id="vizFunctionSelect" style="width:100%;">
+                <option value=""></option>
+                {% for function in functions %}
+                    <option value="{{function}}">{{function}}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-sm-1">
+            <div class="mytooltip" data-z-index="{{ tooltip_counter }}">
+                <img src="{% static 'peptide/Help-48-black.png' %}" width="22px" height="22px">
+                <div class="mytooltiptext" style="width:550px;">
+                    Optionally filter the visualization to show only selected bioactive functions.
+                    Leave empty to show all functions.
+                </div>
+            </div>
+        </div>
+    </div>
+</td></tr>
+
+<tr><td style="padding-left:25px">
+    <button class="btn btn-default" type="button" id="generateVizBtn" onclick="generateBioactivityViz()">
+        Generate Visualization
+    </button>
+    <span id="vizLoadingSpinner" style="display:none; margin-left:10px;">
+        <img src="{% static 'peptide/VI5N.gif' %}" alt="Loading..." style="width:25px; height:64px;">
+        Generating...
+    </span>
+</td></tr>
+
+    {% endwith %}
+{% endwith %}
 </table>
-    {% endwith %}
-    {% endwith %}
-    {% endwith %}
-    {% endwith %}
-    {% endwith %}
-    {% endwith %}
-    {% endwith %}
-    {% endwith %}
+</div>
+
 </div>
 <br/>
 
@@ -254,6 +325,18 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 <button class="btn btn-default" id="search-db-btn">Search DB</button>  <a href=".">Clear all search criteria</a>
 <br/><br/>
 </form>
+
+<!-- Bioactivity Visualization Plot Container (outside the form, always visible) -->
+<div id="bioactivityVizContainer" style="display:none; margin-top:15px; margin-bottom:15px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h5 style="margin:0;"><u>Bioactive Peptide Map</u></h5>
+        <button class="btn btn-sm btn-default" type="button" onclick="downloadBioactivityViz()" title="Download as HTML">
+            Download Interactive Plot
+        </button>
+    </div>
+    <div id="bioactivityVizPlot" style="width:100%; border:1px solid #ddd; border-radius:4px; padding:5px; background:#fff;"></div>
+    <div id="bioactivityVizError" style="display:none;" class="alert alert-warning" role="alert"></div>
+</div>
 <div id="errors-container">
     {% for e in errors %}
         <div class="alert alert-danger alert-dismissible" role="alert">
@@ -300,9 +383,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
                 } else {
                     let activeTaskIds = data.active_task_ids;
                     console.log('Active Task IDs:', activeTaskIds);
-                    // $('#active-task-ids').html('Active Task IDs: ' + activeTaskIds.join(', '));
-                    callback(activeTaskIds);  // Pass activeTaskIds to the callback
-
+                    callback(activeTaskIds);
                 }
             },
             error: function(err) {
@@ -332,7 +413,7 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
                 console.log('Task started with ID:', taskId);
                 $('#task-progress').html('<p>Task started</p>');
                 showLoadingSpinner();
-                pollProgress(taskId);  // Use the new task ID for polling progress
+                pollProgress(taskId);
             },
             error: function(err) {
                 console.error('Error starting task:', err);
@@ -359,19 +440,16 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
     function renderResults(taskId, retryCount = 0) {
         const MAX_RETRIES = 10;
         const RETRY_DELAY = 2000; // 2 seconds
-        
+
         console.log('Rendering results for task ID:', taskId, 'Retry:', retryCount);
         $.ajax({
-            url: `/return_render_results/${taskId}/`,  // Pass taskId to fetch results specific to this task
+            url: `/return_render_results/${taskId}/`,
             method: 'GET',
             success: function(data) {
                 console.log('Results data received, length:', data.length);
-                
-                // Check if we got valid HTML content with actual results
-                // The response may contain HTML framework (styles/scripts) but no actual results
-                // if the task hasn't fully completed yet - retry in that case
+
                 var hasResults = data && data.indexOf('summary_table') !== -1;
-                
+
                 if (!data || data.trim().length === 0 || !hasResults) {
                     console.warn('No results data in response yet, task may still be finishing');
                     if (retryCount < MAX_RETRIES) {
@@ -385,29 +463,21 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
                         return;
                     }
                 }
-                
-                // Clear and prepare the main results container
+
                 let mainContainer = $('#results-container');
                 if (!mainContainer.length) {
                     console.error('Results container not found!');
                     return;
                 }
-                
-                // Clear any existing content
+
                 mainContainer.empty();
-                
-                // Insert the new results HTML
                 mainContainer.html(data);
-                
-                // Ensure the container is visible
                 mainContainer.show();
-                
+
                 console.log('Results container shown, content length:', mainContainer.html().length);
-                
-                // Re-attach event listeners for toggle buttons and filters
+
                 attachToggleContentListeners();
-                
-                // Re-attach filter checkbox handler
+
                 $('#filter-warnings').off('change').on('change', function() {
                     if ($(this).is(':checked')) {
                         $('.warning-row').hide();
@@ -453,6 +523,30 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
         });
     }
 
+    // ---- Load all peptides by default on page load ----
+    function loadDefaultPeptides() {
+        $('#default-loading-spinner').show();
+        $.ajax({
+            url: '/all-peptides/',
+            method: 'GET',
+            success: function(data) {
+                $('#default-loading-spinner').hide();
+                let mainContainer = $('#results-container');
+                mainContainer.html(data);
+                mainContainer.show();
+                attachToggleContentListeners();
+            },
+            error: function(err) {
+                $('#default-loading-spinner').hide();
+                console.error('Error loading default peptides:', err);
+                $('#results-container').html('<p style="color: orange; padding: 20px;">Could not load default peptide list.</p>');
+                $('#results-container').show();
+            }
+        });
+    }
+
+    // Default peptide loading removed to speed up initial page load
+
     $('#search-db-btn').click(function(event) {
         event.preventDefault();  // Prevent the form from submitting
 
@@ -495,14 +589,12 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
                     $('#search-db-btn').text('Search');
                 } else {
                     console.log('Form data submitted successfully');
-                    // If task_id is in the response, use it directly
                     if (data.task_id) {
                         console.log('Task ID from response:', data.task_id);
                         $('#task-progress').html('<p>Task started</p>');
                         showLoadingSpinner();
                         pollProgress(data.task_id);
                     } else {
-                        // Otherwise, fetch active tasks and then start a new task
                         fetchActiveTasks(startTask);
                     }
                 }
@@ -540,19 +632,19 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
                 var sizeDisplay = (data.size !== null && data.size !== undefined) ? data.size : 'unknown';
                 var progressText = 'Progress: ' + (data.percent_progress || 0).toFixed(2) + '% (' + (data.progress || 0) + ' processed out of ' + sizeDisplay + ').';
                 $('#task-progress').html(progressText);
-                
+
                 // Handle undefined elapsed_time gracefully
                 var elapsedTime = (data.elapsed_time !== null && data.elapsed_time !== undefined) ? data.elapsed_time.toFixed(2) : '0.00';
                 var timeInfo = 'Elapsed time: ' + elapsedTime + ' seconds';
-                
+
                 // Add estimated time remaining if available
                 if (data.estimated_time_remaining !== null && data.estimated_time_remaining !== undefined && data.estimated_time_remaining > 0) {
                     var estimatedRemaining = data.estimated_time_remaining.toFixed(2);
                     timeInfo += '<br/>Estimated time remaining: ' + estimatedRemaining + ' seconds';
                 }
-                
+
                 $('#elapsed-time').html(timeInfo + '<br/>');
-                
+
                 if (data.status == 'in_progress') {
                     setTimeout(function() {
                         pollProgress(taskId);
@@ -562,10 +654,10 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
                     $('#task-progress').html('<p style="font-size: 1.5em;"><b>Search complete</b></p>');
                     var finalElapsedTime = (data.elapsed_time !== null && data.elapsed_time !== undefined) ? data.elapsed_time.toFixed(2) : '0.00';
                     $('#elapsed-time').html('Elapsed time: ' + finalElapsedTime + ' seconds<br/>');
-                    
+
                     // Ensure results container is visible before rendering
                     $('#results-container').show();
-                    renderResults(taskId);  // Pass taskId here
+                    renderResults(taskId);
                     $('#search-db-btn').prop('disabled', false);
                     $('#search-db-btn').text('Search');
 
@@ -591,7 +683,6 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 
 
 <div id="results-container">
-    {% include 'peptide/results_section.html' %}
 </div>
 {% endif %}
 
@@ -607,17 +698,29 @@ $(function () {
   });
 });
 document.addEventListener('DOMContentLoaded', function() {
+    // Advanced Search Options toggle
     const toggleBtn = document.getElementById('toggleAdvancedOptions');
     const collapsibleDiv = document.getElementById('advancedSearchOptions');
-
-    // Define a maximum height for the collapsible content
-    const maxHeight = "800px";  // For example, set to 300 pixels. You can adjust this value.
+    const maxHeight = "800px";
 
     toggleBtn.addEventListener('click', function() {
         if (collapsibleDiv.style.maxHeight && collapsibleDiv.style.maxHeight !== '0px') {
             collapsibleDiv.style.maxHeight = null;
         } else {
             collapsibleDiv.style.maxHeight = maxHeight;
+        }
+    });
+
+    // Bioactivity Visualization toggle
+    const toggleVizBtn = document.getElementById('toggleBioactivityViz');
+    const vizOptionsDiv = document.getElementById('bioactivityVizOptions');
+    const vizMaxHeight = "400px";
+
+    toggleVizBtn.addEventListener('click', function() {
+        if (vizOptionsDiv.style.maxHeight && vizOptionsDiv.style.maxHeight !== '0px') {
+            vizOptionsDiv.style.maxHeight = null;
+        } else {
+            vizOptionsDiv.style.maxHeight = vizMaxHeight;
         }
     });
 
@@ -689,6 +792,119 @@ function validateFields() {
         return false; // Prevent the form from being submitted
     }
     return true; // Proceed with form submission
+}
+
+// ---- Bioactivity Visualization ----
+var _plotlyLoaded = false;
+function _ensurePlotly(callback) {
+    if (_plotlyLoaded || (typeof Plotly !== 'undefined')) {
+        _plotlyLoaded = true;
+        callback();
+        return;
+    }
+    var s = document.createElement('script');
+    s.src = 'https://cdn.plot.ly/plotly-2.35.2.min.js';
+    s.charset = 'utf-8';
+    s.onload = function() { _plotlyLoaded = true; callback(); };
+    document.head.appendChild(s);
+}
+
+var _currentBioVizFigure = null;
+
+function generateBioactivityViz() {
+    var sel = document.getElementById('vizProteinSelect');
+    var pid = $(sel).val();
+    if (!pid) {
+        alert('Please select a protein first.');
+        return;
+    }
+
+    // Get selected functions (optional filter)
+    var selectedFunctions = $('#vizFunctionSelect').val() || [];
+
+    var btn = document.getElementById('generateVizBtn');
+    var spinner = document.getElementById('vizLoadingSpinner');
+    var container = document.getElementById('bioactivityVizContainer');
+    var plotDiv = document.getElementById('bioactivityVizPlot');
+    var errDiv = document.getElementById('bioactivityVizError');
+
+    btn.disabled = true;
+    spinner.style.display = 'inline';
+    errDiv.style.display = 'none';
+
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    fetch('/bioactivity-viz/plot/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+        },
+        body: JSON.stringify({protein_id: pid, functions: selectedFunctions}),
+    })
+    .then(function(resp) { return resp.json(); })
+    .then(function(data) {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+
+        if (data.error) {
+            errDiv.textContent = data.error;
+            errDiv.style.display = 'block';
+            container.style.display = 'block';
+            plotDiv.innerHTML = '';
+            return;
+        }
+
+        _currentBioVizFigure = data.figure;
+        container.style.display = 'block';
+
+        _ensurePlotly(function() {
+            Plotly.newPlot(plotDiv, data.figure.data, data.figure.layout, {
+                responsive: true,
+                displayModeBar: true,
+                modeBarButtonsToAdd: ['toImage'],
+            });
+        });
+    })
+    .catch(function(err) {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+        errDiv.textContent = 'Error generating visualization: ' + err;
+        errDiv.style.display = 'block';
+        container.style.display = 'block';
+    });
+}
+
+function downloadBioactivityViz() {
+    if (!_currentBioVizFigure) {
+        alert('No visualization to download. Please generate one first.');
+        return;
+    }
+    _ensurePlotly(function() {
+        var plotDiv = document.createElement('div');
+        document.body.appendChild(plotDiv);
+        plotDiv.style.display = 'none';
+
+        Plotly.newPlot(plotDiv, _currentBioVizFigure.data, _currentBioVizFigure.layout).then(function() {
+            return Plotly.toImage(plotDiv, {format: 'png', width: 1400, height: _currentBioVizFigure.layout.height || 800});
+        }).then(function() {
+            // Build a self-contained HTML file
+            var html = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+                '<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"><\/script></head><body>' +
+                '<div id="plot"></div><script>' +
+                'Plotly.newPlot("plot",' + JSON.stringify(_currentBioVizFigure.data) + ',' +
+                JSON.stringify(_currentBioVizFigure.layout) + ',{responsive:true});' +
+                '<\/script></body></html>';
+            var blob = new Blob([html], {type: 'text/html'});
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'bioactivity_map.html';
+            a.click();
+            URL.revokeObjectURL(url);
+            document.body.removeChild(plotDiv);
+        });
+    });
 }
 </script>
 {% endblock 'content' %}
