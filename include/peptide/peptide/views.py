@@ -1,11 +1,12 @@
 from django.shortcuts import render
 import os, re, subprocess
-from .toolbox import func_list, clear_temp_directory, spec_list, pro_list, run_pepex, add_proteins, pepdb_add_csv, get_latest_peptides
+from .toolbox import func_list, clear_temp_directory, spec_list, pro_list, run_pepex, add_proteins, pepdb_add_csv, get_latest_peptides, append_with_titnum
 
 from subprocess import CalledProcessError
-from .models import Counter
+from .models import Counter, ProteinInfo, PeptideInfo, Function
 from django.utils import timezone
 from django.http import FileResponse, HttpResponse, JsonResponse
+from django.views.decorators.http import require_POST, require_GET
 from django.conf import settings
 from django.urls import reverse
 
@@ -599,7 +600,7 @@ def serve_plot(request, plot_name):
     #Serve Plotly HTML files.
     template_dir = os.path.join(os.path.dirname(__file__), 'templates', 'peptide')
     plot_path = os.path.join(template_dir, f'{plot_name}.html')
-    
+
     try:
         with open(plot_path, 'r') as f:
             content = f.read()
@@ -618,3 +619,686 @@ def log_message(request):
         return JsonResponse({"status": "success"})
     return JsonResponse({"status": "error"}, status=400)
 """
+
+
+# ---------------------------------------------------------------------------
+# Default all-peptides view (loaded on page open)
+# ---------------------------------------------------------------------------
+
+@require_GET
+def all_peptides_view(request):
+    """Return all peptides in the database rendered as results_section.html."""
+    results_headers = [
+        'Protein ID', 'Peptide', 'Protein description', 'Species',
+        'Intervals', 'Function', 'Additional details', 'IC50 (μM)',
+        'Inhibition type', 'Inhibited microorganisms', 'PTM',
+        'Title', 'Authors', 'Abstract', 'DOI'
+    ]
+
+    peptides = (
+        PeptideInfo.objects.all()
+        .select_related('protein')
+        .prefetch_related('functions__references')
+    )
+
+    results = []
+    for info in peptides:
+        for func in info.functions.all():
+            pp = info.protein.pid
+            pd = info.protein.desc
+            if info.protein_variants:
+                pp = pp + " Genetic Variant " + info.protein_variants
+                pd = pd + " Genetic Variant " + info.protein_variants
+
+            refs = list(func.references.all())
+            titles, authors, abstracts, dois = [], [], [], []
+            ad, ic, it, im, ptms = [], [], [], [], []
+            titnum = 1
+            for ref in refs:
+                if ref.title:
+                    append_with_titnum(titles, ref.title, titnum)
+                if ref.additional_details:
+                    append_with_titnum(ad, ref.additional_details, titnum)
+                if ref.ic50 is not None and str(ref.ic50) != '':
+                    append_with_titnum(ic, str(ref.ic50), titnum)
+                if ref.inhibition_type:
+                    append_with_titnum(it, ref.inhibition_type, titnum)
+                if ref.inhibited_microorganisms:
+                    append_with_titnum(im, ref.inhibited_microorganisms, titnum)
+                if ref.ptm:
+                    append_with_titnum(ptms, ref.ptm, titnum)
+                if ref.authors:
+                    append_with_titnum(authors, ref.authors, titnum)
+                if ref.abstract:
+                    append_with_titnum(abstracts, ref.abstract, titnum)
+                if ref.doi:
+                    append_with_titnum(dois, ref.doi, titnum)
+                titnum += 1
+
+            row = {
+                'Protein ID': pp,
+                'Peptide': info.peptide,
+                'Protein description': pd,
+                'Species': info.protein.species,
+                'Intervals': info.intervals,
+                'Function': func.function,
+                'Additional details': ',<br>'.join(ad),
+                'IC50 (μM)': ',<br>'.join(ic),
+                'Inhibition type': ',<br>'.join(it),
+                'Inhibited microorganisms': ',<br>'.join(im),
+                'PTM': ',<br>'.join(ptms),
+                'Title': ',<br>'.join(titles),
+                'Authors': ',<br>'.join(authors),
+                'Abstract': ',<br>'.join(abstracts),
+                'DOI': ',<br>'.join(dois),
+            }
+            # Remove 'None' strings
+            row = {k: ('' if v == 'None' else v) for k, v in row.items()}
+            results.append(row)
+
+    # Remove empty columns
+    columns_to_check = [
+        'Additional details', 'IC50 (μM)', 'Inhibition type',
+        'Inhibited microorganisms', 'PTM'
+    ]
+    for column in columns_to_check:
+        if all(r.get(column, '').strip() == '' for r in results):
+            for r in results:
+                r.pop(column, None)
+            if column in results_headers:
+                results_headers.remove(column)
+
+    combined_results = [{"type": "result", "data": r} for r in results]
+
+    # Build counts
+    species_counts, function_counts, protein_id_counts, peptide_counts = {}, {}, {}, {}
+    for item in combined_results:
+        d = item['data']
+        pep = d.get('Peptide')
+        sp = d.get('Species')
+        fn = d.get('Function')
+        pid = d.get('Protein ID')
+        if pep:
+            peptide_counts[pep] = peptide_counts.get(pep, 0) + 1
+        if sp:
+            species_counts[sp] = species_counts.get(sp, 0) + 1
+        if fn:
+            function_counts[fn] = function_counts.get(fn, 0) + 1
+        if pid:
+            protein_id_counts[pid] = protein_id_counts.get(pid, 0) + 1
+
+    return render(request, 'peptide/results_section.html', {
+        'combined_results': combined_results,
+        'output_path': '',
+        'data': {},
+        'peptide_option': [],
+        'matrix': [],
+        'latest_peptides': [],
+        'description_to_pid': {},
+        'functions': [],
+        'common_to_sci_list': {},
+        'formated_header': '',
+        'table_headers': results_headers,
+        'function_counts': function_counts,
+        'species_counts': species_counts,
+        'protein_id_counts': protein_id_counts,
+        'peptide_counts': peptide_counts,
+        'is_default_view': True,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Bioactivity Visualization
+# ---------------------------------------------------------------------------
+
+@require_GET
+def bioactivity_viz_proteins(request):
+    """Return list of proteins that have peptides with bioactive functions."""
+    protein_ids_with_functions = (
+        Function.objects
+        .values_list('pep__protein__id', flat=True)
+        .distinct()
+    )
+    proteins = (
+        ProteinInfo.objects
+        .filter(id__in=protein_ids_with_functions)
+        .values('pid', 'desc', 'species')
+        .order_by('desc')
+    )
+    protein_list = [
+        {'pid': p['pid'], 'label': f"{p['desc']} ({p['pid']}) - {p['species']}"}
+        for p in proteins
+    ]
+    return JsonResponse({'proteins': protein_list})
+
+
+@require_POST
+def bioactivity_viz_plot(request):
+    """
+    Generate an interactive Plotly bioactivity map for a given protein.
+
+    The figure is similar to example_figure.jpg: the protein amino acid sequence
+    is displayed along the x-axis, and colored horizontal bars show where each
+    bioactive peptide maps onto the protein, color-coded by bioactive function.
+    Hover text shows peptide sequence, amino acid, and bioactive functions.
+
+    POST body (JSON): {"protein_id": "P02666"}
+    Returns: Plotly figure JSON.
+    """
+    import json as _json
+    try:
+        body = _json.loads(request.body)
+        protein_id = body.get('protein_id', '').strip()
+        selected_functions = body.get('functions', [])  # optional function filter
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON body.'}, status=400)
+
+    if not protein_id:
+        return JsonResponse({'error': 'protein_id is required.'}, status=400)
+
+    # Look up protein
+    try:
+        protein = ProteinInfo.objects.get(pid=protein_id)
+    except ProteinInfo.DoesNotExist:
+        return JsonResponse({'error': f'Protein {protein_id} not found.'}, status=404)
+
+    sequence = protein.seq
+    if not sequence:
+        return JsonResponse({'error': f'No sequence available for {protein_id}.'}, status=400)
+
+    # Get all peptides for this protein that have at least one function
+    peptides = PeptideInfo.objects.filter(protein=protein).prefetch_related('functions')
+
+    # Build list of peptide entries with their functions and intervals
+    peptide_entries = []
+    for pep in peptides:
+        funcs = list(pep.functions.values_list('function', flat=True))
+        if not funcs:
+            continue
+        # Apply function filter if provided
+        if selected_functions:
+            funcs = [f for f in funcs if f in selected_functions]
+            if not funcs:
+                continue
+        # Parse intervals like "96-97, 114-115, 168-169"
+        intervals_str = pep.intervals.strip()
+        if not intervals_str:
+            continue
+        for interval in intervals_str.split(','):
+            interval = interval.strip()
+            if '-' not in interval:
+                continue
+            parts = interval.split('-')
+            try:
+                start = int(parts[0].strip())
+                end = int(parts[1].strip())
+            except (ValueError, IndexError):
+                continue
+            peptide_entries.append({
+                'peptide': pep.peptide,
+                'start': start,
+                'end': end,
+                'functions': funcs,
+            })
+
+    if not peptide_entries:
+        return JsonResponse({
+            'error': f'No bioactive peptides found for protein {protein_id}.'
+        }, status=404)
+
+    # Generate Plotly figure
+    fig_json = _build_bioactivity_figure(protein, sequence, peptide_entries)
+
+    return JsonResponse({'success': True, 'figure': fig_json})
+
+
+def _build_bioactivity_figure(protein, sequence, peptide_entries):
+    """
+    Build a Plotly figure JSON dict showing a heatmap-style bioactivity map.
+
+    Styling matches the heatmap visualization app:
+    - RdYlGn_r colormap with discrete binning (6 groups max)
+    - Seamless AA cells (no borders)
+    - Discrete color-range legend for peptide counts
+    - Hover text with each function and peptide on its own line
+    - Position numbers spaced above the sequence with no overlap
+    - Vertical function legend on the right
+    """
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+    import numpy as np
+    from matplotlib import colormaps as mpl_colormaps
+    from matplotlib.colors import Normalize
+
+    CHUNK_SIZE = 70  # amino acids per row
+    seq_len = len(sequence)
+    num_chunks = (seq_len + CHUNK_SIZE - 1) // CHUNK_SIZE
+
+    # Assign colors to functions
+    FUNCTION_COLORS = {
+        'ACE-inhibitory': '#E27D8A',
+        'Antimicrobial': '#D4A843',
+        'Antioxidant': '#2D8A4E',
+        'DPP-IV Inhibitory': '#A8D8EA',
+        'Opioid': '#5B8C5A',
+        'Immunomodulatory': '#4A7C8C',
+        'Anticancer': '#8B5E83',
+        'Antihypertensive': '#C97B4B',
+        'Antithrombotic': '#6B8E9B',
+        'Osteoanabolic': '#B8860B',
+        'Increase cellular growth': '#9370DB',
+        'Increase mucin secretion': '#FF8C69',
+        'Increase calcium uptake': '#20B2AA',
+        'Cholesterol regulation': '#CD853F',
+        'Wound healing': '#DC143C',
+        'Antianxiety': '#4169E1',
+        'Prolyl endopeptidase-inhibitory': '#708090',
+        'Satiety': '#FFD700',
+        'Cytomodulatory': '#8FBC8F',
+        'Bradykinin-Potentiating': '#FF69B4',
+        'Cathepsin B Inhibitory': '#A0522D',
+        'Nitric oxide liberation': '#7FFFD4',
+        'Anti-obesity': '#FF4500',
+        'DNA repair': '#9932CC',
+        'Bacterial growth promoting': '#BDB76B',
+        'Cytotoxic': '#FF1493',
+        'Enhance insulin signaling': '#00CED1',
+        'Ameliorates insulin resistance': '#BA55D3',
+        'Increase exocrine pancreatic secretion': '#DAA520',
+        'Increase intestinal motility': '#48D1CC',
+        'Cell Penetrating': '#C71585',
+        'Improves cognition': '#3CB371',
+    }
+    DEFAULT_COLORS = [
+        '#E27D8A', '#D4A843', '#2D8A4E', '#A8D8EA', '#5B8C5A',
+        '#4A7C8C', '#8B5E83', '#C97B4B', '#6B8E9B', '#B8860B',
+    ]
+
+    # Collect all unique functions
+    all_functions = set()
+    for entry in peptide_entries:
+        all_functions.update(entry['functions'])
+    all_functions = sorted(all_functions)
+
+    # Assign colors
+    func_color = {}
+    color_idx = 0
+    for func in all_functions:
+        if func in FUNCTION_COLORS:
+            func_color[func] = FUNCTION_COLORS[func]
+        else:
+            func_color[func] = DEFAULT_COLORS[color_idx % len(DEFAULT_COLORS)]
+            color_idx += 1
+
+    # ---- Pre-compute per-position data ----
+    pos_count = [0] * (seq_len + 1)       # 1-indexed
+    pos_functions = [set() for _ in range(seq_len + 1)]
+    # Store full entry dicts per position for rich hover text
+    pos_peptide_entries = [[] for _ in range(seq_len + 1)]
+
+    for entry in peptide_entries:
+        for p in range(entry['start'], entry['end'] + 1):
+            if 1 <= p <= seq_len:
+                pos_count[p] += 1
+                pos_functions[p].update(entry['functions'])
+                pos_peptide_entries[p].append(entry)
+
+    max_count = max(pos_count[1:]) if seq_len > 0 else 1
+    if max_count == 0:
+        max_count = 1
+
+    # ---- RdYlGn_r colormap with binning (matching heatmap_renderer) ----
+    cmap = mpl_colormaps.get_cmap('RdYlGn_r')
+    plot_zero = 'no'  # white for zero counts
+    num_unique = len(set(pos_count[1:]))
+    num_colors = 6 if num_unique >= 6 else max(num_unique, 1)
+    start_point = 1  # plot_zero='no'
+
+    group_bounds = np.linspace(start_point, max_count, num_colors + 1)
+
+    def _get_cell_color(count):
+        """Return rgba string for a peptide count, matching heatmap binning."""
+        if count == 0:
+            return 'rgba(255,255,255,1.0)'
+        if max_count > 20:
+            rgba = cmap(count / max_count)
+        else:
+            label = int(np.digitize(count, bins=group_bounds, right=True))
+            norm = Normalize(vmin=start_point, vmax=num_colors)
+            rgba = cmap(norm(label))
+        r, g, b, a = [int(c * 255) for c in rgba[:3]] + [rgba[3]]
+        return f'rgba({r},{g},{b},{a:.2f})'
+
+    def _get_text_color(count):
+        """Return white or black text depending on background luminance."""
+        if count == 0:
+            return '#333333'
+        if max_count > 20:
+            rgba = cmap(count / max_count)
+        else:
+            label = int(np.digitize(count, bins=group_bounds, right=True))
+            norm = Normalize(vmin=start_point, vmax=num_colors)
+            rgba = cmap(norm(label))
+        # Perceived luminance
+        lum = 0.299 * rgba[0] + 0.587 * rgba[1] + 0.114 * rgba[2]
+        return 'white' if lum < 0.5 else '#333333'
+
+    # ---- Build discrete legend labels & colors (matching create_heatmap_legend_handles) ----
+    count_ranges = np.linspace(start_point, max_count, num_colors + 1)
+    legend_colors = []
+    legend_labels = []
+    if max_count == 0:
+        legend_colors.append('rgba(255,255,255,1.0)')
+        legend_labels.append('0')
+    else:
+        plt_interval = max_count if max_count > num_colors else num_colors
+        start_idx = 1 if plt_interval <= 6 else 0
+        norm_leg = Normalize(vmin=start_point, vmax=max_count)
+        for i in range(start_idx, len(count_ranges)):
+            rgba = cmap(norm_leg(count_ranges[i]))
+            r, g, b = [int(c * 255) for c in rgba[:3]]
+            legend_colors.append(f'rgb({r},{g},{b})')
+            if plt_interval <= 6:
+                legend_labels.append(f'{int(count_ranges[i])}')
+            elif i + 1 >= len(count_ranges):
+                legend_labels.append(f'{int(count_ranges[i])} - {int(max(count_ranges))}')
+                break
+            else:
+                legend_labels.append(f'{int(count_ranges[i])} - {int(count_ranges[i + 1])}')
+
+    # ---- Compute peptide bar rows per chunk ----
+    chunk_bar_rows = []
+    for chunk_idx in range(num_chunks):
+        chunk_start = chunk_idx * CHUNK_SIZE + 1
+        chunk_end = min((chunk_idx + 1) * CHUNK_SIZE, seq_len)
+        chunk_peptides = [e for e in peptide_entries
+                          if e['end'] >= chunk_start and e['start'] <= chunk_end]
+        y_offset = 0
+        for func in all_functions:
+            entries_for_func = [e for e in chunk_peptides if func in e['functions']]
+            if not entries_for_func:
+                continue
+            entries_for_func.sort(key=lambda e: (e['start'], e['end']))
+            sub_rows = []
+            for entry in entries_for_func:
+                placed = False
+                for sr in sub_rows:
+                    if entry['start'] > sr[-1]['end']:
+                        sr.append(entry)
+                        placed = True
+                        break
+                if not placed:
+                    sub_rows.append([entry])
+            y_offset += len(sub_rows)
+        chunk_bar_rows.append(max(y_offset, 1))
+
+    # Row heights proportional to content: 1 (AA row) + bar_rows
+    row_heights = [1 + br for br in chunk_bar_rows]
+    total_h = sum(row_heights)
+    row_height_fracs = [h / total_h for h in row_heights]
+
+    fig = make_subplots(
+        rows=num_chunks, cols=1,
+        shared_xaxes=False,
+        vertical_spacing=0.03,
+        subplot_titles=['' for _ in range(num_chunks)],
+        row_heights=row_height_fracs,
+    )
+
+    # Track which functions we've already added to legend
+    legend_added = set()
+    _MAX_PEP = 25   # cap peptides in hover to keep text manageable
+
+    for chunk_idx in range(num_chunks):
+        chunk_start = chunk_idx * CHUNK_SIZE + 1  # 1-based
+        chunk_end = min((chunk_idx + 1) * CHUNK_SIZE, seq_len)
+        row = chunk_idx + 1
+
+        xref = f'x{row}' if row > 1 else 'x'
+        yref = f'y{row}' if row > 1 else 'y'
+
+        # ---- Amino acid heatmap row (y = 0) ----
+        # Seamless colored rectangles — NO borders (matching heatmap_renderer marker_line_width=0)
+        for pos in range(chunk_start, chunk_end + 1):
+            count = pos_count[pos]
+            fill_color = _get_cell_color(count)
+
+            fig.add_shape(
+                type='rect',
+                x0=pos - 0.5, x1=pos + 0.5,
+                y0=-0.5, y1=0.5,
+                fillcolor=fill_color,
+                line=dict(width=0),
+                xref=xref, yref=yref,
+            )
+
+            # AA letter annotation (matching heatmap: 13px, #333333 or white)
+            aa = sequence[pos - 1]
+            text_color = _get_text_color(count)
+            fig.add_annotation(
+                x=pos, y=0,
+                text=f'<b>{aa}</b>',
+                showarrow=False,
+                font=dict(size=10, family='Courier New, monospace', color=text_color),
+                xref=xref, yref=yref,
+            )
+
+        # ---- Hover text for AA cells (each function and peptide on its own line) ----
+        hover_x = list(range(chunk_start, chunk_end + 1))
+        hover_y = [0] * len(hover_x)
+        hover_texts = []
+        for pos in hover_x:
+            aa = sequence[pos - 1]
+            count = pos_count[pos]
+            funcs_at = sorted(pos_functions[pos])
+            entries_at = pos_peptide_entries[pos]
+
+            # Build function list — each on its own line
+            if funcs_at:
+                func_lines = '<br>'.join(f'&nbsp;&nbsp;{f}' for f in funcs_at)
+                func_block = f'<b>Functions:</b><br>{func_lines}'
+            else:
+                func_block = '<b>Functions:</b> None'
+
+            # Build overlapping peptides block — vertically aligned
+            # monospace display matching the heatmap application hover format.
+            # Each peptide is padded so the bolded amino acid at the hovered
+            # position falls in the same vertical column across all entries.
+            unique_peps = []
+            seen = set()
+            for e in entries_at:
+                key = (e['peptide'], e['start'], e['end'])
+                if key not in seen:
+                    seen.add(key)
+                    unique_peps.append(e)
+
+            if unique_peps:
+                orig_len = len(unique_peps)
+                truncated = orig_len > _MAX_PEP
+                shown = unique_peps[:_MAX_PEP]
+                offsets = [pos - e['start'] for e in shown]
+                max_off = max(offsets)
+                n_dig = len(str(orig_len))  # consistent ID width
+                pep_lines = []
+                for uid, (e, off) in enumerate(zip(shown, offsets), start=1):
+                    pep_seq = e['peptide']
+                    pad = '&nbsp;' * (max_off - off)
+                    if 0 <= off < len(pep_seq):
+                        seq_html = (pad + pep_seq[:off]
+                                    + f'[<b>{pep_seq[off]}</b>]'
+                                    + pep_seq[off + 1:])
+                    else:
+                        seq_html = pad + pep_seq
+                    id_str = str(uid).rjust(n_dig)
+                    pep_lines.append(f'{id_str}.&nbsp;{seq_html}')
+                if truncated:
+                    pep_lines.append(f'&nbsp;&nbsp;&nbsp;… and {orig_len - _MAX_PEP} more')
+                pep_block = (
+                    '<br><b>Overlapping Peptides:</b><br>'
+                    '<span style="font-family:monospace">'
+                    + '<br>'.join(pep_lines)
+                    + '</span>'
+                )
+            else:
+                pep_block = ''
+
+            ht = (
+                f"<b>Position: {pos} | {aa}</b><br>"
+                f"Peptide Count: {count}<br>"
+                f"{func_block}"
+                f"{pep_block}"
+            )
+            hover_texts.append(ht)
+
+        fig.add_trace(
+            go.Scatter(
+                x=hover_x, y=hover_y,
+                mode='markers',
+                marker=dict(size=12, opacity=0),
+                hovertemplate='%{customdata}<extra></extra>',
+                customdata=hover_texts,
+                showlegend=False,
+            ),
+            row=row, col=1,
+        )
+
+        # ---- Position number annotations — spaced above the AA strip ----
+        for pos in range(chunk_start, chunk_end + 1):
+            if pos % 10 == 0 or pos == 1:
+                fig.add_annotation(
+                    x=pos, y=1.0,
+                    text=str(pos),
+                    showarrow=False,
+                    font=dict(size=12, color='black'),
+                    xref=xref, yref=yref,
+                    yanchor='bottom',
+                )
+
+        # ---- Peptide bars below AA row ----
+        chunk_peptides = [e for e in peptide_entries
+                          if e['end'] >= chunk_start and e['start'] <= chunk_end]
+
+        y_offset = 0
+        for func in all_functions:
+            entries_for_func = [e for e in chunk_peptides if func in e['functions']]
+            if not entries_for_func:
+                continue
+
+            entries_for_func.sort(key=lambda e: (e['start'], e['end']))
+
+            sub_rows = []
+            for entry in entries_for_func:
+                placed = False
+                for sr in sub_rows:
+                    if entry['start'] > sr[-1]['end']:
+                        sr.append(entry)
+                        placed = True
+                        break
+                if not placed:
+                    sub_rows.append([entry])
+
+            for sr_idx, sr in enumerate(sub_rows):
+                for entry in sr:
+                    bar_start = max(entry['start'], chunk_start)
+                    bar_end = min(entry['end'], chunk_end)
+
+                    pep_seq = entry['peptide']
+                    aa_range = sequence[bar_start - 1:bar_end]
+                    # Each function on its own line in bar hover too
+                    func_lines = '<br>'.join(
+                        f'&nbsp;&nbsp;{f}' for f in entry['functions']
+                    )
+                    hover = (
+                        f"<b>Peptide:</b> {pep_seq}<br>"
+                        f"<b>Position:</b> {entry['start']}-{entry['end']}<br>"
+                        f"<b>Amino Acids:</b> {aa_range}<br>"
+                        f"<b>Functions:</b><br>{func_lines}"
+                    )
+
+                    y_val = -(y_offset + sr_idx + 1.5)
+                    show_legend = func not in legend_added
+
+                    fig.add_trace(
+                        go.Bar(
+                            x=[bar_end - bar_start + 1],
+                            y=[y_val],
+                            base=[bar_start - 0.5],
+                            orientation='h',
+                            marker_color=func_color[func],
+                            name=func,
+                            legendgroup=func,
+                            showlegend=show_legend,
+                            hovertemplate=hover + '<extra></extra>',
+                            width=0.8,
+                        ),
+                        row=row, col=1,
+                    )
+                    if show_legend:
+                        legend_added.add(func)
+
+            y_offset += len(sub_rows)
+
+        # ---- Axis configuration ----
+        xaxis_key = f'xaxis{row}' if row > 1 else 'xaxis'
+        yaxis_key = f'yaxis{row}' if row > 1 else 'yaxis'
+
+        # Fixed x-range per chunk: start at chunk_start, span CHUNK_SIZE positions
+        fig.update_layout(**{
+            xaxis_key: dict(
+                range=[chunk_start - 0.5, chunk_start + CHUNK_SIZE - 0.5],
+                showticklabels=False,
+                showgrid=False,
+                zeroline=False,
+                fixedrange=True,
+            ),
+            yaxis_key: dict(
+                showticklabels=False,
+                showgrid=False,
+                zeroline=False,
+                range=[-(y_offset + 1.5) if y_offset > 0 else -2.5, 1.5],
+                fixedrange=True,
+            ),
+        })
+
+    # ---- Peptide count discrete legend (matching heatmap_renderer style) ----
+    # Add invisible bar traces for each count range to create the legend
+    for lbl, col in zip(legend_labels, legend_colors):
+        fig.add_trace(
+            go.Bar(
+                x=[None], y=[None],
+                marker_color=col,
+                name=lbl,
+                legendgroup='peptide_counts',
+                legendgrouptitle_text='<b>Peptide Counts:</b>',
+                showlegend=True,
+                hoverinfo='skip',
+            ),
+            row=1, col=1,
+        )
+
+    # Overall layout
+    total_height = max(450, num_chunks * 220)
+    fig.update_layout(
+        title=dict(
+            text=f"Bioactive Peptide Map: {protein.desc} ({protein.pid})",
+            font=dict(size=16),
+        ),
+        height=total_height,
+        barmode='overlay',
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        legend=dict(
+            title=dict(text=''),
+            orientation='v',
+            yanchor='top',
+            y=0.98,
+            xanchor='left',
+            x=1.03,
+            font=dict(size=11),
+            tracegroupgap=10,
+            groupclick='toggleitem',
+        ),
+        margin=dict(t=80, b=30, l=30, r=220),
+    )
+
+    return fig.to_dict()
