@@ -17,18 +17,14 @@
     <input type="file" name="inputfile" id="hiddenFileInput" />
 </div>
 
-
-<script>
-document.querySelector('#loadFileLink').addEventListener('click', function(event) {
-    event.preventDefault();  // Prevent the default anchor action
-    document.querySelector('#hiddenFileInput').click();
-});
-</script>
 {% with tooltip_counter=999 %}
-    <!-- Two buttons in the same row: Advanced Search Options and Bioactivity Visualization -->
 <div style="display:flex; gap:10px; align-items:center; margin-bottom:5px;">
-    <button class="btn btn-default" type="button" id="toggleAdvancedOptions">Advanced Search Options</button>
+    <button class="btn btn-default" id="search-db-btn">Search DB</button>
     <button class="btn btn-default" type="button" id="toggleBioactivityViz">Visualize DB</button>
+</div>
+<div style="margin-bottom:5px;">
+    <button class="btn btn-default" type="button" id="toggleAdvancedOptions">Advanced Search Options</button>
+    <a href=".">Clear all search criteria</a>
 </div>
 
 <!-- Advanced Search Options (Collapsed by default) -->
@@ -322,8 +318,6 @@ document.querySelector('#loadFileLink').addEventListener('click', function(event
 
 
 
-<button class="btn btn-default" id="search-db-btn">Search DB</button>  <a href=".">Clear all search criteria</a>
-<br/><br/>
 </form>
 
 <!-- Bioactivity Visualization Plot Container (outside the form, always visible) -->
@@ -820,7 +814,7 @@ function generateBioactivityViz() {
     }
 
     // Get selected functions (optional filter)
-    var selectedFunctions = $('#vizFunctionSelect').val() || [];
+    var selectedFunctions = ($('#vizFunctionSelect').val() || []).filter(function(v) { return v !== ''; });
 
     var btn = document.getElementById('generateVizBtn');
     var spinner = document.getElementById('vizLoadingSpinner');
@@ -861,8 +855,10 @@ function generateBioactivityViz() {
         _ensurePlotly(function() {
             Plotly.newPlot(plotDiv, data.figure.data, data.figure.layout, {
                 responsive: true,
+                scrollZoom: true,
                 displayModeBar: true,
-                modeBarButtonsToAdd: ['toImage'],
+                useResizeObserver: true,
+                modeBarButtonsToAdd: ['zoom2d', 'pan2d', 'resetScale2d', 'toImage'],
             });
         });
     })
@@ -893,7 +889,7 @@ function downloadBioactivityViz() {
                 '<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"><\/script></head><body>' +
                 '<div id="plot"></div><script>' +
                 'Plotly.newPlot("plot",' + JSON.stringify(_currentBioVizFigure.data) + ',' +
-                JSON.stringify(_currentBioVizFigure.layout) + ',{responsive:true});' +
+                JSON.stringify(_currentBioVizFigure.layout) + ',{responsive:true,scrollZoom:true,displayModeBar:true});' +
                 '<\/script></body></html>';
             var blob = new Blob([html], {type: 'text/html'});
             var url = URL.createObjectURL(blob);
