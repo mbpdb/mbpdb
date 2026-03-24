@@ -860,6 +860,77 @@ function generateBioactivityViz() {
                 useResizeObserver: true,
                 modeBarButtonsToAdd: ['zoom2d', 'pan2d', 'resetScale2d', 'toImage'],
             });
+
+            // ---- Synchronize zoom across all subplot rows ----
+            var chunkSize = data.figure._chunk_size || 70;
+            var numChunks = data.figure._num_chunks || 1;
+            if (numChunks > 1) {
+                var _syncingZoom = false;
+                plotDiv.on('plotly_relayout', function(eventData) {
+                    if (_syncingZoom) return;
+                    // Detect which xaxis was changed
+                    var sourceAxis = null;
+                    var newRange = null;
+                    var isAutorange = false;
+                    for (var key in eventData) {
+                        var m;
+                        // Match xaxis.range[0], xaxis2.range[0], etc.
+                        if ((m = key.match(/^(xaxis\d*)\.range\[0\]$/))) {
+                            sourceAxis = m[1];
+                            newRange = [
+                                eventData[sourceAxis + '.range[0]'],
+                                eventData[sourceAxis + '.range[1]']
+                            ];
+                            break;
+                        }
+                        // Match xaxis.autorange, xaxis2.autorange, etc.
+                        if ((m = key.match(/^(xaxis\d*)\.autorange$/))) {
+                            isAutorange = true;
+                            break;
+                        }
+                    }
+                    // On autorange/reset, reset all axes to their original ranges
+                    if (isAutorange || eventData['autosize']) {
+                        var resetUpdate = {};
+                        for (var i = 0; i < numChunks; i++) {
+                            var axKey = i === 0 ? 'xaxis' : 'xaxis' + (i + 1);
+                            var origStart = i * chunkSize + 1;
+                            resetUpdate[axKey + '.range'] = [origStart - 0.5, origStart + chunkSize - 0.5];
+                            resetUpdate[axKey + '.autorange'] = false;
+                        }
+                        _syncingZoom = true;
+                        Plotly.relayout(plotDiv, resetUpdate).then(function() {
+                            _syncingZoom = false;
+                        });
+                        return;
+                    }
+                    if (!sourceAxis || !newRange) return;
+                    // Determine the source chunk index
+                    var srcIdx = 0;
+                    var axNum = sourceAxis.replace('xaxis', '');
+                    if (axNum !== '') srcIdx = parseInt(axNum) - 1;
+                    var srcOrigStart = srcIdx * chunkSize + 1 - 0.5;
+                    // Compute relative zoom fraction within the chunk
+                    var relStart = (newRange[0] - srcOrigStart) / chunkSize;
+                    var relEnd = (newRange[1] - srcOrigStart) / chunkSize;
+                    // Apply same relative zoom to all other axes
+                    var update = {};
+                    for (var i = 0; i < numChunks; i++) {
+                        if (i === srcIdx) continue;
+                        var axKey = i === 0 ? 'xaxis' : 'xaxis' + (i + 1);
+                        var origStart = i * chunkSize + 1 - 0.5;
+                        update[axKey + '.range'] = [
+                            origStart + relStart * chunkSize,
+                            origStart + relEnd * chunkSize
+                        ];
+                        update[axKey + '.autorange'] = false;
+                    }
+                    _syncingZoom = true;
+                    Plotly.relayout(plotDiv, update).then(function() {
+                        _syncingZoom = false;
+                    });
+                });
+            }
         });
     })
     .catch(function(err) {
