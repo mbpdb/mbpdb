@@ -1299,4 +1299,7 @@ def _build_bioactivity_figure(protein, sequence, peptide_entries):
         margin=dict(t=80, b=30, l=30, r=220),
     )
 
-    return fig.to_dict()
+    result = fig.to_dict()
+    result['_chunk_size'] = CHUNK_SIZE
+    result['_num_chunks'] = num_chunks
+    return result
