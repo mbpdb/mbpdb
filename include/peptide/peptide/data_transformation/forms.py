@@ -5,10 +5,11 @@ from django import forms
 
 
 class PeptidomicUploadForm(forms.Form):
-    """Step 1: Upload peptidomic data file."""
+    """Step 1: Upload peptidomic data file (single or merge mode)."""
     peptidomic_file = forms.FileField(
         label='Peptidomic Data File',
         help_text='CSV, TSV, or XLSX file containing peptidomic results',
+        required=False,
         widget=forms.ClearableFileInput(attrs={
             'accept': '.csv,.tsv,.txt,.xlsx,.xls',
             'class': 'form-control-file',
@@ -43,6 +44,16 @@ class PeptidomicUploadForm(forms.Form):
             attrs={'class': 'form-control', 'style': 'width: 200px;'},
         ),
     )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        has_single = bool(cleaned_data.get('peptidomic_file'))
+        has_merge = bool(self.files.getlist('merge_files'))
+        if not has_single and not has_merge:
+            raise forms.ValidationError(
+                'Please upload a peptidomic data file or multiple files to merge.'
+            )
+        return cleaned_data
 
 
 class GroupUploadForm(forms.Form):
