@@ -658,6 +658,243 @@ def find_missing_proteins(df, protein_dict):
     return {p for p in clean_protein_list if p not in protein_dict}
 
 
+def _build_merge_key(df):
+    """Build a composite key for merging peptidomic datasets.
+
+    Key = Sequence (or Annotated Sequence) + Modifications.
+    Protein and position columns are NOT part of the key — the same peptide
+    identified from different proteins across datasets is still the same
+    peptide and should be merged into one row.
+    """
+    # Prefer Sequence; fall back to Annotated Sequence
+    if 'Sequence' in df.columns:
+        seq = df['Sequence'].fillna('').astype(str).str.strip().str.lower()
+    elif 'Annotated Sequence' in df.columns:
+        seq = df['Annotated Sequence'].fillna('').astype(str).str.strip().str.lower()
+    else:
+        seq = pd.Series('', index=df.index)
+
+    mods = (df['Modifications'].fillna('').astype(str).str.strip().str.lower()
+            if 'Modifications' in df.columns
+            else pd.Series('', index=df.index))
+
+    return seq + '||' + mods
+
+
+def merge_peptidomic_datasets(dataframes):
+    """Merge multiple peptidomic DataFrames on a composite peptide key.
+
+    - Shared metadata columns (non-numeric identifiers) are coalesced.
+    - Numeric/abundance columns are kept from every dataset (renamed with a
+      file-index suffix when names collide).
+    - Peptides unique to one dataset appear as new rows with NaN in the
+      abundance columns of the other datasets.
+    - The temporary merge key column is removed before returning.
+
+    Args:
+        dataframes: list of (filename, DataFrame) tuples
+
+    Returns:
+        merged DataFrame
+    """
+    if len(dataframes) < 2:
+        raise ValueError('At least two datasets are required for merging.')
+
+    KEY_COL = '__merge_key__'
+
+    # Columns that form the peptide identity — never suffixed, coalesced (prefer left)
+    identity_cols = {
+        'Sequence', 'Annotated Sequence', 'Modifications',
+        'Peptide Modified Sequence', 'Modified sequence', 'Modified Sequence',
+        'Number of Missed Cleavages', 'Confidence', 'Sequence Length',
+        'Marked as', 'Checked',
+    }
+
+    # Metadata columns — kept as a single column; differing values are
+    # concatenated with "; " so the user can see which dataset contributed what
+    # (matching Proteome Discoverer's convention for multi-protein peptides).
+    # Same values across datasets are not duplicated.
+    metadata_cols = {
+        'Master Protein Accessions', 'Positions in Proteins', 'Protein',
+        'Positions in Master Proteins', 'Modifications in Master Proteins',
+        'Master Protein Descriptions', 'Protein Groups',
+        'Top Apex RT in min', 'Peptide Groups Peptide Group ID',
+        'Theo MHplus in Da', 'Quan Info', 'PSMs',
+        'Confidence by Search Engine', 'q-Value by Search Engine',
+        'XCorr by Search Engine', 'PEP', 'q-Value', 'RT in min',
+        'Precursor', 'Precursor Charge', 'Precursor Mz',
+    }
+
+    def _normalize_val(val):
+        """Convert a value to a clean string, dropping trailing .0 from floats
+        that are really integers (e.g. 392.0 → '392').  Also converts Python
+        list representations like ['P1', 'P2'] to 'P1; P2'."""
+        try:
+            if val is None or (isinstance(val, float) and np.isnan(val)):
+                return ''
+            # Actual Python list or array — join elements
+            if isinstance(val, (list, np.ndarray)):
+                parts = [str(v).strip() for v in val if str(v).strip()]
+                return '; '.join(parts) if parts else ''
+            is_na = pd.isna(val)
+            if isinstance(is_na, (bool, np.bool_)) and is_na:
+                return ''
+        except (ValueError, TypeError):
+            pass
+        s = str(val).strip()
+        # Detect string representation of a Python list, e.g. "['P1', 'P2']"
+        if s.startswith('[') and s.endswith(']'):
+            try:
+                import ast
+                parsed = ast.literal_eval(s)
+                if isinstance(parsed, list):
+                    parts = [str(v).strip() for v in parsed if str(v).strip()]
+                    return '; '.join(parts) if parts else ''
+            except (ValueError, SyntaxError):
+                pass
+        # If it looks like a float that is really an integer, drop the .0
+        try:
+            f = float(s)
+            if f == int(f):
+                s = str(int(f))
+        except (ValueError, OverflowError):
+            pass
+        return s
+
+    def _semicolon_coalesce(left_series, right_series):
+        """Merge two series into one: identical values kept as-is,
+        differing values joined with '; '.  Both sides may already
+        contain semicolon-separated parts — each part is compared
+        individually so duplicates are never introduced."""
+        def _combine(left_val, right_val):
+            l_str = _normalize_val(left_val)
+            r_str = _normalize_val(right_val)
+            if not l_str and not r_str:
+                return np.nan
+            if not l_str:
+                return r_str
+            if not r_str:
+                return l_str
+            # Split both sides into individual parts for comparison
+            existing = [_normalize_val(p) for p in l_str.split(';') if _normalize_val(p)]
+            right_parts = [_normalize_val(p) for p in r_str.split(';') if _normalize_val(p)]
+            existing_set = set(existing)
+            new_parts = [p for p in right_parts if p not in existing_set]
+            if new_parts:
+                return '; '.join(existing + new_parts)
+            return '; '.join(existing)
+        return pd.Series(
+            [_combine(l, r) for l, r in zip(left_series, right_series)],
+            index=left_series.index,
+        )
+
+    # Columns that may contain Python lists — normalize to '; '-separated strings
+    list_prone_cols = {
+        'Protein', 'Master Protein Accessions', 'Positions in Proteins',
+        'Positions in Master Proteins', 'Master Protein Descriptions',
+        'Protein Groups',
+    }
+
+    def _normalize_list_cells(df):
+        """Convert list-valued cells to '; '-joined strings."""
+        for col in list_prone_cols & set(df.columns):
+            mask = df[col].apply(lambda v: isinstance(v, (list, np.ndarray)))
+            if mask.any():
+                df.loc[mask, col] = df.loc[mask, col].apply(
+                    lambda v: '; '.join(str(x).strip() for x in v if str(x).strip())
+                )
+            # Also fix string representations of lists, e.g. "['P1', 'P2']"
+            str_mask = df[col].astype(str).str.match(r"^\[.*\]$", na=False)
+            if str_mask.any():
+                def _parse_list_str(v):
+                    try:
+                        parsed = ast.literal_eval(str(v))
+                        if isinstance(parsed, list):
+                            return '; '.join(str(x).strip() for x in parsed if str(x).strip())
+                    except (ValueError, SyntaxError):
+                        pass
+                    return v
+                df.loc[str_mask, col] = df.loc[str_mask, col].apply(_parse_list_str)
+        return df
+
+    # ---- Step 1: build merge keys and tag each frame --------------------
+    keyed_frames = []
+    for _fname, df in dataframes:
+        df = df.copy()
+        df = _normalize_list_cells(df)
+        df[KEY_COL] = _build_merge_key(df)
+        keyed_frames.append(df)
+
+    # ---- Step 2: iterative outer merge ----------------------------------
+    merged = keyed_frames[0]
+    for idx in range(1, len(keyed_frames)):
+        right = keyed_frames[idx]
+
+        # Determine which columns overlap (excluding the key)
+        left_cols = set(merged.columns) - {KEY_COL}
+        right_cols = set(right.columns) - {KEY_COL}
+        common = left_cols & right_cols
+
+        # Identity columns: silently coalesced (prefer left, fill from right)
+        id_overlap = common & identity_cols
+        # Metadata columns: semicolon-coalesced into a single column
+        meta_overlap = common & metadata_cols
+        # Remaining overlapping columns: need _ds# suffixing (abundance data)
+        data_overlap = common - identity_cols - metadata_cols
+
+        # Rename right-side data-overlap columns with a dataset index suffix
+        rename_map = {}
+        for col in data_overlap:
+            new_name = col + '_ds' + str(idx + 1)
+            while new_name in merged.columns or new_name in right.columns:
+                new_name += '_'
+            rename_map[col] = new_name
+        right_renamed = right.rename(columns=rename_map)
+
+        merged = merged.merge(right_renamed, on=KEY_COL, how='outer',
+                              suffixes=('', '_right'))
+
+        # Coalesce identity columns (prefer left, fill from right)
+        for col in id_overlap:
+            right_col = col + '_right'
+            if right_col in merged.columns:
+                merged[col] = merged[col].combine_first(merged[right_col])
+                merged.drop(columns=[right_col], inplace=True)
+
+        # Semicolon-coalesce metadata columns
+        for col in meta_overlap:
+            right_col = col + '_right'
+            if right_col in merged.columns:
+                merged[col] = _semicolon_coalesce(merged[col], merged[right_col])
+                merged.drop(columns=[right_col], inplace=True)
+
+    # ---- Step 3: drop the merge key ------------------------------------
+    merged.drop(columns=[KEY_COL], inplace=True)
+
+    # ---- Step 4: reorder columns — identity & metadata first, then abundance
+    # Preferred leading column order (present columns only)
+    leading_order = [
+        'Sequence', 'Annotated Sequence', 'Protein',
+        'Master Protein Accessions', 'Master Protein Descriptions',
+        'Protein Groups', 'Positions in Proteins',
+        'Positions in Master Proteins', 'Modifications',
+        'Modifications in Master Proteins',
+        'Peptide Modified Sequence', 'Modified sequence', 'Modified Sequence',
+        'Number of Missed Cleavages', 'Sequence Length',
+        'Confidence', 'Marked as', 'Checked',
+        'Peptide Groups Peptide Group ID',
+        'Theo MHplus in Da', 'Quan Info', 'Top Apex RT in min',
+        'PSMs', 'Confidence by Search Engine', 'q-Value by Search Engine',
+        'XCorr by Search Engine', 'PEP', 'q-Value', 'RT in min',
+        'Precursor', 'Precursor Charge', 'Precursor Mz',
+    ]
+    leading = [c for c in leading_order if c in merged.columns]
+    remaining = [c for c in merged.columns if c not in leading]
+    merged = merged[leading + remaining]
+
+    return merged
+
+
 def get_filtered_columns(df):
     """Get abundance columns by filtering out known non-abundance columns."""
     columns_to_exclude = [
