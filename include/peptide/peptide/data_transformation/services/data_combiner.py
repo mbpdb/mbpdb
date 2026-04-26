@@ -320,6 +320,11 @@ def process_data(pd_results, pd_results_cleaned, mbpdb_results, group_data, prot
             final_df['Protein'] = final_df['Protein'].apply(
                 lambda x: extract_protein_id(x, protein_dict)
             )
+            # extract_protein_id returns a list for multi-protein entries;
+            # normalize to '; '-separated strings for consistent downstream use.
+            final_df['Protein'] = final_df['Protein'].apply(
+                lambda x: '; '.join(str(p) for p in x) if isinstance(x, list) else x
+            )
 
         step = 'cleaning up placeholder values'
         for col in ['Protein', 'Positions in Proteins', 'protein_name', 'protein_species']:
