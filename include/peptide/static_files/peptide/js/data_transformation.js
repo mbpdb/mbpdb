@@ -17,15 +17,39 @@
         var input = zone.querySelector('input[type="file"]');
         var dropText = zone.querySelector('.drop-text');
         var fileName = zone.querySelector('.file-name');
+        var mergeFileList = zone.querySelector('.merge-file-list');
+        var isMulti = input && input.hasAttribute('multiple');
 
         function showFile(name) {
             dropText.classList.add('hidden');
             fileName.textContent = name;
             fileName.classList.remove('hidden');
+            if (mergeFileList) mergeFileList.classList.add('hidden');
+        }
+
+        function showMultipleFiles(files) {
+            dropText.classList.add('hidden');
+            fileName.classList.add('hidden');
+            if (!mergeFileList) return;
+            mergeFileList.innerHTML = '';
+            for (var i = 0; i < files.length; i++) {
+                var item = document.createElement('div');
+                item.className = 'merge-file-item';
+                item.textContent = files[i].name;
+                mergeFileList.appendChild(item);
+            }
+            mergeFileList.classList.remove('hidden');
         }
 
         input.addEventListener('change', function() {
-            if (this.files.length) showFile(this.files[0].name);
+            if (!this.files.length) return;
+            if (isMulti) {
+                showMultipleFiles(this.files);
+                handlePeptidomicModeSwitch('merge');
+            } else {
+                showFile(this.files[0].name);
+                if (this.id === 'peptidomic_file') handlePeptidomicModeSwitch('single');
+            }
         });
 
         zone.addEventListener('dragover', function(e) {
@@ -40,13 +64,42 @@
             zone.classList.remove('dragover');
             if (e.dataTransfer.files.length) {
                 input.files = e.dataTransfer.files;
-                showFile(e.dataTransfer.files[0].name);
-                // Programmatically setting .files doesn't fire the change event,
-                // so dispatch it manually so any change listeners (e.g. group upload) run.
+                if (isMulti) {
+                    showMultipleFiles(e.dataTransfer.files);
+                    handlePeptidomicModeSwitch('merge');
+                } else {
+                    showFile(e.dataTransfer.files[0].name);
+                    if (input.id === 'peptidomic_file') handlePeptidomicModeSwitch('single');
+                }
                 input.dispatchEvent(new Event('change'));
             }
         });
     });
+
+    // Mutual exclusivity: selecting single clears merge and vice-versa
+    function handlePeptidomicModeSwitch(mode) {
+        var singleInput = document.getElementById('peptidomic_file');
+        var mergeInput = document.getElementById('merge_files');
+        if (mode === 'single' && mergeInput) {
+            mergeInput.value = '';
+            var mergeZone = mergeInput.closest('.dt-dropzone');
+            if (mergeZone) {
+                mergeZone.querySelector('.drop-text').classList.remove('hidden');
+                var fn = mergeZone.querySelector('.file-name');
+                if (fn) fn.classList.add('hidden');
+                var ml = mergeZone.querySelector('.merge-file-list');
+                if (ml) { ml.innerHTML = ''; ml.classList.add('hidden'); }
+            }
+        } else if (mode === 'merge' && singleInput) {
+            singleInput.value = '';
+            var singleZone = singleInput.closest('.dt-dropzone');
+            if (singleZone) {
+                singleZone.querySelector('.drop-text').classList.remove('hidden');
+                var fn = singleZone.querySelector('.file-name');
+                if (fn) { fn.textContent = ''; fn.classList.add('hidden'); }
+            }
+        }
+    }
 
     // -----------------------------------------------------------------------
     // "Load example" links — fetch static example file and inject into input
@@ -169,16 +222,44 @@
 
     document.getElementById('upload-form').addEventListener('submit', function(e) {
         e.preventDefault();
+        var singleInput = document.getElementById('peptidomic_file');
+        var mergeInput = document.getElementById('merge_files');
+        var hasSingle = singleInput && singleInput.files.length > 0;
+        var hasMerge = mergeInput && mergeInput.files.length >= 2;
+
+        if (!hasSingle && !hasMerge) {
+            if (mergeInput && mergeInput.files.length === 1) {
+                showError('Please select at least 2 files for merging, or use the Single Dataset option.');
+            } else {
+                showError('Please select a peptidomic data file (single or multiple for merging).');
+            }
+            return;
+        }
+
         var btn = document.getElementById('upload-btn');
         btn.disabled = true;
         btn.innerHTML = '<span class="dt-spinner"></span> Uploading...';
 
         var formData = new FormData(this);
+        // For merge mode, ensure all files are appended under 'merge_files'
+        if (hasMerge) {
+            formData.delete('peptidomic_file');
+            formData.delete('merge_files');
+            for (var i = 0; i < mergeInput.files.length; i++) {
+                formData.append('merge_files', mergeInput.files[i]);
+            }
+        }
         ajax('POST', 'upload/', formData, function(resp) {
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-upload"></i> Upload & Validate';
 
-            var summary = '<div class="dt-alert dt-alert-success">' +
+            var summary = '';
+            if (resp.merged_from) {
+                summary += '<div class="dt-alert dt-alert-info">' +
+                    '<i class="fas fa-object-group"></i> Merged <strong>' + resp.merged_from +
+                    '</strong> datasets into one.</div>';
+            }
+            summary += '<div class="dt-alert dt-alert-success">' +
                 'Loaded <strong>' + resp.rows + '</strong> rows, <strong>' + resp.columns + '</strong> columns. ' +
                 'Found <strong>' + resp.sequences + '</strong> unique sequences to search.</div>';
             if (resp.warning) {

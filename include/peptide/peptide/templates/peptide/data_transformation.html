@@ -55,6 +55,8 @@
     .dt-blast-inline { flex: 1; display: flex; flex-direction: column; justify-content: center; }
     .dt-blast-inline.disabled-section { opacity: 0.45; pointer-events: none; }
     .dt-dropzone .file-name { color: #1976d2; font-weight: 600; pointer-events: none; }
+    .dt-dropzone .merge-file-list { text-align: left; padding: 4px 8px; pointer-events: none; }
+    .dt-dropzone .merge-file-list .merge-file-item { color: #1976d2; font-weight: 600; font-size: 0.85rem; padding: 1px 0; }
     .dt-columns-select { max-height: 250px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 4px; padding: 8px; }
     .dt-columns-select label { display: block; padding: 2px 0; cursor: pointer; }
     .dt-col-panel { display: flex; gap: 12px; margin-bottom: 12px; }
@@ -138,15 +140,29 @@
             <h4>Upload Peptidomic Data</h4>
             <form id="upload-form" enctype="multipart/form-data">
                 {% csrf_token %}
-                <div class="dt-file-input">
-                    <label>Peptidomic Data File <span style="color: #dc3545;">*</span></label>
-                    <div class="dt-dropzone" data-input="peptidomic_file" style="width:33%;">
-                        <input type="file" name="peptidomic_file" id="peptidomic_file" accept=".csv,.tsv,.txt,.xlsx,.xls" required>
-                        <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag & drop or click to select</div>
-                        <div class="file-name hidden"></div>
+                <span style="display:block; font-weight:600; margin-bottom:4px;">Peptidomic Data File <span style="color: #dc3545;">*</span></span>
+                <div class="dt-or-row">
+                    <div class="dt-file-input" style="flex:none; width:33%;">
+                        <label for="peptidomic_file" style="font-size:0.9rem; color:#555;">Single Dataset</label>
+                        <div class="dt-dropzone" data-input="peptidomic_file" style="width:100%;">
+                            <input type="file" name="peptidomic_file" id="peptidomic_file" accept=".csv,.tsv,.txt,.xlsx,.xls">
+                            <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag & drop or click to select</div>
+                            <div class="file-name hidden"></div>
+                        </div>
+                        <div class="help-text">CSV, TSV, or XLSX file containing peptidomic results</div>
+                        <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/example_peptidomic_data.csv' %}" download>Download example file</a> &middot; <a href="#" class="dt-load-example" data-input-id="peptidomic_file" data-url="{% static 'peptide/examples/example_peptidomic_data.csv' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
                     </div>
-                    <div class="help-text">CSV, TSV, or XLSX file containing peptidomic results (Proteome Discoverer, MaxQuant, Skyline, etc.)</div>
-                    <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/example_peptidomic_data.csv' %}" download>Download example file</a> &middot; <a href="#" class="dt-load-example" data-input-id="peptidomic_file" data-url="{% static 'peptide/examples/example_peptidomic_data.csv' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
+                    <div class="dt-or-divider">OR</div>
+                    <div class="dt-file-input" style="flex:none; width:33%;">
+                        <label for="merge_files" style="font-size:0.9rem; color:#555;">Multiple Datasets</label>
+                        <div class="dt-dropzone" data-input="merge_files" style="width:100%;">
+                            <input type="file" name="merge_files" id="merge_files" accept=".csv,.tsv,.txt,.xlsx,.xls" multiple>
+                            <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag & drop or click to select multiple files</div>
+                            <div class="file-name hidden"></div>
+                            <div class="merge-file-list hidden"></div>
+                        </div>
+                        <div class="help-text">Upload multiple Proteome Discoverer files to merge into a single dataset</div>
+                    </div>
                 </div>
                 <!-- Functional data OR BLAST threshold (same row) -->
                 <div class="dt-or-row">
@@ -470,5 +486,5 @@
 {% endblock %}
 
 {% block 'scripts' %}
-<script src="{% static 'peptide/js/data_transformation.js' %}?v=22"></script>
+<script src="{% static 'peptide/js/data_transformation.js' %}?v=25"></script>
 {% endblock %}
