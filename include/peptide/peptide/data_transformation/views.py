@@ -88,17 +88,44 @@ def upload_files(request):
 
         work_dir = _get_work_dir(request)
 
-        # Pass the file object directly — avoids loading the entire file into
-        # memory. TemporaryUploadedFile (used for large files) is already on
-        # disk; InMemoryUploadedFile supports seek() too.
-        pep_file = request.FILES['peptidomic_file']
+        # Detect merge mode: multiple files under 'merge_files'
+        merge_files = request.FILES.getlist('merge_files')
+        merged_from = 0
 
-        # Load and validate
-        df, status, error_msg, warning_msg = data_loader.load_and_validate_file(
-            pep_file, pep_file.name, 'Peptidomic'
-        )
-        if status == 'no':
-            return JsonResponse({'error': error_msg}, status=400)
+        if merge_files and len(merge_files) >= 2:
+            # --- Merge mode: load, validate, and merge multiple datasets ---
+            loaded = []
+            all_warnings = []
+            for mf in merge_files:
+                mf_df, mf_status, mf_error, mf_warn = data_loader.load_and_validate_file(
+                    mf, mf.name, 'Peptidomic'
+                )
+                if mf_status == 'no':
+                    return JsonResponse({
+                        'error': f'File "{mf.name}": {mf_error}'
+                    }, status=400)
+                if mf_warn:
+                    all_warnings.append(f'{mf.name}: {mf_warn}')
+                loaded.append((mf.name, mf_df))
+
+            df = data_loader.merge_peptidomic_datasets(loaded)
+            merged_from = len(loaded)
+            warning_msg = '; '.join(all_warnings) if all_warnings else ''
+            pep_file_name = ' + '.join(mf.name for mf in merge_files)
+        else:
+            # --- Single file mode (original behaviour) ---
+            pep_file = request.FILES.get('peptidomic_file')
+            if not pep_file:
+                return JsonResponse(
+                    {'error': 'No peptidomic data file provided.'}, status=400
+                )
+
+            df, status, error_msg, warning_msg = data_loader.load_and_validate_file(
+                pep_file, pep_file.name, 'Peptidomic'
+            )
+            if status == 'no':
+                return JsonResponse({'error': error_msg}, status=400)
+            pep_file_name = pep_file.name
 
         _save_df(work_dir, 'pd_results', df)
 
@@ -157,22 +184,37 @@ def upload_files(request):
             'mbpdb_rows': mbpdb_rows,
             'warning': '; '.join(all_warnings) if all_warnings else None,
         }
+        if merged_from:
+            result['merged_from'] = merged_from
 
         # Store sequences for BLAST
         _save_json(work_dir, 'sequences', sequences)
 
         # Save original filenames so they can be restored on resume
+        merge_file_names = [mf.name for mf in merge_files] if merged_from else None
         _save_json(work_dir, 'uploaded_file_names', {
-            'peptidomic_file': pep_file.name,
+            'peptidomic_file': pep_file_name if not merged_from else None,
+            'merge_files': merge_file_names,
             'functional_file': func_file.name if func_file else None,
             'fasta_file': fasta_file.name if fasta_file else None,
         })
 
         # Save original file bytes so they can be reloaded on resume
         try:
-            pep_file.seek(0)
-            with open(os.path.join(work_dir, 'peptidomic_file.orig'), 'wb') as fh:
-                fh.write(pep_file.read())
+            if not merge_files or len(merge_files) < 2:
+                pep_file = request.FILES.get('peptidomic_file')
+                if pep_file:
+                    pep_file.seek(0)
+                    with open(os.path.join(work_dir, 'peptidomic_file.orig'), 'wb') as fh:
+                        fh.write(pep_file.read())
+            else:
+                # For merge mode, save the merged DataFrame as the "original"
+                # so session resume works without re-uploading individual files
+                _save_df(work_dir, 'pd_results', df)
+                stale = os.path.join(work_dir, 'peptidomic_file.orig')
+                if os.path.exists(stale):
+                    os.remove(stale)
+
             if func_file:
                 func_file.seek(0)
                 with open(os.path.join(work_dir, 'functional_file.orig'), 'wb') as fh:
