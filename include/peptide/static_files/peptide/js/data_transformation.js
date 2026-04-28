@@ -1289,7 +1289,30 @@
         // Restore uploaded file names on the Step 1 dropzones
         var fn = resp.file_names || {};
         var savedFiles = resp.has_saved_files || {};
-        restoreDropzoneName('peptidomic_file', fn.peptidomic_file);
+
+        if (fn.merge_files && fn.merge_files.length) {
+            // Merge mode — show individual filenames in the merge dropzone
+            var mergeInput = document.getElementById('merge_files');
+            if (mergeInput) {
+                var mergeZone = mergeInput.closest('.dt-dropzone');
+                if (mergeZone) {
+                    mergeZone.querySelector('.drop-text').classList.add('hidden');
+                    var ml = mergeZone.querySelector('.merge-file-list');
+                    if (ml) {
+                        ml.innerHTML = '';
+                        fn.merge_files.forEach(function(name) {
+                            var item = document.createElement('div');
+                            item.className = 'merge-file-item';
+                            item.textContent = name;
+                            ml.appendChild(item);
+                        });
+                        ml.classList.remove('hidden');
+                    }
+                }
+            }
+        } else {
+            restoreDropzoneName('peptidomic_file', fn.peptidomic_file);
+        }
         restoreDropzoneName('functional_file', fn.functional_file);
         restoreDropzoneName('fasta_file',      fn.fasta_file);
 
