@@ -1350,9 +1350,9 @@
         var banner = document.getElementById('dt-resume-banner');
         var btns = document.getElementById('dt-resume-btns');
 
-        function makeResumeBtn(label, icon, onClick) {
+        function makeResumeBtn(label, icon, onClick, extraClass) {
             var btn = document.createElement('button');
-            btn.className = 'dt-resume-btn';
+            btn.className = 'dt-resume-btn' + (extraClass ? ' ' + extraClass : '');
             btn.innerHTML = '<i class="fas ' + icon + '"></i> ' + label;
             btn.addEventListener('click', function() {
                 banner.classList.add('hidden');
@@ -1375,6 +1375,15 @@
                 goToStep(4);
             });
         }
+        makeResumeBtn('Reset', 'fa-trash-alt', function() {
+            if (!confirm('This will clear all uploaded data and reset the session. Continue?')) {
+                banner.classList.remove('hidden');
+                return;
+            }
+            ajax('POST', 'cleanup/', null, function() {
+                location.reload();
+            });
+        }, 'dt-resume-btn-reset');
 
         banner.classList.remove('hidden');
     });
