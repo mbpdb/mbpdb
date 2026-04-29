@@ -26,18 +26,32 @@ def create_work_directory(base_dir=None):
     return path
 
 
-def cleanup_work_directories(work_directory=None, keep=25):
-    """Clean up old work directories, keeping the most recent ones."""
+def cleanup_work_directories(work_directory=None, keep=25, max_age_hours=24):
+    """Clean up old work directories.
+
+    Removes any directory older than ``max_age_hours`` (regardless of count),
+    then enforces the ``keep`` cap on the remaining most-recent directories.
+    Aligns disk cleanup with the 4-hour session timeout — anything past a
+    day is guaranteed orphaned.
+    """
     if work_directory is None:
         work_directory = settings.WORK_DIRECTORY
     try:
         dirs = [f for f in os.scandir(work_directory) if f.is_dir() and f.name.startswith('work_')]
-        dirs.sort(key=lambda x: os.path.getmtime(x.path), reverse=True)
-        for dir_entry in dirs[keep:]:
+        cutoff = time.time() - max_age_hours * 3600
+        survivors = []
+        for entry in dirs:
             try:
-                shutil.rmtree(dir_entry.path)
+                if os.path.getmtime(entry.path) < cutoff:
+                    shutil.rmtree(entry.path, ignore_errors=True)
+                else:
+                    survivors.append(entry)
             except Exception:
                 pass
+
+        survivors.sort(key=lambda x: os.path.getmtime(x.path), reverse=True)
+        for dir_entry in survivors[keep:]:
+            shutil.rmtree(dir_entry.path, ignore_errors=True)
     except Exception:
         pass
 

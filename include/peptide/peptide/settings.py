@@ -101,6 +101,13 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# Session lifetime — keep uploaded-file references in memory only for the
+# current browsing session.  Without these, Django's default 2-week cookie
+# lets the data-transformation page resume yesterday's uploads.
+SESSION_COOKIE_AGE = 4 * 60 * 60          # 4 hours of inactivity
+SESSION_SAVE_EVERY_REQUEST = True         # sliding window: each request resets the timer
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True    # also clear when the browser closes
 # CORS and CSRF origins - production URLs loaded from environment
 # Set DJANGO_CORS_ORIGINS in your environment (comma-separated)
 # Example: DJANGO_CORS_ORIGINS=https://mbpdb.nws.oregonstate.edu,https://myapp.azurecontainerapps.io

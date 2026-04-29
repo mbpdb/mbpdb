@@ -670,7 +670,18 @@ def _build_merge_key(df):
     if 'Sequence' in df.columns:
         seq = df['Sequence'].fillna('').astype(str).str.strip().str.lower()
     elif 'Annotated Sequence' in df.columns:
-        seq = df['Annotated Sequence'].fillna('').astype(str).str.strip().str.lower()
+        # Strip flanking residues like "[K].PEPTIDE.[R]" → "PEPTIDE" so the
+        # same peptide with different flanks across datasets merges to one
+        # row. Mirrors the dot-split logic used by extract_sequences() and
+        # process_pd_results().
+        def _strip_flanks(s):
+            if '.' in s:
+                parts = s.split('.')
+                if len(parts) > 1:
+                    return parts[1]
+            return s
+        seq = (df['Annotated Sequence'].fillna('').astype(str).str.strip()
+               .apply(_strip_flanks).str.lower())
     else:
         seq = pd.Series('', index=df.index)
 
