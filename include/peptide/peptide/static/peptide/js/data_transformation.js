@@ -190,7 +190,11 @@
         var el = document.getElementById('dt-error');
         el.textContent = msg;
         el.classList.remove('hidden');
-        setTimeout(function() { el.classList.add('hidden'); }, 10000);
+        // Long, actionable messages (e.g. lists of invalid peptides) stay visible
+        // until the user acts; short errors auto-hide so they don't linger.
+        if (!msg || msg.length < 200) {
+            setTimeout(function() { el.classList.add('hidden'); }, 10000);
+        }
     }
 
     function showStep2Error(msg) {

@@ -619,6 +619,23 @@ def extract_sequences(df):
     return df['Sequence'].dropna().unique().tolist()
 
 
+def find_invalid_peptide_sequences(sequences):
+    """Return peptide sequences containing non-alphabetic characters.
+
+    BLAST only accepts amino-acid letters; a single sequence with digits,
+    punctuation, or whitespace causes blastp to fail and the entire batch
+    silently returns zero matches.
+    """
+    invalid = []
+    for seq in sequences:
+        s = str(seq).strip()
+        if not s:
+            continue
+        if not s.isalpha():
+            invalid.append(s)
+    return invalid
+
+
 def find_missing_proteins(df, protein_dict):
     """Find proteins in the data that are not in the protein dictionary."""
     if df is None or df.empty or 'Protein' not in df.columns:

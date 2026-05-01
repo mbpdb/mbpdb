@@ -169,6 +169,31 @@ def upload_files(request):
         # Extract sequences for BLAST
         sequences = data_loader.extract_sequences(df)
 
+        # Filter out peptides with non-alphabetic characters before BLAST.
+        # BLAST only accepts amino-acid letters; a single bad sequence makes
+        # blastp fail and the whole batch silently returns zero matches.
+        # We surface this as a warning so the user can still proceed (e.g. to
+        # use the app without running the MBPDB search).
+        invalid_peptides = data_loader.find_invalid_peptide_sequences(sequences)
+        if invalid_peptides:
+            invalid_set = set(invalid_peptides)
+            sequences = [s for s in sequences if s not in invalid_set]
+            preview = invalid_peptides[:10]
+            preview_str = ', '.join(preview)
+            extra = (
+                f' (and {len(invalid_peptides) - len(preview)} more)'
+                if len(invalid_peptides) > len(preview) else ''
+            )
+            func_warnings.append(
+                f'{len(invalid_peptides)} peptide sequence(s) contain '
+                f'non-alphabetic characters and will be excluded from the '
+                f'MBPDB search: {preview_str}{extra}. The MBPDB search only '
+                f'accepts sequences made of amino-acid letters (A–Z). To '
+                f'include these peptides, remove the non-alphabetic '
+                f'characters from your dataset and re-upload. You can still '
+                f'continue without running the MBPDB search.'
+            )
+
         # Auto-detect embedded function column in peptidomic data (re-uploaded transformed file)
         if not has_mbpdb and 'function' in df.columns and df['function'].notna().any():
             has_mbpdb = True
