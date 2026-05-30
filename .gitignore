@@ -17,6 +17,11 @@ secrets.py
 local_settings.py
 
 # ===========================================
+# Django STATIC_ROOT (collectstatic output) - regenerated on deploy
+# ===========================================
+include/peptide/static_files/
+
+# ===========================================
 # Original ignores
 # ===========================================
 *.pyc
