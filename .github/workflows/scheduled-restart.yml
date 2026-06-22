@@ -11,14 +11,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Azure Login
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.MBPDBCONTAINER_AZURE_CREDENTIALS_UPDATED }}
 
       - name: Restart Container App
         run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt --only-show-errors
+          REVISION=$(az containerapp revision list \
+            --name mbpdbcontainer \
+            --resource-group COH_MBPDB_RG \
+            --query "[?properties.active].name | [0]" -o tsv --only-show-errors)
+          if [ -z "$REVISION" ]; then
+            echo "No active revision found for mbpdbcontainer" >&2
+            exit 1
+          fi
+          echo "Restarting active revision: $REVISION"
           az containerapp revision restart \
             --name mbpdbcontainer \
             --resource-group COH_MBPDB_RG \
-            --revision $(az containerapp revision list --name mbpdbcontainer --resource-group COH_MBPDB_RG --query "[0].name" -o tsv)
+            --revision "$REVISION" \
+            --only-show-errors
 
