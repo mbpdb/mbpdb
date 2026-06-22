@@ -20,10 +20,10 @@ jobs:
 
     steps:
     - name: Checkout to the branch
-      uses: actions/checkout@v2
+      uses: actions/checkout@v5
 
     - name: Azure Login
-      uses: azure/login@v1
+      uses: azure/login@v3
       with:
         creds: ${{ secrets.MBPDBCONTAINER_AZURE_CREDENTIALS_UPDATED }}
 
