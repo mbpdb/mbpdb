@@ -33,8 +33,6 @@
         /* DataTables styling */
         #results_table_wrapper {
             margin-top: 20px;
-            max-height: 80vh;
-            overflow-y: auto;
         }
         #results_table {
             width: 100% !important;
@@ -46,15 +44,6 @@
             padding: 12px;
             text-align: left;
             border-bottom: 2px solid #dee2e6;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-        #results_table thead .filter-row {
-            position: sticky;
-            top: 48px;
-            z-index: 99;
-            background-color: #f8f9fa;
         }
         #results_table thead .filter-row th {
             background-color: #f8f9fa;
@@ -263,28 +252,23 @@
 
 <script>
     $(document).ready(function() {
-        // Remove filter row temporarily for DataTables initialization
-        $('#results_table thead .filter-row').remove();
-        
-        // Initialize DataTable
+        // Initialize DataTable.
+        // scrollX + scrollY give a horizontally/vertically scrollable body with
+        // a fixed header that DataTables manages (so the first data row is never
+        // clipped). orderCellsTop makes the FIRST header row the sortable column
+        // headers, leaving the second (.filter-row) row free for the per-column
+        // search inputs, which are rendered server-side and always present.
         var table = $('#results_table').DataTable({
             responsive: false,
             scrollX: true,
+            scrollY: '60vh',
+            scrollCollapse: true,
+            orderCellsTop: true,
             pageLength: 20,
             lengthMenu: [[10, 20, 50, 100, -1], [10, 20, 50, 100, "All"]],
             order: [],
             columnDefs: [
-                { orderable: true, targets: '_all' },
-                {
-                    targets: '_all',
-                    createdCell: function(td, cellData, rowData, row, col) {
-                        // Find the Peptide column index and apply the class
-                        var headerText = $('#results_table thead tr:first th').eq(col).text().trim();
-                        if (headerText === 'Peptide') {
-                            $(td).addClass('peptide-cell');
-                        }
-                    }
-                }
+                { orderable: true, targets: '_all' }
             ],
             language: {
                 search: "Search all columns:",
@@ -292,129 +276,34 @@
                 info: "Showing _START_ to _END_ of _TOTAL_ entries",
                 infoEmpty: "Showing 0 to 0 of 0 entries",
                 infoFiltered: "(filtered from _MAX_ total entries)"
-            },
-            initComplete: function() {
-                // Re-add filter row after initialization
-                var filterRow = $('<tr class="filter-row"></tr>');
-                var headerCount = $('#results_table thead tr:first th').length;
-                
-                for (var i = 0; i < headerCount; i++) {
-                    var headerText = $('#results_table thead tr:first th').eq(i).text().trim();
-                    var filterCell = $('<th></th>');
-                    
-                    // Add filter input for specified columns
-                    if (headerText == "Search peptide" || headerText == "Protein ID" || headerText == "Peptide" || 
-                        headerText == "Protein description" || headerText == "Species" || headerText == "Intervals" || 
-                        headerText == "Function" || headerText == "IC50 (μM)" || headerText == "Inhibition type" || 
-                        headerText == "Inhibited microorganisms" || headerText == "Title" || headerText == "Authors") {
-                        var input = $('<input>', {
-                            type: 'text',
-                            class: 'column-filter',
-                            'data-column': i,
-                            placeholder: '',
-                            style: 'width: 100%; padding: 4px; box-sizing: border-box; border: 1px solid #ced4da; border-radius: 3px;'
-                        });
-                        filterCell.append(input);
-                    }
-                    
-                    // Set wider widths for specific columns
-                    if (headerText == "Additional details") {
-                        filterCell.css('min-width', '200px');
-                        $('#results_table thead tr:first th').eq(i).css('min-width', '200px');
-                        $('#results_table tbody td:nth-child(' + (i + 1) + ')').css('min-width', '200px');
-                    } else if (headerText == "Title") {
-                        filterCell.css('min-width', '250px');
-                        $('#results_table thead tr:first th').eq(i).css('min-width', '250px');
-                        $('#results_table tbody td:nth-child(' + (i + 1) + ')').css('min-width', '250px');
-                    } else if (headerText == "Authors") {
-                        filterCell.css('min-width', '200px');
-                        $('#results_table thead tr:first th').eq(i).css('min-width', '200px');
-                        $('#results_table tbody td:nth-child(' + (i + 1) + ')').css('min-width', '200px');
-                    } else if (headerText == "Abstract") {
-                        filterCell.css('min-width', '300px');
-                        $('#results_table thead tr:first th').eq(i).css('min-width', '300px');
-                        $('#results_table tbody td:nth-child(' + (i + 1) + ')').css('min-width', '300px');
-                    }
-                    
-                    filterRow.append(filterCell);
-                }
-                
-                $('#results_table thead').append(filterRow);
-                
-                // Attach filter event handlers
-                $('.column-filter').on('keyup change', function() {
-                    table.draw();
-                });
             }
         });
-        
-        // Helper function to strip HTML and get text content
-        function getTextContent(html) {
-            if (!html) return '';
-            var tmp = $('<div>').html(html);
-            return tmp.text().trim();
-        }
-        
-        // Custom filter function for column filters and warnings
-        $.fn.dataTable.ext.search.push(
-            function(settings, data, dataIndex) {
-                // Only apply to our table
-                if (settings.nTable.id !== 'results_table') {
-                    return true;
-                }
-                
-                var showRow = true;
-                
-                // Filter warnings checkbox - hide warning messages
-                if ($('#filter-warnings').is(':checked')) {
-                    // Check if this row contains warning text (peptides that don't meet criteria or don't exist)
-                    var rowText = '';
-                    for (var i = 0; i < data.length; i++) {
-                        rowText += getTextContent(data[i] || '') + ' ';
-                    }
-                    rowText = rowText.toLowerCase();
-                    
-                    // Hide rows that contain warning messages
-                    if (rowText.indexOf('does not meet other search critera') !== -1 || 
-                        rowText.indexOf('does not exist in database') !== -1) {
-                        return false;
-                    }
-                }
-                
-                // Apply column-specific filters
-                $('.column-filter').each(function() {
-                    var columnIndex = parseInt($(this).data('column'));
-                    var filterValue = $(this).val().toLowerCase();
-                    
-                    if (filterValue !== '') {
-                        var cellValue = getTextContent(data[columnIndex] || '');
-                        if (cellValue.toLowerCase().indexOf(filterValue) === -1) {
-                            showRow = false;
-                            return false; // Break the loop
-                        }
-                    }
-                });
-                
-                return showRow;
+
+        // Per-column filtering via DataTables' native column search. Delegated
+        // from the wrapper so it also works on the header clone DataTables
+        // creates for scrollX/scrollY. Each input carries its 0-based column
+        // index in data-column.
+        $('#results_table_wrapper').on('keyup change', 'input.column-filter', function() {
+            var colIdx = parseInt($(this).data('column'), 10);
+            if (!isNaN(colIdx) && table.column(colIdx).search() !== this.value) {
+                table.column(colIdx).search(this.value).draw();
             }
-        );
-        
-        // Handle column filter inputs
-        $('.column-filter').on('keyup change', function() {
-            table.draw();
         });
-        
-        // Handle filter warnings checkbox
+        // Don't let interacting with a filter input trigger a column sort.
+        $('#results_table_wrapper').on('click', 'input.column-filter', function(e) {
+            e.stopPropagation();
+        });
+
+        // "Only show matching peptide results" toggles the warning message block.
         $('#filter-warnings').on('change', function() {
             if ($(this).is(':checked')) {
                 $('#warning-messages').hide();
             } else {
                 $('#warning-messages').show();
             }
-            table.draw();
         });
-        
-        // Attach toggle content listeners for abstracts
+
+        // Collapsible abstracts.
         function attachToggleContentListeners() {
             $('.toggle-content').off('click').on('click', function() {
                 var content = $(this).next('.collapsible-content');
@@ -427,13 +316,11 @@
                 }
             });
         }
-        
         attachToggleContentListeners();
-        
-        // Re-attach listeners after DataTables redraw
-        table.on('draw', function() {
-            attachToggleContentListeners();
-        });
+        table.on('draw', attachToggleContentListeners);
+
+        // Align header/body columns once the table is visible.
+        table.columns.adjust();
     });
 </script>
 <br/><br/><br/><br/>
