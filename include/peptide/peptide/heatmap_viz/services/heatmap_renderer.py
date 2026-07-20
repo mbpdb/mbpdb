@@ -26,6 +26,26 @@ def _log_validation(message: str, level: str = "warning") -> None:
     else:
         logger.warning(message)
 
+
+def numeric_column(frame: pd.DataFrame, col) -> pd.Series:
+    """
+    Return ``frame[col]`` coerced to numeric, always as a 1-d Series.
+
+    Peptide-interval column labels ("147-158 SANDGRGDSVAY") are not unique once
+    more than a couple of proteins are selected, because the same peptide can map
+    to several parent proteins. When a label is duplicated, ``frame[col]`` returns
+    a DataFrame rather than a Series, and ``pd.to_numeric`` rejects it with
+    "arg must be a list, tuple, 1-d array, or Series".
+
+    Duplicates describe the same peptide at the same interval, so they are
+    collapsed with a row-wise max: that preserves both peak abundance and
+    non-zero detection, which is all any caller uses these values for.
+    """
+    selected = frame[col]
+    if isinstance(selected, pd.DataFrame):
+        selected = selected.apply(pd.to_numeric, errors='coerce').max(axis=1)
+    return pd.to_numeric(selected, errors='coerce')
+
 # ---------------------------------------------------------------------------
 # Rendering constants (formerly imported from notebooks/_settings.py)
 # ---------------------------------------------------------------------------
@@ -149,7 +169,7 @@ def calculate_centralized_y_limits(available_data_variables_dict, selected_pepti
                 # Extract values from filtered data
                 for col in filtered_bp_abs.columns:
                     if col != 'average':
-                        y_values = pd.to_numeric(filtered_bp_abs[col], errors='coerce')
+                        y_values = numeric_column(filtered_bp_abs, col)
                         y_values = y_values[y_values > 0].dropna()
                         if not y_values.empty:
                             all_min_values.extend(y_values.tolist())
@@ -441,6 +461,9 @@ def process_available_data(available_data_variables_dict, filter_type, selected_
 
     # Process each variable's data for visualization
     for var in available_data_variables_dict:
+        # Default to the unfiltered heatmap so an unrecognised filter_type falls back
+        # to showing all peptides rather than raising UnboundLocalError below.
+        df = available_data_variables_dict[var]['heatmap_df']
         if filter_type == 'all-peptides':
             df = available_data_variables_dict[var]['heatmap_df']
         elif filter_type == 'bioactive-only':
@@ -563,7 +586,13 @@ def process_available_data(available_data_variables_dict, filter_type, selected_
     global axis_number, total_plots, y_ticks
     max_sequence_length = max(seq_len_list)
     axis_number = len(available_data_variables_dict) + 2
-    num_sets = len(next(iter(available_data_variables_dict.values()))['amino_acids_chunks'])
+    # Use the largest chunk count, not the first variable's. Proteins of differing
+    # length chunk into differing numbers of rows, and the figure grid has to be
+    # sized for the longest — otherwise total_plots undercounts the rows the
+    # renderers go on to index.
+    num_sets = max(
+        len(vd['amino_acids_chunks']) for vd in available_data_variables_dict.values()
+    )
     total_plots = num_sets * axis_number
     style_map = assign_line_styles(available_data_variables_dict)
 
@@ -802,7 +831,7 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                                     # Check if this peptide interval exists as a column
                                     if peptide in bp_abs.columns:
                                         # Check if the column has any non-zero, non-NaN data
-                                        peptide_data = pd.to_numeric(bp_abs[peptide], errors='coerce')
+                                        peptide_data = numeric_column(bp_abs, peptide)
                                         if not peptide_data.dropna().empty and (peptide_data > 0).any():
                                             peptide_found = True
                                             break
@@ -896,7 +925,7 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                                 # Check if this peptide interval exists as a column
                                 if peptide in bp_abs.columns:
                                     # Check if the column has any non-zero, non-NaN data
-                                    peptide_data = pd.to_numeric(bp_abs[peptide], errors='coerce')
+                                    peptide_data = numeric_column(bp_abs, peptide)
                                     if not peptide_data.dropna().empty and (peptide_data > 0).any():
                                         peptide_found = True
                                         break
@@ -1313,7 +1342,7 @@ def process_chunk_data(ax2, chunk_abs, chunk_func, chunk_size, i, y_ticks, handl
     for col in chunk_abs.columns:
         if col != 'average':
             try:
-                y_values = pd.to_numeric(chunk_abs[col], errors='coerce')
+                y_values = numeric_column(chunk_abs, col)
                 # Replace zeros with NaN — matplotlib will break the line at these
                 # positions rather than drawing a bridge across the gap.
                 y_values = y_values.replace(0, np.nan)
@@ -2035,7 +2064,7 @@ def visualize_sequence_heatmap_interactive(
             for col in filtered_abs.columns:
                 if col == 'average':
                     continue
-                y_series = pd.to_numeric(filtered_abs[col], errors='coerce').replace(0, np.nan)
+                y_series = numeric_column(filtered_abs, col).replace(0, np.nan)
                 if y_series.isna().all():
                     continue
 
@@ -2203,7 +2232,7 @@ def visualize_sequence_heatmap_interactive(
             for _col in list(_fabs.columns):
                 if _col in ('average', 'count', 'AA'):
                     continue
-                _ys = pd.to_numeric(_fabs[_col], errors='coerce').replace(0, np.nan)
+                _ys = numeric_column(_fabs, _col).replace(0, np.nan)
                 _valid = _ys.notna()
                 if not _valid.any():
                     continue
@@ -2713,11 +2742,14 @@ def visualize_sequence_heatmap_compact(
     _tick_vals = [tick1, tick2, tick3]
 
     # ── build subplots ─────────────────────────────────────────────────────────
+    # Plotly caps vertical_spacing at 1/(rows-1), so a fixed 0.03 fails once
+    # enough proteins are selected to push past ~34 rows. Shrink to fit.
+    _v_spacing = min(0.03, 0.8 / (num_vars - 1)) if num_vars > 1 else 0
     fig = make_subplots(
         rows=num_vars,
         cols=1,
         shared_xaxes=True,
-        vertical_spacing=0.03,
+        vertical_spacing=_v_spacing,
         subplot_titles=[""] * num_vars,
     )
 
@@ -2955,14 +2987,24 @@ def visualize_sequence_heatmap_portrait(available_data_variables_dict,
     handles, labels, sample_list, var_name_list = [], [], [], []
     style_map = assign_line_styles(available_data_variables_dict)
 
-    for var in available_data_variables_dict:
-        num_sets = len(available_data_variables_dict[var]['amino_acids_chunks'])
+    # Proteins of differing length yield differing chunk counts, so take the
+    # largest — the grid has to accommodate the longest sequence. (This loop
+    # previously kept only the *last* variable's count, while total_plots was
+    # derived from the *first*, so the two disagreed as soon as more than one
+    # protein was selected.)
+    num_sets = max(
+        len(vd['amino_acids_chunks']) for vd in available_data_variables_dict.values()
+    )
     # Create legend handles for the heatmap
     heatmap_legend_handles, heatmap_legend_labels = create_heatmap_legend_handles(cmap, num_colors, max_count,
                                                                                   plot_zero)  # You can change the number 5 to have more or fewer color intervals
 
-    # Define height ratios for each subplot in a set
-    height_ratios = ([lineplot_height] + [indices_height] + [amino_acid_height] * len(available_data_variables_dict)) * num_sets
+    # Define height ratios for each subplot in a set. total_plots is the
+    # authoritative row count for the figure, so tile the per-set pattern and
+    # trim to exactly that length — matplotlib requires the two to match.
+    _set_pattern = [lineplot_height] + [indices_height] + [amino_acid_height] * len(available_data_variables_dict)
+    _reps = max(1, -(-total_plots // len(_set_pattern)))
+    height_ratios = (_set_pattern * _reps)[:total_plots]
 
     # Create a figure and set of subplots
     fig = plt.figure()
@@ -2980,13 +3022,22 @@ def visualize_sequence_heatmap_portrait(available_data_variables_dict,
     # Loop through each set of data and create plots
     for i in range(num_sets):
 
+        # Proteins of differing length produce differing chunk counts, so only
+        # variables that actually reach chunk i participate in this set.
+        _vars_in_set = [
+            var for var in available_data_variables_dict
+            if i < len(available_data_variables_dict[var]['amino_acids_chunks'])
+        ]
+        if not _vars_in_set:
+            continue
+
         # Determine the max_var_amino_acids for the current i across all variables
         max_var_amino_acids = max(
             len(available_data_variables_dict[var]['amino_acids_chunks'][i])
-            for var in available_data_variables_dict
+            for var in _vars_in_set
         )
 
-        for var_index, var in enumerate(available_data_variables_dict):
+        for var_index, var in enumerate(_vars_in_set):
             ax1 = axes[axis_number * i]
             ax1.axis('off')
             ax2 = ax1.twinx()  # Create a twin y-axis

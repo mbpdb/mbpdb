@@ -547,7 +547,9 @@ def generate_heatmap(
             legend_title_input_3=pp.get('legend_title_3', 'Abundance:'),
             plot_land=pp.get('plot_landscape', False),
             plot_port=pp.get('plot_portrait', True),
-            filter_type=pp.get('filter_type', 'All'),
+            # 'all-peptides' is the value the UI sends; 'All' was never a recognised
+            # filter_type and fell through every branch in process_available_data.
+            filter_type=pp.get('filter_type', 'all-peptides'),
             log_transform=pp.get('log_transform', False),
             manual_y_axis=pp.get('manual_y_axis', False),
             y_min_manual=pp.get('y_min', 0.0),
