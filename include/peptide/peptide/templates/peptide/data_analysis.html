@@ -10,7 +10,7 @@
 .da-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .da-header h1 { font-size: 1.8rem; margin: 0; font-weight: 500; }
 .da-header .icon { font-size: 1.6rem; color: #1976d2; }
-.btn-back-dt { margin-left: auto; padding: 6px 14px; font-size: 0.85rem; color: #6c757d; border: 1px solid #dee2e6; border-radius: 4px; text-decoration: none; background: #f8f9fa; white-space: nowrap; }
+.btn-back-dt { margin-left: auto; padding: 6px 14px; font-size: .95rem; color: #6c757d; border: 1px solid #dee2e6; border-radius: 4px; text-decoration: none; background: #f8f9fa; white-space: nowrap; }
 .btn-back-dt:hover { background: #e9ecef; color: #495057; text-decoration: none; }
 
 .step-card {
@@ -25,7 +25,7 @@
 .step-badge {
     display: inline-flex; align-items: center; justify-content: center;
     width: 26px; height: 26px; border-radius: 50%; background: #1976d2;
-    color: #fff; font-size: 0.85rem; font-weight: 700; flex-shrink: 0;
+    color: #fff; font-size: .95rem; font-weight: 700; flex-shrink: 0;
 }
 
 /* Compact upload zone */
@@ -40,20 +40,20 @@
 
 .selector-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 @media(max-width:768px){ .selector-grid { grid-template-columns: 1fr; } }
-.selector-block label { font-weight: 600; font-size: 0.85rem; margin-bottom: 4px; display: block; }
+.selector-block label { font-weight: 600; font-size: .95rem; margin-bottom: 4px; display: block; }
 select.multi-select {
     width: 100%; height: 120px; border: 1px solid #ced4da; border-radius: 4px;
-    padding: 4px; font-size: 0.82rem;
+    padding: 4px; font-size: .92rem;
 }
 select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
 .settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 12px; margin-top: 12px; }
-.settings-grid label { font-weight: 600; font-size: 0.82rem; margin-bottom: 2px; display: block; }
+.settings-grid label { font-weight: 600; font-size: .92rem; margin-bottom: 2px; display: block; }
 .settings-grid select, .settings-grid input[type=text] {
-    width: 100%; border: 1px solid #ced4da; border-radius: 4px; padding: 5px 8px; font-size: 0.82rem;
+    width: 100%; border: 1px solid #ced4da; border-radius: 4px; padding: 5px 8px; font-size: .92rem;
 }
 .settings-grid select:disabled, .settings-grid input:disabled { background: #f8f9fa; color: #aaa; }
-.checkbox-row { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; }
+.checkbox-row { display: flex; align-items: center; gap: 6px; font-size: .95rem; }
 
 .btn-generate {
     background: #1976d2; color: #fff; border: none; border-radius: 5px;
@@ -63,12 +63,12 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 .btn-generate:disabled { background: #90caf9; cursor: not-allowed; }
 .btn-download {
     background: #0288d1; color: #fff; border: none; border-radius: 5px;
-    padding: 7px 18px; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 18px; font-size: .95rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
 }
 .btn-download:hover { background: #0277bd; }
 .btn-download:disabled { background: #b3e5fc; cursor: not-allowed; }
 
-.status-box { padding: 10px 14px; border-radius: 5px; margin-bottom: 10px; font-size: 0.88rem; }
+.status-box { padding: 10px 14px; border-radius: 5px; margin-bottom: 10px; font-size: .95rem; }
 .status-info    { background: #e3f2fd; border-left: 4px solid #1976d2; }
 .status-success { background: #e8f5e9; border-left: 4px solid #388e3c; }
 .status-warning { background: #fff8e1; border-left: 4px solid #f9a825; }
@@ -78,9 +78,11 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 #plot-area { min-height: 200px; }
-#plot-container { width: 100%; }
+/* Oversized figures (e.g. a many-group correlation matrix) scroll inside
+   their own container rather than overflowing the page. */
+#plot-container { width: 100%; overflow-x: auto; }
 
-.page-box { max-width: 960px; margin: 0 auto; }
+.page-box { width: 100%; max-width: min(96vw, 1600px); margin: 0 auto; }
 .color-swatch {
     width: 72px; min-width: 0; height: 22px; border-radius: 3px; border: 1px solid #ccc;
     flex-shrink: 1; display: inline-block; overflow: hidden;
@@ -99,7 +101,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 }
 .radio-group label {
     display: inline-flex; align-items: center; gap: 5px;
-    font-size: .82rem; font-weight: 400; cursor: pointer; white-space: nowrap;
+    font-size: .92rem; font-weight: 400; cursor: pointer; white-space: nowrap;
 }
 .radio-group input[type=radio] {
     width: 14px; height: 14px; cursor: pointer; accent-color: #1976d2; flex-shrink: 0;
@@ -108,7 +110,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 .radio-group.rg-disabled input[type=radio] { cursor: not-allowed; }
 .rg-field { margin-bottom: 4px; }
 .rg-field > .rg-label {
-    font-weight: 600; font-size: .82rem; margin-bottom: 2px; display: block; color: #333;
+    font-weight: 600; font-size: .92rem; margin-bottom: 2px; display: block; color: #333;
 }
 </style>
 {% endblock %}
@@ -149,13 +151,13 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                         Click or drag CSV / XLSX
                     </div>
                 </div>
-                <div id="upload-file-name" style="margin-top:4px; font-size:0.82rem; color:#555;"></div>
-                <div style="margin-top:6px; font-size:0.82rem; color:#666;">
+                <div id="upload-file-name" style="margin-top:4px; font-size:.92rem; color:#555;"></div>
+                <div style="margin-top:6px; font-size:.92rem; color:#666;">
                     <a href="/static/peptide/examples/example_merged_dataframe.csv" download>
                         <i class="fas fa-download"></i> Download example file</a>
                     &middot;
                     <a href="#" id="da-load-example" style="color:#1976d2; text-decoration:none;">
-                        <i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a>
+                        <i class="fas fa-upload" style="font-size:.85rem;"></i> Load example</a>
                 </div>
             </div>
 
@@ -194,10 +196,10 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
         <!-- Plot Filter (below selectors) -->
         <div style="margin-bottom:14px; max-width:200px;">
-            <label style="font-weight:600; font-size:.82rem; margin-bottom:4px; display:block;">
+            <label style="font-weight:600; font-size:.92rem; margin-bottom:4px; display:block;">
                 <i class="fas fa-filter"></i> Plot Filter
             </label>
-            <select id="plot-filter" disabled style="width:100%; border:1px solid #ced4da; border-radius:4px; padding:5px 8px; font-size:.82rem;">
+            <select id="plot-filter" disabled style="width:100%; border:1px solid #ced4da; border-radius:4px; padding:5px 8px; font-size:.92rem;">
                 <option value="No Filter">No Filter</option>
                 <option value="Selected Protein(s)">Selected Protein(s)</option>
                 <option value="Selected Function(s)">Selected Function(s)</option>
@@ -283,24 +285,24 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                 </div>
                 <div style="display:flex; flex-direction:column; gap:4px;">
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">X-Axis Label</label>
-                        <input type="text" id="xlabel" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:90px;">X-Axis Label</label>
+                        <input type="text" id="xlabel" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">Y-Axis Label</label>
-                        <input type="text" id="ylabel" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:90px;">Y-Axis Label</label>
+                        <input type="text" id="ylabel" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">Legend Title</label>
-                        <input type="text" id="legend-title" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:90px;">Legend Title</label>
+                        <input type="text" id="legend-title" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">Plot Title</label>
-                        <input type="text" id="plot-title" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:90px;">Plot Title</label>
+                        <input type="text" id="plot-title" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">Color Scheme</label>
-                        <select id="color-scheme" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:90px;">Color Scheme</label>
+                        <select id="color-scheme" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                             <optgroup label="Default">
                                 <option value="HSV">HSV (Default)</option>
                             </optgroup>
@@ -362,7 +364,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             <button class="btn-download" id="download-btn" disabled>
                 <i class="fas fa-download"></i> Download Interactive Plot
             </button>
-            <span id="generate-spinner" style="display:none; font-size:.88rem;">
+            <span id="generate-spinner" style="display:none; font-size:.95rem;">
                 <i class="fas fa-circle-notch spin" style="color:#1976d2;"></i> Generating plot…
             </span>
         </div>
@@ -799,7 +801,7 @@ document.getElementById('da-load-example').addEventListener('click', function(e)
     e.preventDefault();
     var link = this;
     var origHtml = link.innerHTML;
-    link.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:0.75rem;"></i> Loading...';
+    link.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:.85rem;"></i> Loading...';
     fetch('/static/peptide/examples/example_merged_dataframe.csv')
         .then(function(r) {
             if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -812,11 +814,11 @@ document.getElementById('da-load-example').addEventListener('click', function(e)
             var input = document.getElementById('merged-file-input');
             input.files = dt.files;
             input.dispatchEvent(new Event('change'));
-            link.innerHTML = '<i class="fas fa-check" style="font-size:0.75rem;"></i> Loaded';
+            link.innerHTML = '<i class="fas fa-check" style="font-size:.85rem;"></i> Loaded';
             setTimeout(function() { link.innerHTML = origHtml; }, 3000);
         })
         .catch(function() {
-            link.innerHTML = '<i class="fas fa-times" style="font-size:0.75rem;"></i> Failed';
+            link.innerHTML = '<i class="fas fa-times" style="font-size:.85rem;"></i> Failed';
             link.style.color = '#dc3545';
             setTimeout(function() { link.innerHTML = origHtml; link.style.color = ''; }, 3000);
         });

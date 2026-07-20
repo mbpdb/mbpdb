@@ -16,6 +16,10 @@ from .data_processor import (
     redact_string_descriptions,
 )
 
+# Largest square edge, in px, for the correlation scatter-plot matrix. Keeps a
+# many-group SPLOM inside the browser viewport instead of overflowing the page.
+MAX_SPLOM_SIZE = 1000
+
 
 def _safe_log(val):
     try:
@@ -1080,7 +1084,10 @@ def create_correlation_splom(state: DataAnalysisState):
             ))
 
     fig = go.Figure(data=[splom] + corr_traces)
-    sz = 250 * len(valid_groups)
+    # Cap the overall figure so many groups shrink the panels rather than
+    # growing the figure past the viewport. Uncapped, this scaled linearly
+    # (20 groups -> 5000px) and overflowed the browser window.
+    sz = min(250 * len(valid_groups), MAX_SPLOM_SIZE)
     leg_title = state.legend_title or f'{ct} Correlation'
     fig.update_layout(
         title=dict(text=_make_title(state), x=0.5, xanchor='center',

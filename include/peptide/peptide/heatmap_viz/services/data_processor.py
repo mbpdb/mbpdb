@@ -14,6 +14,10 @@ import pandas as pd
 # heatmap_renderer, fasta_utils, and uniprot_client now live alongside this
 # file in heatmap_viz/services/ — no sys.path manipulation needed.
 
+# Raster resolution for rendered heatmaps. 300 dpi is the usual publication
+# floor; the preview and the downloaded PNG are the same encoded image.
+EXPORT_DPI = 300
+
 
 # ---------------------------------------------------------------------------
 # File loading helpers
@@ -569,7 +573,10 @@ def generate_heatmap(
         if fig is None:
             return None
         buf = _io.BytesIO()
-        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        # 300 dpi is the standard minimum for publication figures. The same
+        # encoded image backs both the on-screen preview and the download, so
+        # what a user exports matches what they see.
+        fig.savefig(buf, format='png', dpi=EXPORT_DPI, bbox_inches='tight')
         buf.seek(0)
         data = base64.b64encode(buf.read()).decode()
         plt.close(fig)

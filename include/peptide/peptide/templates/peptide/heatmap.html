@@ -10,7 +10,7 @@
 .hm-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .hm-header h1 { font-size: 1.8rem; margin: 0; font-weight: 500; }
 .hm-header .icon { font-size: 1.6rem; color: #1976d2; }
-.btn-back-dt { margin-left: auto; padding: 6px 14px; font-size: 0.85rem; color: #6c757d; border: 1px solid #dee2e6; border-radius: 4px; text-decoration: none; background: #f8f9fa; white-space: nowrap; }
+.btn-back-dt { margin-left: auto; padding: 6px 14px; font-size: .95rem; color: #6c757d; border: 1px solid #dee2e6; border-radius: 4px; text-decoration: none; background: #f8f9fa; white-space: nowrap; }
 .btn-back-dt:hover { background: #e9ecef; color: #495057; text-decoration: none; }
 
 .step-card {
@@ -25,7 +25,7 @@
 .step-badge {
     display: inline-flex; align-items: center; justify-content: center;
     width: 26px; height: 26px; border-radius: 50%; background: #1976d2;
-    color: #fff; font-size: 0.85rem; font-weight: 700; flex-shrink: 0;
+    color: #fff; font-size: .95rem; font-weight: 700; flex-shrink: 0;
 }
 
 .upload-zone {
@@ -36,14 +36,14 @@
 .upload-zone input[type=file] { opacity: 0; position: absolute; inset: 0; cursor: pointer; }
 .upload-zone .drop-text { color: #888; pointer-events: none; }
 .upload-zone .drop-text i { font-size: 1rem; display: block; margin-bottom: 4px; color: #aaa; }
-.upload-zone .file-name { color: #1976d2; font-weight: 600; pointer-events: none; font-size: .85rem; }
+.upload-zone .file-name { color: #1976d2; font-weight: 600; pointer-events: none; font-size: .95rem; }
 
 .selector-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 @media(max-width:768px){ .selector-grid { grid-template-columns: 1fr; } }
-.selector-block label { font-weight: 600; font-size: 0.85rem; margin-bottom: 4px; display: block; }
+.selector-block label { font-weight: 600; font-size: .95rem; margin-bottom: 4px; display: block; }
 select.multi-select {
     width: 100%; height: 130px; border: 1px solid #ced4da; border-radius: 4px;
-    padding: 4px; font-size: 0.82rem;
+    padding: 4px; font-size: .92rem;
 }
 select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
@@ -55,12 +55,12 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 .btn-generate:disabled { background: #90caf9; cursor: not-allowed; }
 .btn-dl {
     background: #0288d1; color: #fff; border: none; border-radius: 5px;
-    padding: 7px 18px; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 18px; font-size: .95rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
 }
 .btn-dl:hover { background: #0277bd; }
 .btn-dl:disabled { background: #b3e5fc; cursor: not-allowed; }
 
-.status-box { padding: 10px 14px; border-radius: 5px; margin-bottom: 10px; font-size: 0.88rem; }
+.status-box { padding: 10px 14px; border-radius: 5px; margin-bottom: 10px; font-size: .95rem; }
 .status-info    { background: #e3f2fd; border-left: 4px solid #1976d2; }
 .status-success { background: #e8f5e9; border-left: 4px solid #388e3c; }
 .status-warning { background: #fff8e1; border-left: 4px solid #f9a825; }
@@ -85,12 +85,12 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 #landscape-interactive-div { min-height: 600px; }
 
 .hidden { display: none !important; }
-.page-box { max-width: 960px; margin: 0 auto; }
+.page-box { width: 100%; max-width: min(96vw, 1600px); margin: 0 auto; }
 .color-swatch {
     width: 72px; min-width: 0; height: 22px; border-radius: 3px; border: 1px solid #ccc;
     flex-shrink: 1; display: inline-block; overflow: hidden;
 }
-.checkbox-row { display: flex; align-items: center; gap: 6px; font-size: .85rem; }
+.checkbox-row { display: flex; align-items: center; gap: 6px; font-size: .95rem; }
 .step-disabled { opacity: .55; pointer-events: none; }
 .placeholder-box {
     padding: 30px; text-align: center; color: #999; border: 2px dashed #dee2e6;
@@ -103,7 +103,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 }
 .radio-group label {
     display: inline-flex; align-items: center; gap: 5px;
-    font-size: .82rem; font-weight: 400; cursor: pointer; white-space: nowrap;
+    font-size: .92rem; font-weight: 400; cursor: pointer; white-space: nowrap;
 }
 .radio-group input[type=radio] {
     width: 14px; height: 14px; cursor: pointer; accent-color: #1976d2; flex-shrink: 0;
@@ -112,31 +112,10 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 .radio-group.rg-disabled input[type=radio] { cursor: not-allowed; }
 .rg-field { margin-bottom: 8px; }
 .rg-field > .rg-label {
-    font-weight: 600; font-size: .82rem; margin-bottom: 4px; display: block; color: #333;
+    font-weight: 600; font-size: .92rem; margin-bottom: 4px; display: block; color: #333;
 }
 /* Unified items-selector inactive/greyed state */
 .items-inactive { opacity: .48; pointer-events: none; }
-
-/* Beta badge on radio labels */
-.beta-label {
-    font-style: italic;
-    color: #6a1b9a;
-}
-.beta-badge {
-    display: inline-block;
-    font-size: .68rem;
-    font-weight: 700;
-    font-style: normal;
-    letter-spacing: .03em;
-    color: #fff;
-    background: linear-gradient(135deg, #8e24aa, #5c6bc0);
-    border-radius: 3px;
-    padding: 1px 5px;
-    margin-left: 4px;
-    vertical-align: middle;
-    line-height: 1.4;
-    box-shadow: 0 1px 2px rgba(0,0,0,.25);
-}
 
 /* Segmented overlay / data-source control */
 .seg-control {
@@ -146,7 +125,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 .seg-btn {
     flex: 1; border: none; border-right: 1px solid #ced4da;
     background: #f8f9fa; padding: 5px 6px;
-    font-size: .82rem; font-weight: 400; font-family: inherit; color: #555;
+    font-size: .92rem; font-weight: 400; font-family: inherit; color: #555;
     cursor: pointer; text-align: center; line-height: 1.25;
     transition: background .12s, color .12s;
 }
@@ -189,7 +168,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
         <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
             <!-- Merged file -->
             <div style="flex:1; min-width:200px; max-width:320px;">
-                <label style="font-weight:600; font-size:.85rem; margin-bottom:4px; display:block;">
+                <label style="font-weight:600; font-size:.95rem; margin-bottom:4px; display:block;">
                     Merged Data File <span style="color:#c00;">*</span>
                 </label>
                 <div class="upload-zone" id="merged-upload-zone">
@@ -199,19 +178,19 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                         Click or drag CSV / XLSX
                     </div>
                 </div>
-                <div id="merged-file-name" style="font-size:.78rem; color:#555; margin-top:3px;"></div>
-                <div style="margin-top:6px; font-size:0.82rem; color:#666;">
+                <div id="merged-file-name" style="font-size:.88rem; color:#555; margin-top:3px;"></div>
+                <div style="margin-top:6px; font-size:.92rem; color:#666;">
                     <a href="/static/peptide/examples/example_merged_dataframe.csv" download>
                         <i class="fas fa-download"></i> Download example CSV</a>
                     &middot;
                     <a href="#" id="hm-load-example-csv" style="color:#1976d2; text-decoration:none;">
-                        <i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a>
+                        <i class="fas fa-upload" style="font-size:.85rem;"></i> Load example</a>
                 </div>
             </div>
 
             <!-- FASTA file -->
             <div style="flex:1; min-width:200px; max-width:320px;">
-                <label style="font-weight:600; font-size:.85rem; margin-bottom:4px; display:block;">
+                <label style="font-weight:600; font-size:.95rem; margin-bottom:4px; display:block;">
                     FASTA File <small class="text-muted">(optional)</small>
                 </label>
                 <div class="upload-zone" id="fasta-upload-zone">
@@ -221,20 +200,20 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                         Click or drag .fasta / .fa
                     </div>
                 </div>
-                <div id="fasta-file-name" style="font-size:.78rem; color:#555; margin-top:3px;"></div>
-                <div style="margin-top:6px; font-size:0.82rem; color:#666;">
+                <div id="fasta-file-name" style="font-size:.88rem; color:#555; margin-top:3px;"></div>
+                <div style="margin-top:6px; font-size:.92rem; color:#666;">
                     <a href="/static/peptide/examples/example_protein_sequences.fasta" download>
                         <i class="fas fa-download"></i> Download example FASTA</a>
                     &middot;
                     <a href="#" id="hm-load-example-fasta" style="color:#1976d2; text-decoration:none;">
-                        <i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a>
+                        <i class="fas fa-upload" style="font-size:.85rem;"></i> Load example</a>
                 </div>
             </div>
 
             <!-- Upload status -->
             <div style="flex:2; min-width:220px;">
-                <label style="font-weight:600; font-size:.85rem; margin-bottom:4px; display:block;">&nbsp;</label>
-                <span id="upload-spinner" class="hidden" style="font-size:.88rem; display:block; margin-bottom:6px;">
+                <label style="font-weight:600; font-size:.95rem; margin-bottom:4px; display:block;">&nbsp;</label>
+                <span id="upload-spinner" class="hidden" style="font-size:.95rem; display:block; margin-bottom:6px;">
                     <i class="fas fa-circle-notch spin" style="color:#1976d2;"></i> Processing…
                 </span>
                 <div id="upload-status"></div>
@@ -277,7 +256,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
                 <!-- Data Source & Overlay — segmented control -->
                 <div style="margin-bottom:12px;">
-                    <span class="rg-label" style="margin-bottom:5px; font-weight:600; font-size:.82rem;">Data Source &amp; Overlay</span>
+                    <span class="rg-label" style="margin-bottom:5px; font-weight:600; font-size:.92rem;">Data Source &amp; Overlay</span>
                     <div class="seg-control seg-ctl-disabled" id="overlay-seg-control">
                         <button class="seg-btn seg-active" data-value="all-peptides" disabled>
                             All Peptides from Dataset
@@ -293,14 +272,14 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
                 <!-- Unified items selector — greyed when All Peptides is selected -->
                 <div id="items-selector-block" class="items-inactive" style="margin-bottom:12px;">
-                    <label style="font-weight:600; font-size:.82rem; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+                    <label style="font-weight:600; font-size:.92rem; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
                         <span id="items-selector-label-text">Select Items</span>
                         <span id="items-selector-spinner" class="hidden">
                             <i class="fas fa-circle-notch spin" style="color:#1976d2;"></i>
                         </span>
                     </label>
                     <select id="items-selector" class="multi-select" multiple size="5" disabled
-                            style="height:110px; font-size:.80rem; font-family:monospace;"></select>
+                            style="height:110px; font-size:.90rem; font-family:monospace;"></select>
                     <small id="items-selector-hint" class="text-muted" style="display:block; margin-top:2px;">
                         Select Peptide Intervals or Bioactive Functions above to enable
                     </small>
@@ -323,8 +302,8 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                         <div class="radio-group rg-disabled" id="rg-orientation" style="flex-direction:column; gap:4px; align-items:flex-start;">
                             <label><input type="radio" name="hm-orientation" value="Landscape" checked disabled> Landscape</label>
                             <label><input type="radio" name="hm-orientation" value="Portrait" disabled> Portrait</label>
-                            <label class="beta-label"><input type="radio" name="hm-orientation" value="Interactive Landscape" disabled> Interactive Landscape <span class="beta-badge">BETA</span></label>
-                            <label class="beta-label"><input type="radio" name="hm-orientation" value="Compact" disabled> Compact <span class="beta-badge">BETA</span></label>
+                            <label><input type="radio" name="hm-orientation" value="Interactive Landscape" disabled> Interactive Landscape</label>
+                            <label><input type="radio" name="hm-orientation" value="Compact" disabled> Compact</label>
                         </div>
                     </div>
 
@@ -343,21 +322,21 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                 <!-- Manual Y-axis inputs (conditional) -->
                 <div id="manual-y-inputs" class="hidden" style="margin-top:6px;">
                     <div class="seg-control" id="y-scale-seg" style="display:inline-flex; margin-bottom:8px; max-width:100px;">
-                        <button class="seg-btn seg-active" data-value="linear" style="font-size:.68rem; padding:2px 4px; flex:1;">Linear</button>
-                        <button class="seg-btn" data-value="power10" style="font-size:.68rem; padding:2px 4px; flex:1;">10<sup>n</sup></button>
+                        <button class="seg-btn seg-active" data-value="linear" style="font-size:.78rem; padding:2px 4px; flex:1;">Linear</button>
+                        <button class="seg-btn" data-value="power10" style="font-size:.78rem; padding:2px 4px; flex:1;">10<sup>n</sup></button>
                     </div>
                     <div style="display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap;">
                         <div>
-                            <label style="font-weight:600; font-size:.82rem;">Y Min</label>
+                            <label style="font-weight:600; font-size:.92rem;">Y Min</label>
                             <input type="number" id="y-min" value="0" step="0.01"
-                                   style="width:90px; border:1px solid #ced4da; border-radius:4px; padding:4px 6px; font-size:.82rem; display:block;">
-                            <small id="y-min-preview" style="display:block; font-size:.80rem; color:#1976d2; margin-top:2px; min-height:1em;"></small>
+                                   style="width:90px; border:1px solid #ced4da; border-radius:4px; padding:4px 6px; font-size:.92rem; display:block;">
+                            <small id="y-min-preview" style="display:block; font-size:.90rem; color:#1976d2; margin-top:2px; min-height:1em;"></small>
                         </div>
                         <div>
-                            <label style="font-weight:600; font-size:.82rem;">Y Max</label>
+                            <label style="font-weight:600; font-size:.92rem;">Y Max</label>
                             <input type="number" id="y-max" value="1" step="0.01"
-                                   style="width:90px; border:1px solid #ced4da; border-radius:4px; padding:4px 6px; font-size:.82rem; display:block;">
-                            <small id="y-max-preview" style="display:block; font-size:.80rem; color:#1976d2; margin-top:2px; min-height:1em;"></small>
+                                   style="width:90px; border:1px solid #ced4da; border-radius:4px; padding:4px 6px; font-size:.92rem; display:block;">
+                            <small id="y-max-preview" style="display:block; font-size:.90rem; color:#1976d2; margin-top:2px; min-height:1em;"></small>
                         </div>
                     </div>
                 </div>
@@ -371,8 +350,8 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                 <div style="display:flex; flex-direction:column; gap:6px;">
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:130px;">Heatmap Color</label>
-                        <select id="hm-color" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">Heatmap Color</label>
+                        <select id="hm-color" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                             <option value="RdYlGn_r">RdYlGn_r (default)</option>
                             <option value="RdYlBu_r">RdYlBu_r</option>
                             <option value="coolwarm">coolwarm</option>
@@ -389,8 +368,8 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:130px;">Line Plot Color</label>
-                        <select id="lp-color" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">Line Plot Color</label>
+                        <select id="lp-color" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                             <option value="Set3">Set3 (default)</option>
                             <option value="Set1">Set1</option>
                             <option value="Set2">Set2</option>
@@ -402,8 +381,8 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:130px;">Avg Line Color</label>
-                        <select id="avglp-color" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">Avg Line Color</label>
+                        <select id="avglp-color" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                             <option value="Dark2">Dark2 (default)</option>
                             <option value="Set1">Set1</option>
                             <option value="tab10">tab10</option>
@@ -413,33 +392,33 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:130px;">X-Axis Label</label>
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">X-Axis Label</label>
                         <input type="text" id="xaxis-label" placeholder="Auto" disabled
-                               style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                               style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:130px;">Y-Axis Label</label>
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">Y-Axis Label</label>
                         <input type="text" id="yaxis-label" placeholder="Averaged Peptide Abundance" disabled
-                               style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                               style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend Title (Sample Type)</label>
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend Title (Sample Type)</label>
                         <input type="text" id="legend-title-1" placeholder="Sample Type:" disabled
-                               style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                               style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend Title (Peptide Counts)</label>
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend Title (Peptide Counts)</label>
                         <input type="text" id="legend-title-2" placeholder="Peptide Counts:" disabled
-                               style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                               style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend Title (Average Abundance)</label>
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend Title (Average Abundance)</label>
                         <input type="text" id="legend-title-3" placeholder="Average Abundance:" disabled
-                               style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                               style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                     </div>
 
                 </div>
@@ -453,7 +432,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             </button>
             <span id="generate-spinner" class="hidden">
                 <i class="fas fa-circle-notch spin" style="color:#1976d2;"></i>
-                <span id="generate-spinner-text" style="font-size:.88rem;">Generating…</span>
+                <span id="generate-spinner-text" style="font-size:.95rem;">Generating…</span>
             </span>
         </div>
     </div>
@@ -1051,7 +1030,7 @@ async function generateHeatmap() {
 
     const landCont = document.getElementById('landscape-container');
     if (data.landscape) {
-        // For 'Interactive Landscape (Beta)' hide the static image, show only interactive
+        // For 'Interactive Landscape' hide the static image, show only interactive
         const landImg = document.getElementById('landscape-img');
         if (orientation === 'Interactive Landscape') {
             landImg.style.display = 'none';
@@ -1241,7 +1220,7 @@ if (new URLSearchParams(window.location.search).get('from_dt') === '1') {
 function hmLoadExample(url, inputId, linkId) {
     var link = document.getElementById(linkId);
     var origHtml = link.innerHTML;
-    link.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:0.75rem;"></i> Loading...';
+    link.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:.85rem;"></i> Loading...';
     fetch(url)
         .then(function(r) {
             if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -1255,11 +1234,11 @@ function hmLoadExample(url, inputId, linkId) {
             var input = document.getElementById(inputId);
             input.files = dt.files;
             input.dispatchEvent(new Event('change'));
-            link.innerHTML = '<i class="fas fa-check" style="font-size:0.75rem;"></i> Loaded';
+            link.innerHTML = '<i class="fas fa-check" style="font-size:.85rem;"></i> Loaded';
             setTimeout(function() { link.innerHTML = origHtml; }, 3000);
         })
         .catch(function() {
-            link.innerHTML = '<i class="fas fa-times" style="font-size:0.75rem;"></i> Failed';
+            link.innerHTML = '<i class="fas fa-times" style="font-size:.85rem;"></i> Failed';
             link.style.color = '#dc3545';
             setTimeout(function() { link.innerHTML = origHtml; link.style.color = ''; }, 3000);
         });
