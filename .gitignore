@@ -74,3 +74,9 @@ __pycache__/
 lfg.sh
 todo*
 dev.sh
+
+# Manuscript under peer review — tracked in its own private repo
+# (Kuhfeldrf/manuscript). Must never enter the application repo.
+manuscript/
+revision_status.md
+revison.txt
