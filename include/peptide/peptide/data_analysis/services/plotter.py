@@ -20,6 +20,19 @@ from .data_processor import (
 # many-group SPLOM inside the browser viewport instead of overflowing the page.
 MAX_SPLOM_SIZE = 1000
 
+# ── Shared figure styling ──────────────────────────────────────────────────
+# Single source of truth so every Data Analysis plot type (bar, stacked, pie,
+# correlation, SPLOM) shares one typeface, hover style and margins. Plotly's
+# layout.font.family cascades to titles, axes, legend and annotations — which
+# set only size/colour, not family — so defining the global font once here
+# standardises the type across the whole figure. Change these to restyle all
+# figures at once.
+FONT_FAMILY = 'Arial, Helvetica, sans-serif'
+BASE_FONT   = dict(family=FONT_FAMILY, color='black')
+HOVERLABEL  = dict(bgcolor='white', font_size=12, font_family=FONT_FAMILY)
+PLOT_MARGIN = dict(t=100, l=100, r=100, b=100)
+LEGEND_FONT_SIZE = 14
+
 
 def _safe_log(val):
     try:
@@ -90,9 +103,10 @@ def plot_total_peptides(state: DataAnalysisState):
     COMMON_LAYOUT = dict(
         template='plotly_white',
         height=800, width=1000,
-        margin=dict(t=100, l=100, r=100),
+        margin=PLOT_MARGIN,
         showlegend=False,
-        font=dict(color='black'),
+        font=BASE_FONT,
+        hoverlabel=HOVERLABEL,
     )
     AXIS_STYLE = dict(
         showline=True, linewidth=1, linecolor='black',
@@ -278,10 +292,10 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                        **_axis_style()),
             yaxis=dict(title=y_title, **yaxis_fn),
             barmode='group',
-            hoverlabel=dict(bgcolor='white', font_size=12, font_family='Arial'),
+            hoverlabel=HOVERLABEL,
             legend=dict(title=dict(text=state.legend_title or 'Item'),
                         yanchor='top', y=1.0, xanchor='left', x=1.05,
-                        font=dict(size=12, color='black')),
+                        font=dict(size=LEGEND_FONT_SIZE, color='black')),
         )
         return fig
 
@@ -366,10 +380,10 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                        tickangle=45, title=state.xlabel or 'Category', **_axis_style()),
             yaxis=dict(title=y_title, **yaxis_prot),
             barmode='group',
-            hoverlabel=dict(bgcolor='white', font_size=12, font_family='Arial'),
+            hoverlabel=HOVERLABEL,
             legend=dict(title=dict(text=state.legend_title or 'Item'),
                         yanchor='top', y=1.0, xanchor='left', x=1.05,
-                        font=dict(size=12, color='black')),
+                        font=dict(size=LEGEND_FONT_SIZE, color='black')),
         )
         return fig
 
@@ -426,8 +440,8 @@ def _plot_no_filter_stacked(state: DataAnalysisState):
         barmode='stack',
         xaxis=dict(title='', **_axis_style()),
         yaxis=dict(title=state.ylabel or y_title, **yaxis_kw),
-        hoverlabel=dict(bgcolor='white', font_size=12, font_family='Arial'),
-        legend=dict(title=dict(text=state.legend_title or 'Sample'), font=dict(size=12)),
+        hoverlabel=HOVERLABEL,
+        legend=dict(title=dict(text=state.legend_title or 'Sample'), font=dict(size=LEGEND_FONT_SIZE, color='black')),
     )
     return fig
 
@@ -747,10 +761,10 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
         'barmode': 'stack',
         'xaxis': dict(title=xlabel, tickangle=-90 if orientation == 'By Sample' else 45, **_axis_style()),
         'yaxis': dict(title=state.ylabel or y_title, **yaxis_stk),
-        'hoverlabel': dict(bgcolor='white', font_size=12, font_family='Arial'),
+        'hoverlabel': HOVERLABEL,
         'legend': dict(
             title=dict(text=state.legend_title or ('Item' if orientation == 'By Sample' else 'Sample')),
-            font=dict(size=16, color='black'),
+            font=dict(size=LEGEND_FONT_SIZE, color='black'),
             yanchor='top', y=0.95, xanchor='left', x=1.05,
             bgcolor='rgba(255,255,255,0.9)',
         ),
@@ -797,7 +811,9 @@ def create_pie_charts(state: DataAnalysisState):
         ))
         fig.update_layout(**{**_common_layout(state),
                           'showlegend': True,
-                          'legend': dict(title=dict(text=state.legend_title or 'Sample'))})
+                          'hoverlabel': HOVERLABEL,
+                          'legend': dict(title=dict(text=state.legend_title or 'Sample'),
+                                         font=dict(size=LEGEND_FONT_SIZE, color='black'))})
         return fig
 
     if df is None or df.empty:
@@ -838,7 +854,9 @@ def create_pie_charts(state: DataAnalysisState):
 
         fig.update_layout(**{**_common_layout(state),
                           'height': 400 * rows, 'width': 1000,
-                          'legend': dict(title=dict(text=state.legend_title or 'Item'))})
+                          'hoverlabel': HOVERLABEL,
+                          'legend': dict(title=dict(text=state.legend_title or 'Item'),
+                                         font=dict(size=LEGEND_FONT_SIZE, color='black'))})
         return fig
     else:
         # By Function/Protein: one pie per item
@@ -872,7 +890,9 @@ def create_pie_charts(state: DataAnalysisState):
 
         fig.update_layout(**{**_common_layout(state),
                           'height': 400 * rows, 'width': 1000,
-                          'legend': dict(title=dict(text=state.legend_title or 'Sample'))})
+                          'hoverlabel': HOVERLABEL,
+                          'legend': dict(title=dict(text=state.legend_title or 'Sample'),
+                                         font=dict(size=LEGEND_FONT_SIZE, color='black'))})
         return fig
 
 
@@ -991,12 +1011,14 @@ def create_correlation_plot(state: DataAnalysisState):
         yaxis=dict(title=y_label, **ax_kw),
         height=500, width=600,
         template='plotly_white',
+        font=BASE_FONT,
+        hoverlabel=HOVERLABEL,
         showlegend=True,
         legend=dict(
             title=dict(text=leg_title, font=dict(size=16, color='black')),
             yanchor='top', y=0.99, xanchor='right', x=0.99,
             bgcolor='rgba(255, 255, 255, 0.8)',
-            font=dict(size=14),
+            font=dict(size=LEGEND_FONT_SIZE, color='black'),
         ),
         margin=dict(t=100, b=80, l=80, r=50),
     )
@@ -1094,8 +1116,10 @@ def create_correlation_splom(state: DataAnalysisState):
                    font=dict(size=18, color='black')),
         width=sz + 250, height=sz,
         template='plotly_white',
+        font=BASE_FONT,
+        hoverlabel=HOVERLABEL,
         legend=dict(title=dict(text=leg_title, font=dict(size=14, color='black')),
-                    font=dict(size=13), x=1.01, y=1, yanchor='top'),
+                    font=dict(size=LEGEND_FONT_SIZE, color='black'), x=1.01, y=1, yanchor='top'),
     )
     # Apply consistent axis ranges/formats
     overall_min, overall_max = min(all_vals), max(all_vals)
@@ -1182,11 +1206,13 @@ def _power_ticks(fig, y_axis='yaxis', x_axis=None):
 
 
 def _common_layout(state: DataAnalysisState) -> dict:
+    # NB: callers spread this as **kwargs and add their own hoverlabel/legend,
+    # so those keys must NOT be set here (would raise a duplicate-kwarg error).
     return dict(
         template='plotly_white',
         height=800, width=1000,
-        margin=dict(t=100, l=100, r=100),
-        font=dict(color='black'),
+        margin=PLOT_MARGIN,
+        font=BASE_FONT,
         title=dict(text=_make_title(state), y=0.95, x=0.5,
                    xanchor='center', yanchor='top',
                    font=dict(size=18, color='black')),
