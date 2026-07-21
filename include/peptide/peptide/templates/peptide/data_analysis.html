@@ -362,7 +362,13 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                 <i class="fas fa-chart-bar"></i> Generate / Update Plot
             </button>
             <button class="btn-download" id="download-btn" disabled>
-                <i class="fas fa-download"></i> Download Interactive Plot
+                <i class="fas fa-download"></i> Download Interactive (HTML)
+            </button>
+            <button class="btn-download" id="download-png-btn" disabled>
+                <i class="fas fa-image"></i> Download PNG
+            </button>
+            <button class="btn-download" id="download-svg-btn" disabled>
+                <i class="fas fa-bezier-curve"></i> Download SVG
             </button>
             <span id="generate-spinner" style="display:none; font-size:.95rem;">
                 <i class="fas fa-circle-notch spin" style="color:#1976d2;"></i> Generating plot…
@@ -608,6 +614,8 @@ document.getElementById('plot-filter').addEventListener('change', applyPlotFilte
 // ── Generate Plot ─────────────────────────────────────────────────
 document.getElementById('generate-btn').addEventListener('click', generatePlot);
 document.getElementById('download-btn').addEventListener('click', downloadPlot);
+document.getElementById('download-png-btn').addEventListener('click', () => downloadImage('png'));
+document.getElementById('download-svg-btn').addEventListener('click', () => downloadImage('svg'));
 
 async function generatePlot() {
     const btn      = document.getElementById('generate-btn');
@@ -698,6 +706,8 @@ async function generatePlot() {
     const container = document.getElementById('plot-container');
     Plotly.react(container, data.figure.data, data.figure.layout, { responsive: true });
     document.getElementById('download-btn').disabled = false;
+    document.getElementById('download-png-btn').disabled = false;
+    document.getElementById('download-svg-btn').disabled = false;
     document.getElementById('step3-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -728,6 +738,21 @@ Plotly.newPlot('plot', ${JSON.stringify(currentFigJson.data)}, ${JSON.stringify(
     const a    = document.createElement('a');
     a.href = url; a.download = 'data_analysis_plot.html'; a.click();
     URL.revokeObjectURL(url);
+}
+
+// Static-image export. Renders in the browser via Plotly.toImage; PNG is
+// exported at 3× the on-screen pixels for publication resolution, SVG is true
+// vector (all Data Analysis traces are SVG-backed — no WebGL — so this is safe).
+function downloadImage(format) {
+    const container = document.getElementById('plot-container');
+    if (!currentFigJson || !container) return;
+    const rawTitle = currentFigJson.layout && currentFigJson.layout.title
+        ? (currentFigJson.layout.title.text || currentFigJson.layout.title) : '';
+    const filename = (String(rawTitle).replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, ''))
+        || 'peptiline_plot';
+    const opts = { format, filename };
+    if (format === 'png') opts.scale = 3;
+    Plotly.downloadImage(container, opts);
 }
 
 // ── Color swatch preview ──────────────────────────────────────────
