@@ -150,7 +150,9 @@ def plot_total_peptides(state: DataAnalysisState):
             **COMMON_LAYOUT,
             title=dict(text=_make_title(state), y=0.95, x=0.5, xanchor='center',
                        yanchor='top', font=dict(size=18, color='black')),
-            xaxis=dict(title='Sample', **AXIS_STYLE, tickangle=45,
+            # Totals plot is always by sample and the group ticks are self-
+            # explanatory, so no default axis title — only what the user supplies.
+            xaxis=dict(title=state.xlabel or '', **AXIS_STYLE, tickangle=45,
                        title_font=dict(size=18, color='black'),
                        tickfont=dict(size=16, color='black')),
             yaxis=dict(title=y_axis_title, **yaxis_kw),
@@ -192,7 +194,7 @@ def plot_total_peptides(state: DataAnalysisState):
             **COMMON_LAYOUT,
             title=dict(text=_make_title(state), y=0.95, x=0.5, xanchor='center',
                        yanchor='top', font=dict(size=18, color='black')),
-            xaxis=dict(title=state.xlabel or 'Sample', **AXIS_STYLE, tickangle=45,
+            xaxis=dict(title=state.xlabel or '', **AXIS_STYLE, tickangle=45,
                        title_font=dict(size=18, color='black'),
                        tickfont=dict(size=16, color='black')),
             yaxis=dict(title=state.ylabel or y_axis_title, **yaxis_kw),
