@@ -18,7 +18,6 @@ split by ``extract_protein_id()``.  Example files for each format live in
     PEAKS                 Accession            ";"   (accession|name pairs)
     Spectronaut           PG.ProteinGroups     ";" / "," (protein groups)
     Skyline               Protein              (usually one per row)
-    PEPEX (native)        Protein              ";" / "/" / ","
 
 ``extract_protein_id`` splits on ``;``, ``/`` and ``,`` and unwraps the
 UniProt ``db|ACCESSION|NAME`` pipe format, so accessions from any of the above
@@ -632,7 +631,7 @@ def _validate_peptidomic_file(df, filename, protein_dict=None):
     # source column name.  The mapping loop above extracts IDs when it renames
     # a differently-named column (e.g. MaxQuant 'Proteins', PEAKS 'Accession'),
     # but it skips the identity 'Protein' -> 'Protein' case.  Tools that name
-    # their column literally 'Protein' (Skyline, native PEPEX) therefore arrive
+    # their column literally 'Protein' (e.g. Skyline) therefore arrive
     # with full 'sp|ACC|NAME' accessions or separator-joined multi-protein
     # strings still intact — normalize those raw string cells here so protein
     # splitting is consistent across software.  Cells already reduced to a bare
