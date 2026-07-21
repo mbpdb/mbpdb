@@ -3029,6 +3029,10 @@ def visualize_sequence_heatmap_portrait(available_data_variables_dict,
             if i < len(available_data_variables_dict[var]['amino_acids_chunks'])
         ]
         if not _vars_in_set:
+            # No variable reaches this chunk index. Hide the whole reserved block
+            # so it does not render as blank default axes.
+            for _slot in range(axis_number):
+                axes[axis_number * i + _slot].axis('off')
             continue
 
         # Determine the max_var_amino_acids for the current i across all variables
@@ -3119,6 +3123,14 @@ def visualize_sequence_heatmap_portrait(available_data_variables_dict,
             ax = axes[axis_number * i + var_index + 2]
             plot_row_color(ax, var_amino_acids, var_colors)
             ax.text(0, 0.5, f'{var_name}  ', ha='right', va='center', fontsize=14)
+
+        # Ragged chunk counts: variables from shorter proteins contribute no row
+        # to this set's trailing amino-acid slots (the final chunks contain only
+        # the longest sequence). Those reserved axes are never drawn on, so hide
+        # them — otherwise they render as blank 0–1 axis ladders beneath the
+        # heatmap whenever the selected proteins differ in length.
+        for _vi in range(len(_vars_in_set), len(available_data_variables_dict)):
+            axes[axis_number * i + _vi + 2].axis('off')
 
     # Create the legend after the plotting loop, using the handles and labels without duplicates
     # Create legend handles for the heatmap
