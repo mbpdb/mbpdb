@@ -21,7 +21,9 @@ scipy
 statsmodels
 plotly
 openpyxl
-kaleido
+# kaleido — removed: static image export is done client-side via Plotly.downloadImage
+# (Data Analysis PNG/SVG buttons) and matplotlib savefig (heatmaps). Nothing calls
+# plotly write_image/to_image. Re-add pinned only if server-side PDF/EPS is needed.
 python-dotenv
 
 # Pin to avoid RequestsDependencyWarning from pre-release versions
