@@ -1,6 +1,30 @@
 """
 Data loading, validation, and column mapping service.
 Extracted from notebook DataTransformation class (Cell 1).
+
+Supported peptidomics input formats
+------------------------------------
+The loader accepts peptide/protein report exports from several proteomics
+software packages.  Column names are harmonised via
+``get_comprehensive_column_mapping()`` and multi-protein accession strings are
+split by ``extract_protein_id()``.  Example files for each format live in
+``peptide/notebooks/examples/additional_peptidomic_input_formats/``.
+
+    Software              Protein column       Multi-protein separator
+    --------------------  -------------------  --------------------------
+    Proteome Discoverer   Master Protein       "; "  (semicolon)
+                          Accessions
+    MaxQuant              Proteins             ";"   (semicolon)
+    PEAKS                 Accession            ";"   (accession|name pairs)
+    Spectronaut           PG.ProteinGroups     ";" / "," (protein groups)
+    Skyline               Protein              (usually one per row)
+    PEPEX (native)        Protein              ";" / "/" / ","
+
+``extract_protein_id`` splits on ``;``, ``/`` and ``,`` and unwraps the
+UniProt ``db|ACCESSION|NAME`` pipe format, so accessions from any of the above
+reduce to bare UniProt IDs.  ``strip_inline_modifications`` removes PTM
+annotations embedded in the peptide string (e.g. PEAKS ``PEP(+57.02)TIDE``,
+bracketed ``PEPTIDE[DN]``) so sequences remain BLAST-compatible.
 """
 import io
 import re
@@ -180,12 +204,14 @@ def get_comprehensive_column_mapping():
         'Protein Name': 'Protein',
         'prot_acc': 'Protein',
         'Accession Number': 'Protein',
-        'PG.ProteinGroups': 'Protein',
+        'Accession': 'Protein',            # PEAKS
+        'accession': 'Protein',
+        'PG.ProteinGroups': 'Protein',     # Spectronaut
         'Protein Accession': 'Protein',
         'protein': 'Protein',
         'accessions': 'Protein',
         'Accessions': 'Protein',
-        'Proteins': 'Protein',
+        'Proteins': 'Protein',             # MaxQuant
         'Protein': 'Protein',
         'Protein.Accessions': 'Protein',
         'Protein.Accession': 'Protein',
@@ -196,6 +222,46 @@ def get_comprehensive_column_mapping():
         'Gene Names': 'Protein',
         'Gene Name': 'Protein',
     }
+
+
+def strip_inline_modifications(sequence):
+    """Remove inline modification annotations from a peptide sequence.
+
+    Several peptidomics tools embed PTM/modification information directly in
+    the peptide string rather than in a separate column, which leaves the
+    sequence with non-amino-acid characters that break BLAST and exact
+    matching.  Examples handled:
+
+        PEAKS        'ADYEKHKVYAC(+57.02)EVTHQG'  -> 'ADYEKHKVYACEVTHQG'
+        bracket      'NILREKQTDEIK[DN]'           -> 'NILREKQTDEIK'
+        brace/UniMod 'PEP{Oxidation}TIDE'         -> 'PEPTIDE'
+        flanks       'K.PEPTIDE.R'                -> 'PEPTIDE'
+
+    Already-clean sequences pass through unchanged.  Non-string / NaN values
+    are returned untouched so pandas missing values are preserved.
+    """
+    if not isinstance(sequence, str):
+        return sequence
+    s = sequence.strip()
+    if not s:
+        return sequence
+
+    # Strip enzymatic flanking residues "X.PEPTIDE.Y" -> "PEPTIDE"
+    dot_parts = s.split('.')
+    if len(dot_parts) == 3 and len(dot_parts[0]) <= 2 and len(dot_parts[2]) <= 2:
+        s = dot_parts[1]
+
+    # Remove bracketed / parenthesised / braced modification annotations
+    s = re.sub(r'\([^)]*\)', '', s)
+    s = re.sub(r'\[[^\]]*\]', '', s)
+    s = re.sub(r'\{[^}]*\}', '', s)
+
+    # Drop any residual non-letter characters (digits, +, ., etc.)
+    cleaned = re.sub(r'[^A-Za-z]', '', s)
+
+    # If stripping removed everything, fall back to the original so we never
+    # silently blank out a peptide we did not understand.
+    return cleaned if cleaned else sequence
 
 
 def extract_protein_id(protein_string, protein_dict=None):
@@ -255,8 +321,12 @@ def extract_protein_id(protein_string, protein_dict=None):
 
         if '|' in entry:
             parts = entry.split('|')
-            if len(parts) >= 2:
+            if len(parts) >= 3:
+                # UniProt-style db|ACCESSION|NAME (e.g. sp|P02666|CASB_BOVIN)
                 protein_id = parts[1].split(';')[0].split('/')[0].strip()
+            elif len(parts) == 2:
+                # PEAKS-style ACCESSION|NAME (e.g. A0A087WWV8|A0A087WWV8_HUMAN)
+                protein_id = parts[0].split(';')[0].split('/')[0].strip()
             else:
                 protein_id = entry
         elif entry.startswith('CON__'):
@@ -282,6 +352,9 @@ def extract_protein_id(protein_string, protein_dict=None):
                         name, species = name_species.split("_", 1)
                     else:
                         name = name_species
+                elif len(parts) == 2:
+                    # PEAKS-style ACCESSION|NAME — second field is the name
+                    name = parts[1]
             protein_dict[protein_id] = {
                 "name": name,
                 "species": species
@@ -555,6 +628,27 @@ def _validate_peptidomic_file(df, filename, protein_dict=None):
                 else:
                     df[new_col_name] = df[original_col].copy()
 
+    # Normalize the Protein column to clean accession IDs regardless of the
+    # source column name.  The mapping loop above extracts IDs when it renames
+    # a differently-named column (e.g. MaxQuant 'Proteins', PEAKS 'Accession'),
+    # but it skips the identity 'Protein' -> 'Protein' case.  Tools that name
+    # their column literally 'Protein' (Skyline, native PEPEX) therefore arrive
+    # with full 'sp|ACC|NAME' accessions or separator-joined multi-protein
+    # strings still intact — normalize those raw string cells here so protein
+    # splitting is consistent across software.  Cells already reduced to a bare
+    # ID or a list are idempotent / skipped.
+    if 'Protein' in df.columns:
+        df['Protein'] = df['Protein'].apply(
+            lambda x: extract_protein_id(x, protein_dict) if isinstance(x, str) else x
+        )
+
+    # Strip inline modification annotations from the peptide sequence so tools
+    # that embed PTMs in the sequence string (e.g. PEAKS 'PEP(+57.02)TIDE' or
+    # bracketed 'PEPTIDE[DN]') yield clean amino-acid sequences usable for
+    # BLAST / exact matching.  Already-clean sequences are unaffected.
+    if 'Sequence' in df.columns:
+        df['Sequence'] = df['Sequence'].apply(strip_inline_modifications)
+
     # Handle separate position columns if needed
     if 'Positions in Proteins' not in df.columns:
         df = handle_separate_position_columns(df)
@@ -616,7 +710,8 @@ def extract_sequences(df):
             df['Sequence'] = df['Annotated Sequence'].apply(extract_sequence)
             df = df.explode('Sequence')
 
-    return df['Sequence'].dropna().unique().tolist()
+    seqs = df['Sequence'].dropna().apply(strip_inline_modifications)
+    return seqs.dropna().unique().tolist()
 
 
 def find_invalid_peptide_sequences(sequences):

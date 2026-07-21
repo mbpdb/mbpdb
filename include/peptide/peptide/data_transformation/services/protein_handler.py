@@ -20,8 +20,12 @@ def extract_clean_protein_id(protein_string):
     protein_str = str(protein_string).strip()
     if '|' in protein_str:
         parts = protein_str.split('|')
-        if len(parts) >= 2:
+        if len(parts) >= 3:
+            # UniProt-style db|ACCESSION|NAME
             return parts[1].split(';')[0].split('/')[0].strip()
+        elif len(parts) == 2:
+            # PEAKS-style ACCESSION|NAME
+            return parts[0].split(';')[0].split('/')[0].strip()
     return protein_str
 
 

@@ -167,6 +167,18 @@ class TestExtractProteinId(unittest.TestCase):
         result = data_loader.extract_protein_id("sp|P02666|CASB_BOVIN")
         self.assertEqual(result, "P02666")
 
+    def test_peaks_two_part_pipe(self):
+        """PEAKS uses ACCESSION|NAME (2 fields); accession is the first field."""
+        result = data_loader.extract_protein_id("A0A087WWV8|A0A087WWV8_HUMAN")
+        self.assertEqual(result, "A0A087WWV8")
+
+    def test_peaks_semicolon_pipe_multi(self):
+        """PEAKS lists multiple proteins with ';' between ACCESSION|NAME pairs."""
+        result = data_loader.extract_protein_id(
+            "A0A087WWV8|A0A087WWV8_HUMAN;P01834|IGKC_HUMAN"
+        )
+        self.assertEqual(result, ["A0A087WWV8", "P01834"])
+
     def test_plain_accession(self):
         result = data_loader.extract_protein_id("P02666")
         self.assertEqual(result, "P02666")
@@ -235,6 +247,74 @@ class TestLoadAndValidateFile(unittest.TestCase):
         )
         self.assertEqual(status, 'yes')
         self.assertIn('Protein', result_df.columns)
+
+    def test_peaks_accession_column_mapped_and_split(self):
+        """PEAKS 'Accession' column (';'-joined ACCESSION|NAME pairs) maps to
+        Protein and splits into clean accessions; inline mods stripped."""
+        df = pd.DataFrame({
+            'Peptide': ['ADYEKHKVYAC(+57.02)EVTHQG', 'AENTLQSFR'],
+            'Accession': [
+                'A0A087WWV8|A0A087WWV8_HUMAN;P01834|IGKC_HUMAN',
+                'P02666|CASB_BOVIN',
+            ],
+            'Area': [100, 200],
+        })
+        content = self._make_csv_bytes(df)
+        result_df, status, _, _ = data_loader.load_and_validate_file(
+            content, 'peaks.csv', 'Peptidomic'
+        )
+        self.assertEqual(status, 'yes')
+        self.assertIn('Protein', result_df.columns)
+        # multi-protein row split into clean accessions
+        self.assertEqual(result_df['Protein'].iloc[0], ['A0A087WWV8', 'P01834'])
+        self.assertEqual(result_df['Protein'].iloc[1], 'P02666')
+        # inline (+57.02) modification stripped from the sequence
+        self.assertEqual(result_df['Sequence'].iloc[0], 'ADYEKHKVYACEVTHQG')
+
+    def test_literal_protein_column_normalized(self):
+        """A column literally named 'Protein' with full 'sp|ACC|NAME'
+        accessions (Skyline / native PEPEX) is reduced to bare IDs."""
+        df = pd.DataFrame({
+            'Peptide': ['YLLPEVTVLDYGKK'],
+            'Protein': ['sp|O15194|CTDSL_HUMAN'],
+            'Area': [100],
+        })
+        content = self._make_csv_bytes(df)
+        result_df, status, _, _ = data_loader.load_and_validate_file(
+            content, 'skyline.csv', 'Peptidomic'
+        )
+        self.assertEqual(status, 'yes')
+        self.assertEqual(result_df['Protein'].iloc[0], 'O15194')
+
+
+class TestStripInlineModifications(unittest.TestCase):
+
+    def test_peaks_parenthetical_mod(self):
+        self.assertEqual(
+            data_loader.strip_inline_modifications('ADYEKHKVYAC(+57.02)EVTHQG'),
+            'ADYEKHKVYACEVTHQG',
+        )
+
+    def test_bracket_annotation(self):
+        self.assertEqual(
+            data_loader.strip_inline_modifications('NILREKQTDEIK[DN]'),
+            'NILREKQTDEIK',
+        )
+
+    def test_enzymatic_flanks(self):
+        self.assertEqual(
+            data_loader.strip_inline_modifications('K.PEPTIDE.R'), 'PEPTIDE'
+        )
+
+    def test_clean_sequence_unchanged(self):
+        self.assertEqual(
+            data_loader.strip_inline_modifications('PEPTIDE'), 'PEPTIDE'
+        )
+
+    def test_non_string_passthrough(self):
+        self.assertTrue(pd.isna(
+            data_loader.strip_inline_modifications(float('nan'))
+        ))
 
 
 class TestExtractSequences(unittest.TestCase):
