@@ -87,6 +87,12 @@ num_unique_count = 0
 num_colors       = 0
 style_map        = {}
 
+# Typeface for the interactive (Plotly) heatmap figures. Kept identical to the
+# Data Analysis dashboard (data_analysis/services/plotter.py FONT_FAMILY) so the
+# two dashboards share one look. Applied as layout.font so it cascades to title,
+# axes and legend.
+PLOTLY_FONT_FAMILY = 'Arial, Helvetica, sans-serif'
+
 
 # Define functions outside of class
 def update_filenames(input_filename_port, input_filename_land):
@@ -2447,6 +2453,7 @@ def visualize_sequence_heatmap_interactive(
 
     fig.update_layout(
         title=dict(text=title_str, font=dict(size=15), x=0.5),
+        font=dict(family=PLOTLY_FONT_FAMILY, color='black'),
         height=fig_height,
         autosize=True,
         bargap=0, bargroupgap=0,
@@ -2931,6 +2938,7 @@ def visualize_sequence_heatmap_compact(
     row_height = max(130, 600 // max(num_vars, 1))
     fig.update_layout(
         title=dict(text=title_str, font=dict(size=15), x=0.5),
+        font=dict(family=PLOTLY_FONT_FAMILY, color='black'),
         height=max(row_height * num_vars + 80, 300),
         bargap=0,
         bargroupgap=0,
