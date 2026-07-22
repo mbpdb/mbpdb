@@ -654,36 +654,48 @@ def process_available_data(available_data_variables_dict, filter_type, selected_
     }
 
 # ---------------------------------------------------------------------------
-# Helper: derive x-axis label from protein name(s) in the variable dict.
+# Helper: derive a short protein label from the variable dict.
 # Mirrors the notebook's `process_data_variables` / `protein_name_short` logic.
+# Used for the x-axis label ("<name> Sequence"). Protein names are already
+# cleaned at load time (data_processor._clean_protein_name populates
+# protein_dict with the short name), so nothing is stripped here.
 # ---------------------------------------------------------------------------
-def _derive_xaxis_label(available_data_variables_dict: dict) -> str:
-    """Return '<ProteinName> Sequence' derived from protein_name / protein_id fields."""
+def _derive_protein_short_name(available_data_variables_dict: dict) -> str:
+    """Return the short protein label (e.g. 'Beta-casein') from the variable
+    dict's protein_name / protein_id fields, or '' if none.
+
+    Rules (matching the notebook): multiple IDs sharing one name → that name;
+    multiple IDs with distinct names → names joined by '_'; otherwise the sole
+    name, else the sole protein ID.
+    """
     pid_list   = []
     pname_list = []
     for vd in available_data_variables_dict.values():
         pid   = vd.get('protein_id',   '')
-        pname = vd.get('protein_name', '')
+        pname = str(vd.get('protein_name', '')).strip()
         if pid:
             pid_list.append(str(pid))
         if pname:
-            pname_list.append(str(pname))
+            pname_list.append(pname)
 
     unique_ids   = list(dict.fromkeys(pid_list))
     unique_names = list(dict.fromkeys(pname_list))
 
     if len(unique_ids) > 1 and len(unique_names) == 1:
-        short = unique_names[0]
-    elif len(unique_ids) > 1 and len(unique_names) > 1:
-        short = '_'.join(unique_names)
-    elif unique_names:
-        short = unique_names[0]
-    elif unique_ids:
-        short = unique_ids[0]
-    else:
-        return 'Protein Sequence Position'
+        return unique_names[0]
+    if len(unique_ids) > 1 and len(unique_names) > 1:
+        return '_'.join(unique_names)
+    if unique_names:
+        return unique_names[0]
+    if unique_ids:
+        return unique_ids[0]
+    return ''
 
-    return f"{short} Sequence"
+
+def _derive_xaxis_label(available_data_variables_dict: dict) -> str:
+    """Return '<ProteinName> Sequence' derived from protein_name / protein_id fields."""
+    short = _derive_protein_short_name(available_data_variables_dict)
+    return f"{short} Sequence" if short else 'Protein Sequence Position'
 
 
 # Update plot function
@@ -692,7 +704,8 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                 xaxis_label, yaxis_label, yaxis_position, legend_title_input_1, legend_title_input_2,
                 legend_title_input_3, plot_land, plot_port, filter_type, log_transform,
                 manual_y_axis, y_min_manual, y_max_manual, plot_compact=False,
-                plot_landscape_interactive=False, plot_portrait_interactive=False):
+                plot_landscape_interactive=False, plot_portrait_interactive=False,
+                plot_title=''):
     import matplotlib.pyplot as plt
     all_errors = []
 
@@ -965,6 +978,7 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                 filter_type      = filter_type,
                 log_transform    = log_transform,
                 y_ticks          = y_ticks,
+                plot_title       = plot_title,
             )
 
             fig_port_plotly = None
@@ -1007,28 +1021,32 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                             cmap,
                             y_ticks,
                             log_transform,
+                            plot_title=plot_title,
                         )
                     except Exception as exc:
                         all_errors.append(f'Error generating compact plot: {exc}')
                         fig_compact = None
 
-        # Collect generated figures
-        if plot_port:
-            if fig_port is not None and hasattr(fig_port, 'axes') and len(fig_port.axes) > 0:
-                fig_port_return = fig_port
+        # Collect generated figures. The interactive Plotly returns are decoupled
+        # from the matplotlib flags (plot_port / plot_land) so an orientation can be
+        # served *solely* by Plotly — e.g. Landscape now requests only
+        # plot_landscape_interactive, with plot_land=False (Phase 1 consolidation).
+        if plot_port and fig_port is not None and hasattr(fig_port, 'axes') and len(fig_port.axes) > 0:
+            fig_port_return = fig_port
+        if plot_portrait_interactive:
             fig_port_plotly_return = fig_port_plotly  # may be None if generation failed
 
-        if plot_land:
-            # Check if fig_land is defined and has axes
-            if fig_land is not None and hasattr(fig_land, 'axes') and len(fig_land.axes) > 0:
-                fig_land_return = fig_land
+        if plot_land and fig_land is not None and hasattr(fig_land, 'axes') and len(fig_land.axes) > 0:
+            fig_land_return = fig_land
+        if plot_landscape_interactive:
             fig_land_plotly_return = fig_land_plotly  # may be None if generation failed
 
         if plot_compact:
             fig_compact_return = fig_compact  # Plotly figure (not matplotlib)
 
-        if not plot_port and not plot_land and not plot_compact:
-            all_errors.append("One or both of the create plot checkbox must be selected to generate a plot.")
+        if not (plot_port or plot_land or plot_compact
+                or plot_landscape_interactive or plot_portrait_interactive):
+            all_errors.append("Select at least one plot type to generate a plot.")
 
         # Collect missing data notifications for user feedback
         missing_data_notifications = collect_missing_data_notifications(
@@ -1876,6 +1894,7 @@ def visualize_sequence_heatmap_interactive(
     filter_type,
     log_transform,
     y_ticks,
+    plot_title='',        # optional user figure title; blank → no title
 ):
     """
     Plotly interactive version of the landscape / portrait heatmap.
@@ -1967,8 +1986,12 @@ def visualize_sequence_heatmap_interactive(
     )
 
     # ── helper: matplotlib colour → Plotly rgba string ───────────────────────
+    # Accepts colour names ('white'), hex, or RGBA tuples/arrays. The string
+    # short-circuit must be isinstance-guarded: individual-peptide lines pass a
+    # numpy RGBA array, and `array == 'white'` raises "truth value ambiguous"
+    # (to_rgba handles both forms, so the guard just avoids that comparison).
     def _rgba(mpl_color):
-        if mpl_color == 'white':
+        if isinstance(mpl_color, str) and mpl_color == 'white':
             return 'rgba(255,255,255,1.0)'
         try:
             r, g, b, a = to_rgba(mpl_color)
@@ -1979,6 +2002,12 @@ def visualize_sequence_heatmap_interactive(
     # ── colour map objects ────────────────────────────────────────────────────
     avg_cmap_obj = avg_cmap if not isinstance(avg_cmap, str) else plt.get_cmap(avg_cmap)
     lp_cmap_obj  = plt.get_cmap(lp_selected_color) if isinstance(lp_selected_color, str) else lp_selected_color
+
+    # Legend group headers. Mirrors the matplotlib legend, which heads the
+    # averaged / individual sample-type lines with legend_title[0] ("Sample Type:")
+    # and the peptide-count swatches with legend_title[1]. The abundance scale
+    # (legend_title[2]) is shown directly on the row-1 y-axis, not duplicated here.
+    sample_type_title = legend_title[0] if legend_title else 'Sample Type:'
 
     # ══════════════════════════════════════════════════════════════════════════
     # ROW 1 — line-plot panel
@@ -2016,6 +2045,7 @@ def visualize_sequence_heatmap_interactive(
                     hoverinfo='text',
                     hovertext=hover,
                     legendgroup='avg_lines',
+                    legendgrouptitle=dict(text=sample_type_title),
                     showlegend=True,
                 ),
                 row=1, col=1,
@@ -2119,6 +2149,7 @@ def visualize_sequence_heatmap_interactive(
                         hoverinfo='text',
                         hovertext=hover,
                         legendgroup='pep_lines',
+                        legendgrouptitle=dict(text=sample_type_title),
                         showlegend=show_leg,
                     ),
                     row=1, col=1,
@@ -2413,14 +2444,11 @@ def visualize_sequence_heatmap_interactive(
             fig.update_xaxes(showticklabels=False, **x_common, row=r, col=1)
 
     # ── legend: peptide-count colour scale only (abundance is on the y-axis) ──
+    # Header rendered as a native Plotly legend-group title (like the Sample Type
+    # group above), not a bold placeholder legend item — so it aligns flush-left
+    # (no marker-column indent) and shares one grouptitlefont with every header.
     legend_title_pep = legend_title[1] if len(legend_title) > 1 else 'Peptide Counts:'
 
-    fig.add_trace(go.Scatter(
-        x=[None], y=[None], mode='markers',
-        marker=dict(size=0, opacity=0),
-        name=f"<b>{legend_title_pep}</b>",
-        showlegend=True, legendgroup='pep_count_hdr',
-    ))
     hm_handles, hm_labels = create_heatmap_legend_handles(cmap, num_colors, max_count, plot_zero)
     for lbl, handle in zip(hm_labels, hm_handles):
         fc = handle.get_facecolor()
@@ -2433,26 +2461,26 @@ def visualize_sequence_heatmap_interactive(
                 symbol='square', line=dict(width=1, color='black'),
             ),
             name=lbl, showlegend=True, legendgroup='pep_count',
+            legendgrouptitle=dict(text=legend_title_pep),
         ))
 
     # Abundance tick values are shown directly on the y-axis of row 1;
     # no need to duplicate them in the legend.
 
     # ── overall layout ────────────────────────────────────────────────────────
-    protein_names = list(dict.fromkeys(
-        vd.get('protein_name', '') for vd in available_data_variables_dict.values()
-    ))
-    protein_names = [n for n in protein_names if n]
-    title_str = (
-        f"{orientation} Interactive Heatmap — {', '.join(protein_names)}"
-        if protein_names else f"{orientation} Interactive Heatmap"
-    )
+    # No figure title: the protein is already named by the "<name> Sequence"
+    # x-axis and the page heading, so a plot title only repeats it. The original
+    # notebook heatmaps carried none either.
 
     # total figure height = sum of pixel heights for every row + margins
     fig_height = total_px + 100   # 100px = top+bottom margin
 
+    # Optional user title (blank → Plotly draws none). Reserve top margin only
+    # when a title is present so the untitled default stays tight.
+    title_str = (plot_title or '').strip()
+
     fig.update_layout(
-        title=dict(text=title_str, font=dict(size=15), x=0.5),
+        title=dict(text=title_str, font=dict(size=15, color='black'), x=0.5),
         font=dict(family=PLOTLY_FONT_FAMILY, color='black'),
         height=fig_height,
         autosize=True,
@@ -2460,7 +2488,7 @@ def visualize_sequence_heatmap_interactive(
         plot_bgcolor='white',
         paper_bgcolor='white',
         showlegend=True,
-        margin=dict(l=110, r=180, t=60, b=60),  # l=110 for variable-name annotations
+        margin=dict(l=110, r=180, t=60 if title_str else 30, b=60),  # l=110 for variable-name annotations
         # Force bar text to always render, even when bars are narrower than the text.
         # Without this Plotly silently hides inside-text on narrow bars (e.g. 200+ AA sequence).
         uniformtext=dict(mode='show', minsize=9),
@@ -2471,6 +2499,10 @@ def visualize_sequence_heatmap_interactive(
             orientation="v",
             bgcolor="rgba(255,255,255,0.9)",
             font=dict(size=11),
+            # One consistent style for every legend-group header (Sample Type,
+            # Peptide Counts), matching the Data Analysis legend-title convention
+            # (size 14, black) so headers read the same across all figures.
+            grouptitlefont=dict(size=14, color='black'),
             itemsizing='constant',
             groupclick="toggleitem",
         ),
@@ -2703,6 +2735,7 @@ def visualize_sequence_heatmap_compact(
     cmap,
     y_ticks,
     log_transform,
+    plot_title='',        # optional user figure title; blank → no title
 ):
     """
     Generate an interactive Plotly compact heatmap.
@@ -2853,16 +2886,11 @@ def visualize_sequence_heatmap_compact(
     )
 
     # ── legend: peptide count colour scale ────────────────────────────────────
+    # Headers are native Plotly legend-group titles (not bold placeholder items),
+    # so they align flush-left and share one grouptitlefont — matching the
+    # landscape renderer and the Data Analysis legend-title convention.
     legend_title_pep  = legend_title[1] if len(legend_title) > 1 else 'Peptide Counts:'
     legend_title_abun = legend_title[2] if len(legend_title) > 2 else 'Average Abundance:'
-
-    fig.add_trace(go.Scatter(
-        x=[None], y=[None], mode='markers',
-        marker=dict(size=0, opacity=0),
-        name=f"<b>{legend_title_pep}</b>",
-        showlegend=True,
-        legendgroup='pep_count_header',
-    ))
 
     heatmap_legend_handles, heatmap_legend_labels = create_heatmap_legend_handles(
         cmap, num_colors, max_count, plot_zero
@@ -2879,16 +2907,10 @@ def visualize_sequence_heatmap_compact(
             name=lbl,
             showlegend=True,
             legendgroup='pep_count',
+            legendgrouptitle=dict(text=legend_title_pep),
         ))
 
     # ── legend: abundance y-range reference ───────────────────────────────────
-    fig.add_trace(go.Scatter(
-        x=[None], y=[None], mode='markers',
-        marker=dict(size=0, opacity=0),
-        name=f"<b>{legend_title_abun}</b>",
-        showlegend=True,
-        legendgroup='abundance_header',
-    ))
     for tick_val, tick_lbl in zip([tick1, tick2, tick3], ['Min', 'Mid', 'Max']):
         fig.add_trace(go.Scatter(
             x=[None], y=[None], mode='markers',
@@ -2896,6 +2918,7 @@ def visualize_sequence_heatmap_compact(
             name=f"{tick_lbl}: {tick_val:.3g}",
             showlegend=True,
             legendgroup='abundance_ticks',
+            legendgrouptitle=dict(text=legend_title_abun),
         ))
 
     # ── x-axes ────────────────────────────────────────────────────────────────
@@ -2926,18 +2949,13 @@ def visualize_sequence_heatmap_compact(
             )
 
     # ── overall layout ────────────────────────────────────────────────────────
-    protein_names = list(dict.fromkeys(
-        vd.get('protein_name', '') for vd in available_data_variables_dict.values()
-    ))
-    protein_names = [n for n in protein_names if n]
-    title_str = (
-        f"Compact Heatmap — {', '.join(protein_names)}"
-        if protein_names else "Compact Heatmap"
-    )
+    # No default title (see landscape renderer): the "<name> Sequence" x-axis and
+    # the page heading already name the protein. Optional user title only.
+    title_str = (plot_title or '').strip()
 
     row_height = max(130, 600 // max(num_vars, 1))
     fig.update_layout(
-        title=dict(text=title_str, font=dict(size=15), x=0.5),
+        title=dict(text=title_str, font=dict(size=15, color='black'), x=0.5),
         font=dict(family=PLOTLY_FONT_FAMILY, color='black'),
         height=max(row_height * num_vars + 80, 300),
         bargap=0,
@@ -2945,7 +2963,7 @@ def visualize_sequence_heatmap_compact(
         plot_bgcolor='white',
         paper_bgcolor='white',
         showlegend=True,
-        margin=dict(l=60, r=180, t=60, b=60),
+        margin=dict(l=60, r=180, t=60 if title_str else 30, b=60),
         legend=dict(
             yanchor="top",
             y=0.99,
@@ -2956,6 +2974,9 @@ def visualize_sequence_heatmap_compact(
             orientation="v",
             bgcolor="rgba(255,255,255,0.9)",
             font=dict(size=11),
+            # Consistent legend-group header style across all figures (size 14,
+            # black) — the Data Analysis legend-title convention.
+            grouptitlefont=dict(size=14, color='black'),
             itemsizing='constant',
             groupclick="toggleitem",
         ),

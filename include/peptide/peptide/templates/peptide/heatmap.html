@@ -302,7 +302,6 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                         <div class="radio-group rg-disabled" id="rg-orientation" style="flex-direction:column; gap:4px; align-items:flex-start;">
                             <label><input type="radio" name="hm-orientation" value="Landscape" checked disabled> Landscape</label>
                             <label><input type="radio" name="hm-orientation" value="Portrait" disabled> Portrait</label>
-                            <label><input type="radio" name="hm-orientation" value="Interactive Landscape" disabled> Interactive Landscape</label>
                             <label><input type="radio" name="hm-orientation" value="Compact" disabled> Compact</label>
                         </div>
                     </div>
@@ -392,6 +391,12 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">Plot Title</label>
+                        <input type="text" id="plot-title" placeholder="None (optional)" disabled
+                               style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">X-Axis Label</label>
                         <input type="text" id="xaxis-label" placeholder="Auto" disabled
                                style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
@@ -447,8 +452,14 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
         </div>
 
         <div style="margin-bottom:12px; display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn-dl" id="dl-plot-btn" disabled>
-                <i class="fas fa-download"></i> <span id="dl-plot-label">Download Plot</span>
+            <button class="btn-dl" id="dl-html-btn" disabled>
+                <i class="fas fa-download"></i> Download Interactive (HTML)
+            </button>
+            <button class="btn-dl" id="dl-png-btn" disabled>
+                <i class="fas fa-image"></i> Download PNG
+            </button>
+            <button class="btn-dl" id="dl-svg-btn" disabled>
+                <i class="fas fa-bezier-curve"></i> Download SVG
             </button>
         </div>
 
@@ -463,20 +474,19 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             <h4><i class="fas fa-image"></i> Portrait Layout</h4>
             <img id="portrait-img" src="" alt="Portrait Heatmap">
             <div id="portrait-interactive-container" class="interactive-plot-container hidden">
-                <h5><i class="fas fa-mouse-pointer"></i> Portrait — Interactive (hover for details)</h5>
+                <h5><i class="fas fa-mouse-pointer"></i> Portrait Layout (hover for details)</h5>
                 <div id="portrait-interactive-div" class="interactive-plotly-div"></div>
             </div>
         </div>
         <div id="landscape-container" class="heatmap-img-container hidden">
-            <h4><i class="fas fa-image"></i> Landscape Layout</h4>
-            <img id="landscape-img" src="" alt="Landscape Heatmap">
+            <h4><i class="fas fa-mouse-pointer"></i> Landscape Layout (hover for details)</h4>
+            <img id="landscape-img" src="" alt="Landscape Heatmap" style="display:none;">
             <div id="landscape-interactive-container" class="interactive-plot-container hidden">
-                <h5><i class="fas fa-mouse-pointer"></i> Landscape — Interactive (hover for details)</h5>
                 <div id="landscape-interactive-div" class="interactive-plotly-div"></div>
             </div>
         </div>
         <div id="compact-container" class="compact-plot-container hidden">
-            <h4><i class="fas fa-chart-bar"></i> Compact Layout (Interactive)</h4>
+            <h4><i class="fas fa-chart-bar"></i> Compact Layout</h4>
             <div id="compact-plotly-div"></div>
         </div>
     </div>
@@ -937,15 +947,18 @@ async function generateHeatmap() {
         hm_selected_color:    document.getElementById('hm-color').value,
         lp_selected_color:    document.getElementById('lp-color').value,
         avglp_selected_color: document.getElementById('avglp-color').value,
+        plot_title:           document.getElementById('plot-title').value,
         xaxis_label:          document.getElementById('xaxis-label').value,
         yaxis_label:          document.getElementById('yaxis-label').value,
         legend_title_1:       document.getElementById('legend-title-1').value || 'Sample Type:',
         legend_title_2:       document.getElementById('legend-title-2').value || 'Peptide Counts:',
         legend_title_3:       document.getElementById('legend-title-3').value || 'Average Abundance:',
         plot_portrait:                orientation === 'Portrait',
-        plot_landscape:               orientation === 'Landscape' || orientation === 'Interactive Landscape',
+        // Landscape is now served solely by the interactive Plotly renderer;
+        // the matplotlib landscape has been retired from the UI (Phase 1 consolidation).
+        plot_landscape:               false,
         plot_compact:                 orientation === 'Compact',
-        plot_landscape_interactive:   orientation === 'Interactive Landscape',
+        plot_landscape_interactive:   orientation === 'Landscape',
         plot_portrait_interactive:    false,
         filter_type:          filterType,
         log_transform:        document.getElementById('log-transform').checked,
@@ -1028,16 +1041,13 @@ async function generateHeatmap() {
         'portrait-interactive-container'
     );
 
+    // Landscape is now Plotly-only; the static <img> stays hidden. The container
+    // must show whenever the interactive figure is present (it wraps the interactive
+    // div), so key visibility off landscape_interactive, not the retired PNG.
     const landCont = document.getElementById('landscape-container');
-    if (data.landscape) {
-        // For 'Interactive Landscape' hide the static image, show only interactive
-        const landImg = document.getElementById('landscape-img');
-        if (orientation === 'Interactive Landscape') {
-            landImg.style.display = 'none';
-        } else {
-            landImg.style.display = '';
-            landImg.src = 'data:image/png;base64,' + data.landscape;
-        }
+    const landImg  = document.getElementById('landscape-img');
+    landImg.style.display = 'none';
+    if (data.landscape_interactive) {
         landCont.classList.remove('hidden');
     } else {
         landCont.classList.add('hidden');
@@ -1069,15 +1079,95 @@ async function generateHeatmap() {
         compactCont.classList.add('hidden');
     }
 
-    // ── Enable unified download button based on what was generated ────────────
+    // ── Enable download buttons based on what was generated ───────────────────
     currentOrientation = orientation;
-    _updateDownloadBtn();
+    _updateDownloadButtons();
 
     document.getElementById('step3-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ── Download helpers ──────────────────────────────────────────────
-async function downloadImg(b64, orientationName) {
+// Normalised with the Data Analysis dashboard: three buttons in the same place —
+// Interactive (HTML), PNG (3×), SVG (vector) — driven by the currently shown
+// Plotly figure. PNG/SVG use client-side Plotly.downloadImage; all heatmap traces
+// are SVG-backed (Bar/Scatter, no WebGL) so SVG export is exact.
+
+// Resolve the Plotly figure for the current orientation, or null (e.g. Portrait,
+// which is still a static matplotlib PNG until it is migrated in Phase 2).
+function _activePlotly() {
+    const o = currentOrientation;
+    if (o === 'Landscape' && currentLandscapeInteractiveJson)
+        return { json: currentLandscapeInteractiveJson, div: 'landscape-interactive-div', filename: 'heatmap_landscape' };
+    if (o === 'Compact' && currentCompactJson)
+        return { json: currentCompactJson, div: 'compact-plotly-div', filename: 'heatmap_compact' };
+    return null;
+}
+
+// Self-contained interactive HTML (opens standalone; Plotly loaded from CDN).
+function downloadInteractiveHtml() {
+    const p = _activePlotly();
+    if (!p) return;
+    const figSpec = JSON.parse(p.json);
+    const htmlStr = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>${p.filename}</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"><\/script>
+<style>body{margin:0;padding:10px;} #plot{width:100%;}<\/style>
+</head><body>
+<div id="plot"></div>
+<script>
+Plotly.newPlot('plot', ${JSON.stringify(figSpec.data)}, Object.assign({}, ${JSON.stringify(figSpec.layout)}, {autosize:true}), {responsive:true,scrollZoom:true,displayModeBar:true});
+window.addEventListener('resize', function(){ Plotly.Plots.resize(document.getElementById('plot')); });
+<\/script>
+</body></html>`;
+    const blob = new Blob([htmlStr], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = p.filename + '.html'; a.click();
+    URL.revokeObjectURL(url);
+}
+
+// Static image export. Rendered SERVER-SIDE via Kaleido so the file is
+// resolution-deterministic: PNG at publication DPI (600, metadata-stamped), SVG
+// as true vector. We send the canonical figure JSON plus the on-screen pixel
+// dimensions so the export matches what the user sees. Portrait falls back to
+// the server-rendered matplotlib PNG until Phase 2.
+async function downloadHeatmapImage(format) {
+    const p = _activePlotly();
+    if (p) {
+        const gd = document.getElementById(p.div);
+        const fl = (gd && gd._fullLayout) || {};
+        await postStaticDownload('/heatmap/download-static/', {
+            figure_json: p.json,
+            format,
+            filename: p.filename,
+            width:  Math.round(fl.width)  || undefined,
+            height: Math.round(fl.height) || undefined,
+        }, p.filename, format);
+        return;
+    }
+    if (format === 'png' && currentOrientation === 'Portrait' && currentPortraitB64) {
+        downloadMatplotlibPng(currentPortraitB64, 'portrait');
+    }
+}
+
+// POST a figure to a server-side static-export endpoint and save the returned file.
+async function postStaticDownload(url, payload, filename, format) {
+    const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (!resp.ok) { alert('Download failed'); return; }
+    const blob = await resp.blob();
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = u; a.download = `${filename}.${format}`; a.click();
+    URL.revokeObjectURL(u);
+}
+
+// Portrait is still a matplotlib PNG (round-tripped through the server) until
+// Phase 2 migrates it to Plotly; then it will use the buttons above like the others.
+async function downloadMatplotlibPng(b64, orientationName) {
     const resp = await fetch('/heatmap/download-plot/', {
         method: 'POST',
         headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
@@ -1091,76 +1181,34 @@ async function downloadImg(b64, orientationName) {
     URL.revokeObjectURL(url);
 }
 
-async function downloadPlotlyHtml(jsonStr, title, filename) {
-    const figSpec = JSON.parse(jsonStr);
-    const htmlStr = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>${title}</title>
-<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"><\/script>
-<style>body{margin:0;padding:10px;} #plot{width:100%;}<\/style>
-</head><body>
-<div id="plot"></div>
-<script>
-Plotly.newPlot('plot', ${JSON.stringify(figSpec.data)}, Object.assign({}, ${JSON.stringify(figSpec.layout)}, {autosize:true}), {responsive:true,scrollZoom:true,displayModeBar:true});
-window.addEventListener('resize', function(){ Plotly.Plots.resize(document.getElementById('plot')); });
-<\/script>
-</body></html>`;
-    try {
-        const resp = await fetch('/heatmap/save-compact-plot/', {
-            method: 'POST',
-            headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
-            body: JSON.stringify({ html: htmlStr }),
-        });
-        if (resp.ok) { window.location.href = '/heatmap/download-compact-plot/'; return; }
-    } catch(e) { /* fall through */ }
-    const blob = new Blob([htmlStr], { type: 'text/html' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = filename; a.click();
-    URL.revokeObjectURL(url);
-}
+// ── Enable/disable the three buttons for the current orientation ──
+function _updateDownloadButtons() {
+    const htmlBtn = document.getElementById('dl-html-btn');
+    const pngBtn  = document.getElementById('dl-png-btn');
+    const svgBtn  = document.getElementById('dl-svg-btn');
+    const plotly  = _activePlotly();
 
-// ── Update download button label & enabled state ──────────────────
-function _updateDownloadBtn() {
-    const btn   = document.getElementById('dl-plot-btn');
-    const label = document.getElementById('dl-plot-label');
-    const o     = currentOrientation;
-    let hasData = false;
-    let text    = 'Download Plot';
-
-    if (o === 'Portrait' && currentPortraitB64) {
-        hasData = true; text = 'Download Portrait PNG';
-    } else if (o === 'Landscape' && currentLandscapeB64) {
-        hasData = true; text = 'Download Landscape PNG';
-    } else if (o === 'Interactive Landscape' && currentLandscapeInteractiveJson) {
-        hasData = true; text = 'Download Interactive Landscape HTML';
-    } else if (o === 'Compact' && currentCompactJson) {
-        hasData = true; text = 'Download Compact HTML';
+    if (plotly) {
+        htmlBtn.disabled = pngBtn.disabled = svgBtn.disabled = false;
+        htmlBtn.title = pngBtn.title = svgBtn.title = '';
+    } else if (currentOrientation === 'Portrait' && currentPortraitB64) {
+        // Static matplotlib PNG only until Phase 2.
+        pngBtn.disabled = false; pngBtn.title = '';
+        htmlBtn.disabled = svgBtn.disabled = true;
+        htmlBtn.title = svgBtn.title = 'Available once Portrait is migrated to the interactive renderer.';
+    } else {
+        htmlBtn.disabled = pngBtn.disabled = svgBtn.disabled = true;
     }
-
-    label.textContent = text;
-    btn.disabled = !hasData;
 }
 
-// Update label whenever the orientation radio changes
+document.getElementById('dl-html-btn').addEventListener('click', downloadInteractiveHtml);
+document.getElementById('dl-png-btn').addEventListener('click', () => downloadHeatmapImage('png'));
+document.getElementById('dl-svg-btn').addEventListener('click', () => downloadHeatmapImage('svg'));
+
+// Refresh button state whenever the orientation radio changes.
 document.querySelectorAll('input[name="hm-orientation"]').forEach(r =>
-    r.addEventListener('change', _updateDownloadBtn)
+    r.addEventListener('change', _updateDownloadButtons)
 );
-
-// ── Unified download handler ──────────────────────────────────────
-document.getElementById('dl-plot-btn').addEventListener('click', async () => {
-    const o = currentOrientation;
-    if (o === 'Portrait' && currentPortraitB64) {
-        downloadImg(currentPortraitB64, 'portrait');
-    } else if (o === 'Landscape' && currentLandscapeB64) {
-        downloadImg(currentLandscapeB64, 'landscape');
-    } else if (o === 'Interactive Landscape' && currentLandscapeInteractiveJson) {
-        await downloadPlotlyHtml(currentLandscapeInteractiveJson,
-            'Interactive Landscape Heatmap', 'heatmap_landscape_interactive.html');
-    } else if (o === 'Compact' && currentCompactJson) {
-        await downloadPlotlyHtml(currentCompactJson,
-            'Compact Heatmap', 'heatmap_compact.html');
-    }
-});
 
 // ── Color swatch previews ─────────────────────────────────────────
 const COLOR_GRADIENTS = {

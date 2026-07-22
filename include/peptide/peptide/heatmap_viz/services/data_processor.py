@@ -18,6 +18,18 @@ import pandas as pd
 # floor; the preview and the downloaded PNG are the same encoded image.
 EXPORT_DPI = 300
 
+# UniProt FASTA descriptions trail the protein name with metadata tokens
+# ("Beta-casein OS=Bos taurus GN=CSN2 PE=1 SV=2"). We strip these ONCE, here at
+# load time, so protein_dict stores the clean short name ("Beta-casein") as the
+# single source of truth — downstream code (x-axis label, figure title, etc.)
+# reads it as-is and never re-strips.
+_FASTA_META_RE = re.compile(r'\s+(?:OS|OX|GN|PE|SV)=')
+
+
+def _clean_protein_name(name) -> str:
+    """Strip trailing UniProt FASTA metadata (' OS=…', ' GN=…', …) from a name."""
+    return _FASTA_META_RE.split(str(name), 1)[0].strip()
+
 
 # ---------------------------------------------------------------------------
 # File loading helpers
@@ -142,7 +154,7 @@ def _build_protein_dict_from_df(df: pd.DataFrame) -> dict:
         name = group['protein_name'].iloc[0] if has_info else str(protein_id)
         species = group['protein_species'].iloc[0] if has_info else 'Unknown'
         protein_dict[protein_id] = {
-            'name': str(name) if pd.notna(name) else str(protein_id),
+            'name': _clean_protein_name(name) or str(protein_id) if pd.notna(name) else str(protein_id),
             'species': str(species) if pd.notna(species) else 'Unknown',
             'sequence': '',
         }
@@ -202,11 +214,11 @@ def _parse_fasta_simple(content: str) -> dict:
             m = re.match(r'(?:sp|tr)\|([A-Z0-9]+)\|(\S+)\s*(.*)', header)
             if m:
                 current_id = m.group(1)
-                current_name = m.group(3).strip() or m.group(2)
+                current_name = _clean_protein_name(m.group(3)) or m.group(2)
             else:
                 parts = header.split(None, 1)
                 current_id = parts[0]
-                current_name = parts[1] if len(parts) > 1 else current_id
+                current_name = _clean_protein_name(parts[1]) if len(parts) > 1 else current_id
             current_seq = []
         else:
             current_seq.append(line)
@@ -454,46 +466,9 @@ def build_available_data_variables(
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _derive_xaxis_label(available_data_variables_dict: dict) -> str:
-    """
-    Mirror the notebook's `process_data_variables` logic for `protein_name_short`.
-
-    Collect all unique protein IDs and protein names from the variable dict,
-    then build a label of the form "<Name> Sequence".
-
-    Rules (matching the notebook exactly):
-    - Multiple IDs, single unique name  → "<name> Sequence"
-    - Multiple IDs, multiple names      → "<name1>_<name2> Sequence"
-    - Single ID / single name           → "<name> Sequence"
-    If no names are found, fall back to "<protein_id> Sequence" or
-    'Protein Sequence Position'.
-    """
-    protein_id_list   = []
-    protein_name_list = []
-
-    for vd in available_data_variables_dict.values():
-        pid   = vd.get('protein_id',   '')
-        pname = vd.get('protein_name', '')
-        if pid:
-            protein_id_list.append(str(pid))
-        if pname:
-            protein_name_list.append(str(pname))
-
-    unique_ids   = list(dict.fromkeys(protein_id_list))    # ordered dedup
-    unique_names = list(dict.fromkeys(protein_name_list))  # ordered dedup
-
-    if len(unique_ids) > 1 and len(unique_names) == 1:
-        protein_name_short = unique_names[0]
-    elif len(unique_ids) > 1 and len(unique_names) > 1:
-        protein_name_short = '_'.join(unique_names)
-    elif unique_names:
-        protein_name_short = unique_names[0]
-    elif unique_ids:
-        protein_name_short = unique_ids[0]
-    else:
-        return 'Protein Sequence Position'
-
-    return f"{protein_name_short} Sequence"
+# The x-axis-label / short-protein-name logic is defined once in
+# heatmap_renderer (`_derive_xaxis_label` / `_derive_protein_short_name`) and
+# imported where needed — see generate_heatmap below.
 
 
 # Generate heatmap plot
@@ -515,7 +490,7 @@ def generate_heatmap(
     import base64
 
     try:
-        from .heatmap_renderer import update_plot
+        from .heatmap_renderer import update_plot, _derive_xaxis_label
     except ImportError:
         return None, None, None, ['Could not import heatmap_renderer.']
 
@@ -557,6 +532,8 @@ def generate_heatmap(
             plot_compact=pp.get('plot_compact', False),
             plot_landscape_interactive=pp.get('plot_landscape_interactive', False),
             plot_portrait_interactive=pp.get('plot_portrait_interactive', False),
+            # Optional user figure title; blank → renderers draw no title.
+            plot_title=pp.get('plot_title', '').strip(),
         )
     except Exception as exc:
         return None, None, None, None, None, [f'Error generating heatmap: {exc}\n{traceback.format_exc()}']

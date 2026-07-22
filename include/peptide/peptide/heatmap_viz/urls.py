@@ -12,6 +12,7 @@ urlpatterns = [
     path('get-specific-options/', views.get_specific_options, name='get_specific_options'),
     path('plot/', views.plot, name='plot'),
     path('download-plot/', views.download_plot, name='download_plot'),
+    path('download-static/', views.download_static_image, name='download_static_image'),
     path('save-compact-plot/', views.save_compact_plot, name='save_compact_plot'),
     path('download-compact-plot/', views.download_compact_plot, name='download_compact_plot'),
 ]

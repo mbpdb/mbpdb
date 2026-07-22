@@ -438,3 +438,44 @@ def download_plot(request):
     response = HttpResponse(img_bytes, content_type='image/png')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
+
+
+@require_POST
+def download_static_image(request):
+    """Server-side Kaleido export of the currently shown interactive heatmap.
+
+    POST JSON: {figure_json, format: 'png'|'svg', filename, width?, height?}.
+    PNG is rendered at publication DPI (see utils.plotly_export.PUBLICATION_DPI);
+    SVG is true vector. Returns the file as an attachment.
+    """
+    from peptide.utils import plotly_export
+
+    try:
+        body = json.loads(request.body)
+        figure_json = body.get('figure_json')
+        fmt = (body.get('format') or 'png').lower()
+        raw_name = body.get('filename') or 'heatmap'
+        width = body.get('width') or None
+        height = body.get('height') or None
+    except Exception:
+        return HttpResponse('Invalid request.', status=400)
+
+    if not figure_json:
+        return HttpResponse('No figure data.', status=400)
+
+    # Sanitize the download filename (header-safe).
+    filename = ''.join(c if c.isalnum() or c in ('-', '_', '.') else '_' for c in str(raw_name)) or 'heatmap'
+
+    try:
+        if fmt == 'svg':
+            data = plotly_export.svg_bytes(figure_json, width=width, height=height)
+            content_type, ext = 'image/svg+xml', 'svg'
+        else:
+            data = plotly_export.png_bytes(figure_json, width=width, height=height)
+            content_type, ext = 'image/png', 'png'
+    except Exception as exc:
+        return HttpResponse(f'Static export failed: {exc}', status=500)
+
+    response = HttpResponse(data, content_type=content_type)
+    response['Content-Disposition'] = f'attachment; filename="{filename}.{ext}"'
+    return response
