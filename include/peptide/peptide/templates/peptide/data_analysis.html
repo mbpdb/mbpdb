@@ -770,19 +770,35 @@ Plotly.newPlot('plot', ${JSON.stringify(currentFigJson.data)}, ${JSON.stringify(
     URL.revokeObjectURL(url);
 }
 
-// Static-image export. Renders in the browser via Plotly.toImage; PNG is
-// exported at 3× the on-screen pixels for publication resolution, SVG is true
-// vector (all Data Analysis traces are SVG-backed — no WebGL — so this is safe).
-function downloadImage(format) {
+// Static-image export. Rendered SERVER-SIDE via Kaleido so the file is
+// resolution-deterministic: PNG at publication DPI (600, metadata-stamped), SVG
+// as true vector. We send the figure JSON plus the on-screen pixel size so the
+// export matches what the user sees.
+async function downloadImage(format) {
     const container = document.getElementById('plot-container');
     if (!currentFigJson || !container) return;
     const rawTitle = currentFigJson.layout && currentFigJson.layout.title
         ? (currentFigJson.layout.title.text || currentFigJson.layout.title) : '';
     const filename = (String(rawTitle).replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, ''))
         || 'peptiline_plot';
-    const opts = { format, filename };
-    if (format === 'png') opts.scale = 3;
-    Plotly.downloadImage(container, opts);
+    const fl = container._fullLayout || {};
+    const resp = await fetch('/data_analysis/download-static/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            figure_json: JSON.stringify(currentFigJson),
+            format,
+            filename,
+            width:  Math.round(fl.width)  || undefined,
+            height: Math.round(fl.height) || undefined,
+        }),
+    });
+    if (!resp.ok) { alert('Download failed'); return; }
+    const blob = await resp.blob();
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = u; a.download = `${filename}.${format}`; a.click();
+    URL.revokeObjectURL(u);
 }
 
 // ── Color swatch preview ──────────────────────────────────────────

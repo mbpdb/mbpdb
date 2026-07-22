@@ -78,6 +78,7 @@ dev.sh
 # Local working notes (not part of the application)
 node_js_update.txt
 results_optimization.txt
+peptiline_optimization.txt
 
 # Manuscript under peer review — tracked in its own private repo
 # (Kuhfeldrf/manuscript). Must never enter the application repo.
