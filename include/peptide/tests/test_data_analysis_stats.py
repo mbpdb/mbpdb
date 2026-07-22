@@ -714,5 +714,38 @@ class TestEffectSizeLabel(unittest.TestCase):
         self.assertEqual(stats.effect_size_label(None), 'n/a')
 
 
+class TestSelectorReplicateFlags(unittest.TestCase):
+    """get_selector_options exposes replicate presence so the Data Analysis
+    dashboard can show the same 'replicate data detected / disabled' banner as
+    the Heatmap dashboard (R2-2d Step 2)."""
+
+    def _opts(self, df):
+        from peptide.data_analysis.services import data_processor as dp
+        gdd, renamed, _warn = dp.process_group_data(df)
+        pdict = dp.extract_protein_dict(renamed)
+        return dp.get_selector_options(renamed, gdd, pdict)
+
+    def test_grouped_columns_flagged(self):
+        df = pd.DataFrame({
+            'Protein': ['P1', 'P1'], 'Unique Peptide ID': ['a', 'b'],
+            "S1 'Grouped: (Bitter)'": [10, 5], "S2 'Grouped: (Bitter)'": [12, 6],
+            "S3 'Grouped: (Plain)'": [3, 8],  # single replicate -> not "replicate-level"
+            'Avg_Bitter': [11.0, 5.5], 'Avg_Plain': [3.0, 8.0],
+        })
+        opts = self._opts(df)
+        self.assertTrue(opts['has_replicates'])
+        self.assertTrue(opts['var_replicates']['Bitter'])       # 2 replicates
+        self.assertFalse(opts['var_replicates']['Plain'])       # only 1 replicate
+
+    def test_single_average_file_has_no_replicates(self):
+        df = pd.DataFrame({
+            'Protein': ['P1'], 'Unique Peptide ID': ['a'],
+            'Avg_Bitter': [11.0], 'Avg_Plain': [3.0],
+        })
+        opts = self._opts(df)
+        self.assertFalse(opts['has_replicates'])
+        self.assertFalse(any(opts['var_replicates'].values()))
+
+
 if __name__ == '__main__':
     unittest.main()

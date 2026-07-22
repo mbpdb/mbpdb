@@ -173,6 +173,17 @@ def get_selector_options(merged_df: pd.DataFrame, group_data_dict: dict, protein
 
     functions = [f for f, _ in sorted(function_totals.items(), key=lambda x: x[1], reverse=True)]
 
+    # Which groups carry replicate-level ('Grouped:') columns. In this module a
+    # group's value is a list of replicate column names (Grouped form) or a plain
+    # 'Avg_<group>' string (no-replicate form); ≥2 replicates are needed for the
+    # SEM / group-comparison statistics. Surfaced so the UI can show the same
+    # "replicate data detected / disabled" banner as the Heatmap dashboard.
+    var_replicates = {
+        g: (isinstance(cols, (list, tuple)) and len(cols) >= 2)
+        for g, cols in group_data_dict.items()
+    }
+    has_replicates = any(var_replicates.values())
+
     return {
         'groups': groups,
         'proteins': protein_options,
@@ -180,6 +191,8 @@ def get_selector_options(merged_df: pd.DataFrame, group_data_dict: dict, protein
         'functions': functions,
         'has_functions': has_functions,
         'avg_columns': avg_columns,
+        'var_replicates': var_replicates,
+        'has_replicates': has_replicates,
     }
 
 

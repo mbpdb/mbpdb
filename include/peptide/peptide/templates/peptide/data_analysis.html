@@ -138,8 +138,11 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             <a href="/data_transformation/">Data Transformation</a> module.
             Accepted formats: CSV or XLSX.
             The file must contain <code>Protein</code>, <code>Unique Peptide ID</code>,
-            and <code>Avg_*</code> columns.
+            <code>Avg_*</code>, and per-replicate
+            <code>"&lt;sample&gt; 'Grouped: (Group)'"</code> columns.
         </div>
+
+        <div id="da-replicate-banner" class="status-box" style="margin-bottom:12px; display:none;"></div>
 
         <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
             <!-- Upload zone -->
@@ -508,7 +511,27 @@ async function handleUpload(file) {
     applyPlotTypeGreying();  // set Show Stats visibility for the default plot type
 }
 
+// Announce whether the uploaded file carries replicate-level ('Grouped:')
+// columns — the same detection the Heatmap dashboard shows. Replicate data is
+// what enables the group-comparison statistics (SEM error bars + significance
+// testing); single-average files still plot, without those.
+function applyDaReplicateBanner(data) {
+    const banner = document.getElementById('da-replicate-banner');
+    if (!banner) return;
+    banner.style.display = 'block';
+    if (data.has_replicates) {
+        banner.className = 'status-box status-success';
+        banner.innerHTML =
+            "Replicate-level <code>'Grouped:'</code> columns detected — group-comparison statistics (SEM error bars, significance testing) available.";
+    } else {
+        banner.className = 'status-box status-info';
+        banner.innerHTML =
+            "No replicate columns found — showing <code>Avg_</code> averages only; SEM error bars and significance testing are unavailable. Re-export from Data Transformation with grouped replicates to enable them.";
+    }
+}
+
 function populateSelectors(data) {
+    applyDaReplicateBanner(data);
     const grpSel = document.getElementById('group-selector');
     grpSel.innerHTML = '';
     data.groups.forEach(g => grpSel.add(new Option(g, g, true, true)));

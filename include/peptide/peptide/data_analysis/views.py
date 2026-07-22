@@ -105,6 +105,8 @@ def upload(request):
         'protein_ids': options['protein_ids'],
         'functions': options['functions'],
         'has_functions': options['has_functions'],
+        'var_replicates': options['var_replicates'],
+        'has_replicates': options['has_replicates'],
         'warnings': warnings,
     })
 
@@ -149,7 +151,9 @@ def transfer_from_dt(request):
         'rows': len(df), 'columns': len(df.columns),
         'groups': options['groups'], 'proteins': options['proteins'],
         'protein_ids': options['protein_ids'], 'functions': options['functions'],
-        'has_functions': options['has_functions'], 'warnings': warnings,
+        'has_functions': options['has_functions'],
+        'var_replicates': options['var_replicates'],
+        'has_replicates': options['has_replicates'], 'warnings': warnings,
     })
 
 
