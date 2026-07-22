@@ -112,6 +112,8 @@ def upload(request):
         'proteins': options['proteins'],
         'var_keys': options['var_keys'],
         'has_functions': options['has_functions'],
+        'var_replicates': options['var_replicates'],
+        'has_replicates': options['has_replicates'],
         'warnings': warnings,
     })
 
@@ -158,7 +160,9 @@ def transfer_from_dt(request):
         'filename': 'Data Transformation output',
         'rows': len(df_hm),
         'proteins': options['proteins'], 'var_keys': options['var_keys'],
-        'has_functions': options['has_functions'], 'warnings': [],
+        'has_functions': options['has_functions'],
+        'var_replicates': options['var_replicates'],
+        'has_replicates': options['has_replicates'], 'warnings': [],
     })
 
 
@@ -204,7 +208,9 @@ def transfer_from_da(request):
         'filename': 'Data Analysis output',
         'rows': len(df_hm),
         'proteins': options['proteins'], 'var_keys': options['var_keys'],
-        'has_functions': options['has_functions'], 'warnings': [],
+        'has_functions': options['has_functions'],
+        'var_replicates': options['var_replicates'],
+        'has_replicates': options['has_replicates'], 'warnings': [],
     })
 
 

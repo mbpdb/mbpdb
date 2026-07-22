@@ -161,7 +161,8 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             Upload a merged data file from the
             <a href="/data_transformation/">Data Transformation</a> module
             (must contain <code>Protein</code>, <code>start</code>, <code>end</code>,
-            and <code>Avg_*</code> columns).
+            <code>Avg_*</code>, and per-replicate
+            <code>"&lt;sample&gt; 'Grouped: (Group)'"</code> columns).
             Optionally upload a FASTA file for protein sequences.
         </div>
 
@@ -243,6 +244,36 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             </div>
         </div>
 
+        <!-- ── Differential comparison (SMD / log2FC) — R2-2d ─────────────── -->
+        <div id="comparison-block" style="margin-bottom:14px; padding:10px 12px; border:1px solid #e0e0e0; border-radius:6px; background:#fafafa;">
+            <label class="checkbox-row" style="font-weight:600; font-size:.92rem;"
+                   title="Overlay a signed effect-size line (Series A vs Series B) on the density heatmap instead of the abundance line. Requires replicate-level (Grouped) data.">
+                <input type="checkbox" id="comparison-mode" disabled>
+                <i class="fas fa-code-compare"></i> Differential comparison (SMD / log2FC)
+            </label>
+            <small id="comparison-banner" class="text-muted" style="display:block; margin-top:4px;">
+                Requires replicate-level <code>'Grouped:'</code> columns (per-replicate abundances) alongside each <code>Avg_</code> column. Upload such a file to enable a between-group effect-size track.
+            </small>
+
+            <div id="comparison-controls" class="hidden" style="margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; align-items:end;">
+                <div class="selector-block" style="margin:0;">
+                    <label style="font-size:.9rem; font-weight:600;">Series A <span class="text-muted" style="font-weight:400;">(+ = higher in A)</span></label>
+                    <select id="series-a" style="width:100%; border:1px solid #ced4da; border-radius:4px; padding:5px 8px; font-size:.9rem;"></select>
+                </div>
+                <div class="selector-block" style="margin:0;">
+                    <label style="font-size:.9rem; font-weight:600;">Series B</label>
+                    <select id="series-b" style="width:100%; border:1px solid #ced4da; border-radius:4px; padding:5px 8px; font-size:.9rem;"></select>
+                </div>
+                <div class="rg-field" style="grid-column:1 / -1;">
+                    <span class="rg-label">Metric</span>
+                    <div class="radio-group" id="rg-comparison-metric" style="flex-direction:row; gap:16px;">
+                        <label><input type="radio" name="comparison-metric" value="smd" checked> Standardized Mean Difference (SMD, Cohen&rsquo;s <i>d</i>)</label>
+                        <label><input type="radio" name="comparison-metric" value="log2fc"> log&#x2082; fold change</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <hr style="margin:14px 0;">
 
         <!-- 2-column settings layout -->
@@ -302,7 +333,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                         <div class="radio-group rg-disabled" id="rg-orientation" style="flex-direction:column; gap:4px; align-items:flex-start;">
                             <label><input type="radio" name="hm-orientation" value="Landscape" checked disabled> Landscape</label>
                             <label><input type="radio" name="hm-orientation" value="Portrait" disabled> Portrait</label>
-                            <label><input type="radio" name="hm-orientation" value="Compact" disabled> Compact</label>
+                            <label class="checkbox-row" id="orientation-compact-row" style="margin:0;"><input type="radio" name="hm-orientation" value="Compact" disabled> Compact</label>
                         </div>
                     </div>
 
@@ -507,6 +538,11 @@ let currentLandscapeInteractiveJson = null;
 let currentPortraitInteractiveJson  = null;
 let currentOrientation              = 'Landscape';
 let hasFunctions = false;
+// Differential-comparison availability (R2-2d). varReplicates maps each grouping
+// variable → whether it carries replicate-level ('Grouped:') columns; the SMD /
+// log2FC track needs replicate-backed series on both sides.
+let varReplicates = {};
+let hasReplicates = false;
 
 function getCsrf() { return CSRF; }
 
@@ -546,6 +582,101 @@ function enableStep2() {
     if (bioFuncBtn) bioFuncBtn.disabled = !hasFunctions;
     applyItemsSelectorState(false);
     _updateAaTilesState();
+    applyComparisonAvailability();
+}
+
+// ── Differential comparison (SMD / log2FC) ────────────────────────
+// Gate the comparison controls on the uploaded file carrying replicate-level
+// data. enableStep2() blanket-enables every step-2 input, so this runs last to
+// re-disable the comparison toggle when no replicate columns are present.
+function applyComparisonAvailability() {
+    const cb     = document.getElementById('comparison-mode');
+    const banner = document.getElementById('comparison-banner');
+    if (!cb) return;
+    if (hasReplicates) {
+        cb.disabled = false;
+        banner.textContent =
+            'Pick two series and a metric to overlay an effect-size track.';
+    } else {
+        cb.checked  = false;
+        cb.disabled = true;
+        banner.innerHTML =
+            "Comparison disabled: this file has only <code>Avg_</code> columns (single-average). " +
+            "It needs the per-replicate <code>'Grouped:'</code> columns — re-export from Data Transformation with grouped replicates.";
+    }
+    toggleComparisonControls();
+}
+
+// Show/hide the Series A/B + metric block based on the toggle, and (re)populate
+// the series pickers from the current protein × replicate-backed-variable choices.
+function toggleComparisonControls() {
+    const cb   = document.getElementById('comparison-mode');
+    const ctrl = document.getElementById('comparison-controls');
+    const on   = cb && cb.checked && !cb.disabled;
+    ctrl.classList.toggle('hidden', !on);
+    if (on) refreshComparisonSeries();
+
+    // The differential track is only drawn on the Landscape / Portrait line
+    // panel, so grey out + deactivate the Compact orientation while comparison
+    // is on. If Compact was selected, fall back to Landscape.
+    const compactRadio = document.querySelector('input[name="hm-orientation"][value="Compact"]');
+    if (compactRadio) {
+        if (on && compactRadio.checked) {
+            const landscape = document.querySelector('input[name="hm-orientation"][value="Landscape"]');
+            if (landscape) { landscape.checked = true; _updateAaTilesState(); }
+        }
+        setControlEnabled(compactRadio, !on, {
+            row: document.getElementById('orientation-compact-row'),
+        });
+    }
+}
+
+// Build the (protein × variable) combos that are replicate-backed and offer them
+// as Series A / Series B. Combo value matches the renderer's combo_key
+// (`${protein_id}_${var_key}`). Preserves the current pick when still valid.
+function refreshComparisonSeries() {
+    const selA = document.getElementById('series-a');
+    const selB = document.getElementById('series-b');
+    if (!selA || !selB) return;
+
+    const proteins = getMultiSelectValues(document.getElementById('protein-selector'));
+    const varKeys  = getMultiSelectValues(document.getElementById('varkey-selector'));
+    const protLabel = pid => {
+        const opt = document.querySelector(`#protein-selector option[value="${CSS.escape(pid)}"]`);
+        return opt ? opt.textContent : pid;
+    };
+
+    const combos = [];
+    proteins.forEach(pid => {
+        varKeys.forEach(vk => {
+            if (varReplicates[vk]) {
+                const label = proteins.length > 1 ? `${protLabel(pid)} · ${vk}` : vk;
+                combos.push({ value: `${pid}_${vk}`, label });
+            }
+        });
+    });
+
+    const prevA = selA.value, prevB = selB.value;
+    const fill = (sel) => {
+        sel.innerHTML = '';
+        combos.forEach(c => sel.add(new Option(c.label, c.value)));
+    };
+    fill(selA); fill(selB);
+
+    const values = combos.map(c => c.value);
+    selA.value = values.includes(prevA) ? prevA : (values[0] || '');
+    // default Series B to a series distinct from A when possible
+    if (values.includes(prevB) && prevB !== selA.value) {
+        selB.value = prevB;
+    } else {
+        selB.value = values.find(v => v !== selA.value) || (values[0] || '');
+    }
+
+    const banner = document.getElementById('comparison-banner');
+    if (combos.length < 2 && !document.getElementById('comparison-mode').disabled) {
+        banner.textContent =
+            'Select at least two replicate-backed protein × variable series (above) to compare.';
+    }
 }
 
 // "Show amino acid sequence on tiles" only applies to the wrapped-band renderers
@@ -634,6 +765,8 @@ async function doUpload() {
         data.warnings.forEach(w => appendStatus(status, w, 'warning'));
 
     hasFunctions = !!data.has_functions;
+    varReplicates = data.var_replicates || {};
+    hasReplicates = !!data.has_replicates;
     populateSelectors(data);
     enableStep2();
 }
@@ -829,10 +962,23 @@ document.getElementById('protein-selector').addEventListener('change', async fun
         _showAutoFetchResult(fetched, failed, document.getElementById('autofetch-msgs'), true);
     }
     await applyItemsSelectorState(true);
+    refreshComparisonSeries();
 });
 
 document.getElementById('varkey-selector').addEventListener('change', async function() {
     await applyItemsSelectorState(true);
+    refreshComparisonSeries();
+});
+
+// Comparison-mode toggle: show/hide the Series A/B + metric block.
+document.getElementById('comparison-mode').addEventListener('change', toggleComparisonControls);
+// Keep Series B distinct from Series A when the user changes A.
+document.getElementById('series-a').addEventListener('change', function() {
+    const selB = document.getElementById('series-b');
+    if (selB.value === this.value) {
+        const alt = Array.from(selB.options).find(o => o.value !== this.value);
+        if (alt) selB.value = alt.value;
+    }
 });
 
 // ── Manual Y-axis toggle & scale mode ────────────────────────────
@@ -908,6 +1054,24 @@ async function generateHeatmap() {
         return;
     }
 
+    // Validate the differential-comparison selection when the mode is on.
+    const comparisonOn = document.getElementById('comparison-mode').checked
+                         && !document.getElementById('comparison-mode').disabled;
+    const seriesA = document.getElementById('series-a').value;
+    const seriesB = document.getElementById('series-b').value;
+    if (comparisonOn) {
+        if (!seriesA || !seriesB) {
+            appendStatus(msgs, 'Differential comparison needs both Series A and Series B. Select two replicate-backed series or turn comparison off.', 'error');
+            btn.disabled = false; spinner.classList.add('hidden');
+            return;
+        }
+        if (seriesA === seriesB) {
+            appendStatus(msgs, 'Differential comparison needs two distinct series for Series A and Series B.', 'error');
+            btn.disabled = false; spinner.classList.add('hidden');
+            return;
+        }
+    }
+
     // Auto-fetch missing sequences before generating
     const missingPids = getMissingSeqPids(selectedProteins);
     if (missingPids.length) {
@@ -980,6 +1144,12 @@ async function generateHeatmap() {
         y_min:                resolveYValue(document.getElementById('y-min').value),
         y_max:                resolveYValue(document.getElementById('y-max').value) || 1,
         aa_on_tiles:          document.getElementById('aa-on-tiles').checked,
+        // Differential-comparison track (R2-2d). When comparison_mode is off the
+        // backend ignores the series/metric and renders the normal abundance line.
+        comparison_mode:      comparisonOn,
+        series_a:             seriesA,
+        series_b:             seriesB,
+        comparison_metric:    getRadioValue('comparison-metric') || 'smd',
     };
 
     let resp;
@@ -1250,6 +1420,8 @@ if (new URLSearchParams(window.location.search).get('from_dt') === '1') {
         if (data.warnings && data.warnings.length)
             data.warnings.forEach(w => appendStatus(status, w, 'warning'));
         hasFunctions = !!data.has_functions;
+        varReplicates = data.var_replicates || {};
+        hasReplicates = !!data.has_replicates;
         populateSelectors(data);
         enableStep2();
     }

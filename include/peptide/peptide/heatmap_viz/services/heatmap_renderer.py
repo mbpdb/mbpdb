@@ -423,7 +423,12 @@ def export_heatmap_data_to_dict(protein_id, group_key, group_info, protein_seque
         'protein_species': protein_species,
         'func_heatmap_df': func_heatmap_df,
         'heatmap_df': heatmap_df,
-        'filtered_heatmap_df': filtered_heatmap_df
+        'filtered_heatmap_df': filtered_heatmap_df,
+        # Raw per-peptide rows (start/end + any replicate 'Grouped:' columns) for
+        # this protein. The differential-comparison track needs these to build
+        # per-replicate per-position means; the position-painted heatmap_df above
+        # only carries the Avg_ column, not the individual replicates.
+        'peptide_df': protein_df,
     }
 
     return heatmap_data
@@ -654,7 +659,9 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                 legend_title_input_3, filter_type, log_transform,
                 manual_y_axis, y_min_manual, y_max_manual, plot_compact=False,
                 plot_landscape_interactive=False, plot_portrait_interactive=False,
-                plot_title='', aa_on_tiles=False):
+                plot_title='', aa_on_tiles=False,
+                comparison_mode=False, series_a=None, series_b=None,
+                comparison_metric='smd'):
     # Every heatmap orientation is now rendered by Plotly
     # (visualize_sequence_heatmap_interactive / _compact); the matplotlib
     # landscape/portrait renderers and their chunking machinery were retired.
@@ -698,6 +705,76 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
         num_unique_count = result['num_unique_count']
         num_colors = result['num_colors']
 
+        # ── Differential-comparison track (SMD / log2FC) ─────────────────────
+        # When comparison mode is on and both series are replicate-backed, build
+        # a single signed contrast line (per-position) that REPLACES the abundance
+        # line in the row-1 panel. Signed data → symmetric-about-0 axis, zero
+        # baseline, and NO log-transform (guarded below). Any validation failure
+        # leaves comparison off and the normal abundance path untouched.
+        comparison_track = None
+        comparison_render_dict = None
+        if comparison_mode:
+            metric = comparison_metric if comparison_metric in ('smd', 'log2fc') else 'smd'
+            va = available_data_variables_dict.get(series_a)
+            vb = available_data_variables_dict.get(series_b)
+            if not series_a or not series_b or series_a == series_b:
+                all_errors.append('Comparison requires two distinct series (Series A and Series B).')
+            elif va is None or vb is None:
+                all_errors.append('Comparison series not found in the current protein/variable selection.')
+            elif not va.get('replicate_columns') or not vb.get('replicate_columns'):
+                all_errors.append('Comparison needs replicate-level (Grouped) data for both series; this looks like a single-average file. Re-export from Data Transformation with grouped replicate columns.')
+            elif va.get('peptide_df') is None or vb.get('peptide_df') is None:
+                all_errors.append('Comparison unavailable: raw peptide data missing for one of the selected series.')
+            else:
+                try:
+                    means_a = calculate_replicate_position_means(
+                        va['protein_sequence'], va['peptide_df'], va['replicate_columns'])
+                    means_b = calculate_replicate_position_means(
+                        vb['protein_sequence'], vb['peptide_df'], vb['replicate_columns'])
+                    track = calculate_contrast_track(means_a, means_b, metric=metric)
+                    finite = track[np.isfinite(track)]
+                    if finite.size == 0:
+                        all_errors.append('Comparison produced no defined positions (no overlapping replicate coverage).')
+                    else:
+                        lo = float(np.min(finite))
+                        hi = float(np.max(finite))
+                        y_ticks = calculate_signed_y_ticks(lo, hi)
+                        log_transform = False  # signed data — never log-transform
+
+                        # Series labels. When A and B are DIFFERENT proteins the
+                        # bare variable name ("Bitter") does not distinguish the two
+                        # density rows, so prefix the protein name; same protein →
+                        # the variable name alone is unambiguous.
+                        var_a = va.get('label', series_a)
+                        var_b = vb.get('label', series_b)
+                        prot_a = str(va.get('protein_name') or va.get('protein_id') or '').strip()
+                        prot_b = str(vb.get('protein_name') or vb.get('protein_id') or '').strip()
+                        if va.get('protein_id') != vb.get('protein_id'):
+                            if var_a == var_b:
+                                label_a, label_b = (prot_a or var_a), (prot_b or var_b)
+                            else:
+                                label_a = f'{prot_a} {var_a}'.strip()
+                                label_b = f'{prot_b} {var_b}'.strip()
+                        else:
+                            label_a, label_b = var_a, var_b
+
+                        comparison_track = {
+                            'values': track,
+                            'metric': metric,
+                            'label_a': label_a,
+                            'label_b': label_b,
+                            'aa_list': list(va.get('AA_list') or vb.get('AA_list') or va['protein_sequence']),
+                        }
+                        # Restrict the density heatmap to ONLY the two compared
+                        # series (not every selected variable), and carry the
+                        # protein-aware labels onto the tile rows. Shallow-copy so
+                        # the shared dict entries are not mutated.
+                        a_entry = dict(va); a_entry['label'] = label_a
+                        b_entry = dict(vb); b_entry['label'] = label_b
+                        comparison_render_dict = {series_a: a_entry, series_b: b_entry}
+                except Exception as exc:
+                    all_errors.append(f'Error computing comparison track: {exc}')
+
         selected_legend_title = [legend_title_input_1, legend_title_input_2, legend_title_input_3, legend_title[4]]
 
         # Your plotting code here, using the widget values as inputs
@@ -705,13 +782,18 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
         cmap = plt.get_cmap(hm_selected_color)
         avg_cmap = plt.get_cmap(avglp_selected_color)
 
-        # Comprehensive validation of plotting configuration
+        # Comprehensive validation of plotting configuration.
+        # When a comparison track is active it supplies the entire row-1 line
+        # panel (the abundance / individual-peptide lines are suppressed), so the
+        # abundance-source scenarios below do not apply — skip them.
         config_errors = []
 
         # Scenario 1: No averaged data + no specific peptides selected.
         # filter_type='bioactive-only' is itself a valid data source (all bioactive
         # peptides), so it must be excluded from this check even when bio_or_pep='no'.
-        if ms_average_choice == 'no' and (not bio_or_pep or bio_or_pep == 'no') and filter_type not in ('bioactive-only', 'functional-only'):
+        if comparison_track is not None:
+            pass
+        elif ms_average_choice == 'no' and (not bio_or_pep or bio_or_pep == 'no') and filter_type not in ('bioactive-only', 'functional-only'):
             config_errors.append('Invalid configuration: "Plot Averaged Data" is set to "No" and "Plot Specific Peptides" is not selected. Please enable at least one data source for plotting.')
 
         # Scenario 2: Peptide intervals selected but no actual intervals provided
@@ -751,7 +833,13 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                 y_ticks          = y_ticks,
                 plot_title       = plot_title,
                 aa_on_tiles      = aa_on_tiles,
+                comparison_track = comparison_track,
             )
+
+            # In comparison mode the density heatmap should show ONLY the two
+            # compared series (with protein-aware labels), not every selected
+            # variable — so render from the filtered dict when it was built.
+            interactive_dict = comparison_render_dict if comparison_render_dict is not None else available_data_variables_dict
 
             fig_port_plotly = None
             if plot_portrait_interactive:
@@ -759,7 +847,7 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                     warnings.simplefilter('ignore', UserWarning)
                     try:
                         fig_port_plotly = visualize_sequence_heatmap_interactive(
-                            available_data_variables_dict,
+                            interactive_dict,
                             'Portrait',
                             **_interactive_params,
                         )
@@ -772,7 +860,7 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                     warnings.simplefilter('ignore', UserWarning)
                     try:
                         fig_land_plotly = visualize_sequence_heatmap_interactive(
-                            available_data_variables_dict,
+                            interactive_dict,
                             'Landscape',
                             **_interactive_params,
                         )
@@ -1176,6 +1264,10 @@ def visualize_sequence_heatmap_interactive(
     aa_on_tiles=False,    # print the AA letter on each sample's colored tile
                           # (instead of the shared grey sequence strip) — lets you
                           # compare two proteins / variants row-by-row
+    comparison_track=None,# dict(values, metric, label_a, label_b, aa_list) — when
+                          # set, the row-1 panel shows a single signed SMD/log2FC
+                          # contrast line (zero baseline, symmetric axis) INSTEAD
+                          # of the abundance lines. See HEATMAP_DIFFERENTIAL_STATS.md.
 ):
     """
     Plotly interactive version of the landscape / portrait heatmap.
@@ -1283,8 +1375,48 @@ def visualize_sequence_heatmap_interactive(
     # its full-length x/y/hover plus styling. `is_indiv` only affects line width.
     line_specs = []   # dict(x, y, hover, name, color, legendgroup, is_indiv)
 
+    # ── differential-comparison contrast line (replaces abundance lines) ─────
+    # When a comparison track is supplied it is the ONLY row-1 trace: a single
+    # signed line (positive => higher in Series A) over the density heatmap. The
+    # abundance / individual-peptide lines are suppressed so the panel is
+    # unambiguous. Undefined positions are NaN → Plotly renders them as gaps.
+    contrast_is_active = comparison_track is not None
+    if contrast_is_active:
+        from peptide.data_analysis.services.stats import effect_size_label
+        _track   = list(comparison_track.get('values', []))
+        _metric  = comparison_track.get('metric', 'smd')
+        _lbl_a   = comparison_track.get('label_a', 'A')
+        _lbl_b   = comparison_track.get('label_b', 'B')
+        _aa_list = list(comparison_track.get('aa_list', []))
+        _x_vals  = list(range(1, len(_track) + 1))
+        _y_vals  = [float(v) if v is not None and np.isfinite(v) else None for v in _track]
+        # The metric is already named on the y-axis, so the legend only needs to
+        # say WHAT is being compared ("Threshold vs Low") under a "Comparison"
+        # header. Hover keeps a short metric tag for per-residue readout.
+        _metric_short = 'SMD' if _metric == 'smd' else 'log₂FC'
+        _trace_name   = f'{_lbl_a} vs {_lbl_b}'
+        _hover = []
+        for _x, _y in zip(_x_vals, _y_vals):
+            _aa = _aa_list[_x - 1] if 0 < _x <= len(_aa_list) else '?'
+            if _y is None:
+                _hover.append(f"Position: {_x}<br>Amino Acid: {_aa}<br>{_metric_short}: n/a")
+            elif _metric == 'smd':
+                _hover.append(
+                    f"Position: {_x}<br>Amino Acid: {_aa}<br>"
+                    f"{_metric_short}: {_y:+.2f} ({effect_size_label(_y)})<br>"
+                    f"(+ = higher in {_lbl_a})")
+            else:
+                _hover.append(
+                    f"Position: {_x}<br>Amino Acid: {_aa}<br>"
+                    f"{_metric_short}: {_y:+.2f}<br>(+ = higher in {_lbl_a})")
+        line_specs.append(dict(
+            x=_x_vals, y=_y_vals, hover=_hover, name=_trace_name,
+            color='rgba(33,33,33,0.9)', legendgroup='contrast', is_indiv=False,
+            grouptitle='Comparison',
+        ))
+
     # ── averaged MS lines (one per variable) ─────────────────────────────────
-    if ms_average_choice in ('yes', 'only'):
+    if not contrast_is_active and ms_average_choice in ('yes', 'only'):
         for var_idx, var_key in enumerate(var_keys):
             vd      = available_data_variables_dict[var_key]
             ms_data = vd.get('ms_data_list', [])
@@ -1312,7 +1444,8 @@ def visualize_sequence_heatmap_interactive(
             ))
 
     # ── individual peptide / bioactive-function lines ─────────────────────────
-    if (bio_or_pep != 'no' or filter_type in ('bioactive-only', 'functional-only')) \
+    if not contrast_is_active \
+            and (bio_or_pep != 'no' or filter_type in ('bioactive-only', 'functional-only')) \
             and ms_average_choice != 'only':
         for var_idx, var_key in enumerate(var_keys):
             vd      = available_data_variables_dict[var_key]
@@ -1668,7 +1801,7 @@ def visualize_sequence_heatmap_interactive(
                     line=dict(color=spec['color'], width=1.2 if spec['is_indiv'] else 1.5),
                     hoverinfo='text', hovertext=hs,
                     legendgroup=spec['legendgroup'],
-                    legendgrouptitle=dict(text=sample_type_title),
+                    legendgrouptitle=dict(text=spec.get('grouptitle', sample_type_title)),
                     showlegend=show_leg,
                 ),
                 row=line_row, col=1,
@@ -1684,6 +1817,12 @@ def visualize_sequence_heatmap_interactive(
             tickvals=[tick1, tick2, tick3],
             ticktext=[_fmt_tick(tick1), _fmt_tick(tick2), _fmt_tick(tick3)],
             showticklabels=True, ticks='outside', ticklen=6, tickwidth=2,
+            # Signed differential track: draw a solid zero reference line so
+            # positive (higher in A) / negative (higher in B) excursions read
+            # against a fixed baseline. Positive-only abundance path unchanged.
+            zeroline=contrast_is_active,
+            zerolinecolor='rgba(80,80,80,0.9)' if contrast_is_active else None,
+            zerolinewidth=1.5 if contrast_is_active else None,
             row=line_row, col=1,
         )
 
@@ -1798,8 +1937,16 @@ def visualize_sequence_heatmap_interactive(
     _ytitle_px     = 24                            # rotated title band width
     left_margin    = int(min(300, max(90, _ytitle_px + 14 + _label_zone_px)))
 
+    # In comparison mode the row-1 panel is the signed contrast, so the rotated
+    # axis title names the effect-size metric rather than abundance.
+    if contrast_is_active:
+        _ytitle = ('Standardized Mean Difference (Cohen’s d)'
+                   if comparison_track.get('metric') == 'smd'
+                   else 'log₂ Fold Change')
+    else:
+        _ytitle = yaxis_label or 'Averaged Peptide Abundance'
     fig.add_annotation(
-        text=yaxis_label or 'Averaged Peptide Abundance',
+        text=_ytitle,
         xref='paper', yref='paper', x=0, y=0.5,
         xshift=-(left_margin - 12), textangle=-90,
         xanchor='center', yanchor='middle',

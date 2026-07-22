@@ -322,10 +322,22 @@ def get_selector_options(merged_df: pd.DataFrame, group_data_dict: dict, protein
     # Check if function data exists
     has_functions = 'function' in merged_df.columns and not merged_df['function'].isna().all()
 
+    # Which grouping variables carry replicate-level ('Grouped:') columns — the
+    # differential-comparison track (SMD / log2FC) needs ≥1 replicate per group to
+    # form a pooled SD. Surfaced so the UI can populate the Series A/B pickers and
+    # show the "comparison available / disabled" banner (Steps 2 & 6).
+    var_replicates = {
+        v['grouping_variable']: bool(v.get('replicate_columns'))
+        for v in group_data_dict.values()
+    }
+    has_replicates = any(var_replicates.values())
+
     return {
         'proteins': protein_options,
         'var_keys': var_key_options,
         'has_functions': has_functions,
+        'var_replicates': var_replicates,
+        'has_replicates': has_replicates,
     }
 
 
@@ -492,6 +504,9 @@ def build_available_data_variables(
                 # differential-comparison track can compute a pooled SD. Empty
                 # when the file has no replicate-level ('Grouped:') columns.
                 'replicate_columns': group_info.get('replicate_columns', []),
+                # Raw peptide rows (with replicate columns) for the differential
+                # track; None-safe downstream when comparison is off.
+                'peptide_df': heatmap_data.get('peptide_df'),
                 'heatmap_df': heatmap_data.get('heatmap_df'),
                 'function_heatmap_df': heatmap_data.get('func_heatmap_df'),
                 'filtered_heatmap_df': heatmap_data.get('filtered_heatmap_df'),
@@ -580,6 +595,13 @@ def generate_heatmap(
             # Print the AA letter on each sample's colored tiles (portrait/landscape
             # Plotly) instead of the shared grey sequence strip.
             aa_on_tiles=pp.get('aa_on_tiles', False),
+            # Differential-comparison track (R2-2d): when comparison_mode is on,
+            # the row-1 panel shows a signed SMD/log2FC line for series_a vs
+            # series_b instead of the abundance line.
+            comparison_mode=pp.get('comparison_mode', False),
+            series_a=pp.get('series_a'),
+            series_b=pp.get('series_b'),
+            comparison_metric=pp.get('comparison_metric', 'smd'),
         )
     except Exception as exc:
         return None, None, None, None, None, [f'Error generating heatmap: {exc}\n{traceback.format_exc()}']

@@ -95,6 +95,39 @@ class TestLoadMergedFileReplicates(unittest.TestCase):
             self.assertEqual(v['replicate_columns'], [])
 
 
+class TestSelectorOptionsReplicates(unittest.TestCase):
+    """Step 2/6 — get_selector_options exposes which variables are replicate-
+    backed so the UI can gate the comparison controls + banner."""
+
+    def test_exposes_replicate_flags(self):
+        df = pd.DataFrame({
+            'Protein': ['P02666', 'P02666'],
+            'start': [60, 73], 'end': [68, 79],
+            "S1 'Grouped: (Bitter)'": [10, 5],
+            "S2 'Grouped: (Bitter)'": [12, 6],
+            'Avg_Bitter': [11.0, 5.0],
+            'Avg_Plain': [3.0, 8.0],  # no replicate columns
+        })
+        merged, gdd, pdict, col_order, err = hdp.load_merged_file(
+            _csv_bytes(df), 'merged.csv')
+        self.assertIsNone(err)
+        opts = hdp.get_selector_options(merged, gdd, pdict, col_order)
+        self.assertTrue(opts['has_replicates'])
+        self.assertTrue(opts['var_replicates']['Bitter'])
+        self.assertFalse(opts['var_replicates']['Plain'])
+
+    def test_single_average_file_no_replicates(self):
+        df = pd.DataFrame({
+            'Protein': ['P02666'], 'start': [60], 'end': [68],
+            'Avg_Bitter': [11.0], 'Avg_Plain': [3.0],
+        })
+        merged, gdd, pdict, col_order, err = hdp.load_merged_file(
+            _csv_bytes(df), 'merged.csv')
+        opts = hdp.get_selector_options(merged, gdd, pdict, col_order)
+        self.assertFalse(opts['has_replicates'])
+        self.assertFalse(any(opts['var_replicates'].values()))
+
+
 class TestContrastTrack(unittest.TestCase):
     """Step 4 — per-position contrast builder over replicate position-means."""
 
@@ -171,6 +204,208 @@ class TestSignedYTicks(unittest.TestCase):
         self.assertEqual(
             hdp_render.calculate_signed_y_ticks(float('nan'), float('nan')),
             [-1.0, 0.0, 1.0])
+
+
+class TestRenderBranchComparison(unittest.TestCase):
+    """Step 5 — render branch: update_plot wires the contrast track into the
+    interactive figure (signed line replacing the abundance line) when
+    comparison_mode is on, and validates the series otherwise."""
+
+    SEQ = 'MKVLILACDEFGHIKLMNPQRSTVWY'  # 26-residue toy protein
+
+    def _available(self):
+        """Run the real loader → build_available_data_variables pipeline so the
+        variable dict carries replicate_columns + peptide_df (as in production)."""
+        df = pd.DataFrame({
+            'Protein': ['P02666', 'P02666'],
+            'protein_name': ['Beta-casein', 'Beta-casein'],
+            'protein_species': ['Bos taurus', 'Bos taurus'],
+            'start': [3, 10],
+            'end': [9, 16],
+            'function': ['bitter', None],
+            'Unique Peptide ID': ['pep1', 'pep2'],
+            "S1 'Grouped: (Bitter)'": [10, 20],
+            "S2 'Grouped: (Bitter)'": [12, 22],
+            "S3 'Grouped: (Bitter)'": [11, 21],
+            "S4 'Grouped: (NonBitter)'": [3, 5],
+            "S5 'Grouped: (NonBitter)'": [2, 6],
+            "S6 'Grouped: (NonBitter)'": [4, 4],
+            'Avg_Bitter': [11.0, 21.0],
+            'Avg_NonBitter': [3.0, 5.0],
+        })
+        merged, gdd, pdict, _col_order, err = hdp.load_merged_file(
+            _csv_bytes(df), 'merged.csv')
+        self.assertIsNone(err)
+        pdict['P02666']['sequence'] = self.SEQ  # inject sequence (no FASTA in test)
+        avail, _msgs = hdp.build_available_data_variables(
+            merged, pdict, gdd, ['P02666'], ['Bitter', 'NonBitter'])
+        return avail
+
+    def _update(self, avail, **overrides):
+        params = dict(
+            available_data_variables_dict=avail,
+            ms_average_choice='yes', bio_or_pep='no',
+            selected_peptides=[], selected_functions=[],
+            hm_selected_color='RdYlGn_r', lp_selected_color='Set3',
+            avglp_selected_color='Dark2',
+            xaxis_label='', yaxis_label='', yaxis_position=5,
+            legend_title_input_1='Sample Type:', legend_title_input_2='Peptide Counts:',
+            legend_title_input_3='Abundance:',
+            filter_type='all-peptides', log_transform=False,
+            manual_y_axis=False, y_min_manual=0.0, y_max_manual=1.0,
+            plot_landscape_interactive=True,
+        )
+        params.update(overrides)
+        return hdp_render.update_plot(**params)
+
+    def test_contrast_line_replaces_abundance(self):
+        avail = self._available()
+        _p, _l, _c, _fig_port, fig_land, errors, _notes = self._update(
+            avail, comparison_mode=True,
+            series_a='P02666_Bitter', series_b='P02666_NonBitter',
+            comparison_metric='smd')
+        self.assertFalse([e for e in errors if 'Comparison' in e], errors)
+        self.assertIsNotNone(fig_land)
+        # Line-panel traces are Scatter(mode='lines'); density tile rows are Bar
+        # (still named after each group — that is the heatmap the contrast sits on).
+        line_names = [
+            t.name or '' for t in fig_land.data
+            if t.type == 'scatter' and 'lines' in (t.mode or '')
+        ]
+        # the only line trace is the contrast ("A vs B"); no abundance line per group
+        self.assertTrue(any(' vs ' in n for n in line_names), line_names)
+        self.assertFalse(any(n in ('Bitter', 'NonBitter') for n in line_names), line_names)
+        # its legend group header is "Comparison", not the abundance "Sample Type:"
+        contrast = next(t for t in fig_land.data
+                        if t.type == 'scatter' and 'lines' in (t.mode or ''))
+        self.assertEqual(contrast.legendgrouptitle.text, 'Comparison')
+
+    def test_signed_axis_symmetric_with_zeroline(self):
+        avail = self._available()
+        *_rest, fig_land, _errors, _notes = self._update(
+            avail, comparison_mode=True,
+            series_a='P02666_Bitter', series_b='P02666_NonBitter',
+            comparison_metric='smd')
+        lay = fig_land.layout.to_plotly_json()
+        # the line-panel y-axis (yaxis, first row) carries the zero baseline and a
+        # range symmetric about 0.
+        yax = lay.get('yaxis', {})
+        self.assertTrue(yax.get('zeroline'))
+        rng = yax.get('range')
+        self.assertIsNotNone(rng)
+        self.assertAlmostEqual(rng[0], -rng[1], places=6)
+
+    def test_log2fc_metric_branch(self):
+        avail = self._available()
+        *_rest, fig_land, errors, _notes = self._update(
+            avail, comparison_mode=True,
+            series_a='P02666_Bitter', series_b='P02666_NonBitter',
+            comparison_metric='log2fc')
+        self.assertFalse([e for e in errors if 'Comparison' in e], errors)
+        # metric name lives on the y-axis annotation now, not the trace name
+        ann = [a.get('text', '') for a in fig_land.layout.to_plotly_json().get('annotations', [])]
+        self.assertTrue(any('Fold Change' in t for t in ann), ann)
+
+    def test_smd_axis_title_spelled_out(self):
+        avail = self._available()
+        *_rest, fig_land, _errors, _notes = self._update(
+            avail, comparison_mode=True,
+            series_a='P02666_Bitter', series_b='P02666_NonBitter',
+            comparison_metric='smd')
+        ann = [a.get('text', '') for a in fig_land.layout.to_plotly_json().get('annotations', [])]
+        self.assertTrue(any('Standardized Mean Difference' in t for t in ann), ann)
+
+    def test_same_series_rejected(self):
+        avail = self._available()
+        *_rest, errors, _notes = self._update(
+            avail, comparison_mode=True,
+            series_a='P02666_Bitter', series_b='P02666_Bitter',
+            comparison_metric='smd')
+        self.assertTrue(any('distinct' in e for e in errors), errors)
+
+    def test_comparison_off_keeps_abundance_line(self):
+        avail = self._available()
+        *_rest, fig_land, _errors, _notes = self._update(avail, comparison_mode=False)
+        names = [t.name or '' for t in fig_land.data]
+        # abundance lines present, no contrast trace
+        self.assertFalse(any('SMD' in n for n in names), names)
+        self.assertTrue(any(n in ('Bitter', 'NonBitter') for n in names), names)
+
+    def _available_three_vars(self):
+        """One protein, THREE replicate-backed variables — to prove the density
+        heatmap is restricted to only the two compared series."""
+        df = pd.DataFrame({
+            'Protein': ['P02666', 'P02666'],
+            'protein_name': ['Beta-casein', 'Beta-casein'],
+            'protein_species': ['Bos taurus', 'Bos taurus'],
+            'start': [3, 10], 'end': [9, 16],
+            'function': ['bitter', None],
+            'Unique Peptide ID': ['pep1', 'pep2'],
+            "B1 'Grouped: (Bitter)'": [10, 20], "B2 'Grouped: (Bitter)'": [12, 22],
+            "N1 'Grouped: (NonBitter)'": [3, 5], "N2 'Grouped: (NonBitter)'": [2, 6],
+            "P1 'Grouped: (Plain)'": [7, 8], "P2 'Grouped: (Plain)'": [6, 9],
+            'Avg_Bitter': [11.0, 21.0], 'Avg_NonBitter': [3.0, 5.0], 'Avg_Plain': [6.5, 8.5],
+        })
+        merged, gdd, pdict, _c, err = hdp.load_merged_file(_csv_bytes(df), 'm.csv')
+        self.assertIsNone(err)
+        pdict['P02666']['sequence'] = self.SEQ
+        avail, _m = hdp.build_available_data_variables(
+            merged, pdict, gdd, ['P02666'], ['Bitter', 'NonBitter', 'Plain'])
+        return avail
+
+    def test_heatmap_restricted_to_compared_series(self):
+        avail = self._available_three_vars()
+        self.assertEqual(len(avail), 3)  # three variables selected
+        *_rest, fig_land, errors, _notes = self._update(
+            avail, comparison_mode=True,
+            series_a='P02666_Bitter', series_b='P02666_NonBitter',
+            comparison_metric='smd')
+        self.assertFalse([e for e in errors if 'Comparison' in e], errors)
+        # density tile rows are Bar traces named after the variable; only the two
+        # compared series (Bitter, NonBitter) should appear — NOT the third (Plain).
+        bar_names = {t.name for t in fig_land.data if t.type == 'bar'}
+        self.assertIn('Bitter', bar_names)
+        self.assertIn('NonBitter', bar_names)
+        self.assertNotIn('Plain', bar_names)
+
+    def _available_two_proteins(self):
+        """Two proteins, same variable — the A1/A2 style comparison. The density
+        rows must be protein-labeled so they are distinguishable."""
+        df = pd.DataFrame({
+            'Protein': ['P02666', 'P02662'],
+            'protein_name': ['Beta-casein', 'Alpha-S1-casein'],
+            'protein_species': ['Bos taurus', 'Bos taurus'],
+            'start': [3, 3], 'end': [9, 9],
+            'function': ['bitter', 'bitter'],
+            'Unique Peptide ID': ['pep1', 'pep2'],
+            "B1 'Grouped: (Bitter)'": [10, 4], "B2 'Grouped: (Bitter)'": [12, 5],
+            'Avg_Bitter': [11.0, 4.5],
+        })
+        merged, gdd, pdict, _c, err = hdp.load_merged_file(_csv_bytes(df), 'm.csv')
+        self.assertIsNone(err)
+        pdict['P02666']['sequence'] = self.SEQ
+        pdict['P02662']['sequence'] = self.SEQ
+        avail, _m = hdp.build_available_data_variables(
+            merged, pdict, gdd, ['P02666', 'P02662'], ['Bitter'])
+        return avail
+
+    def test_two_protein_labels_include_protein_name(self):
+        avail = self._available_two_proteins()
+        *_rest, fig_land, errors, _notes = self._update(
+            avail, comparison_mode=True,
+            series_a='P02666_Bitter', series_b='P02662_Bitter',
+            comparison_metric='smd')
+        self.assertFalse([e for e in errors if 'Comparison' in e], errors)
+        # contrast trace name distinguishes the two proteins (not "Bitter vs Bitter")
+        line_names = [t.name or '' for t in fig_land.data
+                      if t.type == 'scatter' and 'lines' in (t.mode or '')]
+        self.assertTrue(line_names)
+        self.assertIn('Beta-casein', line_names[0])
+        self.assertIn('Alpha-S1-casein', line_names[0])
+        # density rows are protein-labeled and distinct
+        bar_names = {t.name for t in fig_land.data if t.type == 'bar'}
+        self.assertIn('Beta-casein', bar_names)
+        self.assertIn('Alpha-S1-casein', bar_names)
 
 
 if __name__ == '__main__':
