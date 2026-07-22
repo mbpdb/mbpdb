@@ -275,6 +275,20 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                     <label class="checkbox-row">
                         <input type="checkbox" id="plot-minor" disabled> Group Unselected Proteins or Functions
                     </label>
+                    <!-- Significance control: shown only for Grouped Bar Plots + the
+                         Absolute metric; JS hides this whole block otherwise. -->
+                    <div id="significance-controls" style="display:flex; flex-direction:column; gap:4px;">
+                        <label class="checkbox-row" title="Compare sample groups on replicate-level values and annotate the bars. Two groups show a significance bracket (*/**/***); three or more show a compact-letter display (bars sharing a letter are not significantly different). Requires ≥3 replicates per group; shown on absolute (non-relative) bar charts. Because replicate counts are small, power is low: a shared letter / 'ns' means 'not resolvable at this sample size', not 'no difference'.">
+                            <input type="checkbox" id="show-significance" disabled> Test Significance
+                        </label>
+                        <label class="checkbox-row" style="padding-left:22px; gap:6px;" title="ANOVA + Tukey HSD assumes equal variance across groups (the convention in the peptidomics literature). Welch + Games–Howell does not assume equal variance and is more reliable when group spreads differ, as abundance data often do.">
+                            Test:
+                            <select id="significance-method" disabled style="border:1px solid #ced4da; border-radius:4px; padding:2px 6px; font-size:.85rem;">
+                                <option value="tukey" selected>ANOVA + Tukey HSD (equal variance)</option>
+                                <option value="games-howell">Welch + Games–Howell (unequal variance)</option>
+                            </select>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -490,6 +504,7 @@ async function handleUpload(file) {
     populateSelectors(data);
     enableStep2();
     applyPlotFilterGreying();
+    applyPlotTypeGreying();  // set Show Stats visibility for the default plot type
 }
 
 function populateSelectors(data) {
@@ -532,6 +547,19 @@ function applyPlotTypeGreying() {
     const plotType = getRadioValue('plot-type');
     document.getElementById('corr-type-block').style.display =
         plotType === 'Corr. Scatter Plots' ? '' : 'none';
+
+    // The significance control is shown only for Grouped Bar Plots AND the
+    // Absolute metric. Significance testing on relative (normalized/composition)
+    // values is poor practice, so it is hidden (and cleared) for Relative. This
+    // single rule is the complete guard against invalid combinations.
+    const statsBox = document.getElementById('significance-controls');
+    if (statsBox) {
+        const isGrouped  = plotType === 'Grouped Bar Plots';
+        const isAbsolute = getRadioValue('metric-type') === 'Absolute';
+        const showStats  = isGrouped && isAbsolute;
+        statsBox.style.display = showStats ? 'flex' : 'none';
+        if (!showStats) document.getElementById('show-significance').checked = false;
+    }
 
     const step2Active = !document.getElementById('step2-card').classList.contains('step-disabled');
     const logChk  = document.getElementById('log-transform');
@@ -659,6 +687,8 @@ async function generatePlot() {
         color_scheme:     document.getElementById('color-scheme').value,
         log_transform:    document.getElementById('log-transform').checked,
         plot_minor:       document.getElementById('plot-minor').checked,
+        show_significance: document.getElementById('show-significance').checked,
+        significance_method: document.getElementById('significance-method').value,
         correlation_type: getRadioValue('correlation-type'),
         xlabel:       document.getElementById('xlabel').value,
         ylabel:       document.getElementById('ylabel').value,
