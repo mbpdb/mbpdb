@@ -31,6 +31,40 @@ def _clean_protein_name(name) -> str:
     return _FASTA_META_RE.split(str(name), 1)[0].strip()
 
 
+def _parse_grouped_replicates(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    """Parse the ``"<col> 'Grouped: (GrpA; GrpB)'"`` replicate-column convention.
+
+    Mirrors ``data_analysis.services.data_processor.process_group_data``: the
+    Data-Transformation export tags every replicate abundance column that feeds
+    an ``Avg_<var>`` mean with the group(s) it belongs to (see
+    ``data_transformation/services/data_combiner.py:update_column_names_with_groups``).
+    We rename those columns back to their base name and return a
+    ``{grouping_variable: [base_col, ...]}`` map, so the differential-comparison
+    track can reach the per-replicate values a pooled SD requires.
+
+    Returns ``(df_renamed, replicates_by_group)``. A single-average export with
+    no ``'Grouped:'`` columns yields an empty map and the frame unchanged —
+    comparison stays disabled and single-series heatmaps are unaffected.
+    """
+    grouped_cols = [c for c in df.columns if " 'Grouped:" in str(c)]
+    if not grouped_cols:
+        return df, {}
+
+    replicates_by_group: dict = {}
+    rename_map: dict = {}
+    for col in grouped_cols:
+        base = col.split(" 'Grouped:")[0].strip()
+        match = re.search(r"\((.*?)\)", col)
+        if not match:
+            continue
+        for grp in (g.strip() for g in match.group(1).split(";")):
+            if grp:
+                replicates_by_group.setdefault(grp, []).append(base)
+        rename_map[col] = base
+
+    return df.rename(columns=rename_map), replicates_by_group
+
+
 # ---------------------------------------------------------------------------
 # File loading helpers
 # ---------------------------------------------------------------------------
@@ -63,6 +97,12 @@ def load_merged_file(file_obj, filename: str) -> tuple:
     if 'Protein' not in df.columns:
         return None, {}, {}, [], "Missing required column 'Protein'."
 
+    # Parse the replicate-column framework (renames "'Grouped: (…)'" columns to
+    # their base names) so each group can carry the per-replicate columns the
+    # differential-comparison track needs for a pooled SD. Absent it the map is
+    # empty and comparison is simply unavailable.
+    df, replicates_by_group = _parse_grouped_replicates(df)
+
     # Build group_data_dict from Avg_ columns
     avg_columns = [col for col in df.columns if col.startswith('Avg_')]
     if not avg_columns:
@@ -75,6 +115,7 @@ def load_merged_file(file_obj, filename: str) -> tuple:
         group_data_dict[str(i)] = {
             'grouping_variable': group_name,
             'abundance_columns': [col],
+            'replicate_columns': replicates_by_group.get(group_name, []),
         }
 
     # Build protein_dict from data
@@ -447,6 +488,10 @@ def build_available_data_variables(
                 'protein_sequence': protein_sequence,
                 'protein_name': protein_name,
                 'protein_species': protein_species,
+                # Per-replicate abundance columns for this group, carried so the
+                # differential-comparison track can compute a pooled SD. Empty
+                # when the file has no replicate-level ('Grouped:') columns.
+                'replicate_columns': group_info.get('replicate_columns', []),
                 'heatmap_df': heatmap_data.get('heatmap_df'),
                 'function_heatmap_df': heatmap_data.get('func_heatmap_df'),
                 'filtered_heatmap_df': heatmap_data.get('filtered_heatmap_df'),
@@ -520,8 +565,6 @@ def generate_heatmap(
             legend_title_input_1=pp.get('legend_title_1', 'Sample Type:'),
             legend_title_input_2=pp.get('legend_title_2', 'Peptide Counts:'),
             legend_title_input_3=pp.get('legend_title_3', 'Abundance:'),
-            plot_land=pp.get('plot_landscape', False),
-            plot_port=pp.get('plot_portrait', True),
             # 'all-peptides' is the value the UI sends; 'All' was never a recognised
             # filter_type and fell through every branch in process_available_data.
             filter_type=pp.get('filter_type', 'all-peptides'),
@@ -534,6 +577,9 @@ def generate_heatmap(
             plot_portrait_interactive=pp.get('plot_portrait_interactive', False),
             # Optional user figure title; blank → renderers draw no title.
             plot_title=pp.get('plot_title', '').strip(),
+            # Print the AA letter on each sample's colored tiles (portrait/landscape
+            # Plotly) instead of the shared grey sequence strip.
+            aa_on_tiles=pp.get('aa_on_tiles', False),
         )
     except Exception as exc:
         return None, None, None, None, None, [f'Error generating heatmap: {exc}\n{traceback.format_exc()}']

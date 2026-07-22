@@ -645,5 +645,74 @@ class TestDynamicTitles(unittest.TestCase):
         self.assertEqual(plotter._make_title(st, kind='correlation'), 'My Custom Title')
 
 
+class TestCohensD(unittest.TestCase):
+    """Two-group effect sizes for the heatmap differential-comparison track."""
+
+    def test_sign_positive_when_a_higher(self):
+        # a clearly higher than b -> positive d
+        d = stats.cohens_d([10, 11, 12], [1, 2, 3])
+        self.assertGreater(d, 0)
+
+    def test_sign_negative_when_b_higher(self):
+        d = stats.cohens_d([1, 2, 3], [10, 11, 12])
+        self.assertLess(d, 0)
+
+    def test_known_value(self):
+        # a=[2,4,6] (mean 4, var 4), b=[1,2,3] (mean 2, var 1)
+        # s_pooled = sqrt((2*4 + 2*1)/4) = sqrt(2.5); d = 2/sqrt(2.5)
+        d = stats.cohens_d([2, 4, 6], [1, 2, 3])
+        self.assertAlmostEqual(d, 2.0 / np.sqrt(2.5), places=10)
+
+    def test_drops_nan(self):
+        # NaN dropped listwise; result identical to the clean vectors
+        d_nan = stats.cohens_d([2, 4, 6, np.nan], [1, 2, np.nan, 3])
+        d_clean = stats.cohens_d([2, 4, 6], [1, 2, 3])
+        self.assertAlmostEqual(d_nan, d_clean, places=12)
+
+    def test_undefined_when_too_few(self):
+        self.assertTrue(np.isnan(stats.cohens_d([5], [1, 2, 3])))
+        self.assertTrue(np.isnan(stats.cohens_d([np.nan, np.nan], [1, 2, 3])))
+
+    def test_undefined_when_zero_pooled_sd(self):
+        # both groups internally constant -> pooled SD 0 -> nan (not +inf)
+        self.assertTrue(np.isnan(stats.cohens_d([5, 5, 5], [3, 3, 3])))
+
+
+class TestLog2FoldChange(unittest.TestCase):
+    def test_known_value(self):
+        # means 8 and 2 -> log2(4) = 2
+        self.assertAlmostEqual(stats.log2_fold_change([8, 8], [2, 2]), 2.0, places=12)
+
+    def test_sign(self):
+        self.assertLess(stats.log2_fold_change([2, 2], [8, 8]), 0)
+
+    def test_zero_mean_without_eps_is_nan(self):
+        self.assertTrue(np.isnan(stats.log2_fold_change([0, 0], [4, 4])))
+
+    def test_eps_pseudocount_defines_ratio(self):
+        self.assertTrue(np.isfinite(stats.log2_fold_change([0, 0], [4, 4], eps=1.0)))
+
+    def test_drops_nan(self):
+        self.assertAlmostEqual(
+            stats.log2_fold_change([8, 8, np.nan], [2, np.nan, 2]), 2.0, places=12)
+
+
+class TestEffectSizeLabel(unittest.TestCase):
+    def test_thresholds(self):
+        self.assertEqual(stats.effect_size_label(0.10), 'very small')
+        self.assertEqual(stats.effect_size_label(0.30), 'small')
+        self.assertEqual(stats.effect_size_label(0.54), 'medium')   # Cheddar β 60-68
+        self.assertEqual(stats.effect_size_label(0.90), 'large')
+        self.assertEqual(stats.effect_size_label(1.50), 'very large')
+        self.assertEqual(stats.effect_size_label(2.50), 'huge')
+
+    def test_uses_magnitude(self):
+        self.assertEqual(stats.effect_size_label(-2.5), 'huge')
+
+    def test_nan(self):
+        self.assertEqual(stats.effect_size_label(float('nan')), 'n/a')
+        self.assertEqual(stats.effect_size_label(None), 'n/a')
+
+
 if __name__ == '__main__':
     unittest.main()

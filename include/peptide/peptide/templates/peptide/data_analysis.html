@@ -409,6 +409,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
 </div>
 
+<script src="{% static 'peptide/js/form_controls.js' %}?v=1"></script>
 <script>
 (function() {
 'use strict';
@@ -568,28 +569,15 @@ function applyPlotTypeGreying() {
     // Pie Charts and Corr. Scatter Plots → force Absolute metric, grey out Relative
     const lockAbsolute = plotType === 'Pie Charts' || plotType === 'Corr. Scatter Plots';
     const relInput = document.querySelector('input[name="metric-type"][value="Relative"]');
-    const relLabel = relInput ? relInput.closest('label') : null;
     const absInput = document.querySelector('input[name="metric-type"][value="Absolute"]');
-    if (lockAbsolute) {
-        if (absInput) absInput.checked = true;
-        if (relInput) relInput.disabled = true;
-        if (relLabel) relLabel.style.opacity = '0.45';
-    } else {
-        if (relInput && step2Active) relInput.disabled = false;
-        if (relLabel) relLabel.style.opacity = '';
-    }
+    if (lockAbsolute && absInput) absInput.checked = true;
+    setControlEnabled(relInput, !lockAbsolute && step2Active);
 
     // Grey out log transform when Pie, or when metric is Relative
     const isRelative = getRadioValue('metric-type') === 'Relative';
     const isPie = plotType === 'Pie Charts';
-    if (isPie || isRelative) {
-        logChk.checked = false;
-        if (step2Active) logChk.disabled = true;
-        if (logLabel) logLabel.style.opacity = '0.45';
-    } else {
-        if (step2Active) logChk.disabled = false;
-        if (logLabel) logLabel.style.opacity = '';
-    }
+    setControlEnabled(logChk, !(isPie || isRelative) && step2Active,
+                      { row: logLabel, clearOnDisable: true });
 }
 document.getElementById('rg-plot-type').addEventListener('click', applyPlotTypeGreying);
 
@@ -606,14 +594,12 @@ function applyPlotFilterGreying() {
     const enableProt = filterVal === 'Selected Protein(s)' || filterVal === 'Both';
     const enableFn   = filterVal === 'Selected Function(s)' || filterVal === 'Both';
 
-    // Grey out protein selector when not relevant
-    protSel.disabled = !enableProt;
-    protSel.style.opacity = enableProt ? '1' : '0.45';
+    // Grey out protein selector when not relevant (dim the <select> itself).
+    setControlEnabled(protSel, enableProt, { row: protSel });
 
     // Grey out function selector when not relevant (only if visible)
     if (fnBlock.style.display !== 'none') {
-        fnSel.disabled = !enableFn;
-        fnSel.style.opacity = enableFn ? '1' : '0.45';
+        setControlEnabled(fnSel, enableFn, { row: fnSel });
     }
 
     // Item 12: Grey out invalid orientation options based on filter
@@ -627,12 +613,11 @@ function applyPlotFilterGreying() {
         const disableByProt = filterVal === 'Selected Function(s)' ||
                               filterVal === 'Functional vs Non-Functional Peptides';
 
-        byFnInput.disabled = disableByFn;
-        byFnInput.closest('label').style.opacity = disableByFn ? '0.45' : '';
+        // A disabled orientation that was selected falls back to "By Sample".
+        setControlEnabled(byFnInput, !disableByFn);
         if (disableByFn && byFnInput.checked) bySampInput.checked = true;
 
-        byProtInput.disabled = disableByProt;
-        byProtInput.closest('label').style.opacity = disableByProt ? '0.45' : '';
+        setControlEnabled(byProtInput, !disableByProt);
         if (disableByProt && byProtInput.checked) bySampInput.checked = true;
     }
 }

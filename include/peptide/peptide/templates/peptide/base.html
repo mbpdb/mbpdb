@@ -129,6 +129,12 @@
 	    .menubar-nav .dropdown-menu li a:hover {
 	        background-color: rgba(255, 255, 255, 0.1);
 	    }
+
+	    /* Shared dim style for a control disabled by another selection.
+	       Applied via setControlEnabled() in peptide/js/form_controls.js. */
+	    .control-disabled { opacity: .55; cursor: not-allowed; }
+	    .control-disabled input,
+	    .control-disabled select { cursor: not-allowed; }
 	</style>
 </head>
 

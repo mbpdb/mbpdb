@@ -285,3 +285,82 @@ def compare_groups(rep_arrays, alpha=ALPHA, method='tukey'):
         'anova_p': anova_p, 'pairwise': pairwise, 'letters': letters,
         'method': _METHOD_LABELS[method],
     }
+
+
+# ---------------------------------------------------------------------------
+# Two-group effect sizes for the heatmap differential-comparison track
+# (SMD / log2FC). These are point estimates over already-aggregated replicate
+# vectors — the significance machinery above is for the bar charts; here we
+# report effect magnitude per position/peptide. See
+# manuscript/docs/HEATMAP_DIFFERENTIAL_STATS.md.
+# ---------------------------------------------------------------------------
+
+# Minimum finite replicates per group for a defined Cohen's d. A pooled SD needs
+# a within-group variance, so each side needs >= 2 values. This is the maths
+# floor for the descriptive track, deliberately below MIN_REPLICATES (which
+# gates *significance*, not effect size).
+MIN_REP_FOR_D = 2
+
+# Sawilowsky (2009) "new effect size rules of thumb", descending. Used only for
+# the human-readable magnitude label in captions/legends.
+_SAWILOWSKY = (
+    (2.0, 'huge'), (1.2, 'very large'), (0.8, 'large'),
+    (0.5, 'medium'), (0.2, 'small'), (0.01, 'very small'),
+)
+
+
+def cohens_d(a, b):
+    """Cohen's *d* standardized mean difference between two replicate samples.
+
+    ``d = (mean_a - mean_b) / s_pooled`` with the classic (n-1)-weighted pooled
+    standard deviation. **Positive d => higher in ``a``** (the first-selected
+    series). Non-finite values are dropped listwise before counting n / mean /
+    SD (the "drop" missing-value policy).
+
+    Returns ``nan`` — so callers draw a gap rather than a spurious value — when
+    either group has fewer than ``MIN_REP_FOR_D`` finite values or the pooled SD
+    is 0 / non-finite (effect size undefined).
+    """
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    a = a[np.isfinite(a)]
+    b = b[np.isfinite(b)]
+    na, nb = a.size, b.size
+    if na < MIN_REP_FOR_D or nb < MIN_REP_FOR_D:
+        return float('nan')
+    va, vb = a.var(ddof=1), b.var(ddof=1)
+    s_pooled = np.sqrt(((na - 1) * va + (nb - 1) * vb) / (na + nb - 2))
+    if s_pooled == 0 or not np.isfinite(s_pooled):
+        return float('nan')
+    return float((a.mean() - b.mean()) / s_pooled)
+
+
+def log2_fold_change(a, b, eps=0.0):
+    """log2 fold change of group means: ``log2((mean_a + eps)/(mean_b + eps))``.
+
+    Positive => higher in ``a``. Non-finite values dropped listwise. ``eps`` is a
+    pseudocount to keep the ratio defined when a mean is 0; with ``eps=0`` any
+    zero/negative mean yields ``nan`` (rendered as a gap). This is a magnitude of
+    change, NOT a variance-aware effect size — pair it with :func:`cohens_d`.
+    """
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    a = a[np.isfinite(a)]
+    b = b[np.isfinite(b)]
+    if a.size == 0 or b.size == 0:
+        return float('nan')
+    ma, mb = a.mean() + eps, b.mean() + eps
+    if ma <= 0 or mb <= 0 or not np.isfinite(ma) or not np.isfinite(mb):
+        return float('nan')
+    return float(np.log2(ma / mb))
+
+
+def effect_size_label(d):
+    """Map \\|Cohen's d\\| to the Sawilowsky (2009) magnitude label."""
+    if d is None or (isinstance(d, float) and np.isnan(d)):
+        return 'n/a'
+    ad = abs(float(d))
+    for threshold, label in _SAWILOWSKY:
+        if ad >= threshold:
+            return label
+    return 'negligible'

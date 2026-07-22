@@ -316,6 +316,9 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                     <label class="checkbox-row">
                         <input type="checkbox" id="manual-y-axis" disabled> Manual Y-Axis
                     </label>
+                    <label class="checkbox-row" title="Print the amino-acid letter on each sample's tiles (instead of the shared strip) — useful for comparing proteins or variants.">
+                        <input type="checkbox" id="aa-on-tiles" disabled> Show amino acid sequence on tiles
+                    </label>
                 </div>
 
                 <!-- Manual Y-axis inputs (conditional) -->
@@ -471,10 +474,9 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
         </div>
 
         <div id="portrait-container" class="heatmap-img-container hidden">
-            <h4><i class="fas fa-image"></i> Portrait Layout</h4>
-            <img id="portrait-img" src="" alt="Portrait Heatmap">
+            <h4><i class="fas fa-mouse-pointer"></i> Portrait Layout (hover for details)</h4>
+            <img id="portrait-img" src="" alt="Portrait Heatmap" style="display:none;">
             <div id="portrait-interactive-container" class="interactive-plot-container hidden">
-                <h5><i class="fas fa-mouse-pointer"></i> Portrait Layout (hover for details)</h5>
                 <div id="portrait-interactive-div" class="interactive-plotly-div"></div>
             </div>
         </div>
@@ -493,15 +495,16 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
 </div>
 
+<script src="{% static 'peptide/js/form_controls.js' %}?v=1"></script>
 <script>
 (function() {
 'use strict';
 
 const CSRF = '{{ csrf_token }}';
-let currentPortraitB64              = null;
 let currentLandscapeB64             = null;
 let currentCompactJson              = null;
 let currentLandscapeInteractiveJson = null;
+let currentPortraitInteractiveJson  = null;
 let currentOrientation              = 'Landscape';
 let hasFunctions = false;
 
@@ -542,6 +545,16 @@ function enableStep2() {
     const bioFuncBtn = document.getElementById('seg-bio-functions');
     if (bioFuncBtn) bioFuncBtn.disabled = !hasFunctions;
     applyItemsSelectorState(false);
+    _updateAaTilesState();
+}
+
+// "Show amino acid sequence on tiles" only applies to the wrapped-band renderers
+// (Portrait / Landscape). Compact has no per-sample tile rows, so gray it out there.
+function _updateAaTilesState() {
+    const cb = document.getElementById('aa-on-tiles');
+    const enabled = getRadioValue('hm-orientation') !== 'Compact';
+    setControlEnabled(cb, enabled, { row: cb ? cb.closest('.checkbox-row') : null,
+                                     clearOnDisable: true });
 }
 
 // ── Upload ────────────────────────────────────────────────────────
@@ -953,18 +966,20 @@ async function generateHeatmap() {
         legend_title_1:       document.getElementById('legend-title-1').value || 'Sample Type:',
         legend_title_2:       document.getElementById('legend-title-2').value || 'Peptide Counts:',
         legend_title_3:       document.getElementById('legend-title-3').value || 'Average Abundance:',
-        plot_portrait:                orientation === 'Portrait',
-        // Landscape is now served solely by the interactive Plotly renderer;
-        // the matplotlib landscape has been retired from the UI (Phase 1 consolidation).
+        // Both orientations are now served solely by the interactive Plotly
+        // renderer (one code path, wrap-width switch); the matplotlib landscape
+        // and portrait have been retired from the UI (Phase 1 + 2 consolidation).
+        plot_portrait:                false,
         plot_landscape:               false,
         plot_compact:                 orientation === 'Compact',
         plot_landscape_interactive:   orientation === 'Landscape',
-        plot_portrait_interactive:    false,
+        plot_portrait_interactive:    orientation === 'Portrait',
         filter_type:          filterType,
         log_transform:        document.getElementById('log-transform').checked,
         manual_y_axis:        document.getElementById('manual-y-axis').checked,
         y_min:                resolveYValue(document.getElementById('y-min').value),
         y_max:                resolveYValue(document.getElementById('y-max').value) || 1,
+        aa_on_tiles:          document.getElementById('aa-on-tiles').checked,
     };
 
     let resp;
@@ -999,10 +1014,10 @@ async function generateHeatmap() {
     if (data.messages && data.messages.length)
         data.messages.forEach(m => appendStatus(msgs, m, 'info'));
 
-    currentPortraitB64              = data.portrait;
     currentLandscapeB64             = data.landscape;
     currentCompactJson              = data.compact || null;
     currentLandscapeInteractiveJson = data.landscape_interactive || null;
+    currentPortraitInteractiveJson  = data.portrait_interactive || null;
 
     // ── helper: render a Plotly interactive panel ─────────────────────────────
     function renderInteractive(jsonStr, divId, containerId) {
@@ -1028,9 +1043,11 @@ async function generateHeatmap() {
         }
     }
 
+    // Portrait is now Plotly-only (wrapped bands off the same renderer as
+    // landscape); the static <img> stays hidden. Key container visibility off
+    // portrait_interactive, mirroring landscape below.
     const portCont = document.getElementById('portrait-container');
-    if (data.portrait) {
-        document.getElementById('portrait-img').src = 'data:image/png;base64,' + data.portrait;
+    if (data.portrait_interactive) {
         portCont.classList.remove('hidden');
     } else {
         portCont.classList.add('hidden');
@@ -1092,12 +1109,14 @@ async function generateHeatmap() {
 // Plotly figure. PNG/SVG use client-side Plotly.downloadImage; all heatmap traces
 // are SVG-backed (Bar/Scatter, no WebGL) so SVG export is exact.
 
-// Resolve the Plotly figure for the current orientation, or null (e.g. Portrait,
-// which is still a static matplotlib PNG until it is migrated in Phase 2).
+// Resolve the Plotly figure for the current orientation, or null. Every
+// orientation is now Plotly-backed (Portrait migrated in Phase 2).
 function _activePlotly() {
     const o = currentOrientation;
     if (o === 'Landscape' && currentLandscapeInteractiveJson)
         return { json: currentLandscapeInteractiveJson, div: 'landscape-interactive-div', filename: 'heatmap_landscape' };
+    if (o === 'Portrait' && currentPortraitInteractiveJson)
+        return { json: currentPortraitInteractiveJson, div: 'portrait-interactive-div', filename: 'heatmap_portrait' };
     if (o === 'Compact' && currentCompactJson)
         return { json: currentCompactJson, div: 'compact-plotly-div', filename: 'heatmap_compact' };
     return null;
@@ -1129,25 +1148,20 @@ window.addEventListener('resize', function(){ Plotly.Plots.resize(document.getEl
 // Static image export. Rendered SERVER-SIDE via Kaleido so the file is
 // resolution-deterministic: PNG at publication DPI (600, metadata-stamped), SVG
 // as true vector. We send the canonical figure JSON plus the on-screen pixel
-// dimensions so the export matches what the user sees. Portrait falls back to
-// the server-rendered matplotlib PNG until Phase 2.
+// dimensions so the export matches what the user sees. All orientations
+// (including the migrated Portrait) go through this one path.
 async function downloadHeatmapImage(format) {
     const p = _activePlotly();
-    if (p) {
-        const gd = document.getElementById(p.div);
-        const fl = (gd && gd._fullLayout) || {};
-        await postStaticDownload('/heatmap/download-static/', {
-            figure_json: p.json,
-            format,
-            filename: p.filename,
-            width:  Math.round(fl.width)  || undefined,
-            height: Math.round(fl.height) || undefined,
-        }, p.filename, format);
-        return;
-    }
-    if (format === 'png' && currentOrientation === 'Portrait' && currentPortraitB64) {
-        downloadMatplotlibPng(currentPortraitB64, 'portrait');
-    }
+    if (!p) return;
+    const gd = document.getElementById(p.div);
+    const fl = (gd && gd._fullLayout) || {};
+    await postStaticDownload('/heatmap/download-static/', {
+        figure_json: p.json,
+        format,
+        filename: p.filename,
+        width:  Math.round(fl.width)  || undefined,
+        height: Math.round(fl.height) || undefined,
+    }, p.filename, format);
 }
 
 // POST a figure to a server-side static-export endpoint and save the returned file.
@@ -1165,22 +1179,6 @@ async function postStaticDownload(url, payload, filename, format) {
     URL.revokeObjectURL(u);
 }
 
-// Portrait is still a matplotlib PNG (round-tripped through the server) until
-// Phase 2 migrates it to Plotly; then it will use the buttons above like the others.
-async function downloadMatplotlibPng(b64, orientationName) {
-    const resp = await fetch('/heatmap/download-plot/', {
-        method: 'POST',
-        headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_b64: b64, orientation: orientationName }),
-    });
-    if (!resp.ok) { alert('Download failed'); return; }
-    const blob = await resp.blob();
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = `heatmap_${orientationName}.png`; a.click();
-    URL.revokeObjectURL(url);
-}
-
 // ── Enable/disable the three buttons for the current orientation ──
 function _updateDownloadButtons() {
     const htmlBtn = document.getElementById('dl-html-btn');
@@ -1191,11 +1189,6 @@ function _updateDownloadButtons() {
     if (plotly) {
         htmlBtn.disabled = pngBtn.disabled = svgBtn.disabled = false;
         htmlBtn.title = pngBtn.title = svgBtn.title = '';
-    } else if (currentOrientation === 'Portrait' && currentPortraitB64) {
-        // Static matplotlib PNG only until Phase 2.
-        pngBtn.disabled = false; pngBtn.title = '';
-        htmlBtn.disabled = svgBtn.disabled = true;
-        htmlBtn.title = svgBtn.title = 'Available once Portrait is migrated to the interactive renderer.';
     } else {
         htmlBtn.disabled = pngBtn.disabled = svgBtn.disabled = true;
     }
@@ -1205,9 +1198,9 @@ document.getElementById('dl-html-btn').addEventListener('click', downloadInterac
 document.getElementById('dl-png-btn').addEventListener('click', () => downloadHeatmapImage('png'));
 document.getElementById('dl-svg-btn').addEventListener('click', () => downloadHeatmapImage('svg'));
 
-// Refresh button state whenever the orientation radio changes.
+// Refresh button + AA-tiles state whenever the orientation radio changes.
 document.querySelectorAll('input[name="hm-orientation"]').forEach(r =>
-    r.addEventListener('change', _updateDownloadButtons)
+    r.addEventListener('change', () => { _updateDownloadButtons(); _updateAaTilesState(); })
 );
 
 // ── Color swatch previews ─────────────────────────────────────────
