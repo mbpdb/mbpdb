@@ -294,6 +294,12 @@ class DataAnalysisState:
         self.orientation: str = params.get('orientation', 'By Sample')
         self.log_transform: bool = params.get('log_transform', False)
         self.plot_minor: bool = params.get('plot_minor', False)
+        # Overlay group-comparison significance markers on bar charts.
+        self.show_significance: bool = params.get('show_significance', False)
+        # Which test drives the markers: 'tukey' (ANOVA + Tukey HSD, equal-variance
+        # lab convention) or 'games-howell' (Welch ANOVA + Games–Howell, robust to
+        # the unequal variance typical of abundance data). See services/stats.py.
+        self.significance_method: str = params.get('significance_method', 'tukey')
         self.color_scheme: str = params.get('color_scheme', 'HSV')
         self.xlabel: str = params.get('xlabel', '')
         self.ylabel: str = params.get('ylabel', '')
@@ -335,6 +341,12 @@ class DataAnalysisState:
         self.unique_function_abundance_dict: dict = {}
         self.unique_function_counts_dict: dict = {}
         self.function_group_metrics_dict: dict = {}
+        self.function_sem_dict: dict = {}  # {group: {fn: {'abundance_sem':.., 'count_sem':..}}}
+        # Per-replicate value vectors for group-comparison statistics (ANOVA/Tukey):
+        #   {category_or_group: {group: {'abundance': [...], 'count': [...]}}}
+        self.total_reps_dict: dict = {}      # {group: {'abundance':[...], 'count':[...]}}
+        self.function_reps_dict: dict = {}   # {fn: {group: {...}}}
+        self.protein_reps_dict: dict = {}    # {protein_name: {group: {...}}}
         self.function_unique_peptide_counts: dict = {}  # {fn: total unique peptides for that fn}
         self.abundance_count_by_sample_dict: dict = {}
         self.selected_proteins: list = []
@@ -487,28 +499,15 @@ class DataAnalysisState:
             total_abundance = nonzero[col].sum()
             unique_count = nonzero['Unique Peptide ID'].nunique()
 
-            # SEM calculation (need replicate data if available)
-            gd = self.group_data_dict.get(group_name)
-            abundance_sem = 0.0
-            count_sem = 0.0
-            if isinstance(gd, list) and len(gd) > 1:
-                rep_vals = []
-                rep_counts = []
-                for rep_col in gd:
-                    if rep_col in self.filtered_df.columns:
-                        vals = pd.to_numeric(self.filtered_df[rep_col], errors='coerce')
-                        rep_vals.append(vals.fillna(0).sum())
-                        nonzero_mask = vals.notna() & (vals > 0)
-                        if 'Unique Peptide ID' in self.filtered_df.columns:
-                            rep_counts.append(
-                                self.filtered_df.loc[nonzero_mask, 'Unique Peptide ID'].nunique()
-                            )
-                        else:
-                            rep_counts.append(int(nonzero_mask.sum()))
-                if len(rep_vals) > 1:
-                    abundance_sem = float(np.std(rep_vals, ddof=1) / np.sqrt(len(rep_vals)))
-                if len(rep_counts) > 1:
-                    count_sem = float(np.std(rep_counts, ddof=1) / np.sqrt(len(rep_counts)))
+            # SEM + per-replicate vectors (need replicate data if available)
+            rep_vals, rep_counts = self.replicate_values(self.filtered_df, group_name)
+            abundance_sem = (
+                float(np.std(rep_vals, ddof=1) / np.sqrt(len(rep_vals))) if len(rep_vals) > 1 else 0.0
+            )
+            count_sem = (
+                float(np.std(rep_counts, ddof=1) / np.sqrt(len(rep_counts))) if len(rep_counts) > 1 else 0.0
+            )
+            self.total_reps_dict[group_name] = {'abundance': rep_vals, 'count': rep_counts}
 
             total_results[group_name] = {
                 'total_Abundance': float(total_abundance),
@@ -540,6 +539,52 @@ class DataAnalysisState:
         }
 
     # ------------------------------------------------------------------
+    # Replicate-based SEM helper (shared by function/protein bar charts)
+    # ------------------------------------------------------------------
+
+    def replicate_values(self, sub_df, group_name):
+        """Per-replicate summed abundance and unique-peptide count for the peptides
+        in ``sub_df``, one value per replicate column of ``group_name``.
+
+        These per-replicate vectors are the raw material for both the SEM error
+        bars and the group-comparison statistics (ANOVA / Tukey HSD): each
+        replicate contributes one summed abundance and one presence-count.
+
+        Returns (rep_abundances, rep_counts) as lists. Returns ([], []) when the
+        group has fewer than two replicate columns (the no-replicate input form).
+        """
+        gd = self.group_data_dict.get(group_name)
+        if not isinstance(gd, list) or len(gd) < 2 or sub_df is None or len(sub_df) == 0:
+            return [], []
+        rep_vals, rep_counts = [], []
+        has_id = 'Unique Peptide ID' in sub_df.columns
+        for rep_col in gd:
+            if rep_col not in sub_df.columns:
+                continue
+            vals = pd.to_numeric(sub_df[rep_col], errors='coerce')
+            rep_vals.append(float(vals.fillna(0).sum()))
+            nz = vals.notna() & (vals > 0)
+            if has_id:
+                rep_counts.append(int(sub_df.loc[nz, 'Unique Peptide ID'].nunique()))
+            else:
+                rep_counts.append(int(nz.sum()))
+        return rep_vals, rep_counts
+
+    def replicate_sems(self, sub_df, group_name):
+        """Standard error of the mean across a group's replicate columns, for the
+        abundance and unique-peptide count of the peptides in ``sub_df``.
+
+        Same replicate-SEM definition used for the sample-totals bar chart (see
+        ``filter_dataframe``); applied to a category subset so grouped bars
+        oriented By Function / By Protein carry error bars too. SEM =
+        std(ddof=1)/sqrt(n). Returns (0.0, 0.0) for the no-replicate input form.
+        """
+        rep_vals, rep_counts = self.replicate_values(sub_df, group_name)
+        ab_sem = float(np.std(rep_vals, ddof=1) / np.sqrt(len(rep_vals))) if len(rep_vals) > 1 else 0.0
+        ct_sem = float(np.std(rep_counts, ddof=1) / np.sqrt(len(rep_counts))) if len(rep_counts) > 1 else 0.0
+        return ab_sem, ct_sem
+
+    # ------------------------------------------------------------------
     # Step 3: Calculate bioactive function data
     # ------------------------------------------------------------------
 
@@ -564,17 +609,25 @@ class DataAnalysisState:
         # A peptide with functions "A;B" is counted in BOTH A and B individually,
         # but total unique peptide count uses nunique() on the full set.
         fn_unique_peptide_counts: dict = {}
+        # Cache each function's row-membership mask on the full filtered df so we can
+        # reuse it below to compute replicate-based SEM (needs the raw replicate
+        # columns, which `temp`/`nonzero` do not carry).
+        fn_df_masks: dict = {}
         for fn in all_fns:
             if self.plot_filter == 'Functional vs Non-Functional Peptides':
                 mask = df['function'].notna() if fn == 'Functional Peptides' else df['function'].isna()
             else:
                 mask = df['function'].apply(lambda x: contains_function(x, fn))
+            fn_df_masks[fn] = mask
             fn_rows = df[mask]
             fn_unique_peptide_counts[fn] = (
                 int(fn_rows['Unique Peptide ID'].nunique())
                 if 'Unique Peptide ID' in fn_rows.columns else 0
             )
         self.function_unique_peptide_counts = fn_unique_peptide_counts
+
+        # SEM per (group, function): {group: {fn: {'abundance_sem':.., 'count_sem':..}}}
+        fn_sem: dict = {}
 
         for group_name in self.selected_groups:
             col = f'Avg_{group_name}'
@@ -585,6 +638,7 @@ class DataAnalysisState:
             nonzero = temp[(temp[col] != 0) & temp[col].notna()]
             unique_fn_ab.setdefault(group_name, {})
             unique_fn_ct.setdefault(group_name, {})
+            fn_sem.setdefault(group_name, {})
 
             for fn in all_fns:
                 if self.plot_filter == 'Functional vs Non-Functional Peptides':
@@ -597,6 +651,18 @@ class DataAnalysisState:
                 ct = int(fn_rows['Unique Peptide ID'].nunique())
                 unique_fn_ab[group_name][fn] = ab
                 unique_fn_ct[group_name][fn] = ct
+
+                # Replicate vectors for this (group, function), from the raw
+                # replicate columns of the peptides annotated to this function —
+                # drive both the SEM error bar and the group-comparison stats.
+                fn_sub = df[fn_df_masks[fn]]
+                rep_ab, rep_ct = self.replicate_values(fn_sub, group_name)
+                ab_sem = float(np.std(rep_ab, ddof=1) / np.sqrt(len(rep_ab))) if len(rep_ab) > 1 else 0.0
+                ct_sem = float(np.std(rep_ct, ddof=1) / np.sqrt(len(rep_ct))) if len(rep_ct) > 1 else 0.0
+                fn_sem[group_name][fn] = {'abundance_sem': ab_sem, 'count_sem': ct_sem}
+                self.function_reps_dict.setdefault(fn, {})[group_name] = {
+                    'abundance': rep_ab, 'count': rep_ct,
+                }
 
                 fn_group_metrics.setdefault(fn, {})
                 fn_group_metrics[fn][group_name] = {
@@ -639,6 +705,7 @@ class DataAnalysisState:
         self.function_abundance_totals_dict = fn_ab_totals
         self.function_count_totals_dict = fn_ct_totals
         self.function_group_metrics_dict = fn_group_metrics
+        self.function_sem_dict = fn_sem
 
     # ------------------------------------------------------------------
     # Step 4: Build function DataFrame
@@ -660,10 +727,13 @@ class DataAnalysisState:
             for g in self.selected_groups:
                 ab = self.unique_function_abundance_dict.get(g, {}).get(fn, 0)
                 ct = self.unique_function_counts_dict.get(g, {}).get(fn, 0)
+                sem = self.function_sem_dict.get(g, {}).get(fn, {})
                 row[f'Avg_{g}'] = ab
                 row[f'Rel_Avg_{g}'] = 0.0
                 row[f'Count_{g}'] = ct
                 row[f'Rel_Count_{g}'] = 0.0
+                row[f'SEM_Avg_{g}'] = float(sem.get('abundance_sem', 0.0))
+                row[f'SEM_Count_{g}'] = float(sem.get('count_sem', 0.0))
             rows.append(row)
 
         if not rows:
@@ -700,6 +770,11 @@ class DataAnalysisState:
                     minor_row[f'Rel_Avg_{g}'] = minor_rows[f'Rel_Avg_{g}'].sum()
                     minor_row[f'Count_{g}'] = minor_rows[f'Count_{g}'].sum()
                     minor_row[f'Rel_Count_{g}'] = minor_rows[f'Rel_Count_{g}'].sum()
+                    # SEM does not sum across the pooled minor functions; leave the
+                    # aggregate "Minor Functions" bar without an error bar rather
+                    # than report a statistically meaningless summed SEM.
+                    minor_row[f'SEM_Avg_{g}'] = 0.0
+                    minor_row[f'SEM_Count_{g}'] = 0.0
                 minor_row['avg_abundance_all'] = minor_rows['avg_abundance_all'].sum()
                 self.function_df = pd.concat(
                     [main_rows, pd.DataFrame([minor_row])],
@@ -725,7 +800,7 @@ class DataAnalysisState:
 
         # Calculate protein totals – track per-group peptide sets for Count columns
         protein_data = {}
-        for _, row in df.iterrows():
+        for idx, row in df.iterrows():
             proteins = [p.strip() for p in str(row.get('Protein', '')).split(';') if p.strip()]
             pep_id = row.get('Unique Peptide ID', '')
             for pid in proteins:
@@ -734,8 +809,10 @@ class DataAnalysisState:
                         'peptides': set(),
                         'peptides_by_group': {g: set() for g in self.selected_groups},
                         'abundance': {g: 0.0 for g in self.selected_groups},
+                        'row_idx': [],  # filtered_df rows mapped to this protein (for SEM)
                     }
                 protein_data[pid]['peptides'].add(pep_id)
+                protein_data[pid]['row_idx'].append(idx)
                 for g in self.selected_groups:
                     col = f'Avg_{g}'
                     if col in row:
@@ -749,10 +826,22 @@ class DataAnalysisState:
         for pid, pdata in protein_data.items():
             name = self.protein_dict.get(pid, {}).get('name', pid)
             row = {'Protein': pid, 'Description': name}
+            # Rows of filtered_df mapped to this protein — used for replicate SEM/stats.
+            prot_rows = df.loc[pdata['row_idx']] if pdata['row_idx'] else None
             for g in self.selected_groups:
                 ab = pdata['abundance'][g]
                 row[f'Avg_{g}'] = ab
                 row[f'Count_{g}'] = len(pdata['peptides_by_group'][g])
+                rep_ab, rep_ct = self.replicate_values(prot_rows, g)
+                row[f'SEM_Avg_{g}'] = (
+                    float(np.std(rep_ab, ddof=1) / np.sqrt(len(rep_ab))) if len(rep_ab) > 1 else 0.0
+                )
+                row[f'SEM_Count_{g}'] = (
+                    float(np.std(rep_ct, ddof=1) / np.sqrt(len(rep_ct))) if len(rep_ct) > 1 else 0.0
+                )
+                self.protein_reps_dict.setdefault(name, {})[g] = {
+                    'abundance': rep_ab, 'count': rep_ct,
+                }
             row['unique_peptide_count'] = len(pdata['peptides'])
             rows.append(row)
 
@@ -802,6 +891,9 @@ class DataAnalysisState:
                     ct_col = f'Count_{g}'
                     minor_entry[ab_col] = float(minor_rows[ab_col].sum()) if ab_col in minor_rows.columns else 0.0
                     minor_entry[ct_col] = float(minor_rows[ct_col].sum()) if ct_col in minor_rows.columns else 0.0
+                    # No meaningful summed SEM for the pooled "Minor Proteins" bar.
+                    minor_entry[f'SEM_Avg_{g}'] = 0.0
+                    minor_entry[f'SEM_Count_{g}'] = 0.0
                 minor_entry['unique_peptide_count'] = (
                     int(minor_rows['unique_peptide_count'].sum())
                     if 'unique_peptide_count' in minor_rows.columns else 0
@@ -910,6 +1002,9 @@ class DataAnalysisState:
             fdd[fn] = {
                 'Abundance': {g: float(row.get(f'Avg_{g}', 0)) for g in self.selected_groups},
                 'counts': {g: float(row.get(f'Count_{g}', 0)) for g in self.selected_groups},
+                # replicate-based SEM per group (for grouped-bar error bars)
+                'abundance_sem': {g: float(row.get(f'SEM_Avg_{g}', 0)) for g in self.selected_groups},
+                'count_sem': {g: float(row.get(f'SEM_Count_{g}', 0)) for g in self.selected_groups},
                 # function's share of each group's functional total (By Sample hover/reference)
                 'abundance_relative': {g: float(row.get(f'Rel_Avg_{g}', 0)) for g in self.selected_groups},
                 'count_relative': {g: float(row.get(f'Rel_Count_{g}', 0)) for g in self.selected_groups},
