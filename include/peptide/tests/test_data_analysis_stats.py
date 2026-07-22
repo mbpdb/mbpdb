@@ -478,6 +478,64 @@ class TestNoFilterOrientation(unittest.TestCase):
         self.assertEqual(list(bar.x), ['Total'])
 
 
+class TestRelativeMetricNoFilter(unittest.TestCase):
+    """Regression: the Relative toggle must apply under No Filter / Both too."""
+
+    GROUPS = ['Ctrl', 'LowDose', 'HighDose']
+
+    def _state(self, **extra):
+        rng = np.random.default_rng(7)
+        reps = {g: [f'{g}_{i}' for i in (1, 2, 3)] for g in self.GROUPS}
+        rows = []
+        for i in range(12):
+            row = {'Unique Peptide ID': f'pep{i}', 'Protein': 'P1',
+                   'function': 'ACE-inhibitory'}
+            for g in self.GROUPS:
+                base = {'Ctrl': 1000, 'LowDose': 2000, 'HighDose': 3000}[g]
+                for rc in reps[g]:
+                    row[rc] = float(base + rng.normal(0, 50))
+                row[f'Avg_{g}'] = float(np.mean([row[rc] for rc in reps[g]]))
+            rows.append(row)
+        params = dict(selected_groups=self.GROUPS, plot_type='Grouped Bar Plots',
+                      selected_functions=['All Functional Peptides'],
+                      selected_proteins=['All Proteins (No Filter)'],
+                      abs_or_count='Abundance', metric_type='Relative',
+                      plot_filter='No Filter', orientation='By Sample', log_transform=True)
+        params.update(extra)
+        st = DataAnalysisState(pd.DataFrame(rows), reps, {'P1': {'name': 'P1'}}, params)
+        st.run_pipeline()
+        return st
+
+    def _bar(self, fig):
+        return next(t for t in fig.data if t.type == 'bar')
+
+    def test_no_filter_by_sample_relative_scales_to_percent(self):
+        st = self._state(plot_filter='No Filter', metric_type='Relative')
+        fig = plotter.plot_total_peptides(st)
+        self.assertEqual(list(fig.layout.yaxis.range), [0, 100])
+        ys = list(self._bar(fig).y)
+        self.assertTrue(all(0 <= y <= 100 for y in ys), ys)
+        self.assertAlmostEqual(sum(ys), 100.0, places=3)  # composition sums to 100%
+
+    def test_both_by_sample_relative_scales_to_percent(self):
+        st = self._state(plot_filter='Both', metric_type='Relative')
+        fig = plotter.plot_total_peptides(st)
+        self.assertEqual(list(fig.layout.yaxis.range), [0, 100])
+        self.assertAlmostEqual(sum(self._bar(fig).y), 100.0, places=3)
+
+    def test_no_filter_by_sample_absolute_unchanged(self):
+        # Absolute still renders the totals chart (not percentage-scaled).
+        st = self._state(plot_filter='No Filter', metric_type='Absolute', log_transform=False)
+        fig = plotter.plot_total_peptides(st)
+        ys = list(self._bar(fig).y)
+        self.assertGreater(max(ys), 100)  # real abundance values, not percentages
+
+    def test_relative_count_no_filter(self):
+        st = self._state(plot_filter='No Filter', metric_type='Relative', abs_or_count='Count')
+        fig = plotter.plot_total_peptides(st)
+        self.assertAlmostEqual(sum(self._bar(fig).y), 100.0, places=3)
+
+
 class TestBySampleSignificanceAndRelativeNote(unittest.TestCase):
     """Stats must show in By-Sample orientation; relative metric shows a note."""
 

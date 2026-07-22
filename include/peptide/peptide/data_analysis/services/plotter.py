@@ -115,8 +115,61 @@ def _make_title(state: DataAnalysisState, kind: str = 'bar') -> str:
 
 
 # ---------------------------------------------------------------------------
-# Plot 1: Total peptides (By Sample, No Filter, Absolute)
+# Plot 1: Total peptides (By Sample, No Filter / Both)
 # ---------------------------------------------------------------------------
+
+def _plot_totals_relative(state: DataAnalysisState):
+    """Relative version of the sample-totals chart (No Filter / Both, By Sample):
+    each sample as a percentage of the grand total across the selected samples.
+
+    Relative composition is descriptive only — no SEM error bars, no log axis, and
+    no significance markers (those are defined on absolute values; see
+    RELATIVE_STATS_NOTE). This is the counterpart that was missing, so toggling
+    Relative under No Filter / Both had no effect and the plot stayed absolute.
+    """
+    import plotly.graph_objects as go
+
+    data = state.total_peptide_results_dict
+    if not data:
+        return None
+
+    groups = list(data.keys())
+    key = 'unique_peptides' if state.use_count else 'total_Abundance'
+    total = sum(data[g][key] for g in groups) or 1.0
+    rels = [data[g][key] / total * 100.0 for g in groups]
+    first_color = get_single_color(state.color_scheme)
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=groups, y=rels, name='Relative ' + state.metric_name,
+        marker=dict(color=first_color, line=dict(color='black', width=1)),
+        hovertext=[
+            f"Group: {g}<br>Contribution: {r:.2f}%<br>"
+            f"{state.metric_name}: {data[g][key]:{state.num_format}}"
+            for g, r in zip(groups, rels)
+        ],
+        hoverinfo='text',
+    ))
+    fig.add_trace(go.Scatter(
+        x=groups, y=[r + 1.5 for r in rels], mode='text',
+        text=[f"{r:.1f}%" for r in rels], textposition='top center',
+        textfont=dict(size=14, color='black'),
+        showlegend=False, hoverinfo='none',
+    ))
+
+    y_title = 'Relative ' + state.metric_name
+    yaxis_kw = _axis_style()
+    yaxis_kw['range'] = [0, 100]
+    yaxis_kw['tickformat'] = '.1f'
+    fig.update_layout(**{
+        **_common_layout(state),
+        'showlegend': False,
+        'hoverlabel': HOVERLABEL,
+        'xaxis': dict(title=state.xlabel or '', tickangle=45, **_axis_style()),
+        'yaxis': dict(title=state.ylabel or y_title, **yaxis_kw),
+    })
+    return fig
+
 
 def plot_total_peptides(state: DataAnalysisState):
     import plotly.graph_objects as go
@@ -124,6 +177,12 @@ def plot_total_peptides(state: DataAnalysisState):
     data = state.total_peptide_results_dict
     if not data:
         return None
+
+    # Relative metric: each sample as a share of the grand total. Without this the
+    # Relative toggle was ignored for No Filter / Both (this chart only rendered
+    # absolute values). See _plot_totals_relative.
+    if state.is_relative:
+        return _plot_totals_relative(state)
 
     first_color = get_single_color(state.color_scheme)
     use_log = state.log_transform
@@ -780,7 +839,8 @@ def create_grouped_bar_plot(state: DataAnalysisState):
         return fig
 
     elif plot_filter in ('No Filter', 'Both') and orientation == 'By Sample':
-        # Total peptide absolute
+        # Sample totals: absolute bars, or per-sample % of the grand total when the
+        # Relative metric is selected (plot_total_peptides handles both).
         return plot_total_peptides(state)
 
     return None
