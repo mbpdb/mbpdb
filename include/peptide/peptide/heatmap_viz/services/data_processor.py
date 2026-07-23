@@ -287,15 +287,21 @@ def _parse_fasta_simple(content: str) -> dict:
 # UniProt sequence fetching
 # ---------------------------------------------------------------------------
 
-def fetch_sequence_from_uniprot(protein_id: str) -> str | None:
-    """Fetch protein sequence from UniProt API. Returns sequence string or None."""
+def fetch_sequence_from_uniprot(protein_id: str) -> tuple[str | None, int | None]:
+    """Fetch protein sequence (+ signal-peptide end, if annotated) from UniProt.
+
+    Returns (sequence, signal_end); either may be None on failure. signal_end
+    is the 1-indexed last residue of the annotated signal peptide, used as the
+    default "Strip start sequence" length in Heatmap's Appearance Settings.
+    """
     try:
         from peptide.utils.uniprot_client import UniProtClient
         client = UniProtClient()
         result = client.fetch_protein_info_with_sequence(protein_id)
         if result:
-            _, _, seq = result
-            return seq if seq else None
+            _, _, seq, signal_end = result
+            if seq:
+                return seq, signal_end
     except Exception:
         pass
     try:
@@ -303,9 +309,9 @@ def fetch_sequence_from_uniprot(protein_id: str) -> str | None:
         url = f'https://www.uniprot.org/uniprot/{protein_id}.fasta'
         with urllib.request.urlopen(url, timeout=10) as resp:
             lines = resp.read().decode('utf-8').splitlines()
-            return ''.join(l for l in lines if not l.startswith('>'))
+            return ''.join(l for l in lines if not l.startswith('>')), None
     except Exception:
-        return None
+        return None, None
 
 
 # ---------------------------------------------------------------------------
@@ -447,9 +453,21 @@ def build_available_data_variables(
     group_data_dict: dict,
     selected_proteins: list,
     selected_var_keys: list,
+    strip_start_sequence: bool = False,
+    strip_start_manual: int | None = None,
 ) -> tuple[dict, list]:
     """
     Build the available_data_variables_dict for the heatmap renderer.
+
+    strip_start_sequence / strip_start_manual implement the "Strip start
+    sequence" Appearance-Settings toggle: trim N residues off the front of
+    each protein's sequence (and shift the coverage math accordingly) before
+    rendering, so positions read from the mature protein rather than the
+    precursor. strip_start_manual, when given, overrides the per-protein
+    UniProt-annotated signal-peptide length (protein_dict[pid]['signal_end'])
+    for every selected protein; otherwise each protein uses its own annotated
+    length (0 if none is known).
+
     Returns (available_data_variables_dict, messages).
     """
     # Import from heatmap_renderer (heatmap_viz/services/heatmap_renderer.py)
@@ -477,6 +495,28 @@ def build_available_data_variables(
             messages.append(f"No sequence found for {protein_id} in protein dictionary or FASTA file.")
             continue
 
+        # "Strip start sequence" — trim the signal peptide (or a manual residue
+        # count) off the front of the sequence before any position math runs.
+        # A manual override applies to every selected protein; otherwise each
+        # protein falls back to its own UniProt-annotated signal-peptide length.
+        strip_len = 0
+        if strip_start_sequence:
+            if strip_start_manual is not None:
+                try:
+                    strip_len = max(0, int(strip_start_manual))
+                except (TypeError, ValueError):
+                    strip_len = 0
+            else:
+                signal_end = pinfo.get('signal_end')
+                if signal_end:
+                    try:
+                        strip_len = max(0, int(signal_end))
+                    except (TypeError, ValueError):
+                        strip_len = 0
+            strip_len = min(strip_len, len(protein_sequence))
+            if strip_len:
+                protein_sequence = protein_sequence[strip_len:]
+
         # Filter merged_df for this protein
         protein_df = merged_df[merged_df['Protein'] == protein_id].copy()
         if protein_df.empty:
@@ -499,7 +539,7 @@ def build_available_data_variables(
                 heatmap_data = export_heatmap_data_to_dict(
                     protein_id, group_key, group_info,
                     protein_sequence, protein_species, protein_name,
-                    protein_df, is_all_null,
+                    protein_df, is_all_null, strip_offset=strip_len,
                 )
             except Exception as exc:
                 messages.append(f"Error processing {protein_id}/{var_key}: {exc}")
@@ -519,6 +559,10 @@ def build_available_data_variables(
                 # Raw peptide rows (with replicate columns) for the differential
                 # track; None-safe downstream when comparison is off.
                 'peptide_df': heatmap_data.get('peptide_df'),
+                # Residues trimmed off the front by "Strip start sequence", so the
+                # differential-comparison track (which re-derives position means
+                # from peptide_df's un-shifted start/end) can apply the same shift.
+                'strip_offset': strip_len,
                 'heatmap_df': heatmap_data.get('heatmap_df'),
                 'function_heatmap_df': heatmap_data.get('func_heatmap_df'),
                 'filtered_heatmap_df': heatmap_data.get('filtered_heatmap_df'),

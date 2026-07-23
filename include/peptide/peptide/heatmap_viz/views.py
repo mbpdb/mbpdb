@@ -148,6 +148,15 @@ def transfer_from_dt(request):
     if err:
         return JsonResponse({'error': f'Could not process data: {err}'}, status=400)
 
+    # protein_dict above is rebuilt from the merged CSV, which doesn't carry a
+    # signal-peptide column — pull signal_end straight from Data Transformation's
+    # own protein_dict.json (populated by its UniProt fetch) so "Strip start
+    # sequence" has an auto-detected default after a transfer.
+    dt_protein_dict = _load_json(dt_work_dir, 'protein_dict') or {}
+    for pid, dt_info in dt_protein_dict.items():
+        if pid in protein_dict and dt_info.get('signal_end') is not None:
+            protein_dict[pid]['signal_end'] = dt_info['signal_end']
+
     # Carry over an optional FASTA provided during Data Transformation so the
     # heatmap has protein sequences loaded by default (mirrors a manual FASTA
     # upload on this page). Rebuilding protein_dict from the merged CSV above
@@ -273,11 +282,13 @@ def fetch_sequence(request):
     if existing.get('sequence'):
         return JsonResponse({'success': True, 'cached': True, 'protein_id': protein_id})
 
-    seq = data_processor.fetch_sequence_from_uniprot(protein_id)
+    seq, signal_end = data_processor.fetch_sequence_from_uniprot(protein_id)
     if not seq:
         return JsonResponse({'error': f'Could not fetch sequence for {protein_id}.'}, status=404)
 
-    protein_dict.setdefault(protein_id, {})['sequence'] = seq
+    entry = protein_dict.setdefault(protein_id, {})
+    entry['sequence'] = seq
+    entry['signal_end'] = signal_end
     _save_json(work_dir, 'protein_dict', protein_dict)
 
     return JsonResponse({
@@ -432,6 +443,8 @@ def plot(request):
     available, build_msgs = data_processor.build_available_data_variables(
         merged_df, protein_dict, group_data_dict,
         selected_proteins, selected_var_keys,
+        strip_start_sequence=plot_params.get('strip_start_sequence', False),
+        strip_start_manual=plot_params.get('strip_start_manual'),
     )
 
     if not available:

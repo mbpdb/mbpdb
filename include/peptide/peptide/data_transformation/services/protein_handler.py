@@ -83,10 +83,11 @@ def fetch_missing_proteins(missing_protein_ids, protein_dict, progress_callback=
             results = client.fetch_proteins_batch(batch)
             for protein_id in batch:
                 if protein_id in results:
-                    name, uniprot_species = results[protein_id]
+                    name, uniprot_species, signal_end = results[protein_id]
                     protein_dict[protein_id] = {
                         "name": name if name else protein_id,
-                        "species": uniprot_species
+                        "species": uniprot_species,
+                        "signal_end": signal_end,
                     }
                     success_count += 1
                 else:
@@ -101,19 +102,19 @@ def fetch_missing_proteins(missing_protein_ids, protein_dict, progress_callback=
     # Individual fetch for failed proteins
     for protein_id in list(bad_protein):
         try:
-            name, species, _ = fetch_uniprot_info(protein_id)
+            name, species, _, signal_end = fetch_uniprot_info(protein_id)
             if name is not None and species is not None:
-                protein_dict[protein_id] = {"name": name, "species": species}
+                protein_dict[protein_id] = {"name": name, "species": species, "signal_end": signal_end}
                 bad_protein.discard(protein_id)
                 success_count += 1
             else:
                 dead_proteins.add(protein_id)
                 bad_protein.discard(protein_id)
-                protein_dict[protein_id] = {"name": protein_id, "species": "Unknown"}
+                protein_dict[protein_id] = {"name": protein_id, "species": "Unknown", "signal_end": None}
         except Exception:
             dead_proteins.add(protein_id)
             bad_protein.discard(protein_id)
-            protein_dict[protein_id] = {"name": protein_id, "species": "Unknown"}
+            protein_dict[protein_id] = {"name": protein_id, "species": "Unknown", "signal_end": None}
         time.sleep(0.5)
 
     if progress_callback:

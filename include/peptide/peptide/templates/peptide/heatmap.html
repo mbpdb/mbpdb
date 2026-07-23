@@ -352,6 +352,17 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                     <label class="checkbox-row" title="Print the amino-acid letter on each sample's tiles (instead of the shared strip) — useful for comparing proteins or variants.">
                         <input type="checkbox" id="aa-on-tiles" disabled> Show amino acid sequence on tiles
                     </label>
+                    <label class="checkbox-row" title="Trim the protein's N-terminal signal peptide before rendering, so positions and coverage are numbered from the mature protein. Uses UniProt's annotated signal-peptide length per protein by default; enter a residue count below to override it for all selected proteins.">
+                        <input type="checkbox" id="strip-start-sequence" disabled> Strip start sequence
+                    </label>
+                </div>
+
+                <!-- Strip start sequence — manual override (conditional) -->
+                <div id="strip-start-manual-row" style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+                    <label style="font-size:.88rem; color:#666;" for="strip-start-manual">Residues to strip</label>
+                    <input type="number" id="strip-start-manual" min="0" step="1" disabled
+                           placeholder="Auto (UniProt signal peptide)"
+                           style="width:210px; border:1px solid #ced4da; border-radius:4px; padding:3px 6px; font-size:.88rem;">
                 </div>
 
                 <!-- Manual Y-axis inputs (conditional) -->
@@ -588,6 +599,7 @@ function enableStep2() {
     if (bioFuncBtn) bioFuncBtn.disabled = !hasFunctions;
     applyItemsSelectorState(false);
     _updateAaTilesState();
+    _updateStripStartState();
     applyComparisonAvailability();
 }
 
@@ -711,6 +723,16 @@ function _updateAaTilesState() {
     const enabled = getRadioValue('hm-orientation') !== 'Compact';
     setControlEnabled(cb, enabled, { row: cb ? cb.closest('.checkbox-row') : null,
                                      clearOnDisable: true });
+}
+
+// The manual residue-count override only makes sense while "Strip start
+// sequence" is on; grey it out otherwise (mirrors manual-y-inputs / aa-on-tiles).
+function _updateStripStartState() {
+    const cb = document.getElementById('strip-start-sequence');
+    const input = document.getElementById('strip-start-manual');
+    setControlEnabled(input, !!(cb && cb.checked), {
+        row: document.getElementById('strip-start-manual-row'),
+    });
 }
 
 // ── Upload ────────────────────────────────────────────────────────
@@ -1121,6 +1143,8 @@ document.getElementById('manual-y-axis').addEventListener('change', function() {
     else              { inputs.classList.add('hidden'); inputs.style.display = ''; }
 });
 
+document.getElementById('strip-start-sequence').addEventListener('change', _updateStripStartState);
+
 document.querySelectorAll('#y-scale-seg .seg-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
         document.querySelectorAll('#y-scale-seg .seg-btn').forEach(b => b.classList.remove('seg-active'));
@@ -1232,6 +1256,11 @@ async function generateHeatmap() {
         legend_title_2:       document.getElementById('legend-title-2').value || 'Peptide Counts:',
         legend_title_3:       document.getElementById('legend-title-3').value || 'Average Abundance:',
         strip_protein_name:   document.getElementById('strip-protein-name').checked,
+        strip_start_sequence: document.getElementById('strip-start-sequence').checked,
+        strip_start_manual:   (function() {
+            var v = document.getElementById('strip-start-manual').value;
+            return v.trim() !== '' ? parseInt(v, 10) : null;
+        })(),
         // Both orientations are now served solely by the interactive Plotly
         // renderer (one code path, wrap-width switch); the matplotlib landscape
         // and portrait have been retired from the UI (Phase 1 + 2 consolidation).

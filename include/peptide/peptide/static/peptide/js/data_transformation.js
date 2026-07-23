@@ -1399,6 +1399,18 @@
         });
     });
 
+    document.getElementById('reset-proteins-btn').addEventListener('click', function() {
+        // Clear the uploaded mapping-key file input + its dropzone display and status.
+        clearDropzone('protein-map-input');
+        var statusEl = document.getElementById('protein-map-upload-status');
+        if (statusEl) statusEl.innerHTML = '';
+
+        // Delete the server-side saved decisions and merge/rename groups, then
+        // re-fetch step 3 so combinations and merge groups redraw at their
+        // untouched defaults.
+        ajax('POST', 'reset-proteins/', null, function() { loadStep3(); }, function() {});
+    });
+
     var addMergeBtn = document.getElementById('add-merge-group-btn');
     if (addMergeBtn) {
         addMergeBtn.addEventListener('click', function() { addMergeGroupCard(); });

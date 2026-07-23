@@ -1024,6 +1024,21 @@ def submit_protein_decisions(request):
     return JsonResponse({'success': True, 'warnings': warnings})
 
 
+@require_POST
+def reset_proteins(request):
+    """Clear any saved protein mapping decisions and merge/rename groups.
+
+    Mirrors reset_groups: the Reset Mapping button clears the client-side
+    combinations/merge-group state, but decisions are also persisted
+    server-side in protein_decisions.json / source_renames.json. Without
+    deleting them, a page resume / step-3 re-fetch restores the prior mapping.
+    """
+    work_dir = _get_work_dir(request)
+    _delete_json(work_dir, 'protein_decisions')
+    _delete_json(work_dir, 'source_renames')
+    return JsonResponse({'success': True})
+
+
 @require_GET
 def download_protein_map(request):
     """

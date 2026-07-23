@@ -375,7 +375,7 @@
                     <i class="fas fa-arrow-left"></i> Back
                 </button>
                 <button class="dt-btn dt-btn-success" id="submit-groups-btn" disabled>
-                    <i class="fas fa-save"></i> Save Groups &amp; Continue <i class="fas fa-arrow-right"></i>
+                    <i class="fas fa-save"></i> Save and Continue <i class="fas fa-arrow-right"></i>
                 </button>
                 <button class="dt-btn dt-btn-secondary" id="skip-groups-btn" style="margin-left:8px;">
                     Skip Grouping <i class="fas fa-forward"></i>
@@ -431,11 +431,10 @@
             <div id="source-renames" class="hidden" style="margin: 16px 0; padding-top: 12px; border-top: 1px solid #e0e0e0;">
                 <h5>Merge / Rename Protein Sources</h5>
                 <p style="color: #666;">
-                    Fold several protein accessions (including single-protein ones the section above can't reach — e.g.
-                    &beta;-casein variants <code>P02666A1</code>, <code>P02666A2</code>) into one canonical protein, or
-                    simply rename one. This rewrites the <em>Protein</em>, <em>species</em>, <em>name</em>, and
-                    <em>Positions in Proteins</em> columns while leaving the original <em>Master Protein Accessions</em> unchanged.
-                    Resolve any combined (multi-protein) peptides above first — merges here are applied last and take precedence.
+                    Fold several protein accessions (including single-protein ones the section above can't reach,
+                    e.g. &beta;-casein variants <code>P02666A1</code> and <code>P02666A2</code>) into one canonical protein,
+                    or simply rename one. Resolve any combined (multi-protein) peptides above first: merges here are
+                    applied last and take precedence.
                 </p>
                 <div id="source-rename-groups"></div>
                 <button class="dt-btn dt-btn-secondary" id="add-merge-group-btn" style="margin-top: 8px;">
@@ -448,10 +447,13 @@
                     <i class="fas fa-arrow-left"></i> Back
                 </button>
                 <button class="dt-btn dt-btn-success" id="submit-proteins-btn">
-                    Continue <i class="fas fa-arrow-right"></i>
+                    <i class="fas fa-save"></i> Save and Continue <i class="fas fa-arrow-right"></i>
                 </button>
                 <button class="dt-btn dt-btn-secondary" id="skip-proteins-btn" style="margin-left: 8px;">
                     Skip <i class="fas fa-forward"></i>
+                </button>
+                <button class="dt-btn dt-btn-secondary" id="reset-proteins-btn" style="margin-left: 8px;">
+                    <i class="fas fa-trash"></i> Reset Mapping
                 </button>
             </div>
         </div>
