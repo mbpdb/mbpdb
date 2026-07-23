@@ -409,6 +409,38 @@ class TestRenderBranchComparison(unittest.TestCase):
         self.assertIn('Beta-casein', bar_names)
         self.assertIn('Alpha-S1-casein', bar_names)
 
+    def test_multi_protein_label_prefixes_protein_name(self):
+        """Comparing proteins: the bare sample name ('Bitter') repeats across
+        proteins, so the display label must carry the protein name while
+        `var_label` keeps the bare sample name for downstream callers."""
+        avail = self._available_two_proteins()
+        self.assertEqual(
+            {vd['label'] for vd in avail.values()},
+            {'Beta-casein Bitter', 'Alpha-S1-casein Bitter'})
+        self.assertEqual({vd['var_label'] for vd in avail.values()}, {'Bitter'})
+
+    def test_multi_protein_labels_in_row_and_legend(self):
+        """Without comparison mode, each protein's density row + averaged-line
+        legend entry is protein-labeled so the two proteins are distinguishable."""
+        avail = self._available_two_proteins()
+        *_rest, fig_land, errors, _notes = self._update(avail)
+        self.assertFalse(errors, errors)
+        bar_names = {t.name for t in fig_land.data if t.type == 'bar'}
+        self.assertIn('Beta-casein Bitter', bar_names)
+        self.assertIn('Alpha-S1-casein Bitter', bar_names)
+        line_names = {t.name for t in fig_land.data
+                      if t.type == 'scatter' and 'lines' in (t.mode or '')}
+        self.assertIn('Beta-casein Bitter', line_names)
+        self.assertIn('Alpha-S1-casein Bitter', line_names)
+
+    def test_single_protein_keeps_bare_sample_names(self):
+        """Comparing samples on one protein: the sample name alone is
+        unambiguous and must stay in the row/legend label (no protein prefix)."""
+        avail = self._available_three_vars()  # single protein, three samples
+        self.assertEqual(
+            {vd['label'] for vd in avail.values()},
+            {'Bitter', 'NonBitter', 'Plain'})
+
 
 class TestTransferFromDtFasta(unittest.TestCase):
     """Transfer from Data Transformation should carry an optional FASTA into the

@@ -221,6 +221,8 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                 <div id="autofetch-msgs"></div>
             </div>
         </div>
+
+        <div id="hm-replicate-banner" class="status-box" style="margin-top:12px; display:none;"></div>
     </div>
 
     <!-- ── Step 2: Select + Settings ────────────────────────────── -->
@@ -589,6 +591,25 @@ function enableStep2() {
     applyComparisonAvailability();
 }
 
+// Announce whether the uploaded file carries replicate-level ('Grouped:')
+// columns — mirrors the Data Analysis dashboard's banner. Replicate data is what
+// enables the group-comparison track (differential SMD / log2FC); single-average
+// files still render, without it.
+function applyHmReplicateBanner() {
+    const banner = document.getElementById('hm-replicate-banner');
+    if (!banner) return;
+    banner.style.display = 'block';
+    if (hasReplicates) {
+        banner.className = 'status-box status-success';
+        banner.innerHTML =
+            "Replicate-level <code>'Grouped:'</code> columns detected — group-comparison statistics (differential SMD / log2FC effect-size track) available.";
+    } else {
+        banner.className = 'status-box status-info';
+        banner.innerHTML =
+            "No replicate columns found — showing <code>Avg_</code> averages only; the differential comparison track is unavailable. Re-export from Data Transformation with grouped replicates to enable it.";
+    }
+}
+
 // ── Differential comparison (SMD / log2FC) ────────────────────────
 // Gate the comparison controls on the uploaded file carrying replicate-level
 // data. enableStep2() blanket-enables every step-2 input, so this runs last to
@@ -804,6 +825,7 @@ async function doUpload() {
     hasFunctions = !!data.has_functions;
     varReplicates = data.var_replicates || {};
     hasReplicates = !!data.has_replicates;
+    applyHmReplicateBanner();
     populateSelectors(data);
     enableStep2();
 }
@@ -1509,6 +1531,7 @@ if (new URLSearchParams(window.location.search).get('from_dt') === '1') {
         hasFunctions = !!data.has_functions;
         varReplicates = data.var_replicates || {};
         hasReplicates = !!data.has_replicates;
+        applyHmReplicateBanner();
         populateSelectors(data);
         enableStep2();
     }

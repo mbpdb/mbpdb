@@ -745,8 +745,11 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                         # bare variable name ("Bitter") does not distinguish the two
                         # density rows, so prefix the protein name; same protein →
                         # the variable name alone is unambiguous.
-                        var_a = va.get('label', series_a)
-                        var_b = vb.get('label', series_b)
+                        # Use the bare sample name (var_label) — not the display
+                        # 'label', which is already protein-prefixed in multi-protein
+                        # selections and would otherwise double up below.
+                        var_a = va.get('var_label') or va.get('label', series_a)
+                        var_b = vb.get('var_label') or vb.get('label', series_b)
                         prot_a = str(va.get('protein_name') or va.get('protein_id') or '').strip()
                         prot_b = str(vb.get('protein_name') or vb.get('protein_id') or '').strip()
                         if va.get('protein_id') != vb.get('protein_id'):
@@ -1771,6 +1774,15 @@ def visualize_sequence_heatmap_interactive(
     x_label_str      = xaxis_label or 'Protein Sequence Position'
     legend_names_shown = set()   # show each legend entry once, figure-wide
 
+    # ── compact left-side labelling for tall wrapped portraits ────────────────
+    # When a long protein wraps into many stacked bands, repeating the numeric
+    # y-tick ladder and the per-variable ("High NE" / "Low NE") row labels on
+    # every band packs them so tightly they overrun into an illegible column.
+    # Mirror the compact renderer: label the axis and each variable ONCE (on the
+    # top band), letting position alone carry the identity of every band below.
+    # Landscape (n_chunks == 1) and short portraits keep per-band labels.
+    compact_labels = is_portrait and n_chunks > 2
+
     # ══════════════════════════════════════════════════════════════════════════
     # RENDER — draw every band by slicing the precomputed traces to its window.
     # ══════════════════════════════════════════════════════════════════════════
@@ -1809,14 +1821,19 @@ def visualize_sequence_heatmap_interactive(
 
         # line-plot y-axis (abundance) — one per band. The axis TITLE is drawn
         # once as a single figure-level label (below) rather than repeated on
-        # every band; only the tick values (needed to read each band) repeat.
+        # every band; only the tick values (needed to read each band) repeat —
+        # except in compact mode, where the shared scale is labelled once on the
+        # top band and every band still carries gridlines + the zero reference.
+        _show_yticklabels = (not compact_labels) or (c == 0)
         fig.update_yaxes(
             title=None,
             type=lp_type, range=lp_range,
             showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
             tickvals=[tick1, tick2, tick3],
             ticktext=[_fmt_tick(tick1), _fmt_tick(tick2), _fmt_tick(tick3)],
-            showticklabels=True, ticks='outside', ticklen=6, tickwidth=2,
+            showticklabels=_show_yticklabels,
+            ticks='outside' if _show_yticklabels else '',
+            ticklen=6, tickwidth=2,
             # Signed differential track: draw a solid zero reference line so
             # positive (higher in A) / negative (higher in B) excursions read
             # against a fixed baseline. Positive-only abundance path unchanged.
@@ -1880,8 +1897,9 @@ def visualize_sequence_heatmap_interactive(
             # variable-name label on the left (mirrors ax.text(..., ha='right')).
             # Skip when this variable contributes no residues to the band (ragged
             # multi-protein: a shorter sequence doesn't reach later chunks) so the
-            # label never floats over an empty row.
-            if pos_s:
+            # label never floats over an empty row. In compact mode the variable
+            # is named once on the top band (position identifies the rest).
+            if pos_s and ((not compact_labels) or (c == 0)):
                 # Pinned 6px left of the plot edge in PIXEL space (xshift) so the
                 # label sits at the same place regardless of browser width.
                 fig.add_annotation(

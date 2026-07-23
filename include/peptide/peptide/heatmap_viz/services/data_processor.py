@@ -522,7 +522,14 @@ def build_available_data_variables(
                 'heatmap_df': heatmap_data.get('heatmap_df'),
                 'function_heatmap_df': heatmap_data.get('func_heatmap_df'),
                 'filtered_heatmap_df': heatmap_data.get('filtered_heatmap_df'),
-                'label': var_key if len(selected_proteins) > 1 or len(selected_var_keys) > 1 else var_key,
+                # Row/legend label. When more than one protein is being compared
+                # the bare sample name ("Bitter") repeats across proteins and can't
+                # tell them apart, so prefix the protein name ("Beta-casein Bitter");
+                # a single protein keeps the sample name alone. `var_label` always
+                # carries the bare sample name for callers (e.g. the differential
+                # comparison track) that build their own protein-aware labels.
+                'label': f"{protein_name} {var_key}" if len(selected_proteins) > 1 else var_key,
+                'var_label': var_key,
                 'is_func_df_all_none': (
                     heatmap_data.get('func_heatmap_df') is None
                     or (isinstance(heatmap_data.get('func_heatmap_df'), pd.DataFrame)
