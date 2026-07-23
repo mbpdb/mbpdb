@@ -11,6 +11,8 @@ Run with:
     /home/kuhfeldrf/mbpdb/.venv/bin/python -m pytest tests/test_heatmap_differential.py -v
 """
 import io
+import json
+import os
 import unittest
 
 import numpy as np
@@ -406,6 +408,72 @@ class TestRenderBranchComparison(unittest.TestCase):
         bar_names = {t.name for t in fig_land.data if t.type == 'bar'}
         self.assertIn('Beta-casein', bar_names)
         self.assertIn('Alpha-S1-casein', bar_names)
+
+
+class TestTransferFromDtFasta(unittest.TestCase):
+    """Transfer from Data Transformation should carry an optional FASTA into the
+    heatmap so protein sequences are loaded by default, and expose its filename
+    so the page can display it (mirrors a manual FASTA upload)."""
+
+    def _df(self):
+        return pd.DataFrame({
+            'Protein': ['P02666', 'P02666'],
+            'start': [60, 73], 'end': [68, 79],
+            'Unique Peptide ID': ['pep1', 'pep2'],
+            'Avg_Bitter': [11.0, 5.0], 'Avg_NonBitter': [3.0, 8.0],
+        })
+
+    def setUp(self):
+        import tempfile
+        from django.test import Client
+        self.client = Client()
+        self.dt_dir = tempfile.mkdtemp(prefix='dt_test_')
+        self.hm_dirs = []
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.dt_dir, ignore_errors=True)
+        for d in self.hm_dirs:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def _seed_dt_session(self, with_fasta):
+        import json as _json
+        self._df().to_pickle(os.path.join(self.dt_dir, 'merged_df.pkl'))
+        if with_fasta:
+            with open(os.path.join(self.dt_dir, 'fasta_file.orig'), 'w') as fh:
+                fh.write('>P02666 Beta-casein\nRELEELNVPGEIVESLSSSEESITR\n')
+            with open(os.path.join(self.dt_dir, 'uploaded_file_names.json'), 'w') as fh:
+                _json.dump({'fasta_file': 'my_seqs.fasta'}, fh)
+        session = self.client.session
+        session['dt_work_dir'] = self.dt_dir
+        session.save()
+
+    def _post_transfer(self):
+        resp = self.client.post('/heatmap/transfer-from-dt/')
+        hm_dir = self.client.session.get('hm_work_dir')
+        if hm_dir:
+            self.hm_dirs.append(hm_dir)
+        return resp, hm_dir
+
+    def test_fasta_carried_and_named(self):
+        self._seed_dt_session(with_fasta=True)
+        resp, hm_dir = self._post_transfer()
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data.get('success'))
+        self.assertEqual(data.get('fasta_filename'), 'my_seqs.fasta')
+        # Sequence must have been merged into the heatmap's protein_dict.
+        with open(os.path.join(hm_dir, 'protein_dict.json')) as f:
+            pdict = json.load(f)
+        self.assertIn('sequence', pdict.get('P02666', {}))
+        self.assertTrue(pdict['P02666']['sequence'])
+
+    def test_no_fasta_leaves_it_cleared(self):
+        # No fasta_file.orig (e.g. after a Data Transformation "Start Over").
+        self._seed_dt_session(with_fasta=False)
+        resp, _ = self._post_transfer()
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(resp.json().get('fasta_filename'))
 
 
 if __name__ == '__main__':

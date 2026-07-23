@@ -18,17 +18,23 @@ import pandas as pd
 # floor; the preview and the downloaded PNG are the same encoded image.
 EXPORT_DPI = 300
 
-# UniProt FASTA descriptions trail the protein name with metadata tokens
-# ("Beta-casein OS=Bos taurus GN=CSN2 PE=1 SV=2"). We strip these ONCE, here at
-# load time, so protein_dict stores the clean short name ("Beta-casein") as the
-# single source of truth — downstream code (x-axis label, figure title, etc.)
-# reads it as-is and never re-strips.
+# Protein-name display cleaning. Two kinds of clutter are removed:
+#   * Trailing UniProt FASTA metadata — "Beta-casein OS=Bos taurus GN=CSN2 …".
+#   * A leading UniProt entry-name token — "LACB_BOVIN Beta-lactoglobulin",
+#     "B4GT1_BOVIN Beta-1,4-galactosyltransferase 1" (the "CAS_bovine" leader).
+# Entry names are always upper-case ID_SPECIES, so the leader regex is upper-case
+# only and requires a descriptive name after it — a bare "LACB_BOVIN" (no space)
+# and lower-cased names are left untouched, so ordinary names never get clipped.
+# Kept in sync verbatim with data_analysis/services/data_processor so the "Strip
+# protein name" toggle behaves identically in both apps.
 _FASTA_META_RE = re.compile(r'\s+(?:OS|OX|GN|PE|SV)=')
+_ENTRY_NAME_LEADER_RE = re.compile(r'^[A-Z0-9]+_[A-Z0-9]+\s+(?=\S)')
 
 
 def _clean_protein_name(name) -> str:
-    """Strip trailing UniProt FASTA metadata (' OS=…', ' GN=…', …) from a name."""
-    return _FASTA_META_RE.split(str(name), 1)[0].strip()
+    """Strip trailing UniProt FASTA metadata and a leading entry-name token."""
+    s = _FASTA_META_RE.split(str(name), 1)[0].strip()
+    return _ENTRY_NAME_LEADER_RE.sub('', s, count=1).strip()
 
 
 def _parse_grouped_replicates(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
@@ -194,8 +200,12 @@ def _build_protein_dict_from_df(df: pd.DataFrame) -> dict:
             continue
         name = group['protein_name'].iloc[0] if has_info else str(protein_id)
         species = group['protein_species'].iloc[0] if has_info else 'Unknown'
+        raw_name = str(name) if pd.notna(name) else str(protein_id)
         protein_dict[protein_id] = {
             'name': _clean_protein_name(name) or str(protein_id) if pd.notna(name) else str(protein_id),
+            # Full, unstripped name — surfaced when the user unchecks "Strip
+            # protein name" in Appearance Settings.
+            'name_raw': raw_name,
             'species': str(species) if pd.notna(species) else 'Unknown',
             'sequence': '',
         }
@@ -458,6 +468,7 @@ def build_available_data_variables(
         # Get protein info
         pinfo = protein_dict.get(protein_id, {})
         protein_name = pinfo.get('name', protein_id)
+        protein_name_raw = pinfo.get('name_raw', protein_name)
         protein_species = pinfo.get('species', 'Unknown')
         protein_sequence = pinfo.get('sequence', '')
 
@@ -499,6 +510,7 @@ def build_available_data_variables(
                 'protein_id': protein_id,
                 'protein_sequence': protein_sequence,
                 'protein_name': protein_name,
+                'protein_name_raw': protein_name_raw,
                 'protein_species': protein_species,
                 # Per-replicate abundance columns for this group, carried so the
                 # differential-comparison track can compute a pooled SD. Empty
@@ -558,6 +570,15 @@ def generate_heatmap(
         return None, None, None, ['No data available for plotting.']
 
     pp = dict(plot_params)
+
+    # "Strip protein name" toggle (Appearance Settings), default on. When the
+    # user unchecks it, swap the short display name for the full raw name so the
+    # axis label, title, and comparison labels all show the unstripped form.
+    if not pp.get('strip_protein_name', True):
+        for vd in available_data_variables_dict.values():
+            raw = vd.get('protein_name_raw')
+            if raw:
+                vd['protein_name'] = raw
 
     # Auto-derive the x-axis label from protein name(s) when the user has left
     # the field blank — mirrors the notebook's `protein_name_short + " Sequence"` logic.

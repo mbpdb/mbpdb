@@ -389,11 +389,13 @@
     // Step 2: Tech Replicate Assignment + Study Variable Grouping (combined)
     // -----------------------------------------------------------------------
 
-    var rawAvailableColumns = [];  // pre-collapse columns (for tech rep panel)
+    var rawAvailableColumns = [];  // pre-collapse columns (for tech rep panel), rename-applied
     var autoTechDupMapping = {};   // always {}: kept for computeBioRepColumns signature only
     var trAvailableColumns = [];   // raw columns available in tech rep panel
     var trSelectedColumns = [];    // columns selected for the current tech rep group being built
     var manualTechReps = [];       // [{name, columns}] — includes both auto-detected (pre-populated) and manually added groups
+    var baseColumns = [];          // original (pre-rename) abundance columns
+    var manualRenames = [];        // [{new, original}] — column-rename definitions
 
     // Compute bio rep columns from raw columns + manualTechReps mapping.
     // autoTechDupMapping is always empty; all groups live in manualTechReps.
@@ -423,6 +425,13 @@
 
     function loadStep2() {
         ajax('GET', 'step2/', null, function(resp) {
+            // Base (original) columns + any saved renames drive the rename panel.
+            baseColumns = resp.base_columns || resp.raw_columns || resp.columns || [];
+            var savedRenames = resp.column_renames || {};   // {new: original}
+            manualRenames = Object.keys(savedRenames).map(function(newName) {
+                return {new: newName, original: savedRenames[newName]};
+            });
+
             rawAvailableColumns = resp.raw_columns || resp.columns || [];
             var detectedMapping = resp.tech_dup_mapping || {};
             trAvailableColumns = rawAvailableColumns;
@@ -446,11 +455,14 @@
                 : [];
 
             // Reset inputs
+            document.getElementById('rn-new-name-input').value = '';
             document.getElementById('tr-bio-rep-name-input').value = '';
             document.getElementById('tr-column-search').value = '';
             document.getElementById('group-name-input').value = '';
             document.getElementById('column-search').value = '';
 
+            renderRenameOriginalSelect();
+            renderRenameList();
             renderTrColumnPanels('');
             renderDefinedTechReps();
             renderGroups();
@@ -458,6 +470,136 @@
             document.getElementById('submit-groups-btn').disabled = (definedGroups.length === 0);
         });
     }
+
+    // -----------------------------------------------------------------------
+    // Column renames (applied before tech reps / grouping)
+    // -----------------------------------------------------------------------
+
+    // Apply the current manualRenames ({new, original}) to a list of columns.
+    function applyRenamesToList(cols) {
+        if (!manualRenames.length) return cols.slice();
+        var originalToNew = {};
+        manualRenames.forEach(function(r) { originalToNew[r.original] = r.new; });
+        return cols.map(function(c) { return originalToNew.hasOwnProperty(c) ? originalToNew[c] : c; });
+    }
+
+    // Recompute rename-dependent column lists and refresh the tech-rep + group
+    // panels so the simplified names appear everywhere downstream.
+    function refreshAfterRenameChange() {
+        rawAvailableColumns = applyRenamesToList(baseColumns);
+        trAvailableColumns = rawAvailableColumns;
+        availableColumns = computeBioRepColumns();
+        renderTrColumnPanels(document.getElementById('tr-column-search').value);
+        renderColumnPanels(document.getElementById('column-search').value);
+    }
+
+    // Populate the "Original Column" dropdown with base columns not yet renamed.
+    function renderRenameOriginalSelect() {
+        var sel = document.getElementById('rn-original-select');
+        var used = {};
+        manualRenames.forEach(function(r) { used[r.original] = true; });
+        sel.innerHTML = '';
+        var available = baseColumns.filter(function(c) { return !used[c]; });
+        if (!available.length) {
+            var opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'All columns already renamed';
+            opt.disabled = true;
+            sel.appendChild(opt);
+            return;
+        }
+        var placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Select a column…';
+        sel.appendChild(placeholder);
+        available.forEach(function(c) {
+            var opt = document.createElement('option');
+            opt.value = c;
+            opt.textContent = c;
+            sel.appendChild(opt);
+        });
+    }
+
+    function renderRenameList() {
+        var list = document.getElementById('rn-list');
+        list.innerHTML = '';
+        if (!manualRenames.length) {
+            document.getElementById('rn-defined-list-wrap').classList.add('hidden');
+            return;
+        }
+        document.getElementById('rn-defined-list-wrap').classList.remove('hidden');
+        manualRenames.forEach(function(r, i) {
+            var div = document.createElement('div');
+            div.className = 'dt-group-item';
+            div.innerHTML = '<span><strong>' + escHtml(r.new) + '</strong> &larr; <em>' +
+                escHtml(r.original) + '</em></span>' +
+                '<span class="remove-group" data-idx="' + i + '"><i class="fas fa-times"></i></span>';
+            list.appendChild(div);
+        });
+        list.querySelectorAll('.remove-group').forEach(function(el) {
+            el.addEventListener('click', function() {
+                manualRenames.splice(parseInt(this.getAttribute('data-idx')), 1);
+                persistRenames();
+                renderRenameOriginalSelect();
+                renderRenameList();
+                refreshAfterRenameChange();
+            });
+        });
+    }
+
+    // Save the current rename mapping server-side so raw_columns stays in sync
+    // for the tech-rep step and processing. Sends {new: original}.
+    function persistRenames(onDone) {
+        var mapping = {};
+        manualRenames.forEach(function(r) { mapping[r.new] = r.original; });
+        ajax('POST', 'submit-renames/', {renames: mapping}, function(resp) {
+            if (onDone) onDone(resp);
+        }, function(msg) { showStep2Error(msg); });
+    }
+
+    document.getElementById('rename-json-input').addEventListener('change', function() {
+        if (!this.files.length) return;
+        var formData = new FormData();
+        formData.append('rename_file', this.files[0]);
+        ajax('POST', 'upload-renames/', formData, function(resp) {
+            var mapping = resp.renames || {};
+            manualRenames = Object.keys(mapping).map(function(newName) {
+                return {new: newName, original: mapping[newName]};
+            });
+            persistRenames();
+            renderRenameOriginalSelect();
+            renderRenameList();
+            refreshAfterRenameChange();
+        }, function(msg) { showStep2Error(msg); });
+    });
+
+    document.getElementById('rn-add-btn').addEventListener('click', function() {
+        var original = document.getElementById('rn-original-select').value;
+        var newName = document.getElementById('rn-new-name-input').value.trim();
+        if (!original) { showStep2Error('Please select a column to rename'); return; }
+        if (!newName) { showStep2Error('Please enter a new name'); return; }
+        if (manualRenames.some(function(r) { return r.new === newName; })) {
+            showStep2Error('The name "' + newName + '" is already used'); return;
+        }
+        manualRenames.push({new: newName, original: original});
+        document.getElementById('rn-new-name-input').value = '';
+        persistRenames();
+        renderRenameOriginalSelect();
+        renderRenameList();
+        refreshAfterRenameChange();
+    });
+
+    document.getElementById('rename-download-map').addEventListener('click', function(e) {
+        e.preventDefault();
+        // Ensure the server has the latest mapping, then stream the download.
+        persistRenames(function() {
+            var iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = 'download-rename-map/';
+            document.body.appendChild(iframe);
+            setTimeout(function() { document.body.removeChild(iframe); }, 10000);
+        });
+    });
 
     // Format a column name for display: _repN suffix → (repN)
     // e.g. "Sample_A_rep1" → "Sample_A (rep1)". Raw name is preserved as tooltip.
@@ -748,7 +890,33 @@
         });
     }
 
+    // Reset a dropzone file input + its "drag & drop" visual back to empty state.
+    function clearDropzone(inputId) {
+        var input = document.getElementById(inputId);
+        if (!input) return;
+        input.value = '';
+        var zone = input.closest('.dt-dropzone');
+        if (!zone) return;
+        var dt = zone.querySelector('.drop-text');
+        if (dt) dt.classList.remove('hidden');
+        var fn = zone.querySelector('.file-name');
+        if (fn) { fn.textContent = ''; fn.classList.add('hidden'); }
+    }
+
     document.getElementById('reset-groups-btn').addEventListener('click', function() {
+        // Clear column renames (inputs, uploaded file, and the defined list).
+        manualRenames = [];
+        document.getElementById('rn-new-name-input').value = '';
+        clearDropzone('rename-json-input');
+        renderRenameOriginalSelect();
+        renderRenameList();
+        // Revert the tech-rep/group panels to the original (pre-rename) columns.
+        refreshAfterRenameChange();
+        // Persist the empty mapping so column_renames.json is cleared and the
+        // raw column list reverts server-side too.
+        persistRenames();
+
+        // Clear grouping client-side state
         definedGroups = [];
         selectedColumns = [];
         document.getElementById('group-name-input').value = '';
@@ -756,6 +924,13 @@
         renderGroups();
         renderColumnPanels('');
         document.getElementById('submit-groups-btn').disabled = true;
+
+        // Clear the uploaded group-definition file input + its dropzone display
+        clearDropzone('group-json-input');
+
+        // Delete the server-side saved group definitions so a resume /
+        // step-2 re-fetch does not restore the prior grouping variable.
+        ajax('POST', 'reset-groups/', null, function() {}, function() {});
     });
 
     // Save Groups: submit tech reps first (to save mapping), then submit groups
@@ -835,16 +1010,24 @@
 
         if (resp.has_combinations && resp.combinations.length > 0) {
             document.getElementById('protein-combinations').classList.remove('hidden');
-            renderCombinations(resp.combinations);
+            renderCombinations(resp.combinations, resp.saved_decisions || {});
         } else {
             document.getElementById('protein-combinations').classList.add('hidden');
         }
     }
 
-    function renderCombinations(combos) {
+    function renderCombinations(combos, savedDecisions) {
+        savedDecisions = savedDecisions || {};
         var list = document.getElementById('combinations-list');
         list.innerHTML = '';
         combos.forEach(function(combo, idx) {
+            // Restore a previously saved decision for this combination, if any.
+            var saved = savedDecisions[combo.combo] || null;
+            var mode = saved ? saved.mode : 'split';           // default: split
+            var savedIds = (saved && saved.protein_ids) ? saved.protein_ids : null;
+            var customVal = (saved && saved.mode === 'custom') ? (saved.protein_id || '') : '';
+            var splitVisible = (mode === 'split');
+
             var div = document.createElement('div');
             div.className = 'dt-combo-row';
             var html = '<strong>' + escHtml(combo.combo) + '</strong> (' + combo.occurrences + ' rows)<br>';
@@ -852,20 +1035,27 @@
 
             // Mode 1: Keep combined
             html += '<label style="display: block; margin: 4px 0;">' +
-                '<input type="radio" name="combo_mode_' + idx + '" value="asis"> ' +
+                '<input type="radio" name="combo_mode_' + idx + '" value="asis"' +
+                (mode === 'asis' ? ' checked' : '') + '> ' +
                 'Keep combined ID</label>';
 
-            // Mode 2: Split — default selected, panel expanded
+            // Mode 2: Split
             html += '<label style="display: block; margin: 4px 0;">' +
-                '<input type="radio" name="combo_mode_' + idx + '" value="split" checked> ' +
+                '<input type="radio" name="combo_mode_' + idx + '" value="split"' +
+                (mode === 'split' ? ' checked' : '') + '> ' +
                 'Split into individual proteins:</label>';
             html += '<div class="combo-split-panel" id="split_panel_' + idx + '" ' +
-                'style="display:block; margin-left:24px; margin-top:4px; padding:8px; ' +
+                'style="display:' + (splitVisible ? 'block' : 'none') + '; margin-left:24px; margin-top:4px; padding:8px; ' +
                 'background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px;">';
             html += '<div style="font-size:0.8rem; color:#888; margin-bottom:6px;">' +
                 'Checked proteins will each get their own row; unchecked proteins are removed.</div>';
             combo.proteins.forEach(function(p) {
-                var chk = (p.default_decision === 'new') ? ' checked' : '';
+                // When a split decision was saved, honor its selection; otherwise
+                // fall back to the data-derived default.
+                var isChecked = savedIds
+                    ? (savedIds.indexOf(p.id) !== -1)
+                    : (p.default_decision === 'new');
+                var chk = isChecked ? ' checked' : '';
                 html += '<label style="display:block; margin:3px 0; cursor:pointer;">' +
                     '<input type="checkbox" class="combo-protein-cb" ' +
                     'name="combo_proteins_' + idx + '" value="' + escHtml(p.id) + '"' + chk + '> ' +
@@ -875,11 +1065,12 @@
             });
             html += '</div>';
 
-            // Mode 3: Custom ID
+            // Mode 3: Custom ID — restore the saved custom value when present.
             html += '<label style="display:block; margin:4px 0;">' +
-                '<input type="radio" name="combo_mode_' + idx + '" value="custom"> ' +
+                '<input type="radio" name="combo_mode_' + idx + '" value="custom"' +
+                (mode === 'custom' ? ' checked' : '') + '> ' +
                 'Custom ID: <input type="text" id="custom_' + idx + '" ' +
-                'placeholder="Enter protein ID" ' +
+                'placeholder="Enter protein ID" value="' + escHtml(customVal) + '" ' +
                 'style="margin-left:6px; width:200px; display:inline;" ' +
                 'onfocus="this.previousElementSibling.checked=true;' +
                 'document.getElementById(\'split_panel_' + idx + '\').style.display=\'none\';"></label>';
@@ -1073,6 +1264,7 @@
             {key: 'replicate_correlation', icon: 'fa-chart-area', label: 'Replicate Correlations'},
             {key: 'tech_rep_correlation', icon: 'fa-vials', label: 'Technical Replicate Correlations'},
             {key: 'tech_rep_key', icon: 'fa-key', label: 'Technical Replicate Key'},
+            {key: 'column_rename_key', icon: 'fa-pen-to-square', label: 'Column Rename Key'},
             {key: 'protein_map', icon: 'fa-file-export', label: 'Protein Mapping Key',
              download_url: 'download-protein-map/'},
         ];

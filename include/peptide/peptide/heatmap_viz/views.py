@@ -148,6 +148,33 @@ def transfer_from_dt(request):
     if err:
         return JsonResponse({'error': f'Could not process data: {err}'}, status=400)
 
+    # Carry over an optional FASTA provided during Data Transformation so the
+    # heatmap has protein sequences loaded by default (mirrors a manual FASTA
+    # upload on this page). Rebuilding protein_dict from the merged CSV above
+    # means that when Data Transformation is reset — the wizard's "Start Over"
+    # removes its whole work directory, including fasta_file.orig — this block
+    # is skipped and any previously carried FASTA is cleared on the next transfer.
+    fasta_filename = None
+    fasta_warnings = []
+    dt_fasta_path = os.path.join(dt_work_dir, 'fasta_file.orig')
+    if os.path.exists(dt_fasta_path):
+        merged_pids = set(df_hm['Protein'].unique()) if 'Protein' in df_hm.columns else None
+        try:
+            with open(dt_fasta_path, 'rb') as fh:
+                fasta_proteins, fasta_err = data_processor.load_fasta_file(fh, merged_pids)
+        except Exception as e:  # pragma: no cover - defensive
+            fasta_proteins, fasta_err = {}, str(e)
+        if fasta_err:
+            fasta_warnings.append(f'FASTA warning: {fasta_err}')
+        else:
+            for pid, pdata in fasta_proteins.items():
+                if pid in protein_dict:
+                    protein_dict[pid].update(pdata)
+                else:
+                    protein_dict[pid] = pdata
+        dt_names = _load_json(dt_work_dir, 'uploaded_file_names') or {}
+        fasta_filename = dt_names.get('fasta_file') or 'Data Transformation FASTA'
+
     work_dir = _get_work_dir(request)
     _save_df(work_dir, 'merged_df', df_hm)
     _save_json(work_dir, 'group_data_dict', group_data_dict)
@@ -162,7 +189,9 @@ def transfer_from_dt(request):
         'proteins': options['proteins'], 'var_keys': options['var_keys'],
         'has_functions': options['has_functions'],
         'var_replicates': options['var_replicates'],
-        'has_replicates': options['has_replicates'], 'warnings': [],
+        'has_replicates': options['has_replicates'],
+        'fasta_filename': fasta_filename,
+        'warnings': fasta_warnings,
     })
 
 

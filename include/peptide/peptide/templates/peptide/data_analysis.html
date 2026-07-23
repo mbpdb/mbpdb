@@ -369,6 +369,9 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                         </select>
                         <div class="color-swatch" id="color-scheme-swatch"></div>
                     </div>
+                    <label class="checkbox-row" style="margin-top:2px;" title="Drop trailing UniProt descriptors (e.g. ' OS=Bos taurus GN=CSN2 …') from protein labels, leaving the short name. Uncheck to show the full protein name.">
+                        <input type="checkbox" id="strip-protein-name" checked disabled> Strip protein name
+                    </label>
                 </div>
             </div>
 
@@ -702,6 +705,7 @@ async function generatePlot() {
         ylabel:       document.getElementById('ylabel').value,
         legend_title: document.getElementById('legend-title').value,
         plot_title:   document.getElementById('plot-title').value,
+        strip_protein_name: document.getElementById('strip-protein-name').checked,
     };
 
     let resp;

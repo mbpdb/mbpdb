@@ -460,6 +460,10 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                                style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                     </div>
 
+                    <label class="checkbox-row" style="margin-top:2px;" title="Drop trailing UniProt descriptors (e.g. ' OS=Bos taurus GN=CSN2 …') from the protein name used in the axis label and title, leaving the short name. Uncheck to show the full protein name.">
+                        <input type="checkbox" id="strip-protein-name" checked disabled> Strip protein name
+                    </label>
+
                 </div>
             </div>
 
@@ -722,6 +726,27 @@ setupDropZone('fasta-upload-zone', 'fasta-file-input', 'fasta-file-name', f => {
     selectedFastaFile = f;
     if (selectedMergedFile) doUpload();
 });
+
+// Reflect (or clear) the FASTA dropzone display for a server-side FASTA that was
+// carried over rather than picked from the file input — e.g. auto-loaded from
+// Data Transformation. Passing null resets the dropzone to its empty state.
+function setHmFastaDisplay(name) {
+    const zone  = document.getElementById('fasta-upload-zone');
+    const label = document.getElementById('fasta-file-name');
+    const dropText = zone.querySelector('.drop-text');
+    const existing = zone.querySelector('.file-name');
+    if (name) {
+        label.textContent = name;
+        if (dropText) dropText.style.display = 'none';
+        const fn = existing || document.createElement('div');
+        fn.className = 'file-name'; fn.textContent = name;
+        if (!existing) zone.appendChild(fn);
+    } else {
+        label.textContent = '';
+        if (dropText) dropText.style.display = '';
+        if (existing) existing.remove();
+    }
+}
 
 async function doUpload() {
     if (!selectedMergedFile) return;
@@ -1130,6 +1155,7 @@ async function generateHeatmap() {
         legend_title_1:       document.getElementById('legend-title-1').value || 'Sample Type:',
         legend_title_2:       document.getElementById('legend-title-2').value || 'Peptide Counts:',
         legend_title_3:       document.getElementById('legend-title-3').value || 'Average Abundance:',
+        strip_protein_name:   document.getElementById('strip-protein-name').checked,
         // Both orientations are now served solely by the interactive Plotly
         // renderer (one code path, wrap-width switch); the matplotlib landscape
         // and portrait have been retired from the UI (Phase 1 + 2 consolidation).
@@ -1417,6 +1443,13 @@ if (new URLSearchParams(window.location.search).get('from_dt') === '1') {
             `✅ <strong>${data.filename}</strong> loaded — ${data.rows.toLocaleString()} rows, ` +
             `${data.proteins.length} protein(s), ${data.var_keys.length} variable(s)` +
             (data.has_functions ? ', function data available' : ''), 'success');
+        // Reflect an auto-carried FASTA from Data Transformation (or clear the
+        // FASTA dropzone display when the transfer did not include one).
+        setHmFastaDisplay(data.fasta_filename || null);
+        if (data.fasta_filename)
+            appendStatus(status,
+                `FASTA <strong>${data.fasta_filename}</strong> auto-loaded from Data Transformation.`,
+                'success');
         if (data.warnings && data.warnings.length)
             data.warnings.forEach(w => appendStatus(status, w, 'warning'));
         hasFunctions = !!data.has_functions;

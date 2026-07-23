@@ -11,6 +11,27 @@ import numpy as np
 import pandas as pd
 
 
+# Protein-name display cleaning, shared verbatim with the Heatmap app
+# (heatmap_viz/services/data_processor._clean_protein_name) so the "Strip protein
+# name" toggle behaves identically across both applications.
+#
+# Two kinds of clutter are removed:
+#   * Trailing UniProt FASTA metadata — "Beta-casein OS=Bos taurus GN=CSN2 …".
+#   * A leading UniProt entry-name token — "LACB_BOVIN Beta-lactoglobulin",
+#     "B4GT1_BOVIN Beta-1,4-galactosyltransferase 1" (the "CAS_bovine" leader).
+# Entry names are always upper-case ID_SPECIES, so the leader regex is upper-case
+# only and requires a descriptive name after it — a bare "LACB_BOVIN" (no space)
+# and lower-cased names are left untouched, so ordinary names never get clipped.
+_FASTA_META_RE = re.compile(r'\s+(?:OS|OX|GN|PE|SV)=')
+_ENTRY_NAME_LEADER_RE = re.compile(r'^[A-Z0-9]+_[A-Z0-9]+\s+(?=\S)')
+
+
+def _clean_protein_name(name) -> str:
+    """Strip trailing UniProt FASTA metadata and a leading entry-name token."""
+    s = _FASTA_META_RE.split(str(name), 1)[0].strip()
+    return _ENTRY_NAME_LEADER_RE.sub('', s, count=1).strip()
+
+
 # ---------------------------------------------------------------------------
 # File loading
 # ---------------------------------------------------------------------------
@@ -295,6 +316,18 @@ class DataAnalysisState:
         self.merged_df = merged_df.copy()
         self.group_data_dict = group_data_dict
         self.protein_dict = protein_dict
+
+        # "Strip protein name" toggle (Appearance Settings). Default on: drop the
+        # trailing UniProt descriptors so plot labels use the short name. Every
+        # display label (Description, selected_protein_names, protein_reps_dict)
+        # derives from protein_dict[pid]['name'], so cleaning it here propagates
+        # everywhere. Applied to a copy so the on-disk protein_dict is untouched.
+        self.strip_protein_name: bool = params.get('strip_protein_name', True)
+        if self.strip_protein_name and self.protein_dict:
+            self.protein_dict = {
+                pid: {**info, 'name': _clean_protein_name(info.get('name', pid)) or pid}
+                for pid, info in self.protein_dict.items()
+            }
 
         # Widget-state equivalents from params
         self.selected_groups: list = params.get('selected_groups', list(group_data_dict.keys()))

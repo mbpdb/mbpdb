@@ -1191,5 +1191,43 @@ class TestRealData_ManyPositions(unittest.TestCase):
         self.assertIsInstance(combos, list)
 
 
+class TestDecisionsToUi(unittest.TestCase):
+    """Restore-hints for the Step-3 protein-mapping UI.
+
+    Regression coverage for the bug where a saved Custom ID (and split/asis
+    selections) were not restored when returning to the Protein Mapping step.
+    """
+
+    def setUp(self):
+        from peptide.data_transformation.views import _decisions_to_ui
+        self._to_ui = _decisions_to_ui
+
+    def test_ui_custom_id_restored(self):
+        out = self._to_ui({'P02666A1; P02666A2': {'action': 'CUSTOM', 'protein_id': 'P02666'}})
+        self.assertEqual(out['P02666A1; P02666A2'],
+                         {'mode': 'custom', 'protein_id': 'P02666'})
+
+    def test_ui_split_selection_restored(self):
+        out = self._to_ui({'Q1; Q2; Q3': {'action': 'SPLIT', 'protein_ids': ['Q1', 'Q3']}})
+        self.assertEqual(out['Q1; Q2; Q3'], {'mode': 'split', 'protein_ids': ['Q1', 'Q3']})
+
+    def test_ui_asis_restored(self):
+        out = self._to_ui({'R1; R2': {'action': 'ASIS'}})
+        self.assertEqual(out['R1; R2'], {'mode': 'asis'})
+
+    def test_backend_format_custom_restored(self):
+        # Format produced by an uploaded mapping key
+        out = self._to_ui({'S1; S2': {'S1': 'CUSTOM:MYID', 'S2': 'REMOVE'}})
+        self.assertEqual(out['S1; S2'], {'mode': 'custom', 'protein_id': 'MYID'})
+
+    def test_backend_format_split_restored(self):
+        out = self._to_ui({'T1; T2': {'T1': 'NEW', 'T2': 'NEW'}})
+        self.assertEqual(out['T1; T2'], {'mode': 'split', 'protein_ids': ['T1', 'T2']})
+
+    def test_empty_and_malformed_ignored(self):
+        self.assertEqual(self._to_ui({}), {})
+        self.assertEqual(self._to_ui({'X': 'not-a-dict'}), {})
+
+
 if __name__ == '__main__':
     unittest.main()

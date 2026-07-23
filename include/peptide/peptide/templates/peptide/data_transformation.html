@@ -250,6 +250,40 @@
             <p style="color:#666;">Group your abundance columns into experimental conditions. If any columns are technical replicates, define them below first — they will be averaged into a single biological replicate and become available in the group selector.</p>
             <div id="dt-error-step2" class="dt-alert dt-alert-danger hidden" style="margin-bottom:12px;"></div>
 
+            <!-- Rename Abundance Columns (optional sub-section) -->
+            <div style="margin-bottom:20px; padding-bottom:20px; border-bottom:2px solid #dee2e6;">
+                <h5 style="margin-top:0;"><i class="fas fa-pen-to-square" style="color:#1976d2; margin-right:6px;"></i>Rename Abundance Columns <span style="font-weight:400; font-size:0.85rem; color:#6c757d;">(Optional)</span></h5>
+                <p style="color:#666; margin:4px 0 12px;">Instrument exports often use long sample names (e.g. <em>Abundance F1 Sample Threshold</em>). Map them to shorter labels here first — the simplified names are used throughout the technical-replicate and grouping steps below.</p>
+
+                <div class="dt-file-input" style="margin-bottom:14px;">
+                    <label>Upload Rename Definition <span style="color:#6c757d; font-weight:400;">(Optional)</span></label>
+                    <div class="dt-dropzone" data-input="rename_file" style="width:25%;">
+                        <input type="file" name="rename_file" id="rename-json-input" accept=".json">
+                        <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag &amp; drop or click to select</div>
+                        <div class="file-name hidden"></div>
+                    </div>
+                    <div class="help-text">JSON file mapping new names to original column names, e.g. <code>{"T_0.2a": "Abundance F1 Sample Threshold"}</code></div>
+                    <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="#" id="rename-download-map"><i class="fas fa-file-download" style="font-size:0.75rem;"></i> Download current rename map</a></div>
+                </div>
+
+                <div style="margin-bottom:8px;">
+                    <label><strong>Original Column:</strong></label>
+                    <select id="rn-original-select" class="form-control" style="width:340px; display:inline-block; margin-left:8px;"></select>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <label><strong>New Name:</strong></label>
+                    <input type="text" id="rn-new-name-input" class="form-control" style="width:260px; display:inline-block; margin-left:8px;" placeholder="e.g., T_0.2a">
+                </div>
+                <button class="dt-btn dt-btn-primary" id="rn-add-btn" style="margin-bottom:10px;">
+                    <i class="fas fa-plus"></i> Add Rename
+                </button>
+
+                <div id="rn-defined-list-wrap" class="hidden">
+                    <strong>Renamed Columns:</strong>
+                    <div id="rn-list" style="margin-top:6px;"></div>
+                </div>
+            </div>
+
             <!-- Technical Replicate Assignment (optional sub-section) -->
             <div style="margin-bottom:20px; padding-bottom:20px; border-bottom:2px solid #dee2e6;">
                 <h5 style="margin-top:0;"><i class="fas fa-vials" style="color:#1976d2; margin-right:6px;"></i>Technical Replicate Assignment <span style="font-weight:400; font-size:0.85rem; color:#6c757d;">(Optional)</span></h5>
