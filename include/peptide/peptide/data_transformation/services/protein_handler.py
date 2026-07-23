@@ -621,3 +621,293 @@ def apply_protein_decisions(df, decisions, protein_dict):
         processed_df = pd.concat([processed_df, new_df], ignore_index=True)
 
     return processed_df, None
+
+
+# ---------------------------------------------------------------------------
+# Merge / rename protein sources
+# ---------------------------------------------------------------------------
+#
+# The combination controls above only act on multi-protein rows.  Single-protein
+# rows (e.g. a peptide that only ever maps to the beta-casein A2 variant
+# ``P02666A2``) never surface there, so they cannot be folded into a canonical
+# accession from the UI.  These helpers add an accession-level rename/merge that
+# operates on *every* row and rewrites only the derived columns
+# (``Protein``/``protein_name``/``protein_species``/``Positions in Proteins``),
+# deliberately leaving the original provenance columns
+# (``Master Protein Accessions`` and the bioactive-search ``protein_id`` /
+# ``protein_description`` / ``species``) untouched.
+
+
+def _split_protein_members(value):
+    """Split a Protein cell into an ordered list of clean member accessions."""
+    if value is None:
+        return []
+    try:
+        if isinstance(value, list):
+            return [extract_clean_protein_id(str(p).strip()) for p in value
+                    if p is not None and str(p).strip()]
+        if pd.isna(value):
+            return []
+    except (ValueError, TypeError):
+        pass
+
+    text = str(value).strip()
+    if not text or text in ('Unknown', 'nan', 'None'):
+        return []
+
+    if '; ' in text:
+        parts = text.split('; ')
+    elif '/ ' in text:
+        parts = text.split('/ ')
+    elif ',' in text:
+        parts = text.split(',')
+    else:
+        parts = [text]
+    return [extract_clean_protein_id(p.strip()) for p in parts if p.strip()]
+
+
+def _split_position_parts(value):
+    """Split a 'Positions in Proteins' cell into its individual '<ID> [range]' parts."""
+    if value is None:
+        return []
+    try:
+        if pd.isna(value):
+            return []
+    except (ValueError, TypeError):
+        pass
+    text = str(value).strip()
+    if not text or text in ('Unknown', 'nan', 'None'):
+        return []
+    if '; ' in text:
+        return [p.strip() for p in text.split('; ') if p.strip()]
+    if '/ ' in text:
+        return [p.strip() for p in text.split('/ ') if p.strip()]
+    return [text]
+
+
+def get_protein_sources(df, protein_dict):
+    """
+    List every distinct protein accession present in the data for the
+    merge/rename picker.
+
+    Returns a list of dicts sorted by id:
+        [{'id', 'name', 'species', 'count'}, ...]
+    where ``count`` is the number of rows the accession appears in (whether as a
+    single-protein row or as one member of a multi-protein row).
+    """
+    if df is None or getattr(df, 'empty', True):
+        return []
+
+    counts = {}
+    for idx in range(len(df)):
+        try:
+            row_proteins = extract_row_proteins(df.iloc[idx])
+        except Exception:
+            continue
+        for pid in row_proteins:
+            if pid and pid != 'Unknown':
+                counts[pid] = counts.get(pid, 0) + 1
+
+    sources = []
+    for pid in sorted(counts):
+        info = protein_dict.get(pid, {})
+        sources.append({
+            'id': pid,
+            'name': info.get('name', ''),
+            'species': info.get('species', ''),
+            'count': counts[pid],
+        })
+    return sources
+
+
+def _normalize_rename_groups(groups):
+    """Validate and normalize merge/rename groups. Returns (clean_groups, error)."""
+    clean = []
+    seen_sources = {}
+    for i, group in enumerate(groups or []):
+        if not isinstance(group, dict):
+            return None, f"Merge group {i + 1}: invalid format"
+        sources = [str(s).strip() for s in group.get('sources', []) if str(s).strip()]
+        target_id = str(group.get('target_id', '')).strip()
+        if not sources:
+            return None, f"Merge group {i + 1}: select at least one protein source"
+        if not target_id:
+            return None, f"Merge group {i + 1}: a target protein ID is required"
+        for s in sources:
+            if s in seen_sources and seen_sources[s] != target_id:
+                return None, (f"Protein '{s}' is assigned to two different targets "
+                              f"('{seen_sources[s]}' and '{target_id}')")
+            seen_sources[s] = target_id
+        clean.append({
+            'sources': sources,
+            'target_id': target_id,
+            'target_name': str(group.get('target_name', '')).strip(),
+            'target_species': str(group.get('target_species', '')).strip(),
+        })
+    return clean, None
+
+
+def apply_source_renames(df, groups, protein_dict):
+    """
+    Merge/rename protein accessions across every row.
+
+    Args:
+        df: pandas DataFrame
+        groups: list of {'sources': [id...], 'target_id', 'target_name',
+                'target_species'}
+        protein_dict: protein dictionary (updated in place for target accessions)
+
+    Returns:
+        tuple: (processed_df, error_message or None)
+    """
+    clean_groups, error = _normalize_rename_groups(groups)
+    if error:
+        return df, error
+    if not clean_groups:
+        return df, None
+
+    # source id -> target id, and target id -> resolved name/species
+    source_to_target = {}
+    target_info = {}
+    for group in clean_groups:
+        tid = group['target_id']
+        for s in group['sources']:
+            source_to_target[s] = tid
+        # Later groups win if a target is defined twice; only overwrite with
+        # non-empty overrides so a blank field doesn't clobber a real value.
+        info = target_info.setdefault(tid, {'name': '', 'species': ''})
+        if group['target_name']:
+            info['name'] = group['target_name']
+        if group['target_species']:
+            info['species'] = group['target_species']
+
+    # Fill any unspecified name/species from the existing protein_dict entry.
+    for tid, info in target_info.items():
+        if not info['name']:
+            info['name'] = protein_dict.get(tid, {}).get('name', '') or ''
+        if not info['species']:
+            info['species'] = protein_dict.get(tid, {}).get('species', '') or ''
+        # Keep protein_dict consistent so add_protein_info fills 'Unknown' rows.
+        entry = protein_dict.setdefault(tid, {})
+        if info['name']:
+            entry['name'] = info['name']
+        if info['species']:
+            entry['species'] = info['species']
+
+    processed_df = df.copy()
+    has_protein = 'Protein' in processed_df.columns
+    has_positions = 'Positions in Proteins' in processed_df.columns
+    has_name = 'protein_name' in processed_df.columns
+    has_species = 'protein_species' in processed_df.columns
+
+    for idx in range(len(processed_df)):
+        row = processed_df.iloc[idx]
+        row_label = processed_df.index[idx]
+
+        # --- Protein column ---
+        new_single_target = None
+        if has_protein:
+            members = _split_protein_members(row.get('Protein'))
+            if members:
+                mapped = [source_to_target.get(m, m) for m in members]
+                # de-duplicate, preserve nothing fancy — join sorted like the
+                # rest of this module does.
+                unique_mapped = sorted(set(mapped))
+                if unique_mapped != sorted(set(members)):
+                    processed_df.at[row_label, 'Protein'] = '; '.join(unique_mapped)
+                if len(unique_mapped) == 1 and unique_mapped[0] in target_info:
+                    new_single_target = unique_mapped[0]
+
+        # --- Positions in Proteins column ---
+        if has_positions:
+            parts = _split_position_parts(row.get('Positions in Proteins'))
+            if parts:
+                new_parts = []
+                changed = False
+                for part in parts:
+                    token = part.split()[0].split('[')[0] if part.split() else ''
+                    if token in source_to_target:
+                        tid = source_to_target[token]
+                        remainder = part[len(token):]
+                        new_part = tid + remainder
+                        changed = True
+                    else:
+                        new_part = part
+                    if new_part not in new_parts:
+                        new_parts.append(new_part)
+                if changed:
+                    processed_df.at[row_label, 'Positions in Proteins'] = '; '.join(new_parts)
+
+        # --- Unify name/species for rows that resolve to a single target ---
+        if new_single_target is not None:
+            info = target_info[new_single_target]
+            if has_name and info['name']:
+                processed_df.at[row_label, 'protein_name'] = info['name']
+            if has_species and info['species']:
+                processed_df.at[row_label, 'protein_species'] = info['species']
+
+    return processed_df, None
+
+
+def detect_rename_conflicts(source_renames, protein_decisions):
+    """
+    Warn when a merge/rename group touches an accession that a combination
+    decision already acted on. The merge/rename is authoritative and still
+    applies; these are non-fatal advisories so the user knows the earlier
+    combined-protein choice is being overridden.
+
+    Args:
+        source_renames: list of merge groups (as sent by the UI)
+        protein_decisions: saved combination decisions, either simplified UI
+            format ({combo: {action, ...}}) or backend format
+            ({combo: {protein_id: decision_str}})
+
+    Returns:
+        list of human-readable warning strings.
+    """
+    clean_groups, error = _normalize_rename_groups(source_renames)
+    if error or not clean_groups:
+        return []
+
+    # combo string -> set of accessions the combination step acted on (non-ASIS)
+    touched = {}
+    for combo, data in (protein_decisions or {}).items():
+        if not isinstance(data, dict):
+            continue
+        combo_ids = set()
+        if 'action' in data:
+            action = str(data.get('action', 'ASIS')).upper()
+            if action == 'ASIS':
+                continue
+            combo_ids.update(p.strip() for p in combo.split(';') if p.strip())
+            pid = str(data.get('protein_id', '')).strip()
+            if pid:
+                combo_ids.add(pid)
+            combo_ids.update(str(p).strip() for p in data.get('protein_ids', []))
+        else:
+            # backend format {protein_id: decision_str}
+            non_asis = False
+            for pid, dec in data.items():
+                dec_str = str(dec).upper()
+                if dec_str == 'ASIS':
+                    continue
+                non_asis = True
+                combo_ids.add(str(pid).strip())
+                if dec_str.startswith('CUSTOM:'):
+                    combo_ids.add(dec_str.split('CUSTOM:', 1)[1].strip())
+            if not non_asis:
+                continue
+        if combo_ids:
+            touched[combo] = combo_ids
+
+    warnings = []
+    for group in clean_groups:
+        group_ids = set(group['sources']) | {group['target_id']}
+        for combo, combo_ids in touched.items():
+            overlap = sorted(group_ids & combo_ids)
+            if overlap:
+                warnings.append(
+                    f"Merge/rename of {', '.join(overlap)} overrides your "
+                    f"combined-protein decision for '{combo}'."
+                )
+    return warnings

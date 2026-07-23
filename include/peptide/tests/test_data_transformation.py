@@ -29,7 +29,7 @@ import pandas as pd
 import numpy as np
 
 # conftest.py already bootstrapped Django — just import the services.
-from peptide.data_transformation.services import data_loader, group_processing, data_combiner, export_manager
+from peptide.data_transformation.services import data_loader, group_processing, data_combiner, export_manager, protein_handler
 
 
 # ---------------------------------------------------------------------------
@@ -1227,6 +1227,181 @@ class TestDecisionsToUi(unittest.TestCase):
     def test_empty_and_malformed_ignored(self):
         self.assertEqual(self._to_ui({}), {})
         self.assertEqual(self._to_ui({'X': 'not-a-dict'}), {})
+
+
+def make_beta_casein_df():
+    """
+    Mirrors the β-casein variant situation in merged_dataframetemp.csv:
+    a multi-accession row already collapsed to P02666, plus singleton
+    P02666A1 / P02666A2 rows that the combination step can't reach.
+    """
+    return pd.DataFrame({
+        'Sequence': ['PPFLQPEVM', 'AAAA', 'BBBB', 'CCCC'],
+        'Protein': ['P02666', 'P02666A2', 'P02666A1', 'P08037'],
+        'protein_species': ['Bovine', 'Bovine', 'Bovine', 'Bovine'],
+        'protein_name': [
+            'CASB_BOVIN Beta-casein',
+            'CASB_BOVIN Beta-casein A2',
+            'CASB_BOVIN Beta-casein A1',
+            'B4GT1_BOVIN Beta-1,4-galactosyltransferase 1',
+        ],
+        'Positions in Proteins': [
+            'P02666 [85-93]',
+            'P02666A2 [61-68]',
+            'P02666A1 [61-69]',
+            'P08037 [68-79]',
+        ],
+        'start': [85, 61, 61, 68],
+        'end': [93, 68, 69, 79],
+        'Master Protein Accessions': ['P02666A1; P02666A2', 'P02666A2', 'P02666A1', 'P08037'],
+    })
+
+
+class TestGetProteinSources(unittest.TestCase):
+    def test_lists_every_accession_with_counts(self):
+        df = make_beta_casein_df()
+        protein_dict = {'P02666': {'name': 'Beta-casein', 'species': 'Bovine'}}
+        sources = protein_handler.get_protein_sources(df, protein_dict)
+        by_id = {s['id']: s for s in sources}
+        self.assertEqual(set(by_id), {'P02666', 'P02666A1', 'P02666A2', 'P08037'})
+        self.assertEqual(by_id['P02666']['count'], 1)
+        self.assertEqual(by_id['P02666A1']['count'], 1)
+        # dict-backed name/species come through for known accessions
+        self.assertEqual(by_id['P02666']['name'], 'Beta-casein')
+
+    def test_counts_multi_protein_members(self):
+        df = pd.DataFrame({
+            'Protein': ['P1; P2', 'P1'],
+            'Positions in Proteins': ['P1 [1-5]; P2 [3-7]', 'P1 [1-5]'],
+        })
+        sources = protein_handler.get_protein_sources(df, {})
+        by_id = {s['id']: s['count'] for s in sources}
+        self.assertEqual(by_id, {'P1': 2, 'P2': 1})
+
+    def test_empty_df(self):
+        self.assertEqual(protein_handler.get_protein_sources(pd.DataFrame(), {}), [])
+
+
+class TestApplySourceRenames(unittest.TestCase):
+    def _merge_group(self):
+        return [{
+            'sources': ['P02666', 'P02666A1', 'P02666A2'],
+            'target_id': 'P02666',
+            'target_name': 'Beta-casein',
+            'target_species': 'Bovine',
+        }]
+
+    def test_variants_unified_to_single_target(self):
+        df = make_beta_casein_df()
+        protein_dict = {}
+        out, err = protein_handler.apply_source_renames(df, self._merge_group(), protein_dict)
+        self.assertIsNone(err)
+        beta = out[out['Sequence'].isin(['PPFLQPEVM', 'AAAA', 'BBBB'])]
+        # All three β-casein rows collapse to the canonical accession + name/species
+        self.assertTrue((beta['Protein'] == 'P02666').all())
+        self.assertTrue((beta['protein_name'] == 'Beta-casein').all())
+        self.assertTrue((beta['protein_species'] == 'Bovine').all())
+        # Positions rewritten to the target prefix, ranges (and start/end) retained
+        pos = dict(zip(out['Sequence'], out['Positions in Proteins']))
+        self.assertEqual(pos['AAAA'], 'P02666 [61-68]')
+        self.assertEqual(pos['BBBB'], 'P02666 [61-69]')
+        start = dict(zip(out['Sequence'], out['start']))
+        self.assertEqual(start['AAAA'], 61)
+        self.assertEqual(start['BBBB'], 61)
+
+    def test_master_protein_accessions_untouched(self):
+        df = make_beta_casein_df()
+        out, err = protein_handler.apply_source_renames(df, self._merge_group(), {})
+        self.assertIsNone(err)
+        mpa = dict(zip(out['Sequence'], out['Master Protein Accessions']))
+        self.assertEqual(mpa['PPFLQPEVM'], 'P02666A1; P02666A2')
+        self.assertEqual(mpa['AAAA'], 'P02666A2')
+        self.assertEqual(mpa['BBBB'], 'P02666A1')
+
+    def test_unrelated_protein_unchanged(self):
+        df = make_beta_casein_df()
+        out, _ = protein_handler.apply_source_renames(df, self._merge_group(), {})
+        row = out[out['Sequence'] == 'CCCC'].iloc[0]
+        self.assertEqual(row['Protein'], 'P08037')
+        self.assertEqual(row['Positions in Proteins'], 'P08037 [68-79]')
+
+    def test_member_in_multi_protein_row_replaced_and_deduped(self):
+        df = pd.DataFrame({
+            'Sequence': ['X', 'Y'],
+            'Protein': ['P02666A1; P02668', 'P02666A1; P02666A2'],
+            'protein_name': ['n1', 'n2'],
+            'protein_species': ['Bovine', 'Bovine'],
+            'Positions in Proteins': [
+                'P02666A1 [61-69]; P02668 [109-122]',
+                'P02666A1 [61-69]; P02666A2 [61-68]',
+            ],
+        })
+        groups = [{'sources': ['P02666A1', 'P02666A2'], 'target_id': 'P02666',
+                   'target_name': 'Beta-casein', 'target_species': 'Bovine'}]
+        out, err = protein_handler.apply_source_renames(df, groups, {})
+        self.assertIsNone(err)
+        rows = dict(zip(out['Sequence'], out['Protein']))
+        # In-place member replacement, still multi-protein → name/species left alone
+        self.assertEqual(rows['X'], 'P02666; P02668')
+        # Two variants collapse to one accession, de-duplicated to a single-protein row
+        self.assertEqual(rows['Y'], 'P02666')
+        yrow = out[out['Sequence'] == 'Y'].iloc[0]
+        self.assertEqual(yrow['protein_name'], 'Beta-casein')
+        # Positions de-duplicated where identical after rewrite is not the case here,
+        # but the P02666A2 part rewrites to a distinct range so both remain
+        self.assertIn('P02666 [61-69]', yrow['Positions in Proteins'])
+        self.assertIn('P02666 [61-68]', yrow['Positions in Proteins'])
+
+    def test_target_name_falls_back_to_protein_dict(self):
+        df = make_beta_casein_df()
+        protein_dict = {'P02666': {'name': 'Dict Beta-casein', 'species': 'Cow'}}
+        groups = [{'sources': ['P02666A1'], 'target_id': 'P02666',
+                   'target_name': '', 'target_species': ''}]
+        out, err = protein_handler.apply_source_renames(df, groups, protein_dict)
+        self.assertIsNone(err)
+        row = out[out['Sequence'] == 'BBBB'].iloc[0]
+        self.assertEqual(row['protein_name'], 'Dict Beta-casein')
+        self.assertEqual(row['protein_species'], 'Cow')
+
+    def test_validation_errors(self):
+        df = make_beta_casein_df()
+        _, err = protein_handler.apply_source_renames(
+            df, [{'sources': [], 'target_id': 'P02666'}], {})
+        self.assertIsNotNone(err)
+        _, err = protein_handler.apply_source_renames(
+            df, [{'sources': ['P02666A1'], 'target_id': ''}], {})
+        self.assertIsNotNone(err)
+        # Same source pointed at two targets
+        _, err = protein_handler.apply_source_renames(df, [
+            {'sources': ['P02666A1'], 'target_id': 'P02666'},
+            {'sources': ['P02666A1'], 'target_id': 'Q99999'},
+        ], {})
+        self.assertIsNotNone(err)
+
+
+class TestDetectRenameConflicts(unittest.TestCase):
+    def test_overlap_with_non_asis_decision_warns(self):
+        renames = [{'sources': ['P02666A1', 'P02666A2'], 'target_id': 'P02666'}]
+        decisions = {'P02666A1; P02666A2': {'action': 'CUSTOM', 'protein_id': 'P02666'}}
+        warnings = protein_handler.detect_rename_conflicts(renames, decisions)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn('P02666A1', warnings[0])
+
+    def test_backend_format_overlap_warns(self):
+        renames = [{'sources': ['S1'], 'target_id': 'S1'}]
+        decisions = {'S1; S2': {'S1': 'CUSTOM:MYID', 'S2': 'REMOVE'}}
+        warnings = protein_handler.detect_rename_conflicts(renames, decisions)
+        self.assertEqual(len(warnings), 1)
+
+    def test_asis_decision_does_not_warn(self):
+        renames = [{'sources': ['P02666A1'], 'target_id': 'P02666'}]
+        decisions = {'P02666A1; P02666A2': {'action': 'ASIS'}}
+        self.assertEqual(protein_handler.detect_rename_conflicts(renames, decisions), [])
+
+    def test_no_overlap_no_warning(self):
+        renames = [{'sources': ['P02666A1'], 'target_id': 'P02666'}]
+        decisions = {'Q1; Q2': {'action': 'SPLIT', 'protein_ids': ['Q1']}}
+        self.assertEqual(protein_handler.detect_rename_conflicts(renames, decisions), [])
 
 
 if __name__ == '__main__':

@@ -778,6 +778,8 @@ def get_step3_form(request):
             'combinations': combo_details,
             'has_combinations': len(combo_details) > 0,
             'saved_decisions': _decisions_to_ui(_load_json(work_dir, 'protein_decisions') or {}),
+            'protein_sources': protein_handler.get_protein_sources(df, protein_dict),
+            'saved_source_renames': _load_json(work_dir, 'source_renames') or [],
         })
     except Exception as e:
         return JsonResponse({'error': f'Could not load step 3: {str(e)}'}, status=500)
@@ -985,10 +987,13 @@ def submit_protein_decisions(request):
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
     raw_decisions = body.get('decisions', {})
+    source_renames = body.get('source_renames', []) or []
     protein_dict = _load_json(work_dir, 'protein_dict') or {}
 
-    # Persist raw decisions so they can be downloaded as a mapping key
+    # Persist raw decisions + merge/rename groups so they can be downloaded as a
+    # reusable mapping key and restored on return to this step.
     _save_json(work_dir, 'protein_decisions', raw_decisions)
+    _save_json(work_dir, 'source_renames', source_renames)
 
     decisions = _translate_decisions(raw_decisions)
 
@@ -1004,10 +1009,19 @@ def submit_protein_decisions(request):
     if error:
         return JsonResponse({'error': error}, status=400)
 
+    # Merge/rename accessions run last (authoritative) on the cleaned frame.
+    if source_renames:
+        processed_df, error = protein_handler.apply_source_renames(
+            processed_df, source_renames, protein_dict
+        )
+        if error:
+            return JsonResponse({'error': error}, status=400)
+
     _save_df(work_dir, 'pd_results_cleaned', processed_df)
     _save_json(work_dir, 'protein_dict', protein_dict)
 
-    return JsonResponse({'success': True})
+    warnings = protein_handler.detect_rename_conflicts(source_renames, raw_decisions)
+    return JsonResponse({'success': True, 'warnings': warnings})
 
 
 @require_GET
@@ -1020,8 +1034,10 @@ def download_protein_map(request):
     work_dir = _get_work_dir(request)
 
     saved = _load_json(work_dir, 'protein_decisions')
+    saved_renames = _load_json(work_dir, 'source_renames') or []
     if saved:
-        output_data = {'version': 1, 'protein_decisions': saved}
+        output_data = {'version': 2, 'protein_decisions': saved,
+                       'source_renames': saved_renames}
     else:
         # Generate a template from current combination defaults
         df = _load_df(work_dir, 'pd_results')
@@ -1042,7 +1058,8 @@ def download_protein_map(request):
                 template[c['combo']] = {'action': 'ASIS'}
             else:
                 template[c['combo']] = {'action': 'SPLIT', 'protein_ids': new_ids}
-        output_data = {'version': 1, 'protein_decisions': template}
+        output_data = {'version': 2, 'protein_decisions': template,
+                       'source_renames': saved_renames}
 
     content = json.dumps(output_data, indent=2)
     response = HttpResponse(content, content_type='application/json')
@@ -1066,9 +1083,13 @@ def upload_protein_map(request):
     except (json.JSONDecodeError, UnicodeDecodeError):
         return JsonResponse({'error': 'Invalid JSON file'}, status=400)
 
-    # Accept both wrapped {version, protein_decisions} and flat {combo: decision}
+    # Accept both wrapped {version, protein_decisions, source_renames?} and flat
+    # {combo: decision}.
+    source_renames = []
     if 'protein_decisions' in content and isinstance(content['protein_decisions'], dict):
         raw_decisions = content['protein_decisions']
+        if isinstance(content.get('source_renames'), list):
+            source_renames = content['source_renames']
     elif isinstance(content, dict) and content:
         raw_decisions = content
     else:
@@ -1078,6 +1099,7 @@ def upload_protein_map(request):
     _merge_uniprot_into_dict(request, protein_dict)
 
     _save_json(work_dir, 'protein_decisions', raw_decisions)
+    _save_json(work_dir, 'source_renames', source_renames)
     decisions = _translate_decisions(raw_decisions)
 
     df = _load_df(work_dir, 'pd_results')
@@ -1090,10 +1112,22 @@ def upload_protein_map(request):
     if error:
         return JsonResponse({'error': error}, status=400)
 
+    # Merge/rename accessions run last (authoritative), mirroring submit.
+    if source_renames:
+        processed_df, error = protein_handler.apply_source_renames(
+            processed_df, source_renames, protein_dict
+        )
+        if error:
+            return JsonResponse({'error': error}, status=400)
+
     _save_df(work_dir, 'pd_results_cleaned', processed_df)
     _save_json(work_dir, 'protein_dict', protein_dict)
 
-    return JsonResponse({'success': True, 'applied': len(raw_decisions)})
+    return JsonResponse({
+        'success': True,
+        'applied': len(raw_decisions) + len(source_renames),
+        'warnings': protein_handler.detect_rename_conflicts(source_renames, raw_decisions),
+    })
 
 
 @require_POST
@@ -1103,12 +1137,19 @@ def skip_protein_mapping(request):
 
     protein_dict = _load_json(work_dir, 'protein_dict') or {}
     _merge_uniprot_into_dict(request, protein_dict)
-    _save_json(work_dir, 'protein_dict', protein_dict)
 
-    # Copy pd_results as pd_results_cleaned
+    # Copy pd_results as pd_results_cleaned; still apply any previously-saved
+    # merge/rename groups so skipping the combinations doesn't silently drop them.
     df = _load_df(work_dir, 'pd_results')
     if df is not None:
+        source_renames = _load_json(work_dir, 'source_renames') or []
+        if source_renames:
+            df, error = protein_handler.apply_source_renames(df, source_renames, protein_dict)
+            if error:
+                return JsonResponse({'error': error}, status=400)
         _save_df(work_dir, 'pd_results_cleaned', df)
+
+    _save_json(work_dir, 'protein_dict', protein_dict)
 
     return JsonResponse({'success': True})
 

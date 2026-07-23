@@ -589,18 +589,6 @@
         refreshAfterRenameChange();
     });
 
-    document.getElementById('rename-download-map').addEventListener('click', function(e) {
-        e.preventDefault();
-        // Ensure the server has the latest mapping, then stream the download.
-        persistRenames(function() {
-            var iframe = document.createElement('iframe');
-            iframe.style.display = 'none';
-            iframe.src = 'download-rename-map/';
-            document.body.appendChild(iframe);
-            setTimeout(function() { document.body.removeChild(iframe); }, 10000);
-        });
-    });
-
     // Format a column name for display: _repN suffix → (repN)
     // e.g. "Sample_A_rep1" → "Sample_A (rep1)". Raw name is preserved as tooltip.
     function fmtRepCol(col) {
@@ -1014,9 +1002,214 @@
         } else {
             document.getElementById('protein-combinations').classList.add('hidden');
         }
+
+        renderSourceRenames(resp.protein_sources || [], resp.saved_source_renames || []);
+    }
+
+    // -----------------------------------------------------------------------
+    // Merge / Rename Protein Sources
+    // -----------------------------------------------------------------------
+
+    var _proteinSources = [];   // [{id, name, species, count}] from step3/
+    var _mergeGroupSeq = 0;     // unique id per rendered card
+
+    function renderSourceRenames(sources, savedGroups) {
+        _proteinSources = sources || [];
+        var panel = document.getElementById('source-renames');
+        var container = document.getElementById('source-rename-groups');
+        if (!panel || !container) return;
+
+        container.innerHTML = '';
+        if (_proteinSources.length === 0) {
+            // Nothing to merge (e.g. no protein column) — hide the whole panel.
+            panel.classList.add('hidden');
+            return;
+        }
+        panel.classList.remove('hidden');
+
+        (savedGroups || []).forEach(function(g) { addMergeGroupCard(g); });
+    }
+
+    function _sourceById(id) {
+        for (var i = 0; i < _proteinSources.length; i++) {
+            if (_proteinSources[i].id === id) return _proteinSources[i];
+        }
+        return null;
+    }
+
+    // IDs the combination step is actively changing (non "keep combined"),
+    // read live from the on-screen controls, for the inline conflict hint.
+    function getTouchedComboIds() {
+        var touched = {};
+        document.querySelectorAll('#combinations-list .dt-combo-row').forEach(function(row, idx) {
+            var modeRadio = row.querySelector('input[name="combo_mode_' + idx + '"]:checked');
+            var mode = modeRadio ? modeRadio.value : 'asis';
+            if (mode === 'asis') return;
+            var comboStrong = row.querySelector('strong');
+            var combo = comboStrong ? comboStrong.textContent : '';
+            combo.split(';').forEach(function(p) {
+                var t = p.trim();
+                if (t) touched[t] = true;
+            });
+            if (mode === 'custom') {
+                var ci = row.querySelector('#custom_' + idx);
+                if (ci && ci.value.trim()) touched[ci.value.trim()] = true;
+            }
+        });
+        return touched;
+    }
+
+    function addMergeGroupCard(prefill) {
+        prefill = prefill || {};
+        var container = document.getElementById('source-rename-groups');
+        if (!container) return;
+        var idx = _mergeGroupSeq++;
+        var savedSources = prefill.sources || [];
+
+        var card = document.createElement('div');
+        card.className = 'dt-merge-group';
+        card.style.cssText = 'border:1px solid #dee2e6; border-radius:6px; padding:10px 12px; margin-bottom:10px; background:#fff;';
+
+        var html = '';
+        html += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">' +
+            '<strong style="font-size:0.9rem; color:#555;">Merge group</strong>' +
+            '<button type="button" class="dt-btn dt-btn-secondary merge-remove-btn" ' +
+            'style="padding:2px 8px; font-size:0.8rem;"><i class="fas fa-times"></i> Remove</button></div>';
+
+        html += '<div style="font-size:0.8rem; color:#888; margin-bottom:4px;">Protein sources to merge / rename:</div>';
+        html += '<div style="position:relative; margin-bottom:6px;">' +
+            '<i class="fas fa-search" style="position:absolute; left:8px; top:50%; transform:translateY(-50%); ' +
+            'color:#adb5bd; font-size:0.8rem; pointer-events:none;"></i>' +
+            '<input type="text" class="merge-source-search" placeholder="Filter by ID, name, or species…" ' +
+            'style="width:100%; padding:4px 8px 4px 26px; box-sizing:border-box; font-size:0.85rem;"></div>';
+        html += '<div class="merge-sources" style="max-height:150px; overflow-y:auto; background:#f8f9fa; ' +
+            'border:1px solid #dee2e6; border-radius:4px; padding:6px 10px; margin-bottom:8px;">';
+        _proteinSources.forEach(function(s) {
+            var checked = savedSources.indexOf(s.id) !== -1 ? ' checked' : '';
+            var haystack = [s.id, s.name, s.species].join(' ').toLowerCase();
+            html += '<label class="merge-source-row" data-search="' + escHtml(haystack) + '" ' +
+                'style="display:block; margin:3px 0; cursor:pointer;">' +
+                '<input type="checkbox" class="merge-source-cb" value="' + escHtml(s.id) + '"' + checked + '> ' +
+                '<strong>' + escHtml(s.id) + '</strong>' +
+                (s.name ? ' — ' + escHtml(s.name) : '') +
+                (s.species ? ' <em>(' + escHtml(s.species) + ')</em>' : '') +
+                ' <span style="color:#999;">&middot; ' + s.count + ' row' + (s.count === 1 ? '' : 's') + '</span>' +
+                '</label>';
+        });
+        html += '<div class="merge-sources-empty" style="display:none; color:#999; font-size:0.82rem; padding:4px 0;">' +
+            'No proteins match your filter.</div>';
+        html += '</div>';
+
+        html += '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">';
+        html += '<label style="font-size:0.85rem;">Merge into (target ID)<br>' +
+            '<input type="text" class="merge-target-id" placeholder="e.g. P02666" ' +
+            'value="' + escHtml(prefill.target_id || '') + '" style="width:160px;"></label>';
+        html += '<label style="font-size:0.85rem;">Name <span style="color:#999;">(optional)</span><br>' +
+            '<input type="text" class="merge-target-name" placeholder="e.g. Beta-casein" ' +
+            'value="' + escHtml(prefill.target_name || '') + '" style="width:200px;"></label>';
+        html += '<label style="font-size:0.85rem;">Species <span style="color:#999;">(optional)</span><br>' +
+            '<input type="text" class="merge-target-species" placeholder="e.g. Bovine" ' +
+            'value="' + escHtml(prefill.target_species || '') + '" style="width:140px;"></label>';
+        html += '</div>';
+
+        html += '<div class="merge-conflict-hint" style="display:none; margin-top:8px;"></div>';
+
+        card.innerHTML = html;
+        container.appendChild(card);
+
+        var targetId = card.querySelector('.merge-target-id');
+        var targetName = card.querySelector('.merge-target-name');
+        var targetSpecies = card.querySelector('.merge-target-species');
+
+        function autofillFromSource(id) {
+            var s = _sourceById(id);
+            if (!s) return;
+            if (!targetName.value.trim() && s.name) targetName.value = s.name;
+            if (!targetSpecies.value.trim() && s.species) targetSpecies.value = s.species;
+        }
+
+        card.querySelectorAll('.merge-source-cb').forEach(function(cb) {
+            cb.addEventListener('change', function() {
+                if (this.checked && !targetId.value.trim()) {
+                    // First pick becomes the default canonical target.
+                    targetId.value = this.value;
+                    autofillFromSource(this.value);
+                }
+                updateConflictHint(card);
+            });
+        });
+        targetId.addEventListener('input', function() {
+            autofillFromSource(this.value.trim());
+            updateConflictHint(card);
+        });
+
+        card.querySelector('.merge-remove-btn').addEventListener('click', function() {
+            card.parentNode.removeChild(card);
+        });
+
+        // Live search: hide rows that don't match the query. Checked rows always
+        // stay visible so an active selection can't be filtered out of sight.
+        var searchInput = card.querySelector('.merge-source-search');
+        var emptyMsg = card.querySelector('.merge-sources-empty');
+        searchInput.addEventListener('input', function() {
+            var q = this.value.trim().toLowerCase();
+            var anyVisible = false;
+            card.querySelectorAll('.merge-source-row').forEach(function(row) {
+                var cb = row.querySelector('.merge-source-cb');
+                var match = !q || row.getAttribute('data-search').indexOf(q) !== -1 ||
+                    (cb && cb.checked);
+                row.style.display = match ? 'block' : 'none';
+                if (match) anyVisible = true;
+            });
+            if (emptyMsg) emptyMsg.style.display = anyVisible ? 'none' : 'block';
+        });
+
+        updateConflictHint(card);
+    }
+
+    function _cardGroup(card) {
+        var sources = Array.prototype.slice.call(
+            card.querySelectorAll('.merge-source-cb:checked')).map(function(cb) { return cb.value; });
+        return {
+            sources: sources,
+            target_id: card.querySelector('.merge-target-id').value.trim(),
+            target_name: card.querySelector('.merge-target-name').value.trim(),
+            target_species: card.querySelector('.merge-target-species').value.trim()
+        };
+    }
+
+    function updateConflictHint(card) {
+        var hint = card.querySelector('.merge-conflict-hint');
+        if (!hint) return;
+        var g = _cardGroup(card);
+        var ids = g.sources.slice();
+        if (g.target_id) ids.push(g.target_id);
+        var touched = getTouchedComboIds();
+        var overlap = ids.filter(function(id) { return touched[id]; });
+        // de-duplicate
+        overlap = overlap.filter(function(v, i) { return overlap.indexOf(v) === i; });
+        if (overlap.length) {
+            hint.style.display = 'block';
+            hint.innerHTML = '<div class="dt-alert dt-alert-warning" style="margin:0; font-size:0.82rem;">' +
+                '<i class="fas fa-exclamation-triangle"></i> ' + escHtml(overlap.join(', ')) +
+                ' also has a combined-protein decision above. This merge/rename is applied last and will override it.</div>';
+        } else {
+            hint.style.display = 'none';
+            hint.innerHTML = '';
+        }
+    }
+
+    function collectSourceRenames() {
+        var groups = [];
+        document.querySelectorAll('#source-rename-groups .dt-merge-group').forEach(function(card) {
+            var g = _cardGroup(card);
+            if (g.sources.length > 0 && g.target_id) groups.push(g);
+        });
+        return groups;
     }
 
     function renderCombinations(combos, savedDecisions) {
+        savedDecisions = savedDecisions || {};
         savedDecisions = savedDecisions || {};
         var list = document.getElementById('combinations-list');
         list.innerHTML = '';
@@ -1191,10 +1384,25 @@
                 decisions[combo] = {action: 'CUSTOM', protein_id: customInput ? customInput.value.trim() : ''};
             }
         });
-        ajax('POST', 'submit-proteins/', {decisions: decisions}, function() {
+        var sourceRenames = collectSourceRenames();
+        ajax('POST', 'submit-proteins/', {decisions: decisions, source_renames: sourceRenames}, function(resp) {
+            if (resp && resp.warnings && resp.warnings.length) {
+                var info = document.getElementById('protein-info');
+                if (info) {
+                    info.insertAdjacentHTML('afterbegin',
+                        '<div class="dt-alert dt-alert-warning" style="margin-bottom:8px;">' +
+                        '<i class="fas fa-exclamation-triangle"></i> ' +
+                        resp.warnings.map(escHtml).join('<br>') + '</div>');
+                }
+            }
             goToStep(4);
         });
     });
+
+    var addMergeBtn = document.getElementById('add-merge-group-btn');
+    if (addMergeBtn) {
+        addMergeBtn.addEventListener('click', function() { addMergeGroupCard(); });
+    }
 
     document.getElementById('skip-proteins-btn').addEventListener('click', function() {
         ajax('POST', 'skip-proteins/', null, function() {
