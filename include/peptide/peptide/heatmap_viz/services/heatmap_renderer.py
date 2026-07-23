@@ -217,7 +217,7 @@ def calculate_signed_y_ticks(min_value, max_value):
     return [-m, 0.0, m]
 
 
-def calculate_abundance(protein_sequence, peptide_dataframe, grouping_variable):
+def calculate_abundance(protein_sequence, peptide_dataframe, grouping_variable, strip_offset=0):
     protein_sequence_length = len(protein_sequence)
     data = []
     col_names = []
@@ -227,8 +227,12 @@ def calculate_abundance(protein_sequence, peptide_dataframe, grouping_variable):
         try:
             start_val = int(row['start'])
             end_val = int(row['end'])
-            start_idx = start_val - 1
-            stop_idx = end_val
+            start_idx = start_val - 1 - strip_offset
+            stop_idx = end_val - strip_offset
+            if stop_idx <= 0:
+                # Peptide falls entirely inside the stripped region.
+                continue
+            start_idx = max(start_idx, 0)
             abundance_value = row[Avg_column]
 
             values = [0] * protein_sequence_length
@@ -282,7 +286,7 @@ def calculate_abundance(protein_sequence, peptide_dataframe, grouping_variable):
 # manuscript/docs/HEATMAP_DIFFERENTIAL_STATS.md.
 # ---------------------------------------------------------------------------
 
-def calculate_replicate_position_means(protein_sequence, peptide_dataframe, replicate_columns):
+def calculate_replicate_position_means(protein_sequence, peptide_dataframe, replicate_columns, strip_offset=0):
     """Per-position mean abundance for each replicate column.
 
     For every replicate column, each peptide paints its abundance across the
@@ -308,10 +312,14 @@ def calculate_replicate_position_means(protein_sequence, peptide_dataframe, repl
         painted = []
         for _, row in peptide_dataframe.iterrows():
             try:
-                start_idx = int(row['start']) - 1
-                stop_idx = int(row['end'])
+                start_idx = int(row['start']) - 1 - strip_offset
+                stop_idx = int(row['end']) - strip_offset
             except (KeyError, ValueError, TypeError):
                 continue
+            if stop_idx <= 0:
+                # Peptide falls entirely inside the stripped region.
+                continue
+            start_idx = max(start_idx, 0)
             val = pd.to_numeric(row.get(rep), errors='coerce')
             if not (pd.notna(val) and val > 0):
                 continue
@@ -354,7 +362,7 @@ def calculate_contrast_track(means_a, means_b, metric='smd', eps=0.0):
     return out
 
 
-def calculate_function(protein_sequence, peptide_dataframe, grouping_variable):
+def calculate_function(protein_sequence, peptide_dataframe, grouping_variable, strip_offset=0):
     protein_sequence_length = len(protein_sequence)
     data = []
     col_names = []
@@ -362,8 +370,12 @@ def calculate_function(protein_sequence, peptide_dataframe, grouping_variable):
     for _, row in peptide_dataframe.iterrows():
         start_val = int(row['start'])
         end_val = int(row['end'])
-        start_idx = start_val - 1
-        stop_idx = end_val
+        start_idx = start_val - 1 - strip_offset
+        stop_idx = end_val - strip_offset
+        if stop_idx <= 0:
+            # Peptide falls entirely inside the stripped region.
+            continue
+        start_idx = max(start_idx, 0)
         if stop_idx > protein_sequence_length:
             stop_idx -= 1
 
@@ -387,9 +399,15 @@ def calculate_function(protein_sequence, peptide_dataframe, grouping_variable):
     return function_df
 
 def export_heatmap_data_to_dict(protein_id, group_key, group_info, protein_sequence,
-                               protein_species, protein_name, protein_df, is_all_null):
+                               protein_species, protein_name, protein_df, is_all_null,
+                               strip_offset=0):
     """
     Exports the heatmap data to a dictionary based on filter type.
+
+    protein_sequence is expected already trimmed by strip_offset (the caller
+    slices it before this point); strip_offset is passed through separately
+    so the index math against protein_df's un-shifted start/end columns
+    lines up with the shorter sequence.
     """
     grouping_var = group_info['grouping_variable']
     relevant_columns = group_info['abundance_columns']
@@ -411,9 +429,9 @@ def export_heatmap_data_to_dict(protein_id, group_key, group_info, protein_seque
             filtered_df = filtered_protein_df[['start', 'end', 'function']]
 
     # Calculate the heatmap data
-    func_heatmap_df = calculate_function(protein_sequence, filtered_df, grouping_var)
-    heatmap_df = calculate_abundance(protein_sequence, protein_df, grouping_var)
-    filtered_heatmap_df = calculate_abundance(protein_sequence, filtered_protein_df, grouping_var)
+    func_heatmap_df = calculate_function(protein_sequence, filtered_df, grouping_var, strip_offset=strip_offset)
+    heatmap_df = calculate_abundance(protein_sequence, protein_df, grouping_var, strip_offset=strip_offset)
+    filtered_heatmap_df = calculate_abundance(protein_sequence, filtered_protein_df, grouping_var, strip_offset=strip_offset)
 
     # Create the dictionary to store the results
     heatmap_data = {
@@ -728,9 +746,11 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
             else:
                 try:
                     means_a = calculate_replicate_position_means(
-                        va['protein_sequence'], va['peptide_df'], va['replicate_columns'])
+                        va['protein_sequence'], va['peptide_df'], va['replicate_columns'],
+                        strip_offset=va.get('strip_offset', 0))
                     means_b = calculate_replicate_position_means(
-                        vb['protein_sequence'], vb['peptide_df'], vb['replicate_columns'])
+                        vb['protein_sequence'], vb['peptide_df'], vb['replicate_columns'],
+                        strip_offset=vb.get('strip_offset', 0))
                     track = calculate_contrast_track(means_a, means_b, metric=metric)
                     finite = track[np.isfinite(track)]
                     if finite.size == 0:
@@ -1856,7 +1876,15 @@ def visualize_sequence_heatmap_interactive(
                 go.Bar(
                     x=pos_s, y=[1.0] * len(pos_s),
                     text=text_s, textposition='inside',
-                    textfont=dict(size=13, color='#333333'),
+                    # AA-lettering size is per-residue-cell constrained, not a free
+                    # legibility knob: Landscape puts the whole protein (up to 200+
+                    # residues) in one band, so px-per-residue is already tight at
+                    # size 13 — going bigger overlaps adjacent letters. Portrait
+                    # always wraps to a fixed PORTRAIT_CHUNK=78-residue band
+                    # regardless of protein length, so for anything longer than 78
+                    # residues it gets proportionally more px per residue and can
+                    # afford a larger letter.
+                    textfont=dict(size=(16 if is_portrait else 13), color='#333333'),
                     insidetextanchor='middle', textangle=0,
                     marker_color='rgba(230,230,230,1.0)', marker_line_width=0,
                     width=1.0, hoverinfo='text', hovertext=hov_s,
@@ -1884,7 +1912,9 @@ def visualize_sequence_heatmap_interactive(
                     go.Bar(
                         x=pos_s, y=[1.0] * len(pos_s),
                         text=tile_text, textposition='inside',
-                        textfont=dict(size=12, color='black'),
+                        # See the sequence-strip trace above: same Landscape-tight /
+                        # Portrait-has-room reasoning applies to on-tile AA letters.
+                        textfont=dict(size=(15 if is_portrait else 12), color='black'),
                         insidetextanchor='middle', textangle=0,
                         marker_color=col_s, marker_line_width=0, width=1.0,
                         hoverinfo='text', hovertext=hov_s,
@@ -1906,7 +1936,7 @@ def visualize_sequence_heatmap_interactive(
                     text=spec['label'], xref='paper', yref='paper',
                     x=0, y=row_y_center[hm_row_num - 1], xshift=-6,
                     xanchor='right', yanchor='middle',
-                    showarrow=False, font=dict(size=10),
+                    showarrow=False, font=dict(size=12),
                 )
 
         # ── per-band x-axis: absolute-position ladder on the band's bottom row ─
@@ -1927,9 +1957,9 @@ def visualize_sequence_heatmap_interactive(
         for r in band_rows:
             if r == band_bottom:
                 # x-axis TITLE only on the final band; every band shows its ladder.
-                title = dict(text=x_label_str, font=dict(size=12)) if c == n_chunks - 1 else None
+                title = dict(text=x_label_str, font=dict(size=14)) if c == n_chunks - 1 else None
                 fig.update_xaxes(
-                    title=title, dtick=20, tick0=0, tickfont=dict(size=10),
+                    title=title, dtick=20, tick0=0, tickfont=dict(size=12),
                     showticklabels=True, **x_common, row=r, col=1,
                 )
             else:
@@ -1949,10 +1979,10 @@ def visualize_sequence_heatmap_interactive(
     # left-side label and pin the title a FIXED pixel distance from the figure's
     # left edge via `xshift`, making it width-invariant.
     _max_label_len = max((len(str(s['label'])) for s in hm_specs), default=0)
-    _var_label_px  = _max_label_len * 6.0 + 6      # sample names on tile rows (font 10)
+    _var_label_px  = _max_label_len * 7.2 + 6      # sample names on tile rows (font 12)
     _tick_label_px = 54                            # abundance ticks e.g. "1.8e+08"
     _label_zone_px = max(_var_label_px, _tick_label_px)
-    _ytitle_px     = 24                            # rotated title band width
+    _ytitle_px     = 28                            # rotated title band width (font 15)
     left_margin    = int(min(300, max(90, _ytitle_px + 14 + _label_zone_px)))
 
     # In comparison mode the row-1 panel is the signed contrast, so the rotated
@@ -1968,7 +1998,7 @@ def visualize_sequence_heatmap_interactive(
         xref='paper', yref='paper', x=0, y=0.5,
         xshift=-(left_margin - 12), textangle=-90,
         xanchor='center', yanchor='middle',
-        showarrow=False, font=dict(size=13),
+        showarrow=False, font=dict(size=15),
     )
 
     # ── legend: peptide-count colour scale only (abundance is on the y-axis) ──
@@ -2008,8 +2038,11 @@ def visualize_sequence_heatmap_interactive(
     title_str = (plot_title or '').strip()
 
     fig.update_layout(
-        title=dict(text=title_str, font=dict(size=15, color='black'), x=0.5),
-        font=dict(family=PLOTLY_FONT_FAMILY, color='black'),
+        title=dict(text=title_str, font=dict(size=16, color='black'), x=0.5),
+        # Explicit default size (not just family) so any text left unset above
+        # (e.g. the row-1 abundance y-axis ticks) has a deterministic size
+        # instead of silently inheriting Plotly's built-in default.
+        font=dict(family=PLOTLY_FONT_FAMILY, color='black', size=12),
         height=fig_height,
         autosize=True,
         bargap=0, bargroupgap=0,
@@ -2019,18 +2052,18 @@ def visualize_sequence_heatmap_interactive(
         margin=dict(l=left_margin, r=180, t=60 if title_str else 30, b=60),  # left sized to longest sample name + y-title
         # Force bar text to always render, even when bars are narrower than the text.
         # Without this Plotly silently hides inside-text on narrow bars (e.g. 200+ AA sequence).
-        uniformtext=dict(mode='show', minsize=9),
+        uniformtext=dict(mode='show', minsize=10),
         legend=dict(
             yanchor="top", y=0.99,
             xanchor="left", x=1.01,
             bordercolor="black", borderwidth=1,
             orientation="v",
             bgcolor="rgba(255,255,255,0.9)",
-            font=dict(size=11),
+            font=dict(size=13),
             # One consistent style for every legend-group header (Sample Type,
             # Peptide Counts), matching the Data Analysis legend-title convention
-            # (size 14, black) so headers read the same across all figures.
-            grouptitlefont=dict(size=14, color='black'),
+            # so headers read the same across all figures.
+            grouptitlefont=dict(size=15, color='black'),
             itemsizing='constant',
             groupclick="toggleitem",
         ),
@@ -2170,7 +2203,7 @@ def visualize_sequence_heatmap_compact(
 
         # y-axis settings — uniform scale enforced via autorange=False; labels in legend only
         fig.update_yaxes(
-            title=dict(text=label, font=dict(size=12), standoff=5),
+            title=dict(text=label, font=dict(size=13), standoff=5),
             type=_axis_type,
             range=_y_range,
             autorange=False,
@@ -2247,7 +2280,7 @@ def visualize_sequence_heatmap_compact(
         )
         if i == num_vars:
             fig.update_xaxes(
-                title=dict(text=x_label_str, font=dict(size=13)),
+                title=dict(text=x_label_str, font=dict(size=14)),
                 dtick=20,
                 **common,
                 row=i, col=1,
@@ -2266,8 +2299,8 @@ def visualize_sequence_heatmap_compact(
 
     row_height = max(130, 600 // max(num_vars, 1))
     fig.update_layout(
-        title=dict(text=title_str, font=dict(size=15, color='black'), x=0.5),
-        font=dict(family=PLOTLY_FONT_FAMILY, color='black'),
+        title=dict(text=title_str, font=dict(size=16, color='black'), x=0.5),
+        font=dict(family=PLOTLY_FONT_FAMILY, color='black', size=12),
         height=max(row_height * num_vars + 80, 300),
         bargap=0,
         bargroupgap=0,
@@ -2284,10 +2317,10 @@ def visualize_sequence_heatmap_compact(
             borderwidth=1,
             orientation="v",
             bgcolor="rgba(255,255,255,0.9)",
-            font=dict(size=11),
-            # Consistent legend-group header style across all figures (size 14,
-            # black) — the Data Analysis legend-title convention.
-            grouptitlefont=dict(size=14, color='black'),
+            font=dict(size=13),
+            # Consistent legend-group header style across all figures — the Data
+            # Analysis legend-title convention.
+            grouptitlefont=dict(size=15, color='black'),
             itemsizing='constant',
             groupclick="toggleitem",
         ),
