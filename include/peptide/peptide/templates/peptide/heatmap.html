@@ -695,6 +695,11 @@ function _updateAaTilesState() {
 // ── Upload ────────────────────────────────────────────────────────
 let selectedMergedFile = null;
 let selectedFastaFile  = null;
+// True once merged data is loaded into the session by ANY path (direct upload,
+// example, or Transfer from Data Transformation). Lets a FASTA picked after a
+// transfer — where there is no client-side merged File to re-POST — be applied
+// to the saved session data instead of being silently dropped.
+let hmDataLoaded = false;
 
 function setupDropZone(zoneId, inputId, fileNameId, onFile) {
     const zone  = document.getElementById(zoneId);
@@ -724,7 +729,14 @@ setupDropZone('merged-upload-zone', 'merged-file-input', 'merged-file-name', f =
 });
 setupDropZone('fasta-upload-zone', 'fasta-file-input', 'fasta-file-name', f => {
     selectedFastaFile = f;
-    if (selectedMergedFile) doUpload();
+    if (selectedMergedFile) {
+        // Merged file is a client File — re-upload both together (attaches FASTA).
+        doUpload();
+    } else if (hmDataLoaded) {
+        // Merged data already in the session with no client File to re-POST
+        // (e.g. transferred from Data Transformation) — apply the FASTA to it.
+        applyFasta(f);
+    }
 });
 
 // Reflect (or clear) the FASTA dropzone display for a server-side FASTA that was
@@ -796,7 +808,49 @@ async function doUpload() {
     enableStep2();
 }
 
+// Apply a FASTA to merged data already loaded in the session (used when there
+// is no client-side merged File to re-POST, e.g. after Transfer from Data
+// Transformation). Refreshes the protein selector's has_sequence flags in place
+// so the generate step uses the uploaded sequences instead of a UniProt lookup.
+async function applyFasta(file) {
+    const status  = document.getElementById('upload-status');
+    const spinner = document.getElementById('upload-spinner');
+    spinner.classList.remove('hidden');
+    const fd = new FormData();
+    fd.append('fasta_file', file);
+    let resp;
+    try {
+        resp = await fetch('/heatmap/apply-fasta/', {
+            method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, body: fd,
+        });
+    } catch(e) {
+        showStatus(status, `Network error: ${e.message}`, 'error');
+        spinner.classList.add('hidden');
+        return;
+    }
+    const data = await resp.json();
+    spinner.classList.add('hidden');
+    if (!resp.ok || data.error) {
+        appendStatus(status, `<strong>FASTA error:</strong> ${data.error}`, 'error');
+        return;
+    }
+    // Update has_sequence flags on the existing options (preserve selections).
+    const sel = document.getElementById('protein-selector');
+    const seqMap = {};
+    (data.proteins || []).forEach(p => { seqMap[p.id] = p.has_sequence; });
+    Array.from(sel.options).forEach(opt => {
+        if (seqMap[opt.value] === true) delete opt.dataset.hasSequence;
+        else if (seqMap[opt.value] === false) opt.dataset.hasSequence = 'false';
+    });
+    setHmFastaDisplay(file.name);
+    appendStatus(status,
+        `✅ FASTA <strong>${data.filename}</strong> applied — ` +
+        `${data.sequences_applied} sequence(s) matched to your proteins.`,
+        data.sequences_applied ? 'success' : 'warning');
+}
+
 function populateSelectors(data) {
+    hmDataLoaded = true;
     const protSel = document.getElementById('protein-selector');
     protSel.innerHTML = '';
     data.proteins.forEach(p => {

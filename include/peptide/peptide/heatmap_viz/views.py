@@ -287,6 +287,65 @@ def fetch_sequence(request):
 
 
 # ---------------------------------------------------------------------------
+# Apply a FASTA to already-loaded session data
+# ---------------------------------------------------------------------------
+
+@require_POST
+def apply_fasta(request):
+    """Apply an uploaded FASTA to the merged data already in the session.
+
+    The /upload/ endpoint attaches a FASTA only when the merged file is POSTed
+    with it. But when the merged data was loaded without a client-side File
+    object — e.g. transferred from Data Transformation — re-POSTing the merged
+    file isn't possible, so a FASTA picked afterwards would otherwise be dropped
+    and the app would fall back to (often failing) UniProt lookups. This merges
+    the FASTA sequences into the saved protein_dict and returns refreshed
+    protein options so the selector's has_sequence flags update in place.
+    """
+    fasta_file = request.FILES.get('fasta_file')
+    if not fasta_file:
+        return JsonResponse({'error': 'No FASTA file uploaded.'}, status=400)
+
+    work_dir = request.session.get('hm_work_dir')
+    if not work_dir:
+        return JsonResponse({'error': 'No session. Please load data first.'}, status=400)
+
+    merged_df = _load_df(work_dir, 'merged_df')
+    if merged_df is None or 'Protein' not in merged_df.columns:
+        return JsonResponse({'error': 'No merged data in session. Please load data first.'}, status=400)
+
+    protein_dict = _load_json(work_dir, 'protein_dict') or {}
+    group_data_dict = _load_json(work_dir, 'group_data_dict') or {}
+    col_order = _load_json(work_dir, 'col_order') or []
+
+    merged_pids = set(merged_df['Protein'].unique())
+    fasta_proteins, fasta_err = data_processor.load_fasta_file(fasta_file, merged_pids)
+    if fasta_err:
+        return JsonResponse({'error': f'FASTA error: {fasta_err}'}, status=400)
+
+    applied = 0
+    for pid, pdata in fasta_proteins.items():
+        if pid in protein_dict:
+            protein_dict[pid].update(pdata)
+        else:
+            protein_dict[pid] = pdata
+        if pdata.get('sequence'):
+            applied += 1
+
+    _save_json(work_dir, 'protein_dict', protein_dict)
+
+    options = data_processor.get_selector_options(
+        merged_df, group_data_dict, protein_dict, col_order
+    )
+    return JsonResponse({
+        'success': True,
+        'filename': fasta_file.name,
+        'sequences_applied': applied,
+        'proteins': options['proteins'],
+    })
+
+
+# ---------------------------------------------------------------------------
 # Get specific options (for bio_or_pep dropdown)
 # ---------------------------------------------------------------------------
 
