@@ -217,7 +217,116 @@ def calculate_signed_y_ticks(min_value, max_value):
     return [-m, 0.0, m]
 
 
-def calculate_abundance(protein_sequence, peptide_dataframe, grouping_variable, strip_offset=0):
+_NON_AA_RE = re.compile(r'[^A-Za-z]')
+
+
+def _resolve_index_range(start_val, end_val, sequence_length, position_offset=0):
+    """
+    Map a dataset peptide interval onto 0-based indices of the sequence as
+    plotted, applying ``position_offset``.
+
+    ``position_offset`` is the number of residues that were removed from the
+    FRONT of the sequence *and* that the dataset's own numbering still
+    counts. It is 0 when the dataset is already numbered from the mature
+    protein (its position 1 == plotted residue 1) and ``strip_len`` when the
+    dataset is numbered from the full precursor (its position 1 == the first
+    residue of the signal peptide, which is no longer plotted). See
+    :func:`detect_dataset_numbering`.
+
+    Returns ``(start_idx, stop_idx)``, or ``(None, None)`` when the peptide
+    lies entirely outside the plotted sequence. A peptide straddling the
+    cleavage site is clipped to the part that survives.
+    """
+    start_idx = start_val - 1 - position_offset
+    stop_idx = end_val - position_offset
+    if stop_idx <= 0 or start_idx >= sequence_length or start_idx >= stop_idx:
+        return None, None
+    start_idx = max(start_idx, 0)
+    stop_idx = min(stop_idx, sequence_length)
+    if start_idx >= stop_idx:
+        return None, None
+    return start_idx, stop_idx
+
+
+def detect_dataset_numbering(full_sequence, peptide_dataframe, strip_len):
+    """
+    Decide whether the dataset's peptide positions are numbered against the
+    FULL precursor sequence or against the mature (signal-peptide-removed)
+    sequence, so "Strip start sequence" can serve both real-world cases:
+
+    * **'precursor'** — positions already line up with the untrimmed FASTA
+      (the plot is correctly aligned *before* stripping). The user only wants
+      the signal peptide gone to compact the figure, so every peptide must be
+      renumbered down by ``strip_len`` to stay put → ``position_offset = strip_len``.
+    * **'mature'** — positions are numbered from the mature protein while the
+      FASTA still carries the signal peptide (the plot is misaligned *before*
+      stripping). Trimming the sequence alone fixes it; positions must NOT
+      move → ``position_offset = 0``.
+
+    Detection is exact when the dataset carries a ``Sequence`` column: each
+    peptide's own letters are compared against both hypotheses and the
+    better-matching one wins. Without that column it falls back to bounds
+    heuristics.
+
+    Returns ``(numbering, reason)`` where numbering is 'precursor' or 'mature'.
+    """
+    trimmed = full_sequence[strip_len:]
+    if strip_len <= 0:
+        return 'mature', 'no residues stripped'
+    if 'start' not in peptide_dataframe.columns or 'end' not in peptide_dataframe.columns:
+        return 'mature', 'no start/end columns'
+
+    # --- exact test: compare each peptide's own letters under both hypotheses
+    if 'Sequence' in peptide_dataframe.columns:
+        precursor_hits = mature_hits = 0
+        for _, row in peptide_dataframe.iterrows():
+            pep = row.get('Sequence')
+            if not isinstance(pep, str) or not pep.strip():
+                continue
+            try:
+                s = int(row['start'])
+                e = int(row['end'])
+            except (TypeError, ValueError):
+                continue
+            expected = _NON_AA_RE.sub('', pep).upper()
+            if not expected:
+                continue
+            if 0 <= s - 1 and e <= len(full_sequence) \
+                    and full_sequence[s - 1:e].upper() == expected:
+                precursor_hits += 1
+            if 0 <= s - 1 and e <= len(trimmed) \
+                    and trimmed[s - 1:e].upper() == expected:
+                mature_hits += 1
+        if precursor_hits or mature_hits:
+            if precursor_hits > mature_hits:
+                return 'precursor', (
+                    f'{precursor_hits} peptide sequence(s) match the full precursor numbering '
+                    f'(vs {mature_hits} for mature numbering)')
+            return 'mature', (
+                f'{mature_hits} peptide sequence(s) match the mature-protein numbering '
+                f'(vs {precursor_hits} for precursor numbering)')
+
+    # --- fallback: no usable Sequence column, reason from the position bounds
+    starts = pd.to_numeric(peptide_dataframe['start'], errors='coerce').dropna()
+    ends = pd.to_numeric(peptide_dataframe['end'], errors='coerce').dropna()
+    if ends.empty or starts.empty:
+        return 'mature', 'no usable positions'
+    if int(ends.max()) > len(trimmed):
+        # Positions run past the end of the trimmed sequence, so they cannot
+        # be numbered against it — they must be precursor coordinates.
+        return 'precursor', (
+            f'peptide positions run to {int(ends.max())}, past the {len(trimmed)}-residue '
+            'mature sequence, so they must be numbered against the full precursor')
+    if int(starts.min()) <= strip_len:
+        # A peptide starting inside the (cleaved) signal-peptide region only
+        # makes sense if positions are mature-numbered.
+        return 'mature', (
+            f'a peptide starts at position {int(starts.min())}, inside the {strip_len}-residue '
+            'stripped region, so positions must be mature-numbered')
+    return 'mature', 'ambiguous without a Sequence column — assumed mature-protein numbering'
+
+
+def calculate_abundance(protein_sequence, peptide_dataframe, grouping_variable, position_offset=0):
     protein_sequence_length = len(protein_sequence)
     data = []
     col_names = []
@@ -227,12 +336,12 @@ def calculate_abundance(protein_sequence, peptide_dataframe, grouping_variable, 
         try:
             start_val = int(row['start'])
             end_val = int(row['end'])
-            start_idx = start_val - 1 - strip_offset
-            stop_idx = end_val - strip_offset
-            if stop_idx <= 0:
-                # Peptide falls entirely inside the stripped region.
+            # position_offset renumbers dataset positions onto protein_sequence
+            # (see _resolve_index_range / detect_dataset_numbering).
+            start_idx, stop_idx = _resolve_index_range(
+                start_val, end_val, protein_sequence_length, position_offset)
+            if start_idx is None:
                 continue
-            start_idx = max(start_idx, 0)
             abundance_value = row[Avg_column]
 
             values = [0] * protein_sequence_length
@@ -281,12 +390,99 @@ def calculate_abundance(protein_sequence, peptide_dataframe, grouping_variable, 
     return abundance_df
 
 
+def validate_peptide_alignment(protein_sequence, peptide_dataframe, position_offset=0,
+                               protein_id=None, max_examples=5):
+    """
+    Sanity-check that peptide start/end positions actually land inside
+    ``protein_sequence`` (the sequence as it will be plotted — already
+    trimmed by "Strip start sequence" if that setting is on), and, when the
+    dataset carries the peptide's own ``Sequence`` text, that the residues
+    at that position match it.
+
+    ``position_offset`` is applied exactly as in the drawing functions (see
+    :func:`_resolve_index_range`), so this validates what will actually be
+    plotted rather than the raw dataset coordinates.
+
+    This is the single place that flags a misaligned dataset (wrong manual
+    offset, wrong UniProt signal-peptide length, or a FASTA that doesn't
+    match the dataset's numbering at all) so users get one clear message
+    instead of peptides silently disappearing from or misplaced on the plot.
+
+    Returns a list with zero or one human-readable error string (a single
+    summary, not one line per peptide, so a systematic mismatch doesn't
+    flood the UI).
+    """
+    if 'start' not in peptide_dataframe.columns or 'end' not in peptide_dataframe.columns:
+        return []
+
+    protein_sequence_length = len(protein_sequence)
+    has_seq_col = 'Sequence' in peptide_dataframe.columns
+
+    out_of_range = 0
+    mismatched = 0
+    examples = []
+
+    for _, row in peptide_dataframe.iterrows():
+        try:
+            start_val = int(row['start'])
+            end_val = int(row['end'])
+        except (TypeError, ValueError):
+            continue
+
+        raw_start_idx = start_val - 1 - position_offset
+        start_idx, stop_idx = _resolve_index_range(
+            start_val, end_val, protein_sequence_length, position_offset)
+
+        if start_idx is None:
+            if position_offset and end_val - position_offset <= 0:
+                # Peptide lies entirely within the stripped signal peptide —
+                # expected to disappear, not a misalignment.
+                continue
+            out_of_range += 1
+            if len(examples) < max_examples:
+                examples.append(
+                    f"{start_val}-{end_val} falls outside the {protein_sequence_length}-"
+                    "residue sequence"
+                )
+            continue
+
+        if raw_start_idx < 0:
+            # Straddles the cleavage site: only part of it survives the trim,
+            # so its letters can't match the full peptide. Expected, skip.
+            continue
+
+        if has_seq_col:
+            peptide_seq = row.get('Sequence')
+            if isinstance(peptide_seq, str) and peptide_seq.strip():
+                expected = _NON_AA_RE.sub('', peptide_seq).upper()
+                actual = protein_sequence[start_idx:stop_idx].upper()
+                if expected and expected != actual:
+                    mismatched += 1
+                    if len(examples) < max_examples:
+                        examples.append(f"{start_val}-{end_val} is '{actual}', expected '{expected}'")
+
+    total = out_of_range + mismatched
+    if not total:
+        return []
+
+    label = f" for {protein_id}" if protein_id else ""
+    more = f"; +{total - len(examples)} more" if total > len(examples) else ""
+    return [
+        f"Error: {total} peptide position(s){label} do not align with the protein "
+        f"sequence ({'; '.join(examples)}{more}). The amino acid position in the "
+        "dataset appears misaligned with the FASTA/UniProt sequence — check the "
+        "Strip Start Sequence value (or the UniProt signal-peptide length) against "
+        "the numbering used in your dataset."
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Differential-comparison track (SMD / log2FC). See
 # manuscript/docs/HEATMAP_DIFFERENTIAL_STATS.md.
 # ---------------------------------------------------------------------------
 
-def calculate_replicate_position_means(protein_sequence, peptide_dataframe, replicate_columns, strip_offset=0):
+def calculate_replicate_position_means(protein_sequence, peptide_dataframe, replicate_columns,
+                                       position_offset=0):
     """Per-position mean abundance for each replicate column.
 
     For every replicate column, each peptide paints its abundance across the
@@ -312,14 +508,14 @@ def calculate_replicate_position_means(protein_sequence, peptide_dataframe, repl
         painted = []
         for _, row in peptide_dataframe.iterrows():
             try:
-                start_idx = int(row['start']) - 1 - strip_offset
-                stop_idx = int(row['end']) - strip_offset
+                start_idx, stop_idx = _resolve_index_range(
+                    int(row['start']), int(row['end']), seq_len, position_offset)
             except (KeyError, ValueError, TypeError):
                 continue
-            if stop_idx <= 0:
-                # Peptide falls entirely inside the stripped region.
+            if start_idx is None:
+                # Falls outside the plotted sequence — already surfaced by
+                # validate_peptide_alignment().
                 continue
-            start_idx = max(start_idx, 0)
             val = pd.to_numeric(row.get(rep), errors='coerce')
             if not (pd.notna(val) and val > 0):
                 continue
@@ -362,7 +558,7 @@ def calculate_contrast_track(means_a, means_b, metric='smd', eps=0.0):
     return out
 
 
-def calculate_function(protein_sequence, peptide_dataframe, grouping_variable, strip_offset=0):
+def calculate_function(protein_sequence, peptide_dataframe, grouping_variable, position_offset=0):
     protein_sequence_length = len(protein_sequence)
     data = []
     col_names = []
@@ -370,14 +566,12 @@ def calculate_function(protein_sequence, peptide_dataframe, grouping_variable, s
     for _, row in peptide_dataframe.iterrows():
         start_val = int(row['start'])
         end_val = int(row['end'])
-        start_idx = start_val - 1 - strip_offset
-        stop_idx = end_val - strip_offset
-        if stop_idx <= 0:
-            # Peptide falls entirely inside the stripped region.
+        start_idx, stop_idx = _resolve_index_range(
+            start_val, end_val, protein_sequence_length, position_offset)
+        if start_idx is None:
+            # Falls outside the plotted sequence — already surfaced by
+            # validate_peptide_alignment().
             continue
-        start_idx = max(start_idx, 0)
-        if stop_idx > protein_sequence_length:
-            stop_idx -= 1
 
         function_value = row['function'] if 'function' in peptide_dataframe.columns else np.nan
 
@@ -400,14 +594,16 @@ def calculate_function(protein_sequence, peptide_dataframe, grouping_variable, s
 
 def export_heatmap_data_to_dict(protein_id, group_key, group_info, protein_sequence,
                                protein_species, protein_name, protein_df, is_all_null,
-                               strip_offset=0):
+                               position_offset=0):
     """
     Exports the heatmap data to a dictionary based on filter type.
 
-    protein_sequence is expected already trimmed by strip_offset (the caller
-    slices it before this point); strip_offset is passed through separately
-    so the index math against protein_df's un-shifted start/end columns
-    lines up with the shorter sequence.
+    protein_sequence is exactly what gets plotted — the full FASTA/UniProt
+    sequence, or the "Strip start sequence" reduced sequence (front N
+    residues physically removed by the caller) when that setting is on.
+    position_offset renumbers protein_df's start/end onto that sequence: 0
+    when the dataset is already numbered from the mature protein, strip_len
+    when it is numbered from the full precursor. See detect_dataset_numbering.
     """
     grouping_var = group_info['grouping_variable']
     relevant_columns = group_info['abundance_columns']
@@ -429,9 +625,12 @@ def export_heatmap_data_to_dict(protein_id, group_key, group_info, protein_seque
             filtered_df = filtered_protein_df[['start', 'end', 'function']]
 
     # Calculate the heatmap data
-    func_heatmap_df = calculate_function(protein_sequence, filtered_df, grouping_var, strip_offset=strip_offset)
-    heatmap_df = calculate_abundance(protein_sequence, protein_df, grouping_var, strip_offset=strip_offset)
-    filtered_heatmap_df = calculate_abundance(protein_sequence, filtered_protein_df, grouping_var, strip_offset=strip_offset)
+    func_heatmap_df = calculate_function(
+        protein_sequence, filtered_df, grouping_var, position_offset=position_offset)
+    heatmap_df = calculate_abundance(
+        protein_sequence, protein_df, grouping_var, position_offset=position_offset)
+    filtered_heatmap_df = calculate_abundance(
+        protein_sequence, filtered_protein_df, grouping_var, position_offset=position_offset)
 
     # Create the dictionary to store the results
     heatmap_data = {
@@ -747,10 +946,10 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                 try:
                     means_a = calculate_replicate_position_means(
                         va['protein_sequence'], va['peptide_df'], va['replicate_columns'],
-                        strip_offset=va.get('strip_offset', 0))
+                        position_offset=va.get('position_offset', 0))
                     means_b = calculate_replicate_position_means(
                         vb['protein_sequence'], vb['peptide_df'], vb['replicate_columns'],
-                        strip_offset=vb.get('strip_offset', 0))
+                        position_offset=vb.get('position_offset', 0))
                     track = calculate_contrast_track(means_a, means_b, metric=metric)
                     finite = track[np.isfinite(track)]
                     if finite.size == 0:
@@ -1795,13 +1994,29 @@ def visualize_sequence_heatmap_interactive(
     legend_names_shown = set()   # show each legend entry once, figure-wide
 
     # ── compact left-side labelling for tall wrapped portraits ────────────────
-    # When a long protein wraps into many stacked bands, repeating the numeric
-    # y-tick ladder and the per-variable ("High NE" / "Low NE") row labels on
-    # every band packs them so tightly they overrun into an illegible column.
-    # Mirror the compact renderer: label the axis and each variable ONCE (on the
-    # top band), letting position alone carry the identity of every band below.
-    # Landscape (n_chunks == 1) and short portraits keep per-band labels.
-    compact_labels = is_portrait and n_chunks > 2
+    # When a long protein wraps into many stacked bands, repeating the
+    # per-variable ("High NE" / "Low NE") row label on every band packs them
+    # so tightly they overrun into an illegible column. At 1-4 bands the
+    # repetition is harmless (arguably clearer, if redundant) and stays on
+    # every band; from 5 bands on it's dropped down to ONE label (on the top
+    # band), letting position alone carry the identity of every band below.
+    # Landscape (always n_chunks == 1) always keeps its per-band label.
+    compact_labels = is_portrait and n_chunks > 4
+
+    # Per-band x-axis tick-label font: a fixed size reads fine for a handful
+    # of bands, but a long protein wraps into dozens of stacked bands, each
+    # repeating its own position ladder — shrink the font as bands accumulate
+    # so the figure doesn't get visually noisy. Floors at 8px. Landscape is
+    # always a single band, so it keeps the base size.
+    _x_tick_font_size = max(8, 12 - (n_chunks - 1) // 3) if is_portrait else 12
+
+    # Peptide-count row ("High NE" / "Low NE") label font: same reasoning —
+    # at 1-4 bands compact_labels is off so the label repeats on EVERY band,
+    # and each repeat is drawn at a fixed pixel distance from the plot edge
+    # regardless of band count, so more bands means more of these labels
+    # packed down the same-width left margin. Shrink it in step with the
+    # x-axis tick font so the two stay visually consistent.
+    _var_label_font_size = max(8, 12 - (n_chunks - 1) // 3) if is_portrait else 12
 
     # ══════════════════════════════════════════════════════════════════════════
     # RENDER — draw every band by slicing the precomputed traces to its window.
@@ -1841,10 +2056,13 @@ def visualize_sequence_heatmap_interactive(
 
         # line-plot y-axis (abundance) — one per band. The axis TITLE is drawn
         # once as a single figure-level label (below) rather than repeated on
-        # every band; only the tick values (needed to read each band) repeat —
-        # except in compact mode, where the shared scale is labelled once on the
-        # top band and every band still carries gridlines + the zero reference.
-        _show_yticklabels = (not compact_labels) or (c == 0)
+        # every band. Portrait mirrors the Compact renderer: numeric tick
+        # labels are dropped from EVERY band (they'd repeat down dozens of
+        # stacked bands for a long protein) and shown once instead as
+        # Min/Mid/Max entries in the legend — see below. Every band still
+        # carries gridlines at the same three values plus the zero reference
+        # in comparison mode. Landscape (single band) keeps its on-axis ticks.
+        _show_yticklabels = not is_portrait
         fig.update_yaxes(
             title=None,
             type=lp_type, range=lp_range,
@@ -1936,7 +2154,7 @@ def visualize_sequence_heatmap_interactive(
                     text=spec['label'], xref='paper', yref='paper',
                     x=0, y=row_y_center[hm_row_num - 1], xshift=-6,
                     xanchor='right', yanchor='middle',
-                    showarrow=False, font=dict(size=12),
+                    showarrow=False, font=dict(size=_var_label_font_size),
                 )
 
         # ── per-band x-axis: absolute-position ladder on the band's bottom row ─
@@ -1959,7 +2177,7 @@ def visualize_sequence_heatmap_interactive(
                 # x-axis TITLE only on the final band; every band shows its ladder.
                 title = dict(text=x_label_str, font=dict(size=14)) if c == n_chunks - 1 else None
                 fig.update_xaxes(
-                    title=title, dtick=20, tick0=0, tickfont=dict(size=12),
+                    title=title, dtick=20, tick0=0, tickfont=dict(size=_x_tick_font_size),
                     showticklabels=True, **x_common, row=r, col=1,
                 )
             else:
@@ -1979,8 +2197,14 @@ def visualize_sequence_heatmap_interactive(
     # left-side label and pin the title a FIXED pixel distance from the figure's
     # left edge via `xshift`, making it width-invariant.
     _max_label_len = max((len(str(s['label'])) for s in hm_specs), default=0)
-    _var_label_px  = _max_label_len * 7.2 + 6      # sample names on tile rows (font 12)
-    _tick_label_px = 54                            # abundance ticks e.g. "1.8e+08"
+    # px-per-char scales with the actual label font (7.2 is the measured
+    # width at the base size 12; _var_label_font_size shrinks it for tall
+    # wrapped portraits, see above) so the reserved margin tracks the font.
+    _var_label_px  = _max_label_len * (7.2 * _var_label_font_size / 12) + 6
+    # Abundance ticks e.g. "1.8e+08" — Landscape only; Portrait drops them
+    # from the axis entirely (moved to the legend, see below) so it doesn't
+    # need this reserved.
+    _tick_label_px = 0 if is_portrait else 54
     _label_zone_px = max(_var_label_px, _tick_label_px)
     _ytitle_px     = 28                            # rotated title band width (font 15)
     left_margin    = int(min(300, max(90, _ytitle_px + 14 + _label_zone_px)))
@@ -2022,8 +2246,26 @@ def visualize_sequence_heatmap_interactive(
             legendgrouptitle=dict(text=legend_title_pep),
         ))
 
-    # Abundance tick values are shown directly on the y-axis of row 1;
-    # no need to duplicate them in the legend.
+    # ── legend: abundance/contrast scale reference (Portrait only) ───────────
+    # Landscape shows Min/Mid/Max directly as numeric y-axis ticks (a single
+    # band, so no repetition concern). Portrait can wrap a long protein into
+    # dozens of bands, so — mirroring the Compact renderer's legend-based
+    # abundance scale — those per-band numeric ticks are dropped (see the
+    # y-axis update above) and shown once here instead.
+    if is_portrait:
+        _abun_legend_title = (
+            f"{_ytitle}:" if contrast_is_active
+            else (legend_title[2] if len(legend_title) > 2 else 'Average Abundance:')
+        )
+        for tick_val, tick_lbl in zip([tick1, tick2, tick3], ['Min', 'Mid', 'Max']):
+            fig.add_trace(go.Scatter(
+                x=[None], y=[None], mode='markers',
+                marker=dict(size=10, symbol='line-ew', color='black', line=dict(width=2)),
+                name=f"{tick_lbl}: {_fmt_tick(tick_val)}",
+                showlegend=True,
+                legendgroup='abundance_ticks',
+                legendgrouptitle=dict(text=_abun_legend_title),
+            ))
 
     # ── overall layout ────────────────────────────────────────────────────────
     # No figure title: the protein is already named by the "<name> Sequence"

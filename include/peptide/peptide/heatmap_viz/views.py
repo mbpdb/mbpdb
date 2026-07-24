@@ -391,6 +391,34 @@ def get_specific_options(request):
 
 
 # ---------------------------------------------------------------------------
+# "Strip start sequence" — UniProt signal-peptide suggestion
+# ---------------------------------------------------------------------------
+
+@require_POST
+def signal_peptide_info(request):
+    """
+    Return the UniProt-annotated signal-peptide suggestion (position + amino
+    acid letters) for each requested protein, so the "Strip start sequence"
+    UI can show the user what it would auto-detect next to the manual
+    residue-count override.
+    POST body (JSON): {"selected_proteins": ["P12345", ...]}
+    """
+    try:
+        body = json.loads(request.body)
+        selected_proteins = body.get('selected_proteins', [])
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON body.'}, status=400)
+
+    work_dir = request.session.get('hm_work_dir')
+    if not work_dir:
+        return JsonResponse({'error': 'No session. Please upload a file first.'}, status=400)
+
+    protein_dict = _load_json(work_dir, 'protein_dict') or {}
+    suggestions = data_processor.get_signal_peptide_suggestions(protein_dict, selected_proteins)
+    return JsonResponse({'suggestions': suggestions})
+
+
+# ---------------------------------------------------------------------------
 # Plot endpoint
 # ---------------------------------------------------------------------------
 

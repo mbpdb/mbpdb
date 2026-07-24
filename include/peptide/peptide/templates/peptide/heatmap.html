@@ -251,7 +251,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             <label class="checkbox-row" style="font-weight:600; font-size:.92rem;"
                    title="Overlay a signed effect-size line (Series A vs Series B) on the density heatmap instead of the abundance line. Requires replicate-level (Grouped) data.">
                 <input type="checkbox" id="comparison-mode" disabled>
-                <i class="fas fa-code-compare"></i> Differential comparison (SMD / log2FC)
+                <i class="fas fa-code-compare"></i> Plot Differential Comparison (SMD / log2FC)
             </label>
             <small id="comparison-banner" class="text-muted" style="display:block; margin-top:4px;">
                 Requires replicate-level <code>'Grouped:'</code> columns (per-replicate abundances) alongside each <code>Avg_</code> column. Upload such a file to enable a between-group effect-size track.
@@ -352,18 +352,20 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                     <label class="checkbox-row" title="Print the amino-acid letter on each sample's tiles (instead of the shared strip) — useful for comparing proteins or variants.">
                         <input type="checkbox" id="aa-on-tiles" disabled> Show amino acid sequence on tiles
                     </label>
-                    <label class="checkbox-row" title="Trim the protein's N-terminal signal peptide before rendering, so positions and coverage are numbered from the mature protein. Uses UniProt's annotated signal-peptide length per protein by default; enter a residue count below to override it for all selected proteins.">
+                    <label class="checkbox-row" title="Trim the protein's N-terminal signal peptide off the front of the sequence before rendering, so the map shows the mature protein and dataset position 1 lines up with residue 1 of that reduced sequence. Uses UniProt's annotated signal-peptide length per protein by default; enter a residue count below to override it (works for custom protein lists with no UniProt record too — just not automatically cross-checkable in that case).">
                         <input type="checkbox" id="strip-start-sequence" disabled> Strip start sequence
                     </label>
                 </div>
 
-                <!-- Strip start sequence — manual override (conditional) -->
+                <!-- Strip start sequence — manual residue-count override (conditional) -->
                 <div id="strip-start-manual-row" style="display:flex; align-items:center; gap:8px; margin-top:6px;">
                     <label style="font-size:.88rem; color:#666;" for="strip-start-manual">Residues to strip</label>
                     <input type="number" id="strip-start-manual" min="0" step="1" disabled
                            placeholder="Auto (UniProt signal peptide)"
                            style="width:210px; border:1px solid #ced4da; border-radius:4px; padding:3px 6px; font-size:.88rem;">
                 </div>
+                <!-- UniProt signal-peptide suggestion for the currently selected protein(s) -->
+                <div id="strip-start-suggestion" style="font-size:.82rem; color:#666; margin-top:4px; margin-left:2px;"></div>
 
                 <!-- Manual Y-axis inputs (conditional) -->
                 <div id="manual-y-inputs" class="hidden" style="margin-top:6px;">
@@ -733,6 +735,52 @@ function _updateStripStartState() {
     setControlEnabled(input, !!(cb && cb.checked), {
         row: document.getElementById('strip-start-manual-row'),
     });
+    updateStripStartSuggestion();
+}
+
+// Show what "Strip start sequence" would auto-detect for the currently
+// selected protein(s) — UniProt's signal-peptide POSITION plus the actual
+// amino-acid letters at that position (UniProt's API only returns the
+// position; the letters are recovered by slicing the full sequence with it
+// server-side). Lets the user confirm the manual override — or the auto
+// value — actually corresponds to a real signal peptide before trusting the
+// plotted positions; a per-protein mismatch is also flagged as a plot error
+// by the backend if a manual value is set (see the "Strip Start Sequence"
+// messages returned from /heatmap/plot/).
+async function updateStripStartSuggestion() {
+    const box = document.getElementById('strip-start-suggestion');
+    const cb  = document.getElementById('strip-start-sequence');
+    if (!box) return;
+    if (!cb || !cb.checked) { box.innerHTML = ''; return; }
+
+    const selectedProteins = getMultiSelectValues(document.getElementById('protein-selector'));
+    if (!selectedProteins.length) { box.innerHTML = ''; return; }
+
+    let data;
+    try {
+        const resp = await fetch('/heatmap/signal-peptide-info/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ selected_proteins: selectedProteins }),
+        });
+        data = await resp.json();
+    } catch (e) {
+        box.innerHTML = '';
+        return;
+    }
+    const suggestions = (data && data.suggestions) || [];
+    if (!suggestions.length) { box.innerHTML = ''; return; }
+
+    const lines = suggestions.map(s => {
+        if (s.has_signal) {
+            const seq = s.signal_sequence || '';
+            const shown = seq.length > 25 ? seq.slice(0, 25) + '…' : seq;
+            return `<b>${s.protein_id}</b> (${s.name}): UniProt signal peptide — `
+                 + `${s.signal_end} aa (${shown})`;
+        }
+        return `<b>${s.protein_id}</b> (${s.name}): no UniProt signal peptide annotated`;
+    });
+    box.innerHTML = lines.join('<br>');
 }
 
 // ── Upload ────────────────────────────────────────────────────────
@@ -1086,6 +1134,7 @@ document.getElementById('protein-selector').addEventListener('change', async fun
     }
     await applyItemsSelectorState(true);
     refreshComparisonSeries();
+    updateStripStartSuggestion();
 });
 
 document.getElementById('varkey-selector').addEventListener('change', async function() {
@@ -1313,7 +1362,7 @@ async function generateHeatmap() {
     }
 
     if (data.messages && data.messages.length)
-        data.messages.forEach(m => appendStatus(msgs, m, 'info'));
+        data.messages.forEach(m => appendStatus(msgs, m, /^Error:/.test(m) ? 'error' : 'info'));
 
     currentLandscapeB64             = data.landscape;
     currentCompactJson              = data.compact || null;

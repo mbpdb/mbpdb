@@ -315,6 +315,47 @@ def fetch_sequence_from_uniprot(protein_id: str) -> tuple[str | None, int | None
 
 
 # ---------------------------------------------------------------------------
+# "Strip start sequence" — UniProt signal-peptide suggestion for the UI
+# ---------------------------------------------------------------------------
+
+def get_signal_peptide_suggestions(protein_dict: dict, selected_proteins: list) -> list:
+    """
+    Return the UniProt-annotated signal-peptide suggestion for each of
+    ``selected_proteins``, for the "Strip start sequence" UI to display next
+    to the manual residue-count override.
+
+    UniProt's API returns the signal peptide's position (start/end) but not
+    its amino-acid letters directly — those are only recoverable by slicing
+    the full sequence at that position, which is what this does: the letters
+    shown to the user (``signal_sequence``) are ``sequence[:signal_end]``.
+
+    Each entry: {protein_id, name, signal_end, signal_sequence, has_signal}.
+    ``signal_end``/``signal_sequence`` are None when UniProt has no "Signal"
+    feature annotated for that protein, or its sequence hasn't been fetched
+    yet; ``has_signal`` is False in both cases.
+    """
+    out = []
+    for pid in selected_proteins:
+        pinfo = protein_dict.get(pid, {})
+        signal_end = pinfo.get('signal_end')
+        sequence = pinfo.get('sequence', '') or ''
+        signal_sequence = None
+        if signal_end and sequence:
+            try:
+                signal_sequence = sequence[:int(signal_end)]
+            except (TypeError, ValueError):
+                signal_sequence = None
+        out.append({
+            'protein_id': pid,
+            'name': pinfo.get('name', pid),
+            'signal_end': signal_end,
+            'signal_sequence': signal_sequence,
+            'has_signal': signal_end is not None,
+        })
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Get selector options for the UI
 # ---------------------------------------------------------------------------
 
@@ -460,19 +501,38 @@ def build_available_data_variables(
     Build the available_data_variables_dict for the heatmap renderer.
 
     strip_start_sequence / strip_start_manual implement the "Strip start
-    sequence" Appearance-Settings toggle: trim N residues off the front of
-    each protein's sequence (and shift the coverage math accordingly) before
-    rendering, so positions read from the mature protein rather than the
-    precursor. strip_start_manual, when given, overrides the per-protein
-    UniProt-annotated signal-peptide length (protein_dict[pid]['signal_end'])
-    for every selected protein; otherwise each protein uses its own annotated
-    length (0 if none is known).
+    sequence" Appearance-Settings toggle: N residues are physically removed
+    from the FRONT of each protein's sequence before rendering, and the
+    reduced/mature sequence is what gets plotted. The dataset's peptide
+    start/end positions are assumed to already be numbered from that same
+    mature protein (position 1 = the first residue after the signal
+    peptide), so once the sequence is trimmed no further shift is applied —
+    dataset position 1 indexes straight to residue 1 of the reduced
+    sequence.
+
+    N, per selected protein: strip_start_manual — a plain residue COUNT
+    applied to every selected protein — when given; otherwise falls back to
+    each protein's own UniProt-annotated signal-peptide length
+    (protein_dict[pid]['signal_end']), else 0 (no trim). A manual value is
+    cross-checked against protein_dict[pid]['signal_end'] when that's known
+    (see below); for a custom/FASTA-only protein with no UniProt record at
+    all, it's simply unverifiable, which is expected and not flagged as an
+    error.
+
+    Whether peptide positions also have to MOVE is decided per protein by
+    heatmap_renderer.detect_dataset_numbering(), so one checkbox serves both
+    real-world cases: a dataset numbered from the mature protein (trim only,
+    positions stay put — trimming is what fixes the misalignment) and a
+    dataset already aligned to the full precursor (trim AND renumber every
+    peptide down by N, so a purely cosmetic strip cannot introduce a shift).
 
     Returns (available_data_variables_dict, messages).
     """
     # Import from heatmap_renderer (heatmap_viz/services/heatmap_renderer.py)
     try:
-        from .heatmap_renderer import export_heatmap_data_to_dict
+        from .heatmap_renderer import (
+            export_heatmap_data_to_dict, validate_peptide_alignment, detect_dataset_numbering,
+        )
     except ImportError:
         return {}, ['Could not import heatmap_renderer. Check notebook utils path.']
 
@@ -495,38 +555,104 @@ def build_available_data_variables(
             messages.append(f"No sequence found for {protein_id} in protein dictionary or FASTA file.")
             continue
 
-        # "Strip start sequence" — trim the signal peptide (or a manual residue
-        # count) off the front of the sequence before any position math runs.
+        # Filter merged_df for this protein (needed before the strip block so
+        # the numbering detection below can inspect this protein's peptides).
+        protein_df = merged_df[merged_df['Protein'] == protein_id].copy()
+        if protein_df.empty:
+            messages.append(f"No data found for protein {protein_id} in merged data.")
+            continue
+
+        # "Strip start sequence" — trim the signal peptide (or a manual
+        # residue count) off the FRONT of protein_sequence, so the plotted
+        # sequence is the mature protein.
         # A manual override applies to every selected protein; otherwise each
         # protein falls back to its own UniProt-annotated signal-peptide length.
         strip_len = 0
+        # UniProt's own signal-peptide annotation for THIS protein (or None if
+        # it has none, or was never fetched — e.g. a custom protein list
+        # loaded straight from a FASTA with no UniProt lookup at all). Used
+        # both for the auto-strip fallback below and to sanity-check a
+        # manual override against it, when it's actually known.
+        signal_end = pinfo.get('signal_end')
         if strip_start_sequence:
             if strip_start_manual is not None:
                 try:
                     strip_len = max(0, int(strip_start_manual))
                 except (TypeError, ValueError):
                     strip_len = 0
+                # A manual override is one number applied to EVERY selected
+                # protein, so it silently goes stale if the user leaves the
+                # checkbox on after adding/switching to a protein it wasn't
+                # tuned for. Only flag it when there's an actual UniProt
+                # value to contradict — a custom/FASTA-only protein simply
+                # has nothing to cross-check against, which is expected and
+                # not an error.
+                if strip_len:
+                    if signal_end is None:
+                        messages.append(
+                            f"{protein_id} has no UniProt-annotated signal peptide on file, so "
+                            f"the manual Strip Start Sequence value ({strip_len} residue(s)) "
+                            "can't be automatically cross-checked — expected for a custom/"
+                            "FASTA-only protein."
+                        )
+                    elif int(signal_end) != strip_len:
+                        messages.append(
+                            f"Error: the manual Strip Start Sequence value ({strip_len} "
+                            f"residue(s)) does not match {protein_id}'s UniProt-annotated signal "
+                            f"peptide length ({signal_end} residue(s)) — verify this is "
+                            "intentional before trusting the plotted positions."
+                        )
             else:
-                signal_end = pinfo.get('signal_end')
                 if signal_end:
                     try:
                         strip_len = max(0, int(signal_end))
                     except (TypeError, ValueError):
                         strip_len = 0
             strip_len = min(strip_len, len(protein_sequence))
-            if strip_len:
-                protein_sequence = protein_sequence[strip_len:]
 
-        # Filter merged_df for this protein
-        protein_df = merged_df[merged_df['Protein'] == protein_id].copy()
-        if protein_df.empty:
-            messages.append(f"No data found for protein {protein_id} in merged data.")
-            continue
+        # Decide whether stripping also has to RENUMBER the peptides. Two
+        # different real-world datasets both reach this point:
+        #   'mature'    — positions are already numbered from the mature
+        #                 protein, so the FASTA's signal peptide is what made
+        #                 the plot misaligned; trimming alone fixes it and the
+        #                 positions must stay exactly where they are.
+        #   'precursor' — positions already line up with the untrimmed FASTA
+        #                 (the plot was correct before stripping); the strip is
+        #                 purely cosmetic, so every peptide must move down by
+        #                 strip_len to stay on the same residue.
+        position_offset = 0
+        if strip_len:
+            numbering, reason = detect_dataset_numbering(
+                pinfo.get('sequence', ''), protein_df, strip_len)
+            if numbering == 'precursor':
+                position_offset = strip_len
+                messages.append(
+                    f"{protein_id}: peptide positions are numbered against the full precursor "
+                    f"({reason}), so they were shifted down by {strip_len} to stay aligned with "
+                    "the trimmed sequence."
+                )
+            else:
+                messages.append(
+                    f"{protein_id}: peptide positions are numbered from the mature protein "
+                    f"({reason}), so {strip_len} residue(s) were trimmed from the sequence "
+                    "without moving any positions."
+                )
+            protein_sequence = protein_sequence[strip_len:]
 
         is_all_null = (
             'function' not in protein_df.columns
             or protein_df['function'].isna().all()
         )
+
+        # Sanity-check that peptide positions actually land inside the
+        # (already-trimmed, if applicable) protein sequence and, when the
+        # dataset carries the peptide's own sequence text, that the residues
+        # match. Runs once per protein (not per var_key) so a systematic
+        # mismatch isn't repeated.
+        messages.extend(validate_peptide_alignment(
+            protein_sequence, protein_df, position_offset=position_offset,
+            protein_id=protein_id,
+        ))
 
         for var_key in selected_var_keys:
             if var_key not in gvar_to_info:
@@ -539,7 +665,7 @@ def build_available_data_variables(
                 heatmap_data = export_heatmap_data_to_dict(
                     protein_id, group_key, group_info,
                     protein_sequence, protein_species, protein_name,
-                    protein_df, is_all_null, strip_offset=strip_len,
+                    protein_df, is_all_null, position_offset=position_offset,
                 )
             except Exception as exc:
                 messages.append(f"Error processing {protein_id}/{var_key}: {exc}")
@@ -559,10 +685,9 @@ def build_available_data_variables(
                 # Raw peptide rows (with replicate columns) for the differential
                 # track; None-safe downstream when comparison is off.
                 'peptide_df': heatmap_data.get('peptide_df'),
-                # Residues trimmed off the front by "Strip start sequence", so the
-                # differential-comparison track (which re-derives position means
-                # from peptide_df's un-shifted start/end) can apply the same shift.
-                'strip_offset': strip_len,
+                # Residues the differential track must also shift peptide_df's
+                # (un-renumbered) start/end by — see detect_dataset_numbering.
+                'position_offset': position_offset,
                 'heatmap_df': heatmap_data.get('heatmap_df'),
                 'function_heatmap_df': heatmap_data.get('func_heatmap_df'),
                 'filtered_heatmap_df': heatmap_data.get('filtered_heatmap_df'),

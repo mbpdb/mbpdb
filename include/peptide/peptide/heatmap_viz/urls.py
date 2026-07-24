@@ -11,6 +11,7 @@ urlpatterns = [
     path('fetch-sequence/', views.fetch_sequence, name='fetch_sequence'),
     path('apply-fasta/', views.apply_fasta, name='apply_fasta'),
     path('get-specific-options/', views.get_specific_options, name='get_specific_options'),
+    path('signal-peptide-info/', views.signal_peptide_info, name='signal_peptide_info'),
     path('plot/', views.plot, name='plot'),
     path('download-plot/', views.download_plot, name='download_plot'),
     path('download-static/', views.download_static_image, name='download_static_image'),
