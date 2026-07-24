@@ -938,6 +938,8 @@ def _decisions_to_ui(raw_decisions):
             elif action == 'CUSTOM' and data.get('protein_id'):
                 ui[combo] = {'mode': 'custom',
                              'protein_id': data['protein_id'].strip()}
+                if data.get('protein_name'):
+                    ui[combo]['protein_name'] = str(data['protein_name']).strip()
             else:
                 ui[combo] = {'mode': 'asis'}
         else:
@@ -957,6 +959,26 @@ def _decisions_to_ui(raw_decisions):
             else:
                 ui[combo] = {'mode': 'asis'}
     return ui
+
+
+def _apply_custom_names(raw_decisions, protein_dict):
+    """
+    Persist any custom protein name entered alongside a CUSTOM decision into
+    protein_dict, so ``add_protein_info`` picks it up at process time (it only
+    overwrites 'Unknown' cells, and add_protein_info initializes protein_name
+    to 'Unknown' before looking it up). Only the simplified UI format
+    ({combo: {action, protein_id, protein_name}}) carries names; legacy
+    backend-format decisions have no room for one.
+    """
+    for data in (raw_decisions or {}).values():
+        if not isinstance(data, dict) or 'action' not in data:
+            continue
+        if str(data.get('action', '')).upper() != 'CUSTOM':
+            continue
+        protein_id = str(data.get('protein_id', '')).strip()
+        protein_name = str(data.get('protein_name', '')).strip()
+        if protein_id and protein_name:
+            protein_dict.setdefault(protein_id, {})['name'] = protein_name
 
 
 def _merge_uniprot_into_dict(request, protein_dict):
@@ -998,6 +1020,7 @@ def submit_protein_decisions(request):
     decisions = _translate_decisions(raw_decisions)
 
     _merge_uniprot_into_dict(request, protein_dict)
+    _apply_custom_names(raw_decisions, protein_dict)
 
     df = _load_df(work_dir, 'pd_results')
     if df is None:
@@ -1045,14 +1068,17 @@ def download_protein_map(request):
     Download the protein mapping decisions as a reusable JSON key.
     If decisions have been submitted, returns those; otherwise generates a
     template from current combinations using their default decisions.
+
+    Merge/rename groups are folded into ``protein_decisions`` as
+    ``action: "MERGE"`` entries (see protein_handler.merge_groups_as_decisions)
+    so the file has one unified shape instead of a separate array.
     """
     work_dir = _get_work_dir(request)
 
     saved = _load_json(work_dir, 'protein_decisions')
     saved_renames = _load_json(work_dir, 'source_renames') or []
     if saved:
-        output_data = {'version': 2, 'protein_decisions': saved,
-                       'source_renames': saved_renames}
+        protein_decisions = dict(saved)
     else:
         # Generate a template from current combination defaults
         df = _load_df(work_dir, 'pd_results')
@@ -1065,16 +1091,17 @@ def download_protein_map(request):
             protein_handler.get_combination_details(combinations, df, protein_dict)
             if combinations else []
         )
-        template = {}
+        protein_decisions = {}
         for c in combo_details:
             new_ids = [p['id'] for p in c['proteins'] if p.get('default_decision') == 'new']
             all_ids = [p['id'] for p in c['proteins']]
             if not new_ids or new_ids == all_ids:
-                template[c['combo']] = {'action': 'ASIS'}
+                protein_decisions[c['combo']] = {'action': 'ASIS'}
             else:
-                template[c['combo']] = {'action': 'SPLIT', 'protein_ids': new_ids}
-        output_data = {'version': 2, 'protein_decisions': template,
-                       'source_renames': saved_renames}
+                protein_decisions[c['combo']] = {'action': 'SPLIT', 'protein_ids': new_ids}
+
+    protein_decisions.update(protein_handler.merge_groups_as_decisions(saved_renames))
+    output_data = {'version': 3, 'protein_decisions': protein_decisions}
 
     content = json.dumps(output_data, indent=2)
     response = HttpResponse(content, content_type='application/json')
@@ -1087,6 +1114,11 @@ def upload_protein_map(request):
     """
     Upload a previously downloaded protein mapping key JSON and apply it,
     replacing the need to manually configure combinations.
+
+    Accepts the current unified format (merge/rename groups embedded in
+    protein_decisions as ``action: "MERGE"`` entries), the older
+    {version, protein_decisions, source_renames} format, and a flat
+    {combo: decision} file, so previously downloaded keys keep working.
     """
     work_dir = _get_work_dir(request)
 
@@ -1098,8 +1130,6 @@ def upload_protein_map(request):
     except (json.JSONDecodeError, UnicodeDecodeError):
         return JsonResponse({'error': 'Invalid JSON file'}, status=400)
 
-    # Accept both wrapped {version, protein_decisions, source_renames?} and flat
-    # {combo: decision}.
     source_renames = []
     if 'protein_decisions' in content and isinstance(content['protein_decisions'], dict):
         raw_decisions = content['protein_decisions']
@@ -1110,8 +1140,14 @@ def upload_protein_map(request):
     else:
         return JsonResponse({'error': 'Unrecognised mapping file format'}, status=400)
 
+    # Pull any action:"MERGE" entries (current format) out into merge groups;
+    # combine with a legacy top-level source_renames array if present.
+    raw_decisions, embedded_groups = protein_handler.extract_merge_groups(raw_decisions)
+    source_renames = source_renames + embedded_groups
+
     protein_dict = _load_json(work_dir, 'protein_dict') or {}
     _merge_uniprot_into_dict(request, protein_dict)
+    _apply_custom_names(raw_decisions, protein_dict)
 
     _save_json(work_dir, 'protein_decisions', raw_decisions)
     _save_json(work_dir, 'source_renames', source_renames)
@@ -1471,8 +1507,9 @@ def view_export(request, export_type):
 
         elif export_type == 'protein_map':
             saved = _load_json(work_dir, 'protein_decisions')
+            saved_renames = _load_json(work_dir, 'source_renames') or []
             if saved:
-                raw_mapping = saved
+                raw_mapping = dict(saved)
             else:
                 # Generate template from current combinations (mirrors download_protein_map)
                 df = _load_df(work_dir, 'pd_results')
@@ -1492,6 +1529,8 @@ def view_export(request, export_type):
                     else:
                         raw_mapping[c['combo']] = {'action': 'SPLIT', 'protein_ids': new_ids}
 
+            raw_mapping.update(protein_handler.merge_groups_as_decisions(saved_renames))
+
             rows = []
             for combo, decision in raw_mapping.items():
                 if isinstance(decision, dict):
@@ -1500,6 +1539,14 @@ def view_export(request, export_type):
                         details = ', '.join(decision.get('protein_ids', []))
                     elif action in ('NEW', 'CUSTOM'):
                         details = decision.get('protein_id', '')
+                        if action == 'CUSTOM' and decision.get('protein_name'):
+                            details += f" ({decision['protein_name']})"
+                    elif action == 'MERGE':
+                        sources = ', '.join(decision.get('protein_ids', []))
+                        target = decision.get('target_id', '')
+                        if decision.get('target_name'):
+                            target += f" ({decision['target_name']})"
+                        details = f"{sources} -> {target}"
                     else:
                         details = ''
                 else:
@@ -1722,8 +1769,10 @@ def download_all_exports(request):
             _add('column_rename_key.json',
                  json.dumps(column_renames, indent=2).encode('utf-8'))
 
-        saved_decisions = _load_json(work_dir, 'protein_decisions')
-        pm = {'version': 1, 'protein_decisions': saved_decisions or {}}
+        saved_decisions = dict(_load_json(work_dir, 'protein_decisions') or {})
+        saved_renames = _load_json(work_dir, 'source_renames') or []
+        saved_decisions.update(protein_handler.merge_groups_as_decisions(saved_renames))
+        pm = {'version': 3, 'protein_decisions': saved_decisions}
         _add('protein_mapping_key.json', json.dumps(pm, indent=2).encode('utf-8'))
 
     buf.seek(0)

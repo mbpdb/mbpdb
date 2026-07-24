@@ -477,6 +477,23 @@ class TestNoFilterOrientation(unittest.TestCase):
         bar = next(t for t in fig.data if t.type == 'bar')
         self.assertEqual(list(bar.x), ['Total'])
 
+    def test_by_protein_count_bars_are_nonzero(self):
+        # Regression: By Protein + Peptide Count zeroed every stacked segment
+        # because the plotter looked up 'count_relative_to_function' (a function
+        # key) on protein data keyed by 'count_relative_to_protein'. The bars
+        # collapsed to 0 while the floating "Total" labels remained.
+        st = self._state(orientation='By Protein', abs_or_count='Count')
+        fig = plotter.plot_stacked_bar_scaled(st)
+        bar_traces = [t for t in fig.data if t.type == 'bar']
+        # At least one segment per protein must carry a nonzero count.
+        self.assertTrue(any(any(v > 0 for v in t.y) for t in bar_traces))
+        # Stacked segments must sum to each protein's total-count label.
+        totals = next(t for t in fig.data
+                      if t.type == 'scatter' and 'Total' in (t.name or ''))
+        for col, expected in enumerate(totals.y):
+            stacked = sum(t.y[col] for t in bar_traces)
+            self.assertAlmostEqual(stacked, expected, places=6)
+
 
 class TestRelativeMetricNoFilter(unittest.TestCase):
     """Regression: the Relative toggle must apply under No Filter / Both too."""

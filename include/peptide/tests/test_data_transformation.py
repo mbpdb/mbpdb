@@ -1220,6 +1220,17 @@ class TestDecisionsToUi(unittest.TestCase):
         out = self._to_ui({'S1; S2': {'S1': 'CUSTOM:MYID', 'S2': 'REMOVE'}})
         self.assertEqual(out['S1; S2'], {'mode': 'custom', 'protein_id': 'MYID'})
 
+    def test_custom_name_restored(self):
+        out = self._to_ui({'P02666A1; P02666A2': {
+            'action': 'CUSTOM', 'protein_id': 'P02666', 'protein_name': 'Beta-casein'}})
+        self.assertEqual(out['P02666A1; P02666A2'],
+                         {'mode': 'custom', 'protein_id': 'P02666', 'protein_name': 'Beta-casein'})
+
+    def test_custom_without_name_omits_key(self):
+        # Unchanged behavior when no name was entered.
+        out = self._to_ui({'P02666A1; P02666A2': {'action': 'CUSTOM', 'protein_id': 'P02666'}})
+        self.assertNotIn('protein_name', out['P02666A1; P02666A2'])
+
     def test_backend_format_split_restored(self):
         out = self._to_ui({'T1; T2': {'T1': 'NEW', 'T2': 'NEW'}})
         self.assertEqual(out['T1; T2'], {'mode': 'split', 'protein_ids': ['T1', 'T2']})
@@ -1227,6 +1238,46 @@ class TestDecisionsToUi(unittest.TestCase):
     def test_empty_and_malformed_ignored(self):
         self.assertEqual(self._to_ui({}), {})
         self.assertEqual(self._to_ui({'X': 'not-a-dict'}), {})
+
+
+class TestApplyCustomNames(unittest.TestCase):
+    """Custom protein names entered alongside a CUSTOM decision are persisted
+    into protein_dict so add_protein_info fills them in at process time."""
+
+    def setUp(self):
+        from peptide.data_transformation.views import _apply_custom_names
+        self._apply = _apply_custom_names
+
+    def test_custom_name_written_to_protein_dict(self):
+        protein_dict = {}
+        self._apply(
+            {'P02666A1; P02666A2': {'action': 'CUSTOM', 'protein_id': 'P02666',
+                                     'protein_name': 'Beta-casein'}},
+            protein_dict)
+        self.assertEqual(protein_dict['P02666']['name'], 'Beta-casein')
+
+    def test_custom_without_name_leaves_dict_untouched(self):
+        protein_dict = {}
+        self._apply({'A; B': {'action': 'CUSTOM', 'protein_id': 'X'}}, protein_dict)
+        self.assertEqual(protein_dict, {})
+
+    def test_non_custom_actions_ignored(self):
+        protein_dict = {}
+        self._apply({'A; B': {'action': 'SPLIT', 'protein_ids': ['A']}}, protein_dict)
+        self.assertEqual(protein_dict, {})
+
+    def test_legacy_backend_format_ignored(self):
+        # No 'action' key → legacy backend format, which has no room for a name.
+        protein_dict = {}
+        self._apply({'A; B': {'A': 'CUSTOM:X'}}, protein_dict)
+        self.assertEqual(protein_dict, {})
+
+    def test_existing_entry_updated_not_overwritten(self):
+        protein_dict = {'P02666': {'species': 'Bovine'}}
+        self._apply(
+            {'A; B': {'action': 'CUSTOM', 'protein_id': 'P02666', 'protein_name': 'Beta-casein'}},
+            protein_dict)
+        self.assertEqual(protein_dict['P02666'], {'species': 'Bovine', 'name': 'Beta-casein'})
 
 
 def make_beta_casein_df():
@@ -1288,7 +1339,6 @@ class TestApplySourceRenames(unittest.TestCase):
             'sources': ['P02666', 'P02666A1', 'P02666A2'],
             'target_id': 'P02666',
             'target_name': 'Beta-casein',
-            'target_species': 'Bovine',
         }]
 
     def test_variants_unified_to_single_target(self):
@@ -1297,9 +1347,11 @@ class TestApplySourceRenames(unittest.TestCase):
         out, err = protein_handler.apply_source_renames(df, self._merge_group(), protein_dict)
         self.assertIsNone(err)
         beta = out[out['Sequence'].isin(['PPFLQPEVM', 'AAAA', 'BBBB'])]
-        # All three β-casein rows collapse to the canonical accession + name/species
+        # All three β-casein rows collapse to the canonical accession + name
         self.assertTrue((beta['Protein'] == 'P02666').all())
         self.assertTrue((beta['protein_name'] == 'Beta-casein').all())
+        # Species is not tracked by merge/rename groups; existing per-row
+        # values are left untouched (all 'Bovine' in this fixture already).
         self.assertTrue((beta['protein_species'] == 'Bovine').all())
         # Positions rewritten to the target prefix, ranges (and start/end) retained
         pos = dict(zip(out['Sequence'], out['Positions in Proteins']))
@@ -1337,7 +1389,7 @@ class TestApplySourceRenames(unittest.TestCase):
             ],
         })
         groups = [{'sources': ['P02666A1', 'P02666A2'], 'target_id': 'P02666',
-                   'target_name': 'Beta-casein', 'target_species': 'Bovine'}]
+                   'target_name': 'Beta-casein'}]
         out, err = protein_handler.apply_source_renames(df, groups, {})
         self.assertIsNone(err)
         rows = dict(zip(out['Sequence'], out['Protein']))
@@ -1355,13 +1407,21 @@ class TestApplySourceRenames(unittest.TestCase):
     def test_target_name_falls_back_to_protein_dict(self):
         df = make_beta_casein_df()
         protein_dict = {'P02666': {'name': 'Dict Beta-casein', 'species': 'Cow'}}
-        groups = [{'sources': ['P02666A1'], 'target_id': 'P02666',
-                   'target_name': '', 'target_species': ''}]
+        groups = [{'sources': ['P02666A1'], 'target_id': 'P02666', 'target_name': ''}]
         out, err = protein_handler.apply_source_renames(df, groups, protein_dict)
         self.assertIsNone(err)
         row = out[out['Sequence'] == 'BBBB'].iloc[0]
         self.assertEqual(row['protein_name'], 'Dict Beta-casein')
-        self.assertEqual(row['protein_species'], 'Cow')
+        # Species is never written by merge/rename groups, even via protein_dict.
+        self.assertEqual(row['protein_species'], 'Bovine')
+
+    def test_species_column_never_touched(self):
+        df = make_beta_casein_df()
+        protein_dict = {'P02666': {'name': 'Beta-casein', 'species': 'SomeOtherSpecies'}}
+        out, err = protein_handler.apply_source_renames(df, self._merge_group(), protein_dict)
+        self.assertIsNone(err)
+        beta = out[out['Sequence'].isin(['PPFLQPEVM', 'AAAA', 'BBBB'])]
+        self.assertTrue((beta['protein_species'] == 'Bovine').all())
 
     def test_validation_errors(self):
         df = make_beta_casein_df()
@@ -1402,6 +1462,64 @@ class TestDetectRenameConflicts(unittest.TestCase):
         renames = [{'sources': ['P02666A1'], 'target_id': 'P02666'}]
         decisions = {'Q1; Q2': {'action': 'SPLIT', 'protein_ids': ['Q1']}}
         self.assertEqual(protein_handler.detect_rename_conflicts(renames, decisions), [])
+
+
+class TestMergeGroupsAsDecisions(unittest.TestCase):
+    """Unified protein-mapping-key format: merge/rename groups folded into
+    protein_decisions as action:"MERGE" entries, keyed like other combo
+    decisions (sorted, semicolon-joined source accessions)."""
+
+    def test_group_becomes_merge_entry(self):
+        groups = [{'sources': ['P02666A2', 'P02666A1'], 'target_id': 'P02666',
+                   'target_name': 'Beta-casein'}]
+        entries = protein_handler.merge_groups_as_decisions(groups)
+        self.assertEqual(entries, {
+            'P02666A1; P02666A2': {
+                'action': 'MERGE',
+                'protein_ids': ['P02666A2', 'P02666A1'],
+                'target_id': 'P02666',
+                'target_name': 'Beta-casein',
+            }
+        })
+
+    def test_empty_and_invalid_groups_produce_no_entries(self):
+        self.assertEqual(protein_handler.merge_groups_as_decisions([]), {})
+        self.assertEqual(protein_handler.merge_groups_as_decisions(None), {})
+        # Invalid group (no target) is dropped rather than raising here —
+        # validation errors surface through apply_source_renames instead.
+        self.assertEqual(
+            protein_handler.merge_groups_as_decisions([{'sources': ['A'], 'target_id': ''}]), {})
+
+    def test_round_trip_through_extract(self):
+        groups = [{'sources': ['P02666A1', 'P02666A2'], 'target_id': 'P02666',
+                   'target_name': 'Beta-casein'}]
+        entries = protein_handler.merge_groups_as_decisions(groups)
+        combined = {'Q1; Q2': {'action': 'SPLIT', 'protein_ids': ['Q1']}, **entries}
+        remaining, extracted_groups = protein_handler.extract_merge_groups(combined)
+        self.assertEqual(remaining, {'Q1; Q2': {'action': 'SPLIT', 'protein_ids': ['Q1']}})
+        self.assertEqual(extracted_groups, [
+            {'sources': ['P02666A1', 'P02666A2'], 'target_id': 'P02666',
+             'target_name': 'Beta-casein'}
+        ])
+
+    def test_extract_falls_back_to_key_when_protein_ids_missing(self):
+        combined = {'P1; P2': {'action': 'MERGE', 'target_id': 'P1', 'target_name': ''}}
+        remaining, groups = protein_handler.extract_merge_groups(combined)
+        self.assertEqual(remaining, {})
+        self.assertEqual(groups, [{'sources': ['P1', 'P2'], 'target_id': 'P1', 'target_name': ''}])
+
+    def test_extract_leaves_non_merge_entries_untouched(self):
+        combined = {
+            'A; B': {'action': 'ASIS'},
+            'legacy': {'X': 'CUSTOM:Y'},
+        }
+        remaining, groups = protein_handler.extract_merge_groups(combined)
+        self.assertEqual(remaining, combined)
+        self.assertEqual(groups, [])
+
+    def test_empty_and_none_input(self):
+        self.assertEqual(protein_handler.extract_merge_groups({}), ({}, []))
+        self.assertEqual(protein_handler.extract_merge_groups(None), ({}, []))
 
 
 if __name__ == '__main__':

@@ -1140,9 +1140,20 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
                 data = item_data_dict[item]
 
                 # Use group's contribution to item total ('relative' key)
-                # so stacked bars show distribution of this item across samples
-                rel_key = 'count_relative_to_function' if use_count else 'relative'
-                rel_percentage = data.get(rel_key, {}).get(g, 0.0)
+                # so stacked bars show distribution of this item across samples.
+                # For counts the per-group share lives under a source-specific
+                # key: 'count_relative_to_function' for functions,
+                # 'count_relative_to_protein' for proteins (and a "Both" figure
+                # mixes the two). Fall back across both so protein bars don't
+                # collapse to zero. See protein_sample_distribution_dict /
+                # function_distribution_dict in data_processor.
+                if use_count:
+                    rel = data.get('count_relative_to_function')
+                    if rel is None:
+                        rel = data.get('count_relative_to_protein', {})
+                else:
+                    rel = data.get('relative', {})
+                rel_percentage = rel.get(g, 0.0)
 
                 abs_value = (
                     data.get('counts' if use_count else 'Abundance', {}).get(g, 0.0)

@@ -1105,11 +1105,8 @@
             '<input type="text" class="merge-target-id" placeholder="e.g. P02666" ' +
             'value="' + escHtml(prefill.target_id || '') + '" style="width:160px;"></label>';
         html += '<label style="font-size:0.85rem;">Name <span style="color:#999;">(optional)</span><br>' +
-            '<input type="text" class="merge-target-name" placeholder="e.g. Beta-casein" ' +
+            '<input type="text" class="merge-target-name" placeholder="e.g. Protein name" ' +
             'value="' + escHtml(prefill.target_name || '') + '" style="width:200px;"></label>';
-        html += '<label style="font-size:0.85rem;">Species <span style="color:#999;">(optional)</span><br>' +
-            '<input type="text" class="merge-target-species" placeholder="e.g. Bovine" ' +
-            'value="' + escHtml(prefill.target_species || '') + '" style="width:140px;"></label>';
         html += '</div>';
 
         html += '<div class="merge-conflict-hint" style="display:none; margin-top:8px;"></div>';
@@ -1119,13 +1116,11 @@
 
         var targetId = card.querySelector('.merge-target-id');
         var targetName = card.querySelector('.merge-target-name');
-        var targetSpecies = card.querySelector('.merge-target-species');
 
         function autofillFromSource(id) {
             var s = _sourceById(id);
             if (!s) return;
             if (!targetName.value.trim() && s.name) targetName.value = s.name;
-            if (!targetSpecies.value.trim() && s.species) targetSpecies.value = s.species;
         }
 
         card.querySelectorAll('.merge-source-cb').forEach(function(cb) {
@@ -1173,8 +1168,7 @@
         return {
             sources: sources,
             target_id: card.querySelector('.merge-target-id').value.trim(),
-            target_name: card.querySelector('.merge-target-name').value.trim(),
-            target_species: card.querySelector('.merge-target-species').value.trim()
+            target_name: card.querySelector('.merge-target-name').value.trim()
         };
     }
 
@@ -1219,6 +1213,7 @@
             var mode = saved ? saved.mode : 'split';           // default: split
             var savedIds = (saved && saved.protein_ids) ? saved.protein_ids : null;
             var customVal = (saved && saved.mode === 'custom') ? (saved.protein_id || '') : '';
+            var customNameVal = (saved && saved.mode === 'custom') ? (saved.protein_name || '') : '';
             var splitVisible = (mode === 'split');
 
             var div = document.createElement('div');
@@ -1258,14 +1253,20 @@
             });
             html += '</div>';
 
-            // Mode 3: Custom ID — restore the saved custom value when present.
+            // Mode 3: Custom ID — restore the saved custom ID + name when present.
             html += '<label style="display:block; margin:4px 0;">' +
-                '<input type="radio" name="combo_mode_' + idx + '" value="custom"' +
+                '<input type="radio" name="combo_mode_' + idx + '" id="mode_custom_' + idx + '" value="custom"' +
                 (mode === 'custom' ? ' checked' : '') + '> ' +
                 'Custom ID: <input type="text" id="custom_' + idx + '" ' +
                 'placeholder="Enter protein ID" value="' + escHtml(customVal) + '" ' +
-                'style="margin-left:6px; width:200px; display:inline;" ' +
-                'onfocus="this.previousElementSibling.checked=true;' +
+                'style="margin-left:6px; width:160px; display:inline;" ' +
+                'onfocus="document.getElementById(\'mode_custom_' + idx + '\').checked=true;' +
+                'document.getElementById(\'split_panel_' + idx + '\').style.display=\'none\';"> ' +
+                'Name <span style="color:#999;">(optional)</span>: ' +
+                '<input type="text" id="custom_name_' + idx + '" ' +
+                'placeholder="e.g. Protein name" value="' + escHtml(customNameVal) + '" ' +
+                'style="margin-left:4px; width:160px; display:inline;" ' +
+                'onfocus="document.getElementById(\'mode_custom_' + idx + '\').checked=true;' +
                 'document.getElementById(\'split_panel_' + idx + '\').style.display=\'none\';"></label>';
 
             html += '</div>';  // .combo-options
@@ -1381,7 +1382,10 @@
                 }
             } else if (mode === 'custom') {
                 var customInput = row.querySelector('#custom_' + idx);
+                var customNameInput = row.querySelector('#custom_name_' + idx);
                 decisions[combo] = {action: 'CUSTOM', protein_id: customInput ? customInput.value.trim() : ''};
+                var customNameVal2 = customNameInput ? customNameInput.value.trim() : '';
+                if (customNameVal2) decisions[combo].protein_name = customNameVal2;
             }
         });
         var sourceRenames = collectSourceRenames();

@@ -743,7 +743,6 @@ def _normalize_rename_groups(groups):
             'sources': sources,
             'target_id': target_id,
             'target_name': str(group.get('target_name', '')).strip(),
-            'target_species': str(group.get('target_species', '')).strip(),
         })
     return clean, None
 
@@ -754,8 +753,7 @@ def apply_source_renames(df, groups, protein_dict):
 
     Args:
         df: pandas DataFrame
-        groups: list of {'sources': [id...], 'target_id', 'target_name',
-                'target_species'}
+        groups: list of {'sources': [id...], 'target_id', 'target_name'}
         protein_dict: protein dictionary (updated in place for target accessions)
 
     Returns:
@@ -767,7 +765,7 @@ def apply_source_renames(df, groups, protein_dict):
     if not clean_groups:
         return df, None
 
-    # source id -> target id, and target id -> resolved name/species
+    # source id -> target id, and target id -> resolved name
     source_to_target = {}
     target_info = {}
     for group in clean_groups:
@@ -775,31 +773,25 @@ def apply_source_renames(df, groups, protein_dict):
         for s in group['sources']:
             source_to_target[s] = tid
         # Later groups win if a target is defined twice; only overwrite with
-        # non-empty overrides so a blank field doesn't clobber a real value.
-        info = target_info.setdefault(tid, {'name': '', 'species': ''})
+        # a non-empty override so a blank field doesn't clobber a real value.
+        info = target_info.setdefault(tid, {'name': ''})
         if group['target_name']:
             info['name'] = group['target_name']
-        if group['target_species']:
-            info['species'] = group['target_species']
 
-    # Fill any unspecified name/species from the existing protein_dict entry.
+    # Fill any unspecified name from the existing protein_dict entry. Species
+    # is intentionally not tracked by merge/rename groups; existing per-row
+    # species values (and protein_dict species) are left untouched.
     for tid, info in target_info.items():
         if not info['name']:
             info['name'] = protein_dict.get(tid, {}).get('name', '') or ''
-        if not info['species']:
-            info['species'] = protein_dict.get(tid, {}).get('species', '') or ''
         # Keep protein_dict consistent so add_protein_info fills 'Unknown' rows.
-        entry = protein_dict.setdefault(tid, {})
         if info['name']:
-            entry['name'] = info['name']
-        if info['species']:
-            entry['species'] = info['species']
+            protein_dict.setdefault(tid, {})['name'] = info['name']
 
     processed_df = df.copy()
     has_protein = 'Protein' in processed_df.columns
     has_positions = 'Positions in Proteins' in processed_df.columns
     has_name = 'protein_name' in processed_df.columns
-    has_species = 'protein_species' in processed_df.columns
 
     for idx in range(len(processed_df)):
         row = processed_df.iloc[idx]
@@ -839,13 +831,11 @@ def apply_source_renames(df, groups, protein_dict):
                 if changed:
                     processed_df.at[row_label, 'Positions in Proteins'] = '; '.join(new_parts)
 
-        # --- Unify name/species for rows that resolve to a single target ---
+        # --- Unify name for rows that resolve to a single target ---
         if new_single_target is not None:
             info = target_info[new_single_target]
             if has_name and info['name']:
                 processed_df.at[row_label, 'protein_name'] = info['name']
-            if has_species and info['species']:
-                processed_df.at[row_label, 'protein_species'] = info['species']
 
     return processed_df, None
 
@@ -912,3 +902,59 @@ def detect_rename_conflicts(source_renames, protein_decisions):
                     f"combined-protein decision for '{combo}'."
                 )
     return warnings
+
+
+# ---------------------------------------------------------------------------
+# Protein-mapping-key JSON format: fold merge/rename groups in and out of the
+# same ``protein_decisions`` dict the combination step already saves, using
+# ``"action": "MERGE"`` entries, so the downloadable/uploadable mapping key
+# has a single unified shape instead of a second top-level array.
+# ---------------------------------------------------------------------------
+
+def merge_groups_as_decisions(groups):
+    """
+    Represent merge/rename groups as ``protein_decisions``-style entries.
+
+    Each group becomes one entry keyed by its sorted, semicolon-joined source
+    accessions (matching the combo-key convention already used for
+    ASIS/SPLIT/CUSTOM entries), with ``action: "MERGE"``.
+    """
+    clean_groups, error = _normalize_rename_groups(groups)
+    if error or not clean_groups:
+        return {}
+    entries = {}
+    for group in clean_groups:
+        key = '; '.join(sorted(group['sources']))
+        entries[key] = {
+            'action': 'MERGE',
+            'protein_ids': group['sources'],
+            'target_id': group['target_id'],
+            'target_name': group['target_name'],
+        }
+    return entries
+
+
+def extract_merge_groups(protein_decisions):
+    """
+    Inverse of ``merge_groups_as_decisions``: pull any ``action: "MERGE"``
+    entries out of an uploaded ``protein_decisions`` dict.
+
+    Returns (remaining_decisions, groups) where ``remaining_decisions`` has
+    the MERGE entries removed (safe to hand to the combination-decision
+    pipeline) and ``groups`` is the internal merge/rename group format
+    (``{'sources', 'target_id', 'target_name'}``).
+    """
+    remaining = {}
+    groups = []
+    for combo, data in (protein_decisions or {}).items():
+        if isinstance(data, dict) and str(data.get('action', '')).upper() == 'MERGE':
+            sources = [str(s).strip() for s in data.get('protein_ids') or combo.split('; ')
+                       if str(s).strip()]
+            groups.append({
+                'sources': sources,
+                'target_id': str(data.get('target_id', '')).strip(),
+                'target_name': str(data.get('target_name', '')).strip(),
+            })
+        else:
+            remaining[combo] = data
+    return remaining, groups
