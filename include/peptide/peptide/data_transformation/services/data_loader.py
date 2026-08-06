@@ -8,7 +8,8 @@ The loader accepts peptide/protein report exports from several proteomics
 software packages.  Column names are harmonised via
 ``get_comprehensive_column_mapping()`` and multi-protein accession strings are
 split by ``extract_protein_id()``.  Example files for each format live in
-``peptide/notebooks/examples/additional_peptidomic_input_formats/``.
+``peptide/static/peptide/examples/not_in_use_examples/`` (tracked, but not
+linked from any template — reference/test fixtures only).
 
     Software              Protein column       Multi-protein separator
     --------------------  -------------------  --------------------------
@@ -24,6 +25,14 @@ UniProt ``db|ACCESSION|NAME`` pipe format, so accessions from any of the above
 reduce to bare UniProt IDs.  ``strip_inline_modifications`` removes PTM
 annotations embedded in the peptide string (e.g. PEAKS ``PEP(+57.02)TIDE``,
 bracketed ``PEPTIDE[DN]``) so sequences remain BLAST-compatible.
+
+Some engines (PEAKS, Spectronaut) export one row per peptide *per run*
+instead of one abundance column per sample.  ``detect_long_format()`` and
+``pivot_long_to_wide()`` recognise that layout (a known run/sample column,
+e.g. ``Source File`` or ``R.FileName``, paired with a single generic
+quantity column, e.g. ``Area`` or ``EG.TotalQuantity (Settings)``) and
+transpose it into one row per peptide with one abundance column per sample
+before the rest of the pipeline runs.
 """
 import io
 import re
@@ -200,6 +209,7 @@ def get_comprehensive_column_mapping():
         'Master Protein Accession': 'Protein',
         'Master Protein Accessions': 'Protein',
         'Leading proteins': 'Protein',
+        'Leading razor protein': 'Protein',   # MaxQuant's actual column name (singular representative protein)
         'Protein Name': 'Protein',
         'prot_acc': 'Protein',
         'Accession Number': 'Protein',
@@ -415,6 +425,190 @@ def handle_separate_position_columns(df):
             break
 
     return df
+
+
+# ---------------------------------------------------------------------------
+# Long -> wide (peptide x sample) transformation
+# ---------------------------------------------------------------------------
+#
+# Some engines export one row per PSM/precursor *per run* rather than one row
+# per peptide with one abundance column per sample (Table 1's expected
+# layout). PEAKS' "peptide" export lists one row per PSM with the run in
+# 'Source File'; Spectronaut's report lists one row per precursor charge
+# state per run in 'R.FileName'. Both carry a single generic quantity column
+# (e.g. 'Area', 'EG.TotalQuantity (Settings)') instead of one column per
+# sample. detect_long_format()/pivot_long_to_wide() recognise this shape and
+# pivot it before the rest of the pipeline (which expects samples as
+# columns) runs. Wide exports (MaxQuant, Skyline, Proteome Discoverer, PEPEX)
+# already have one abundance column per sample and are left untouched, even
+# though the same base sequence can legitimately repeat across charge states
+# or modified forms.
+
+# Columns that identify the run/sample a row was measured in, for engines
+# that report peptides long-form (one row per peptide x run).
+LONG_FORMAT_SAMPLE_COLUMNS = [
+    'Source File',   # PEAKS
+    'R.FileName',    # Spectronaut
+    'Raw file',      # MaxQuant evidence.txt (PSM-level export)
+    'Raw File',
+    'Spectrum File',
+]
+
+# Generic per-row quantity columns used by those long-form exports, in
+# priority order. 'EG.TotalQuantity (Settings)' is already reported at the
+# modified-peptide x run level (Spectronaut's elution group), so it must be
+# collapsed with max rather than summed across residual per-charge-state rows.
+LONG_FORMAT_VALUE_COLUMNS = [
+    'EG.TotalQuantity (Settings)',  # Spectronaut
+    'FG.MS2Quantity',
+    'FG.MS1Quantity',
+    'PEP.Quantity',
+    'Area',                          # PEAKS
+    'Intensity',
+    'Quantity',
+    'Abundance',
+]
+
+_LONG_FORMAT_MAX_AGGREGATE_COLUMNS = {'EG.TotalQuantity (Settings)'}
+
+# Mirrors data_combiner.create_unique_id's column priority (Table 1,
+# footnote a) for the peptide "Unique Peptide ID": the first present
+# modified-sequence column, else Sequence + Modifications, else bare
+# Sequence. Kept here (rather than imported from data_combiner, which
+# imports from this module) to avoid a circular import.
+_PEPTIDE_IDENTITY_MOD_COLUMNS = [
+    'Peptide Modified Sequence', 'Modified sequence', 'Modified Sequence',
+    'EG.ModifiedPeptide', 'modified_peptide',
+]
+
+
+def _build_peptide_identity_key(df):
+    """Vectorised equivalent of data_combiner.create_unique_id, used to group
+    rows belonging to the same peptide when detecting/collapsing long-format
+    exports. Not written back to the DataFrame — the real 'Unique Peptide ID'
+    column is built later in the pipeline (data_combiner.process_pd_results)."""
+    if 'Sequence' in df.columns:
+        seq = df['Sequence']
+    elif 'Annotated Sequence' in df.columns:
+        seq = df['Annotated Sequence']
+    else:
+        return pd.Series('', index=df.index)
+
+    seq = seq.apply(lambda v: ','.join(v) if isinstance(v, list) else v)
+    seq = seq.fillna('').astype(str).str.strip()
+
+    for mod_col in _PEPTIDE_IDENTITY_MOD_COLUMNS:
+        if mod_col in df.columns:
+            mod_key = df[mod_col].astype(str).str.strip()
+            return mod_key.where(df[mod_col].notna() & (mod_key != ''), seq)
+
+    if 'Modifications' in df.columns:
+        has_mods = df['Modifications'].notna()
+        mods_str = df['Modifications'].fillna('').astype(str).str.strip()
+        return (seq + '_' + mods_str).where(has_mods, seq)
+
+    return seq
+
+
+def detect_long_format(df):
+    """Detect whether a peptidomic export needs a long -> wide (peptide x
+    sample) pivot before it can be processed.
+
+    Returns (needs_pivot, sample_col, value_col). sample_col/value_col are
+    None when needs_pivot is False. Requires all three signals together to
+    avoid false positives on genuinely wide data: a recognised run/sample
+    column with more than one distinct value, a recognised single-quantity
+    value column, and actual duplication of peptide identity across rows
+    (i.e. the same peptide really does appear once per run).
+    """
+    if 'Sequence' not in df.columns and 'Annotated Sequence' not in df.columns:
+        return False, None, None
+
+    sample_col = next((c for c in LONG_FORMAT_SAMPLE_COLUMNS if c in df.columns), None)
+    if sample_col is None or df[sample_col].nunique(dropna=True) < 2:
+        return False, None, None
+
+    value_col = next((c for c in LONG_FORMAT_VALUE_COLUMNS if c in df.columns), None)
+    if value_col is None:
+        return False, None, None
+
+    key = _build_peptide_identity_key(df)
+    if key.nunique(dropna=True) >= len(key):
+        # Already one row per peptide identity (e.g. Skyline, where the base
+        # 'Peptide' sequence repeats across charge states/mods but the
+        # Unique Peptide ID does not) — nothing to pivot.
+        return False, None, None
+
+    return True, sample_col, value_col
+
+
+# Standardised target names plus the raw position-column names
+# handle_separate_position_columns() looks for (get_comprehensive_column_mapping's
+# keys/values already cover the Sequence/Protein/Modifications side).
+_STANDARD_SCHEMA_COLUMNS = {
+    'Sequence', 'Protein', 'Annotated Sequence', 'Positions in Proteins',
+    'Modifications', 'start', 'end',
+    'Start position', 'End position', 'Peptide start', 'Peptide end',
+    'Start', 'End', 'pep_res_before', 'pep_res_after',
+    'protein_start', 'protein_end', 'Peptide Sequence',
+}
+
+
+def _schema_relevant_columns(df):
+    """Columns from df that Table 1's column mapping actually recognises
+    (as either a source name or a standardised target name)."""
+    mapping = get_comprehensive_column_mapping()
+    relevant = _STANDARD_SCHEMA_COLUMNS | set(mapping.keys()) | set(mapping.values())
+    return [c for c in df.columns if c in relevant]
+
+
+def pivot_long_to_wide(df, sample_col, value_col):
+    """Pivot a per-run/per-PSM peptidomic export into one row per peptide
+    with one abundance column per sample (Table 1's expected layout).
+
+    Non-abundance columns are collapsed to their first non-null value per
+    peptide identity (Sequence/Protein/positions/etc. are constant for a
+    given peptide across runs). The value column is pivoted into one column
+    per distinct sample_col value, summed across any remaining duplicate
+    rows for the same peptide x sample (e.g. multiple PSMs/charge states) —
+    except columns already reported at the peptide x run level, which are
+    collapsed with max instead so they are never double-counted.
+    """
+    working = df.copy()
+    working['__peptide_key__'] = _build_peptide_identity_key(working)
+
+    agg = 'max' if value_col in _LONG_FORMAT_MAX_AGGREGATE_COLUMNS else 'sum'
+    abundance = working.pivot_table(
+        index='__peptide_key__', columns=sample_col, values=value_col,
+        aggfunc=agg,
+    )
+    abundance.columns = [str(c) for c in abundance.columns]
+    abundance = abundance.reset_index()
+
+    # Only carry forward columns Table 1 actually maps (Sequence, Protein,
+    # positions, modifications, and the raw software columns that feed
+    # them). Per-PSM/per-precursor descriptors that aren't part of that
+    # schema (PEAKS '-10LgP'/'ppm'/'Scan'/'AScore', Spectronaut 'EG.*'/
+    # 'FG.*'/'R.Condition' etc.) are dropped rather than collapsed to their
+    # first value — keeping them would silently mislabel a single PSM's
+    # score/RT/charge as if it represented the whole (now-merged) peptide,
+    # and would leak into the abundance-column picker in get_filtered_columns.
+    metadata_cols = [c for c in _schema_relevant_columns(working)
+                      if c not in {sample_col, value_col}]
+
+    # Guard against a sample name colliding with a kept metadata column
+    rename = {c: f'{sample_col}: {c}' for c in abundance.columns
+              if c != '__peptide_key__' and c in metadata_cols}
+    if rename:
+        abundance = abundance.rename(columns=rename)
+
+    metadata = (working[['__peptide_key__'] + metadata_cols]
+                .groupby('__peptide_key__', as_index=False)
+                .first())
+
+    result = metadata.merge(abundance, on='__peptide_key__', how='left')
+    result = result.drop(columns='__peptide_key__')
+    return result
 
 
 def load_and_validate_file(file_content, filename, file_type, protein_dict=None):
@@ -648,6 +842,21 @@ def _validate_peptidomic_file(df, filename, protein_dict=None):
     if 'Sequence' in df.columns:
         df['Sequence'] = df['Sequence'].apply(strip_inline_modifications)
 
+    # Pivot long/per-run exports (PEAKS, Spectronaut) into one row per
+    # peptide with one abundance column per sample, matching the layout the
+    # rest of the pipeline (and Table 1) expects. Wide exports are untouched.
+    needs_pivot, sample_col, value_col = detect_long_format(df)
+    if needs_pivot:
+        n_peptides_before = len(df)
+        n_samples = df[sample_col].nunique(dropna=True)
+        df = pivot_long_to_wide(df, sample_col, value_col)
+        warning_msg = (
+            f"Detected a long-format export (one row per peptide per "
+            f"'{sample_col}', quantified by '{value_col}'): pivoted "
+            f"{n_peptides_before} rows into {len(df)} peptides x "
+            f"{n_samples} samples before further processing."
+        )
+
     # Handle separate position columns if needed
     if 'Positions in Proteins' not in df.columns:
         df = handle_separate_position_columns(df)
@@ -674,7 +883,8 @@ def _validate_peptidomic_file(df, filename, protein_dict=None):
             missing_msgs.append("'Positions in Proteins' (position-based analysis unavailable)")
 
         if missing_msgs:
-            warning_msg = "Missing optional columns: " + "; ".join(missing_msgs)
+            missing_warning = "Missing optional columns: " + "; ".join(missing_msgs)
+            warning_msg = f"{warning_msg} {missing_warning}" if warning_msg else missing_warning
 
     return df, 'yes', "", warning_msg
 
@@ -1025,7 +1235,7 @@ def get_filtered_columns(df):
         'Annotated Sequence', 'Annotated.Sequence', 'Unnamed: 3', 'Unnamed:.3',
         'Modifications', 'Modifications.in.Proteins', 'Modifications.in.Master.Proteins',
         'Protein Groups', 'Protein.Groups', 'Proteins', 'PSMs',
-        'Protein', 'Master.Protein.Accessions',
+        'Protein', 'Accession', 'Master.Protein.Accessions',
         'Master Protein Descriptions', 'Master.Protein.Descriptions', 'Description',
         'Positions in Master Proteins', 'Positions.in.Master.Proteins',
         'Positions in Proteins', 'Positions.in.Proteins',
@@ -1042,7 +1252,7 @@ def get_filtered_columns(df):
         'Alignment', 'Species', 'Intervals', 'function', 'Unique Peptide ID', 'unique.ID',
         'SVM_Score', 'start', 'end',
         'Abundance Ratio', 'Abundance.Ratio',
-        'Reverse', 'Potential contaminant', 'id', 'Protein group IDs',
+        'Reverse', 'Potential contaminant', 'Protein group IDs',
         'N-term cleavage window', 'C-term cleavage window',
         'Amino acid before', 'First amino acid', 'Second amino acid',
         'Second last amino acid', 'Last amino acid', 'Amino acid after',
@@ -1068,11 +1278,19 @@ def get_filtered_columns(df):
         'Top Apex RT', 'Top.Apex.RT'
     ]
 
+    # Column names short/generic enough (e.g. MaxQuant's literal 'id' column)
+    # that a substring match would false-positive on real sample names that
+    # happen to contain them — e.g. a PEAKS 'Source File' name like
+    # '..._IDB001031_...' contains 'id'. These are matched on the full
+    # (stripped, lowercased) column name instead of as a substring.
+    exact_name_exclude = {'id'}
+
     filtered_columns = []
     for col in df.columns:
         should_exclude = any(excl.lower() in col.lower() for excl in columns_to_exclude)
         has_excluded_substring = any(sub.lower() in col.lower() for sub in exclude_substrings)
-        if not should_exclude and not has_excluded_substring:
+        is_exact_excluded = col.strip().lower() in exact_name_exclude
+        if not should_exclude and not has_excluded_substring and not is_exact_excluded:
             filtered_columns.append(col)
 
     return filtered_columns
