@@ -399,7 +399,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">Heatmap Color</label>
-                        <select id="hm-color" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
+                        <select id="hm-color" title="Colormap for the peptide-count heatmap bars" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                             <option value="RdYlGn_r">RdYlGn_r (default)</option>
                             <option value="RdYlBu_r">RdYlBu_r</option>
                             <option value="coolwarm">coolwarm</option>
@@ -417,7 +417,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">Line Plot Color</label>
-                        <select id="lp-color" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
+                        <select id="lp-color" title="Colormap for the individual-peptide line traces" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                             <option value="Set3">Set3 (default)</option>
                             <option value="Set1">Set1</option>
                             <option value="Set2">Set2</option>
@@ -430,7 +430,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">Avg Line Color</label>
-                        <select id="avglp-color" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
+                        <select id="avglp-color" title="Colormap for the averaged-abundance line traces" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                             <option value="Dark2">Dark2 (default)</option>
                             <option value="Set1">Set1</option>
                             <option value="tab10">tab10</option>
@@ -441,38 +441,68 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">Plot Title</label>
-                        <input type="text" id="plot-title" placeholder="None (optional)" disabled
+                        <input type="text" id="plot-title" placeholder="None (optional)" title="Plot title text (blank = none)" disabled
                                style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
+                        <input type="number" id="font-size-plot-title" value="16" min="6" max="48" step="1" title="Plot title font size" disabled
+                               style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">X-Axis Label</label>
-                        <input type="text" id="xaxis-label" placeholder="Auto" disabled
+                        <input type="text" id="xaxis-label" placeholder="Auto" title="X-axis label text (blank = auto)" disabled
                                style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
+                        <input type="number" id="font-size-xaxis-label" value="14" min="6" max="48" step="1" title="X-axis label font size" disabled
+                               style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">X-Axis Ticks</label>
+                        <input type="number" id="font-size-xaxis-tick" value="12" min="6" max="48" step="1" title="Position-tick font size along the shared x-axis (protein position numbers)" disabled
+                               style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">Y-Axis Label</label>
-                        <input type="text" id="yaxis-label" placeholder="Averaged Peptide Abundance" disabled
+                        <input type="text" id="yaxis-label" placeholder="Averaged Peptide Abundance" title="Y-axis label text" disabled
                                style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
+                        <input type="number" id="font-size-yaxis-label" value="15" min="6" max="48" step="1" title="Y-axis label font size" disabled
+                               style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">Y-Axis Ticks</label>
+                        <input type="number" id="font-size-yaxis-tick" value="12" min="6" max="48" step="1" title="Numeric y-axis tick font size on the abundance line plot (Landscape only; Portrait/Compact show these values in the legend instead)" disabled
+                               style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">Peptide Count Label</label>
+                        <input type="number" id="font-size-var-label" value="12" min="6" max="48" step="1" title="Font size of each row's variable/sample label on the peptide-count heatmap (e.g. 'High NE'). Portrait/Landscape only." disabled
+                               style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend Title (Sample Type)</label>
-                        <input type="text" id="legend-title-1" placeholder="Sample Type:" disabled
+                        <input type="text" id="legend-title-1" placeholder="Sample Type:" title="Sample Type legend header text" disabled
                                style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend Title (Peptide Counts)</label>
-                        <input type="text" id="legend-title-2" placeholder="Peptide Counts:" disabled
+                        <input type="text" id="legend-title-2" placeholder="Peptide Counts:" title="Peptide Counts legend header text" disabled
                                style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend Title (Average Abundance)</label>
-                        <input type="text" id="legend-title-3" placeholder="Average Abundance:" disabled
+                        <input type="text" id="legend-title-3" placeholder="Average Abundance:" title="Average Abundance legend header text" disabled
                                style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend</label>
+                        <input type="number" id="font-size-legend" value="15" min="6" max="48" step="1" title="Font size applied to all legend headers and items above (Sample Type, Peptide Counts, Average Abundance) — one shared legend, so one shared size" disabled
+                               style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
                     </div>
 
                     <label class="checkbox-row" style="margin-top:2px;" title="Drop trailing UniProt descriptors (e.g. ' OS=Bos taurus GN=CSN2 …') from the protein name used in the axis label and title, leaving the short name. Uncheck to show the full protein name.">
@@ -1304,6 +1334,13 @@ async function generateHeatmap() {
         legend_title_1:       document.getElementById('legend-title-1').value || 'Sample Type:',
         legend_title_2:       document.getElementById('legend-title-2').value || 'Peptide Counts:',
         legend_title_3:       document.getElementById('legend-title-3').value || 'Average Abundance:',
+        font_size_plot_title:      document.getElementById('font-size-plot-title').value,
+        font_size_xaxis_label:     document.getElementById('font-size-xaxis-label').value,
+        font_size_yaxis_label:     document.getElementById('font-size-yaxis-label').value,
+        font_size_legend:          document.getElementById('font-size-legend').value,
+        font_size_xaxis_tick:      document.getElementById('font-size-xaxis-tick').value,
+        font_size_yaxis_tick:      document.getElementById('font-size-yaxis-tick').value,
+        font_size_var_label:       document.getElementById('font-size-var-label').value,
         strip_protein_name:   document.getElementById('strip-protein-name').checked,
         strip_start_sequence: document.getElementById('strip-start-sequence').checked,
         strip_start_manual:   (function() {

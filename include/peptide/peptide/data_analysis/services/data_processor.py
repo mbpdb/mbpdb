@@ -305,6 +305,16 @@ def redact_string_descriptions(input_str: str, max_length: int = 30) -> str:
     return input_str[:max_length - 3] + '...'
 
 
+def _coerce_font_size(value, default: int) -> int:
+    """Parse an Appearance Settings font-size input, falling back to `default`
+    for blank/invalid/non-positive values (e.g. an emptied number input)."""
+    try:
+        size = int(float(value))
+    except (TypeError, ValueError):
+        return default
+    return size if size > 0 else default
+
+
 # ---------------------------------------------------------------------------
 # DataAnalysisState – holds all computed intermediate data
 # ---------------------------------------------------------------------------
@@ -351,6 +361,23 @@ class DataAnalysisState:
         self.ylabel: str = params.get('ylabel', '')
         self.legend_title: str = params.get('legend_title', '')
         self.plot_title: str = params.get('plot_title', '')
+        # Appearance Settings font-size overrides (Auto = the historical hardcoded
+        # sizes baked into plotter.py). Coerced defensively since these arrive as
+        # raw JSON from the client and an empty/non-numeric value should fall back
+        # to the default rather than blow up figure generation.
+        self.font_size_xlabel: int = _coerce_font_size(params.get('font_size_xlabel'), 18)
+        self.font_size_ylabel: int = _coerce_font_size(params.get('font_size_ylabel'), 18)
+        self.font_size_legend_title: int = _coerce_font_size(params.get('font_size_legend_title'), 14)
+        # Tick labels (the numbers/categories along each axis) are a distinct
+        # element from the axis title above, so they get their own size —
+        # notably the correlation plots show numeric ticks on both axes.
+        self.font_size_xtick: int = _coerce_font_size(params.get('font_size_xtick'), 16)
+        self.font_size_ytick: int = _coerce_font_size(params.get('font_size_ytick'), 16)
+        # Data-value labels drawn above bars/stacked-bars, and the percent text
+        # inside pie slices — one shared size for every "number on the chart"
+        # element that isn't an axis, title, or legend.
+        self.font_size_value_label: int = _coerce_font_size(params.get('font_size_value_label'), 12)
+        self.font_size_plot_title: int = _coerce_font_size(params.get('font_size_plot_title'), 18)
         self.correlation_type: str = params.get('correlation_type', 'Pearson')
 
         # Derived

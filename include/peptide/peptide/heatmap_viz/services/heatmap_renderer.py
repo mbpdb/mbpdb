@@ -878,7 +878,11 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                 plot_landscape_interactive=False, plot_portrait_interactive=False,
                 plot_title='', aa_on_tiles=False,
                 comparison_mode=False, series_a=None, series_b=None,
-                comparison_metric='smd'):
+                comparison_metric='smd',
+                font_size_xaxis_label=14, font_size_yaxis_label=15,
+                font_size_legend=15, font_size_plot_title=16,
+                font_size_xaxis_tick=12, font_size_yaxis_tick=12,
+                font_size_var_label=12):
     # Every heatmap orientation is now rendered by Plotly
     # (visualize_sequence_heatmap_interactive / _compact); the matplotlib
     # landscape/portrait renderers and their chunking machinery were retired.
@@ -1056,6 +1060,13 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                 plot_title       = plot_title,
                 aa_on_tiles      = aa_on_tiles,
                 comparison_track = comparison_track,
+                font_size_xaxis_label   = font_size_xaxis_label,
+                font_size_yaxis_label   = font_size_yaxis_label,
+                font_size_legend        = font_size_legend,
+                font_size_plot_title    = font_size_plot_title,
+                font_size_xaxis_tick    = font_size_xaxis_tick,
+                font_size_yaxis_tick    = font_size_yaxis_tick,
+                font_size_var_label     = font_size_var_label,
             )
 
             # In comparison mode the density heatmap should show ONLY the two
@@ -1104,6 +1115,11 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                             y_ticks,
                             log_transform,
                             plot_title=plot_title,
+                            font_size_xaxis_label=font_size_xaxis_label,
+                            font_size_yaxis_label=font_size_yaxis_label,
+                            font_size_legend=font_size_legend,
+                            font_size_plot_title=font_size_plot_title,
+                            font_size_xaxis_tick=font_size_xaxis_tick,
                         )
                     except Exception as exc:
                         all_errors.append(f'Error generating compact plot: {exc}')
@@ -1390,6 +1406,7 @@ def create_heatmap_legend_handles(cmap, num_colors, max_count, plot_zero):
        handle = patches.Patch(color=color, label='0')
        return [handle], ['0']
 
+
 def collect_missing_data_notifications(available_data_variables_dict, selected_peptides, selected_functions, bio_or_pep):
     """
     Collect notifications about missing data for specific variables during plotting.
@@ -1490,6 +1507,13 @@ def visualize_sequence_heatmap_interactive(
                           # set, the row-1 panel shows a single signed SMD/log2FC
                           # contrast line (zero baseline, symmetric axis) INSTEAD
                           # of the abundance lines. See HEATMAP_DIFFERENTIAL_STATS.md.
+    # Appearance Settings font-size overrides. font_size_legend sizes every
+    # legend group's header AND item text (Sample Type, Peptide Counts,
+    # Average Abundance) uniformly, in one shared Plotly legend.
+    font_size_xaxis_label=14, font_size_yaxis_label=15,
+    font_size_legend=15, font_size_plot_title=16,
+    font_size_xaxis_tick=12, font_size_yaxis_tick=12,
+    font_size_var_label=12,     # per-row peptide-count heatmap label (e.g. "High NE")
 ):
     """
     Plotly interactive version of the landscape / portrait heatmap.
@@ -2008,15 +2032,15 @@ def visualize_sequence_heatmap_interactive(
     # repeating its own position ladder — shrink the font as bands accumulate
     # so the figure doesn't get visually noisy. Floors at 8px. Landscape is
     # always a single band, so it keeps the base size.
-    _x_tick_font_size = max(8, 12 - (n_chunks - 1) // 3) if is_portrait else 12
+    _x_tick_font_size = max(8, font_size_xaxis_tick - (n_chunks - 1) // 3) if is_portrait else font_size_xaxis_tick
 
     # Peptide-count row ("High NE" / "Low NE") label font: same reasoning —
     # at 1-4 bands compact_labels is off so the label repeats on EVERY band,
     # and each repeat is drawn at a fixed pixel distance from the plot edge
     # regardless of band count, so more bands means more of these labels
-    # packed down the same-width left margin. Shrink it in step with the
-    # x-axis tick font so the two stay visually consistent.
-    _var_label_font_size = max(8, 12 - (n_chunks - 1) // 3) if is_portrait else 12
+    # packed down the same-width left margin. Shrinks off the user's base size
+    # as bands accumulate, same as the x-axis tick font above.
+    _var_label_font_size = max(8, font_size_var_label - (n_chunks - 1) // 3) if is_portrait else font_size_var_label
 
     # ══════════════════════════════════════════════════════════════════════════
     # RENDER — draw every band by slicing the precomputed traces to its window.
@@ -2048,7 +2072,8 @@ def visualize_sequence_heatmap_interactive(
                     line=dict(color=spec['color'], width=1.2 if spec['is_indiv'] else 1.5),
                     hoverinfo='text', hovertext=hs,
                     legendgroup=spec['legendgroup'],
-                    legendgrouptitle=dict(text=spec.get('grouptitle', sample_type_title)),
+                    legendgrouptitle=dict(text=spec.get('grouptitle', sample_type_title),
+                                          font=dict(size=font_size_legend)),
                     showlegend=show_leg,
                 ),
                 row=line_row, col=1,
@@ -2072,6 +2097,7 @@ def visualize_sequence_heatmap_interactive(
             showticklabels=_show_yticklabels,
             ticks='outside' if _show_yticklabels else '',
             ticklen=6, tickwidth=2,
+            tickfont=dict(size=font_size_yaxis_tick),
             # Signed differential track: draw a solid zero reference line so
             # positive (higher in A) / negative (higher in B) excursions read
             # against a fixed baseline. Positive-only abundance path unchanged.
@@ -2175,7 +2201,7 @@ def visualize_sequence_heatmap_interactive(
         for r in band_rows:
             if r == band_bottom:
                 # x-axis TITLE only on the final band; every band shows its ladder.
-                title = dict(text=x_label_str, font=dict(size=14)) if c == n_chunks - 1 else None
+                title = dict(text=x_label_str, font=dict(size=font_size_xaxis_label)) if c == n_chunks - 1 else None
                 fig.update_xaxes(
                     title=title, dtick=20, tick0=0, tickfont=dict(size=_x_tick_font_size),
                     showticklabels=True, **x_common, row=r, col=1,
@@ -2222,7 +2248,7 @@ def visualize_sequence_heatmap_interactive(
         xref='paper', yref='paper', x=0, y=0.5,
         xshift=-(left_margin - 12), textangle=-90,
         xanchor='center', yanchor='middle',
-        showarrow=False, font=dict(size=15),
+        showarrow=False, font=dict(size=font_size_yaxis_label),
     )
 
     # ── legend: peptide-count colour scale only (abundance is on the y-axis) ──
@@ -2243,7 +2269,7 @@ def visualize_sequence_heatmap_interactive(
                 symbol='square', line=dict(width=1, color='black'),
             ),
             name=lbl, showlegend=True, legendgroup='pep_count',
-            legendgrouptitle=dict(text=legend_title_pep),
+            legendgrouptitle=dict(text=legend_title_pep, font=dict(size=font_size_legend)),
         ))
 
     # ── legend: abundance/contrast scale reference (Portrait only) ───────────
@@ -2264,7 +2290,7 @@ def visualize_sequence_heatmap_interactive(
                 name=f"{tick_lbl}: {_fmt_tick(tick_val)}",
                 showlegend=True,
                 legendgroup='abundance_ticks',
-                legendgrouptitle=dict(text=_abun_legend_title),
+                legendgrouptitle=dict(text=_abun_legend_title, font=dict(size=font_size_legend)),
             ))
 
     # ── overall layout ────────────────────────────────────────────────────────
@@ -2280,7 +2306,7 @@ def visualize_sequence_heatmap_interactive(
     title_str = (plot_title or '').strip()
 
     fig.update_layout(
-        title=dict(text=title_str, font=dict(size=16, color='black'), x=0.5),
+        title=dict(text=title_str, font=dict(size=font_size_plot_title, color='black'), x=0.5),
         # Explicit default size (not just family) so any text left unset above
         # (e.g. the row-1 abundance y-axis ticks) has a deterministic size
         # instead of silently inheriting Plotly's built-in default.
@@ -2301,11 +2327,11 @@ def visualize_sequence_heatmap_interactive(
             bordercolor="black", borderwidth=1,
             orientation="v",
             bgcolor="rgba(255,255,255,0.9)",
-            font=dict(size=13),
-            # One consistent style for every legend-group header (Sample Type,
-            # Peptide Counts), matching the Data Analysis legend-title convention
-            # so headers read the same across all figures.
-            grouptitlefont=dict(size=15, color='black'),
+            # One shared font size for every legend group's header AND items —
+            # Sample Type, Peptide Counts, and (Portrait only) Average Abundance
+            # all live in this one Plotly legend.
+            font=dict(size=font_size_legend),
+            grouptitlefont=dict(size=font_size_legend, color='black'),
             itemsizing='constant',
             groupclick="toggleitem",
         ),
@@ -2322,6 +2348,9 @@ def visualize_sequence_heatmap_compact(
     y_ticks,
     log_transform,
     plot_title='',        # optional user figure title; blank → no title
+    font_size_xaxis_label=14, font_size_yaxis_label=15,
+    font_size_legend=15,
+    font_size_plot_title=16, font_size_xaxis_tick=12,
 ):
     """
     Generate an interactive Plotly compact heatmap.
@@ -2445,7 +2474,7 @@ def visualize_sequence_heatmap_compact(
 
         # y-axis settings — uniform scale enforced via autorange=False; labels in legend only
         fig.update_yaxes(
-            title=dict(text=label, font=dict(size=13), standoff=5),
+            title=dict(text=label, font=dict(size=font_size_yaxis_label), standoff=5),
             type=_axis_type,
             range=_y_range,
             autorange=False,
@@ -2493,7 +2522,7 @@ def visualize_sequence_heatmap_compact(
             name=lbl,
             showlegend=True,
             legendgroup='pep_count',
-            legendgrouptitle=dict(text=legend_title_pep),
+            legendgrouptitle=dict(text=legend_title_pep, font=dict(size=font_size_legend)),
         ))
 
     # ── legend: abundance y-range reference ───────────────────────────────────
@@ -2504,7 +2533,7 @@ def visualize_sequence_heatmap_compact(
             name=f"{tick_lbl}: {tick_val:.3g}",
             showlegend=True,
             legendgroup='abundance_ticks',
-            legendgrouptitle=dict(text=legend_title_abun),
+            legendgrouptitle=dict(text=legend_title_abun, font=dict(size=font_size_legend)),
         ))
 
     # ── x-axes ────────────────────────────────────────────────────────────────
@@ -2522,8 +2551,8 @@ def visualize_sequence_heatmap_compact(
         )
         if i == num_vars:
             fig.update_xaxes(
-                title=dict(text=x_label_str, font=dict(size=14)),
-                dtick=20,
+                title=dict(text=x_label_str, font=dict(size=font_size_xaxis_label)),
+                dtick=20, tickfont=dict(size=font_size_xaxis_tick),
                 **common,
                 row=i, col=1,
             )
@@ -2540,8 +2569,9 @@ def visualize_sequence_heatmap_compact(
     title_str = (plot_title or '').strip()
 
     row_height = max(130, 600 // max(num_vars, 1))
+
     fig.update_layout(
-        title=dict(text=title_str, font=dict(size=16, color='black'), x=0.5),
+        title=dict(text=title_str, font=dict(size=font_size_plot_title, color='black'), x=0.5),
         font=dict(family=PLOTLY_FONT_FAMILY, color='black', size=12),
         height=max(row_height * num_vars + 80, 300),
         bargap=0,
@@ -2559,10 +2589,10 @@ def visualize_sequence_heatmap_compact(
             borderwidth=1,
             orientation="v",
             bgcolor="rgba(255,255,255,0.9)",
-            font=dict(size=13),
-            # Consistent legend-group header style across all figures — the Data
-            # Analysis legend-title convention.
-            grouptitlefont=dict(size=15, color='black'),
+            # One shared font size for both legend groups' headers AND items —
+            # Peptide Counts and Average Abundance both live in this one legend.
+            font=dict(size=font_size_legend),
+            grouptitlefont=dict(size=font_size_legend, color='black'),
             itemsizing='constant',
             groupclick="toggleitem",
         ),

@@ -18,6 +18,16 @@ import pandas as pd
 # floor; the preview and the downloaded PNG are the same encoded image.
 EXPORT_DPI = 300
 
+
+def _coerce_font_size(value, default: int) -> int:
+    """Parse an Appearance Settings font-size input, falling back to `default`
+    for blank/invalid/non-positive values (e.g. an emptied number input)."""
+    try:
+        size = int(float(value))
+    except (TypeError, ValueError):
+        return default
+    return size if size > 0 else default
+
 # Protein-name display cleaning. Two kinds of clutter are removed:
 #   * Trailing UniProt FASTA metadata — "Beta-casein OS=Bos taurus GN=CSN2 …".
 #   * A leading UniProt entry-name token — "LACB_BOVIN Beta-lactoglobulin",
@@ -799,6 +809,14 @@ def generate_heatmap(
             series_a=pp.get('series_a'),
             series_b=pp.get('series_b'),
             comparison_metric=pp.get('comparison_metric', 'smd'),
+            # Appearance Settings font-size overrides.
+            font_size_xaxis_label=_coerce_font_size(pp.get('font_size_xaxis_label'), 14),
+            font_size_yaxis_label=_coerce_font_size(pp.get('font_size_yaxis_label'), 15),
+            font_size_legend=_coerce_font_size(pp.get('font_size_legend'), 15),
+            font_size_plot_title=_coerce_font_size(pp.get('font_size_plot_title'), 16),
+            font_size_xaxis_tick=_coerce_font_size(pp.get('font_size_xaxis_tick'), 12),
+            font_size_yaxis_tick=_coerce_font_size(pp.get('font_size_yaxis_tick'), 12),
+            font_size_var_label=_coerce_font_size(pp.get('font_size_var_label'), 12),
         )
     except Exception as exc:
         return None, None, None, None, None, [f'Error generating heatmap: {exc}\n{traceback.format_exc()}']

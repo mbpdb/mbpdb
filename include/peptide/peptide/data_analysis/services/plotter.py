@@ -31,7 +31,6 @@ FONT_FAMILY = 'Arial, Helvetica, sans-serif'
 BASE_FONT   = dict(family=FONT_FAMILY, color='black')
 HOVERLABEL  = dict(bgcolor='white', font_size=12, font_family=FONT_FAMILY)
 PLOT_MARGIN = dict(t=100, l=100, r=100, b=100)
-LEGEND_FONT_SIZE = 14
 
 # Below this max plotted value, an abundance chart defaults to a linear y-axis
 # instead of the usual log scale (the log-transform checkbox still overrides).
@@ -153,19 +152,19 @@ def _plot_totals_relative(state: DataAnalysisState):
     fig.add_trace(go.Scatter(
         x=groups, y=[r + 1.5 for r in rels], mode='text',
         text=[f"{r:.1f}%" for r in rels], textposition='top center',
-        textfont=dict(size=14, color='black'),
+        textfont=dict(size=state.font_size_value_label, color='black'),
         showlegend=False, hoverinfo='none',
     ))
 
     y_title = 'Relative ' + state.metric_name
-    yaxis_kw = _axis_style()
+    yaxis_kw = _axis_style(state.font_size_ylabel, state.font_size_ytick)
     yaxis_kw['range'] = [0, 100]
     yaxis_kw['tickformat'] = '.1f'
     fig.update_layout(**{
         **_common_layout(state),
         'showlegend': False,
         'hoverlabel': HOVERLABEL,
-        'xaxis': dict(title=state.xlabel or '', tickangle=45, **_axis_style()),
+        'xaxis': dict(title=state.xlabel or '', tickangle=45, **_axis_style(state.font_size_xlabel, state.font_size_xtick)),
         'yaxis': dict(title=state.ylabel or y_title, **yaxis_kw),
     })
     return fig
@@ -212,21 +211,6 @@ def plot_total_peptides(state: DataAnalysisState):
         y_prefix = ''
         tickfmt = '.1e'
 
-    COMMON_LAYOUT = dict(
-        template='plotly_white',
-        # Width omitted so config.responsive fills #plot-container instead of
-        # pinning to a fixed pixel size — see _common_layout() for why.
-        height=800,
-        margin=PLOT_MARGIN,
-        showlegend=False,
-        font=BASE_FONT,
-        hoverlabel=HOVERLABEL,
-    )
-    AXIS_STYLE = dict(
-        showline=True, linewidth=1, linecolor='black',
-        mirror=False, gridcolor='lightgray', showgrid=True, zeroline=False,
-    )
-
     if state.use_count:
         count_label_text = [f"{c:.2f}" if use_log else f"{int(c):,}" for c in counts]
         fig = go.Figure()
@@ -248,27 +232,23 @@ def plot_total_peptides(state: DataAnalysisState):
             mode='text',
             text=count_label_text,
             textposition='top center',
-            textfont=dict(size=12),
+            textfont=dict(size=state.font_size_value_label),
             showlegend=False,
             hoverinfo='none',
         ))
         y_axis_title = f'{y_prefix}Unique Peptide Count'
         if use_log:
-            yaxis_kw = dict(tickformat=tickfmt, title_font=dict(size=18, color='black'),
-                            tickfont=dict(size=16, color='black'), **AXIS_STYLE)
+            yaxis_kw = dict(tickformat=tickfmt, **_axis_style(state.font_size_ylabel, state.font_size_ytick))
         else:
             yaxis_kw = dict(tickformat=',d', exponentformat='none',
-                            title_font=dict(size=18, color='black'),
-                            tickfont=dict(size=16, color='black'), **AXIS_STYLE)
+                            **_axis_style(state.font_size_ylabel, state.font_size_ytick))
         fig.update_layout(
-            **COMMON_LAYOUT,
-            title=dict(text=_make_title(state), y=0.95, x=0.5, xanchor='center',
-                       yanchor='top', font=dict(size=18, color='black')),
+            **_common_layout(state),
+            showlegend=False,
+            hoverlabel=HOVERLABEL,
             # Totals plot is always by sample and the group ticks are self-
             # explanatory, so no default axis title — only what the user supplies.
-            xaxis=dict(title=state.xlabel or '', **AXIS_STYLE, tickangle=45,
-                       title_font=dict(size=18, color='black'),
-                       tickfont=dict(size=16, color='black')),
+            xaxis=dict(title=state.xlabel or '', tickangle=45, **_axis_style(state.font_size_xlabel, state.font_size_xtick)),
             yaxis=dict(title=y_axis_title, **yaxis_kw),
         )
     else:
@@ -292,31 +272,26 @@ def plot_total_peptides(state: DataAnalysisState):
             mode='text',
             text=abundance_label_text,
             textposition='top center',
-            textfont=dict(size=14),
+            textfont=dict(size=state.font_size_value_label),
             showlegend=False,
             hoverinfo='none',
         ))
         y_axis_title = f'{y_prefix}Summed Abundance'
         if use_log:
-            yaxis_kw = dict(tickformat=tickfmt, title_font=dict(size=18, color='black'),
-                            tickfont=dict(size=16, color='black'), **AXIS_STYLE)
+            yaxis_kw = dict(tickformat=tickfmt, **_axis_style(state.font_size_ylabel, state.font_size_ytick))
         elif max(abundances, default=0) < LINEAR_SCALE_THRESHOLD:
             # Small values read better on a linear axis than a log axis; the
             # log-transform checkbox is untouched and still forces log when ticked.
             yaxis_kw = dict(type='linear', exponentformat='e',
-                            title_font=dict(size=18, color='black'),
-                            tickfont=dict(size=16, color='black'), **AXIS_STYLE)
+                            **_axis_style(state.font_size_ylabel, state.font_size_ytick))
         else:
             yaxis_kw = dict(type='log', exponentformat='e',
-                            title_font=dict(size=18, color='black'),
-                            tickfont=dict(size=16, color='black'), **AXIS_STYLE)
+                            **_axis_style(state.font_size_ylabel, state.font_size_ytick))
         fig.update_layout(
-            **COMMON_LAYOUT,
-            title=dict(text=_make_title(state), y=0.95, x=0.5, xanchor='center',
-                       yanchor='top', font=dict(size=18, color='black')),
-            xaxis=dict(title=state.xlabel or '', **AXIS_STYLE, tickangle=45,
-                       title_font=dict(size=18, color='black'),
-                       tickfont=dict(size=16, color='black')),
+            **_common_layout(state),
+            showlegend=False,
+            hoverlabel=HOVERLABEL,
+            xaxis=dict(title=state.xlabel or '', tickangle=45, **_axis_style(state.font_size_xlabel, state.font_size_xtick)),
             yaxis=dict(title=state.ylabel or y_axis_title, **yaxis_kw),
         )
 
@@ -695,13 +670,11 @@ def create_grouped_bar_plot(state: DataAnalysisState):
             **_common_layout(state),
             xaxis=dict(tickvals=list(range(len(categories))), ticktext=display_cats,
                        tickangle=45, title=x_lbl,
-                       **_axis_style()),
+                       **_axis_style(state.font_size_xlabel, state.font_size_xtick)),
             yaxis=dict(title=y_title, **yaxis_fn),
             barmode='group',
             hoverlabel=HOVERLABEL,
-            legend=dict(title=dict(text=legend_lbl),
-                        yanchor='top', y=1.0, xanchor='left', x=1.05,
-                        font=dict(size=LEGEND_FONT_SIZE, color='black')),
+            legend=_legend_style(state, legend_lbl, yanchor='top', y=1.0, xanchor='left', x=1.05),
         )
         if show_sig and orientation == 'By Function' and sig_geom:
             _add_grouped_significance(
@@ -816,13 +789,11 @@ def create_grouped_bar_plot(state: DataAnalysisState):
         fig.update_layout(
             **_common_layout(state),
             xaxis=dict(tickvals=list(range(len(categories))), ticktext=display_cats,
-                       tickangle=45, title=x_lbl, **_axis_style()),
+                       tickangle=45, title=x_lbl, **_axis_style(state.font_size_xlabel, state.font_size_xtick)),
             yaxis=dict(title=y_title, **yaxis_prot),
             barmode='group',
             hoverlabel=HOVERLABEL,
-            legend=dict(title=dict(text=legend_lbl),
-                        yanchor='top', y=1.0, xanchor='left', x=1.05,
-                        font=dict(size=LEGEND_FONT_SIZE, color='black')),
+            legend=_legend_style(state, legend_lbl, yanchor='top', y=1.0, xanchor='left', x=1.05),
         )
         if show_sig and orientation == 'By Protein' and sig_geom:
             _add_grouped_significance(
@@ -886,7 +857,7 @@ def _plot_no_filter_stacked(state: DataAnalysisState):
         ))
 
     y_title = ('Relative ' if state.is_relative else '') + state.metric_name
-    yaxis_kw = _axis_style()
+    yaxis_kw = _axis_style(state.font_size_ylabel, state.font_size_ytick)
     if state.is_relative:
         yaxis_kw['range'] = [0, 100]
         yaxis_kw['tickformat'] = '.1f'
@@ -901,10 +872,10 @@ def _plot_no_filter_stacked(state: DataAnalysisState):
     fig.update_layout(
         **_common_layout(state),
         barmode='stack',
-        xaxis=dict(title='', **_axis_style()),
+        xaxis=dict(title='', **_axis_style(state.font_size_xlabel, state.font_size_xtick)),
         yaxis=dict(title=state.ylabel or y_title, **yaxis_kw),
         hoverlabel=HOVERLABEL,
-        legend=dict(title=dict(text=state.legend_title or 'Sample'), font=dict(size=LEGEND_FONT_SIZE, color='black')),
+        legend=_legend_style(state, state.legend_title or 'Sample'),
     )
     return fig
 
@@ -1088,7 +1059,8 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
                 x=selected_groups, y=y_totals,
                 mode='text', text=text_vals,
                 textposition='top center',
-                textfont=dict(size=10 if len(selected_groups) > 12 else 12, color='black'),
+                textfont=dict(size=max(8, state.font_size_value_label - 2) if len(selected_groups) > 12
+                              else state.font_size_value_label, color='black'),
                 showlegend=True,
                 name=f'Total {state.metric_name}',
                 hoverinfo='none',
@@ -1218,7 +1190,7 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
                 x=display_items, y=y_totals,
                 mode='text', text=text_vals,
                 textposition='top center',
-                textfont=dict(size=12, color='black'),
+                textfont=dict(size=state.font_size_value_label, color='black'),
                 showlegend=True,
                 name=f'Total {state.metric_name}',
                 hoverinfo='none',
@@ -1227,7 +1199,7 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
     # ── Layout ─────────────────────────────────────────────────────────────────
     y_title = ('Relative ' if state.is_relative else '') + \
                ('Log<sub>10</sub> ' if (use_log and not state.is_relative) else '') + state.metric_name
-    yaxis_stk = _axis_style()
+    yaxis_stk = _axis_style(state.font_size_ylabel, state.font_size_ytick)
     if state.is_relative:
         yaxis_stk['range'] = [0, 100]
         yaxis_stk['tickformat'] = '.1f'
@@ -1249,15 +1221,12 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
     fig.update_layout(**{
         **_common_layout(state),
         'barmode': 'stack',
-        'xaxis': dict(title=xlabel, tickangle=-90 if orientation == 'By Sample' else 45, **_axis_style()),
+        'xaxis': dict(title=xlabel, tickangle=-90 if orientation == 'By Sample' else 45,
+                      **_axis_style(state.font_size_xlabel, state.font_size_xtick)),
         'yaxis': dict(title=state.ylabel or y_title, **yaxis_stk),
         'hoverlabel': HOVERLABEL,
-        'legend': dict(
-            title=dict(text=legend_lbl),
-            font=dict(size=LEGEND_FONT_SIZE, color='black'),
-            yanchor='top', y=0.95, xanchor='left', x=1.05,
-            bgcolor='rgba(255,255,255,0.9)',
-        ),
+        'legend': _legend_style(state, legend_lbl, yanchor='top', y=0.95, xanchor='left', x=1.05,
+                                bgcolor='rgba(255,255,255,0.9)'),
         'height': 820,
         'margin': dict(t=100, l=100, r=100, b=100),
     })
@@ -1297,13 +1266,13 @@ def create_pie_charts(state: DataAnalysisState):
             labels=labels, values=vals,
             marker_colors=colors,
             textposition='inside', textinfo='percent',
+            textfont=dict(size=state.font_size_value_label),
             hovertemplate=_hover_fmt_nf,
         ))
         fig.update_layout(**{**_common_layout(state),
                           'showlegend': True,
                           'hoverlabel': HOVERLABEL,
-                          'legend': dict(title=dict(text=state.legend_title or 'Sample'),
-                                         font=dict(size=LEGEND_FONT_SIZE, color='black'))})
+                          'legend': _legend_style(state, state.legend_title or 'Sample')})
         return fig
 
     if df is None or df.empty:
@@ -1338,6 +1307,7 @@ def create_pie_charts(state: DataAnalysisState):
                 values=vals, name=group,
                 marker_colors=colors,
                 textposition='inside', textinfo='percent',
+                textfont=dict(size=state.font_size_value_label),
                 title=dict(text=group, font=dict(size=14)),
                 hovertemplate=hover_fmt,
             ), row=row_idx, col=col_idx)
@@ -1345,8 +1315,7 @@ def create_pie_charts(state: DataAnalysisState):
         fig.update_layout(**{**_common_layout(state),
                           'height': 400 * rows, 'width': 1000,
                           'hoverlabel': HOVERLABEL,
-                          'legend': dict(title=dict(text=state.legend_title or 'Item'),
-                                         font=dict(size=LEGEND_FONT_SIZE, color='black'))})
+                          'legend': _legend_style(state, state.legend_title or 'Item')})
         return fig
     else:
         # By Function/Protein: one pie per item
@@ -1374,6 +1343,7 @@ def create_pie_charts(state: DataAnalysisState):
                 labels=labels, values=vals, name=item,
                 marker_colors=colors,
                 textposition='inside', textinfo='percent',
+                textfont=dict(size=state.font_size_value_label),
                 title=dict(text=redact_string_descriptions(item), font=dict(size=12)),
                 hovertemplate=_item_hover_fmt,
             ), row=row_idx, col=col_idx)
@@ -1381,8 +1351,7 @@ def create_pie_charts(state: DataAnalysisState):
         fig.update_layout(**{**_common_layout(state),
                           'height': 400 * rows, 'width': 1000,
                           'hoverlabel': HOVERLABEL,
-                          'legend': dict(title=dict(text=state.legend_title or 'Sample'),
-                                         font=dict(size=LEGEND_FONT_SIZE, color='black'))})
+                          'legend': _legend_style(state, state.legend_title or 'Sample')})
         return fig
 
 
@@ -1489,27 +1458,25 @@ def create_correlation_plot(state: DataAnalysisState):
     ax_kw = dict(tickformat=tickfmt, tickvals=tick_vals, nticks=5,
                  range=combined_range,
                  showline=True, linewidth=1, linecolor='black',
-                 gridcolor='lightgray', showgrid=True, zeroline=False,
-                 tickfont=dict(size=14, color='black'),
-                 title_font=dict(size=16, color='black'))
+                 gridcolor='lightgray', showgrid=True, zeroline=False)
 
     leg_title = state.legend_title or f'{state.correlation_type} Correlation Values'
     fig.update_layout(
         title=dict(text=_make_title(state, kind='correlation'), x=0.5, xanchor='center',
-                   font=dict(size=18, color='black')),
-        xaxis=dict(title=x_label, tickangle=45, **ax_kw),
-        yaxis=dict(title=y_label, **ax_kw),
+                   font=dict(size=state.font_size_plot_title, color='black')),
+        xaxis=dict(title=x_label, tickangle=45,
+                   title_font=dict(size=state.font_size_xlabel, color='black'),
+                   tickfont=dict(size=state.font_size_xtick, color='black'), **ax_kw),
+        yaxis=dict(title=y_label,
+                   title_font=dict(size=state.font_size_ylabel, color='black'),
+                   tickfont=dict(size=state.font_size_ytick, color='black'), **ax_kw),
         height=500, width=600,
         template='plotly_white',
         font=BASE_FONT,
         hoverlabel=HOVERLABEL,
         showlegend=True,
-        legend=dict(
-            title=dict(text=leg_title, font=dict(size=16, color='black')),
-            yanchor='top', y=0.99, xanchor='right', x=0.99,
-            bgcolor='rgba(255, 255, 255, 0.8)',
-            font=dict(size=LEGEND_FONT_SIZE, color='black'),
-        ),
+        legend=_legend_style(state, leg_title, yanchor='top', y=0.99, xanchor='right', x=0.99,
+                             bgcolor='rgba(255, 255, 255, 0.8)'),
         margin=dict(t=100, b=80, l=80, r=50),
     )
     return fig
@@ -1603,13 +1570,12 @@ def create_correlation_splom(state: DataAnalysisState):
     leg_title = state.legend_title or f'{ct} Correlation'
     fig.update_layout(
         title=dict(text=_make_title(state, kind='correlation'), x=0.5, xanchor='center',
-                   font=dict(size=18, color='black')),
+                   font=dict(size=state.font_size_plot_title, color='black')),
         width=sz + 250, height=sz,
         template='plotly_white',
         font=BASE_FONT,
         hoverlabel=HOVERLABEL,
-        legend=dict(title=dict(text=leg_title, font=dict(size=14, color='black')),
-                    font=dict(size=LEGEND_FONT_SIZE, color='black'), x=1.01, y=1, yanchor='top'),
+        legend=_legend_style(state, leg_title, x=1.01, y=1, yanchor='top'),
     )
     # Apply consistent axis ranges/formats
     overall_min, overall_max = min(all_vals), max(all_vals)
@@ -1618,9 +1584,11 @@ def create_correlation_splom(state: DataAnalysisState):
     for k in range(1, len(valid_groups) + 1):
         fig.update_layout({
             f'xaxis{k}': dict(range=combined_range, tickvals=tick_vals, tickformat=tickfmt,
-                              tickfont=dict(size=12, color='black'), tickangle=45),
+                              tickfont=dict(size=state.font_size_xtick, color='black'), tickangle=45,
+                              title_font=dict(size=state.font_size_xlabel, color='black')),
             f'yaxis{k}': dict(range=combined_range, tickvals=tick_vals, tickformat=tickfmt,
-                              tickfont=dict(size=12, color='black')),
+                              tickfont=dict(size=state.font_size_ytick, color='black'),
+                              title_font=dict(size=state.font_size_ylabel, color='black')),
         })
     return fig
 
@@ -1631,7 +1599,7 @@ def create_correlation_splom(state: DataAnalysisState):
 
 def _build_grouped_yaxis(state: DataAnalysisState, use_log: bool, use_count: bool) -> dict:
     """Return y-axis kwargs matching notebook grouped bar plot formatting."""
-    kw = _axis_style()
+    kw = _axis_style(state.font_size_ylabel, state.font_size_ytick)
     if state.is_relative:
         kw['range'] = [0, 100]
     elif use_count and use_log:
@@ -1711,16 +1679,28 @@ def _common_layout(state: DataAnalysisState) -> dict:
         font=BASE_FONT,
         title=dict(text=_make_title(state), y=0.95, x=0.5,
                    xanchor='center', yanchor='top',
-                   font=dict(size=18, color='black')),
+                   font=dict(size=state.font_size_plot_title, color='black')),
     )
 
 
-def _axis_style() -> dict:
+def _axis_style(title_size: int = 18, tick_size: int = 16) -> dict:
     return dict(
         showline=True, linewidth=1, linecolor='black',
         mirror=False, gridcolor='lightgray', showgrid=True, zeroline=False,
-        title_font=dict(size=18, color='black'),
-        tickfont=dict(size=16, color='black'),
+        title_font=dict(size=title_size, color='black'),
+        tickfont=dict(size=tick_size, color='black'),
+    )
+
+
+def _legend_style(state: DataAnalysisState, text: str, **extra) -> dict:
+    """Legend dict with the Appearance Settings legend-title font size driving
+    both the legend title and the legend item text, per the Appearance Settings
+    control (one input governs the whole legend's type size)."""
+    size = state.font_size_legend_title
+    return dict(
+        title=dict(text=text, font=dict(size=size, color='black')),
+        font=dict(size=size, color='black'),
+        **extra,
     )
 
 
