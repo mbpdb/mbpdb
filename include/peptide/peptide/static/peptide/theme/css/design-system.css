@@ -561,6 +561,9 @@ body {
   border-radius: var(--pl-radius);
   overflow: hidden;
   background: var(--pl-color-bg);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .pl-frame-bar {
@@ -582,6 +585,9 @@ body {
 .pl-frame-body {
   cursor: pointer;
   position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
 }
 
 .pl-frame-body img {
@@ -614,7 +620,9 @@ body {
 }
 
 .pl-frame-caption {
-  padding: var(--pl-space-2) var(--pl-space-2) 0;
+  padding: var(--pl-space-2);
+  margin-top: auto;
+  text-align: left;
 }
 
 .pl-frame-caption .pl-viz-title {
@@ -622,12 +630,14 @@ body {
   font-weight: 600;
   color: var(--pl-color-text);
   margin-bottom: 2px;
+  text-align: left;
 }
 
 .pl-frame-caption .pl-viz-description {
   font-size: var(--pl-text-caption);
   color: var(--pl-color-muted);
   line-height: 1.5;
+  text-align: left;
 }
 
 .pl-viz-grid {
@@ -713,6 +723,26 @@ body {
 
 .pl-modal.active {
   display: flex;
+}
+
+.pl-modal.pl-modal--wide {
+  width: 98vw;
+  height: 96vh;
+  max-height: 96vh;
+}
+
+.pl-modal.pl-modal--wide .pl-modal-body {
+  padding: 0;
+}
+
+.pl-modal.pl-modal--wide .pl-modal-body iframe {
+  width: 100%;
+  height: 100%;
+}
+
+.pl-modal.pl-modal--wide .pl-modal-body img {
+  width: 100%;
+  height: 100%;
 }
 
 .pl-modal-bar {

@@ -753,16 +753,28 @@ async function generatePlot() {
     document.getElementById('step3-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// Derives the same publication-style filename used by the PNG/SVG export
+// (download-static) from the current figure's title, so every export format
+// for a given plot shares one descriptive name instead of a generic one.
+function getPlotFilename(fallback) {
+    const rawTitle = currentFigJson && currentFigJson.layout && currentFigJson.layout.title
+        ? (currentFigJson.layout.title.text || currentFigJson.layout.title) : '';
+    return (String(rawTitle).replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '')) || fallback;
+}
+
 async function downloadPlot() {
     if (!currentFigJson) return;
+
+    const filename = getPlotFilename('data_analysis_plot');
 
     const htmlStr = `<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"><\/script>
+<style>html,body{margin:0;padding:0;width:100%;height:100%;}#plot{width:100%;height:100%;}</style>
 </head><body>
 <div id="plot"></div>
 <script>
-Plotly.newPlot('plot', ${JSON.stringify(currentFigJson.data)}, ${JSON.stringify(currentFigJson.layout)});
+Plotly.newPlot('plot', ${JSON.stringify(currentFigJson.data)}, ${JSON.stringify(currentFigJson.layout)}, {responsive: true});
 <\/script>
 </body></html>`;
 
@@ -772,13 +784,16 @@ Plotly.newPlot('plot', ${JSON.stringify(currentFigJson.data)}, ${JSON.stringify(
             headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
             body: JSON.stringify({ html: htmlStr }),
         });
-        if (resp.ok) { window.location.href = '/data_analysis/download-plot/'; return; }
+        if (resp.ok) {
+            window.location.href = `/data_analysis/download-plot/?filename=${encodeURIComponent(filename)}`;
+            return;
+        }
     } catch(e) { /* fall through to blob download */ }
 
     const blob = new Blob([htmlStr], { type: 'text/html' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href = url; a.download = 'data_analysis_plot.html'; a.click();
+    a.href = url; a.download = `${filename}.html`; a.click();
     URL.revokeObjectURL(url);
 }
 
@@ -789,10 +804,7 @@ Plotly.newPlot('plot', ${JSON.stringify(currentFigJson.data)}, ${JSON.stringify(
 async function downloadImage(format) {
     const container = document.getElementById('plot-container');
     if (!currentFigJson || !container) return;
-    const rawTitle = currentFigJson.layout && currentFigJson.layout.title
-        ? (currentFigJson.layout.title.text || currentFigJson.layout.title) : '';
-    const filename = (String(rawTitle).replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, ''))
-        || 'peptiline_plot';
+    const filename = getPlotFilename('peptiline_plot');
     const fl = container._fullLayout || {};
     const resp = await fetch('/data_analysis/download-static/', {
         method: 'POST',

@@ -190,7 +190,7 @@
                 </div>
             </div>
             <div class="pl-frame">
-                <div class="pl-frame-body" data-plot="{% static 'peptide/plots/sequence_heatmap_1.png' %}" data-title="Sequence Heatmaps">
+                <div class="pl-frame-body" data-plot="{% static 'peptide/plots/sequence_heatmap_1.html' %}" data-title="Sequence Heatmaps">
                     <img src="{% static 'peptide/plots/sequence_heatmap_1.png' %}" alt="Sequence Heatmap">
                 </div>
                 <div class="pl-frame-caption">
@@ -208,12 +208,12 @@
                 </div>
             </div>
             <div class="pl-frame">
-                <div class="pl-frame-body" data-plot="{% static 'peptide/plots/protein_plot_1.html' %}" data-title="Grouped Bar Plots">
+                <div class="pl-frame-body" data-plot="{% static 'peptide/plots/protein_plot_1.html' %}" data-title="Grouped Bar Plots" data-wide="true">
                     <img src="{% static 'peptide/plots/protein_plot_1.png' %}" alt="Protein Plot">
                 </div>
                 <div class="pl-frame-caption">
                     <div class="pl-viz-title">Grouped Bar Plots</div>
-                    <div class="pl-viz-description">Peptide abundance by protein origin or function, compared across samples.</div>
+                    <div class="pl-viz-description">Peptide abundance by protein origin or function, compared across samples, with replicate-based error bars.</div>
                 </div>
             </div>
             <div class="pl-frame">
@@ -246,16 +246,16 @@
         </div>
         <div class="pl-viz-grid">
             <div class="pl-frame">
-                <div class="pl-frame-body" data-plot="{% static 'peptide/plots/significance_bar_plot_1.png' %}" data-title="Significance Testing">
-                    <img src="{% static 'peptide/plots/significance_bar_plot_1.png' %}" alt="Bar plot with significance testing">
+                <div class="pl-frame-body" data-plot="{% static 'peptide/plots/significance_bar_plot_1.png' %}" data-title="Compact-Letter Significance Bars" data-wide="true">
+                    <img src="{% static 'peptide/plots/significance_bar_plot_1.png' %}" alt="Bar plot with compact-letter significance groupings">
                 </div>
                 <div class="pl-frame-caption">
-                    <div class="pl-viz-title">Significance Testing</div>
-                    <div class="pl-viz-description">Replicate-based error bars with ANOVA/Tukey HSD (or Welch/Games-Howell) significance annotations.</div>
+                    <div class="pl-viz-title">Compact-Letter Significance Bars</div>
+                    <div class="pl-viz-description">Replicate-based error bars with ANOVA/Tukey HSD (or Welch/Games-Howell) results shown as compact-letter groupings across three or more sample groups.</div>
                 </div>
             </div>
             <div class="pl-frame">
-                <div class="pl-frame-body" data-plot="{% static 'peptide/plots/differential_heatmap_1.png' %}" data-title="Differential Comparison Heatmap">
+                <div class="pl-frame-body" data-plot="{% static 'peptide/plots/differential_heatmap_1.html' %}" data-title="Differential Comparison Heatmap">
                     <img src="{% static 'peptide/plots/differential_heatmap_1.png' %}" alt="Differential comparison heatmap">
                 </div>
                 <div class="pl-frame-caption">
@@ -264,13 +264,12 @@
                 </div>
             </div>
             <div class="pl-frame">
-                <div class="pl-frame-placeholder">
-                    <i class="fas fa-chart-simple"></i>
-                    <span>Coming soon</span>
+                <div class="pl-frame-body" data-plot="{% static 'peptide/plots/inline_significance_bracket_1.html' %}" data-title="Two-Group Significance Brackets">
+                    <img src="{% static 'peptide/plots/inline_significance_bracket_1.png' %}" alt="Bar plot with two-group significance bracket">
                 </div>
                 <div class="pl-frame-caption">
-                    <div class="pl-viz-title">Inline Significance Brackets</div>
-                    <div class="pl-viz-description">Asterisk-style bracket annotations directly between two compared bars.</div>
+                    <div class="pl-viz-title">Two-Group Significance Brackets</div>
+                    <div class="pl-viz-description">Replicate-based error bars with an ANOVA/Tukey HSD (or Welch/Games-Howell) two-group comparison shown as an asterisk-style bracket between the compared bars.</div>
                 </div>
             </div>
         </div>
@@ -360,6 +359,7 @@ document.addEventListener('DOMContentLoaded', function () {
             var title = el.getAttribute('data-title') || '';
             modalTitle.textContent = title;
             modalBody.innerHTML = '';
+            modal.classList.toggle('pl-modal--wide', el.getAttribute('data-wide') === 'true');
 
             if (/\.(png|jpe?g)$/i.test(url)) {
                 var img = document.createElement('img');

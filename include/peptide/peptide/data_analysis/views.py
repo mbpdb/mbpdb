@@ -195,6 +195,12 @@ def plot(request):
 # Download plot as HTML
 # ---------------------------------------------------------------------------
 
+def _sanitize_filename(raw_name, fallback):
+    """Same title-derived naming scheme used across all plot export formats."""
+    cleaned = ''.join(c if c.isalnum() or c in ('-', '_', '.') else '_' for c in str(raw_name))
+    return cleaned or fallback
+
+
 @require_GET
 def download_plot(request):
     """Return a previously generated plot as a self-contained HTML file."""
@@ -206,9 +212,11 @@ def download_plot(request):
     if not os.path.exists(plot_path):
         return HttpResponse('No plot has been generated yet.', status=404)
 
+    filename = _sanitize_filename(request.GET.get('filename') or 'data_analysis_plot', 'data_analysis_plot')
+
     with open(plot_path, 'rb') as f:
         response = HttpResponse(f.read(), content_type='text/html')
-        response['Content-Disposition'] = 'attachment; filename="data_analysis_plot.html"'
+        response['Content-Disposition'] = f'attachment; filename="{filename}.html"'
         return response
 
 
@@ -235,7 +243,7 @@ def download_static_image(request):
     if not figure_json:
         return HttpResponse('No figure data.', status=400)
 
-    filename = ''.join(c if c.isalnum() or c in ('-', '_', '.') else '_' for c in str(raw_name)) or 'peptiline_plot'
+    filename = _sanitize_filename(raw_name, 'peptiline_plot')
 
     try:
         if fmt == 'svg':

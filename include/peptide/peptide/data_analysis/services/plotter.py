@@ -214,7 +214,9 @@ def plot_total_peptides(state: DataAnalysisState):
 
     COMMON_LAYOUT = dict(
         template='plotly_white',
-        height=800, width=1000,
+        # Width omitted so config.responsive fills #plot-container instead of
+        # pinning to a fixed pixel size — see _common_layout() for why.
+        height=800,
         margin=PLOT_MARGIN,
         showlegend=False,
         font=BASE_FONT,
@@ -1256,7 +1258,7 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
             yanchor='top', y=0.95, xanchor='left', x=1.05,
             bgcolor='rgba(255,255,255,0.9)',
         ),
-        'height': 820, 'width': 1200,
+        'height': 820,
         'margin': dict(t=100, l=100, r=100, b=100),
     })
     return fig
@@ -1698,7 +1700,13 @@ def _common_layout(state: DataAnalysisState) -> dict:
     # so those keys must NOT be set here (would raise a duplicate-kwarg error).
     return dict(
         template='plotly_white',
-        height=800, width=1000,
+        # Width intentionally omitted: with config.responsive=True, Plotly.js
+        # only stretches a dimension left unset in the layout. A fixed width
+        # here pins the plot to that pixel size regardless of container size,
+        # which is what produced the large blank strip on wide containers
+        # (the plot rendered at 1000px inside a much wider #plot-container).
+        # Height stays fixed since chart height isn't container-width-dependent.
+        height=800,
         margin=PLOT_MARGIN,
         font=BASE_FONT,
         title=dict(text=_make_title(state), y=0.95, x=0.5,
