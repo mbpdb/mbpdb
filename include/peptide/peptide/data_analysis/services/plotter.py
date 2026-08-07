@@ -282,7 +282,9 @@ def plot_total_peptides(state: DataAnalysisState):
         elif max(abundances, default=0) < LINEAR_SCALE_THRESHOLD:
             # Small values read better on a linear axis than a log axis; the
             # log-transform checkbox is untouched and still forces log when ticked.
-            yaxis_kw = dict(type='linear', exponentformat='e',
+            # Below this threshold (including abundance data that was already
+            # log-transformed upstream) plain integers read better than scientific notation.
+            yaxis_kw = dict(type='linear', tickformat=',d', exponentformat='none',
                             **_axis_style(state.font_size_ylabel, state.font_size_ytick))
         else:
             yaxis_kw = dict(type='log', exponentformat='e',
@@ -596,6 +598,7 @@ def create_grouped_bar_plot(state: DataAnalysisState):
         fig = go.Figure()
         sig_geom = {}  # {(category_index, group): {'x': centre, 'top': bar+SEM top}}
         bysample_tops = {}  # By Sample: {sample: max bar+SEM in its cluster}
+        all_values = []
 
         for idx, bar_group in enumerate(bar_groups):
             x_pos = [i + (idx - n_bars / 2 + 0.5) * bar_width for i in range(len(categories))]
@@ -646,6 +649,7 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                         f"Relative Contribution: {rel_value:.1f}%"
                     )
 
+            all_values.extend(values)
             fn_color = color_map.get(bar_group, '#999')
             if bar_group in ('Minor Functions', 'Minor Proteins'):
                 fn_color = '#808080'
@@ -664,7 +668,7 @@ def create_grouped_bar_plot(state: DataAnalysisState):
             ))
 
         y_title = state.ylabel or ('Log<sub>10</sub> ' if use_log else '') + state.metric_name
-        yaxis_fn = _build_grouped_yaxis(state, use_log, use_count)
+        yaxis_fn = _build_grouped_yaxis(state, use_log, use_count, max(all_values, default=0))
         x_lbl, legend_lbl = _orientation_axis_titles(state)
         fig.update_layout(
             **_common_layout(state),
@@ -718,6 +722,7 @@ def create_grouped_bar_plot(state: DataAnalysisState):
         fig = go.Figure()
         sig_geom = {}  # {(category_index, group): {'x': centre, 'top': bar+SEM top}}
         bysample_tops = {}  # By Sample: {sample: max bar+SEM in its cluster}
+        all_values = []
 
         for idx, bar_group in enumerate(bar_groups_list):
             x_pos = [i + (idx - n_bars / 2 + 0.5) * bar_width for i in range(len(categories))]
@@ -767,6 +772,7 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                         f"Relative Contribution: {rel_value:.1f}%"
                     )
 
+            all_values.extend(values)
             bar_color = color_map.get(bar_group, '#999')
             if bar_group == 'Minor Proteins':
                 bar_color = '#808080'
@@ -784,7 +790,7 @@ def create_grouped_bar_plot(state: DataAnalysisState):
             ))
 
         y_title = state.ylabel or ('Log<sub>10</sub> ' if use_log else '') + state.metric_name
-        yaxis_prot = _build_grouped_yaxis(state, use_log, use_count)
+        yaxis_prot = _build_grouped_yaxis(state, use_log, use_count, max(all_values, default=0))
         x_lbl, legend_lbl = _orientation_axis_titles(state)
         fig.update_layout(
             **_common_layout(state),
@@ -1214,8 +1220,20 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
         yaxis_stk['tickformat'] = '.1f'
         yaxis_stk['exponentformat'] = 'none'
     else:
-        yaxis_stk['exponentformat'] = 'E'
-        yaxis_stk['showexponent'] = 'all'
+        # Abundance, absolute, non-log: the stacked total (already log-transformed
+        # abundance data included) can still be small, in which case plain integers
+        # read better than scientific notation. See LINEAR_SCALE_THRESHOLD.
+        if orientation == 'By Sample':
+            stack_max = max(total_sums.values(), default=0)
+        else:
+            stack_max = max((d.get('total_Abundance', 0.0) for d in item_data_dict.values()), default=0)
+        if stack_max < LINEAR_SCALE_THRESHOLD:
+            yaxis_stk['tickformat'] = ',d'
+            yaxis_stk['exponentformat'] = 'none'
+            yaxis_stk['showexponent'] = 'none'
+        else:
+            yaxis_stk['exponentformat'] = 'E'
+            yaxis_stk['showexponent'] = 'all'
 
     xlabel, legend_lbl = _orientation_axis_titles(state)
     fig.update_layout(**{
@@ -1388,7 +1406,13 @@ def create_correlation_plot(state: DataAnalysisState):
     else:
         x_vals = fdf[col1]
         y_vals = fdf[col2]
-        tickfmt = '.1e'
+        # Already-log-transformed abundance data can still land here with small
+        # values; scientific notation is misleading noise below the same
+        # linear-scale threshold used elsewhere. See LINEAR_SCALE_THRESHOLD.
+        if max(float(x_vals.max()), float(y_vals.max())) < LINEAR_SCALE_THRESHOLD:
+            tickfmt = ',d'
+        else:
+            tickfmt = '.1e'
         x_label, y_label = g1, g2
 
     corr_text = 'n/a'
@@ -1524,7 +1548,13 @@ def create_correlation_splom(state: DataAnalysisState):
         fdf[pn_col].fillna('N/A') if pn_col else ['N/A'] * len(fdf),
     ])
 
-    tickfmt = '.0f' if use_log else '.1e'
+    if use_log:
+        tickfmt = '.0f'
+    else:
+        # Already-log-transformed abundance data can still land here with small
+        # values; scientific notation is misleading noise below the same
+        # linear-scale threshold used elsewhere. See LINEAR_SCALE_THRESHOLD.
+        tickfmt = ',d' if max(all_vals) < LINEAR_SCALE_THRESHOLD else '.1e'
     splom = go.Splom(
         dimensions=dimensions,
         marker=dict(color=first_color, size=8, line=dict(width=1, color='white')),
@@ -1597,7 +1627,7 @@ def create_correlation_splom(state: DataAnalysisState):
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _build_grouped_yaxis(state: DataAnalysisState, use_log: bool, use_count: bool) -> dict:
+def _build_grouped_yaxis(state: DataAnalysisState, use_log: bool, use_count: bool, max_value: float = None) -> dict:
     """Return y-axis kwargs matching notebook grouped bar plot formatting."""
     kw = _axis_style(state.font_size_ylabel, state.font_size_ytick)
     if state.is_relative:
@@ -1615,6 +1645,13 @@ def _build_grouped_yaxis(state: DataAnalysisState, use_log: bool, use_count: boo
     elif not use_count and use_log:
         kw['type'] = 'linear'
         kw['tickformat'] = '.1f'
+        kw['exponentformat'] = 'none'
+        kw['showexponent'] = 'none'
+    elif max_value is not None and max_value < LINEAR_SCALE_THRESHOLD:
+        # Small values (including abundance data already log-transformed
+        # upstream) read better as plain integers than scientific notation.
+        kw['type'] = 'linear'
+        kw['tickformat'] = ',d'
         kw['exponentformat'] = 'none'
         kw['showexponent'] = 'none'
     else:  # abundance, no log

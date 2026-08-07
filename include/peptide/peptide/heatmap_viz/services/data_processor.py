@@ -96,11 +96,20 @@ def load_merged_file(file_obj, filename: str) -> tuple:
         if name_lower.endswith('.xlsx'):
             df = pd.read_excel(io.BytesIO(content))
         elif name_lower.endswith('.tsv') or name_lower.endswith('.txt'):
-            df = pd.read_csv(io.BytesIO(content), sep='\t')
+            df = pd.read_csv(io.BytesIO(content), sep='\t', low_memory=False)
         else:
-            df = pd.read_csv(io.BytesIO(content))
+            df = pd.read_csv(io.BytesIO(content), low_memory=False)
     except Exception as exc:
         return None, {}, {}, [], str(exc)
+
+    # Excel-sourced exports can carry thousands of fully-blank trailing rows
+    # (all-comma/all-empty lines past the real data). Their columns parse as
+    # NaN/float while the real rows parse as str, which is what triggers
+    # pandas' "mixed types" DtypeWarning — and every downstream iterrows()/
+    # apply() pass over the dataframe then wastes time on rows with no data.
+    # Same fix used by Data Transformation's loader and Data Analysis's load_file.
+    df = df.dropna(how='all')
+    df = df[~df.astype(str).apply(lambda row: row.str.strip().eq('').all(), axis=1)]
 
     df.columns = df.columns.str.strip()
 
@@ -387,7 +396,7 @@ def get_selector_options(merged_df: pd.DataFrame, group_data_dict: dict, protein
     for pid in sorted_proteins:
         name = protein_dict.get(pid, {}).get('name', pid)
         has_seq = bool(protein_dict.get(pid, {}).get('sequence', ''))
-        protein_options.append({'id': pid, 'label': name, 'has_sequence': has_seq})
+        protein_options.append({'id': pid, 'label': f"{pid} – {name}", 'has_sequence': has_seq})
 
     # Variable keys (grouping variables)
     var_key_options = col_order if col_order else [

@@ -45,9 +45,17 @@ def load_file(file_obj, filename: str):
         elif name_lower.endswith('.xlsx'):
             df = pd.read_excel(file_obj)
         elif name_lower.endswith('.tsv') or name_lower.endswith('.txt'):
-            df = pd.read_csv(file_obj, sep='\t')
+            df = pd.read_csv(file_obj, sep='\t', low_memory=False)
         else:
-            df = pd.read_csv(file_obj)
+            df = pd.read_csv(file_obj, low_memory=False)
+        # Excel-sourced exports can carry thousands of fully-blank trailing rows
+        # (all-comma/all-empty lines past the real data). Their columns parse as
+        # NaN/float while the real rows parse as str, which is what triggers
+        # pandas' "mixed types" DtypeWarning — and every downstream iterrows()/
+        # apply() pass over the dataframe then wastes time on rows with no data.
+        # Same fix already used by the Data Transformation loader (data_loader.py).
+        df = df.dropna(how='all')
+        df = df[~df.astype(str).apply(lambda row: row.str.strip().eq('').all(), axis=1)]
         return df, None
     except Exception as exc:
         return None, str(exc)
