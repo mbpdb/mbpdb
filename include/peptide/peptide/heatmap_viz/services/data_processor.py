@@ -165,6 +165,14 @@ def _validate_and_standardize_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, s
                 if new_name not in df.columns:
                     df = df.rename(columns={col: new_name})
 
+    if 'start' not in df.columns or 'end' not in df.columns:
+        return df, (
+            "Missing required peptide position data ('start'/'end', or an "
+            "equivalent column such as 'Positions in Proteins', 'Peptide start'/"
+            "'Peptide end'). Sequence heatmaps require a start and end position "
+            "for every peptide and cannot be generated without this data."
+        )
+
     if 'Protein' not in df.columns:
         for col in PROTEIN_ID_COLUMNS:
             if col in df.columns:
@@ -379,7 +387,7 @@ def get_selector_options(merged_df: pd.DataFrame, group_data_dict: dict, protein
     for pid in sorted_proteins:
         name = protein_dict.get(pid, {}).get('name', pid)
         has_seq = bool(protein_dict.get(pid, {}).get('sequence', ''))
-        protein_options.append({'id': pid, 'label': f"{pid} – {name}", 'has_sequence': has_seq})
+        protein_options.append({'id': pid, 'label': name, 'has_sequence': has_seq})
 
     # Variable keys (grouping variables)
     var_key_options = col_order if col_order else [

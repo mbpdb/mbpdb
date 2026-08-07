@@ -108,13 +108,43 @@ def extract_protein_dict(df: pd.DataFrame) -> dict:
         return protein_dict
 
     for _, row in df.iterrows():
-        protein_str = str(row.get('Protein', ''))
-        for protein_id in protein_str.split(';'):
+        protein_value = row.get('Protein', '')
+        is_list = isinstance(protein_value, list)
+        if (is_list and not protein_value) or (not is_list and pd.isna(protein_value)):
+            continue
+        # Data Transformation's extract_protein_id() stores a genuine Python
+        # list (not a joined string) for multi-protein peptides. str()-ing
+        # that produces its bracketed repr (e.g. "['Q5SX40', 'Q5SX39']"),
+        # which would otherwise become one bogus, unmatched protein ID -- this
+        # path is only reachable via a transferred/pickled dataframe, since a
+        # directly uploaded CSV can never contain a real list object in a cell.
+        if isinstance(protein_value, list):
+            candidate_ids = [str(p) for p in protein_value]
+        else:
+            candidate_ids = re.split(r'\s*;\s*|\s*/\s*|\s*,\s*', str(protein_value))
+        for protein_id in candidate_ids:
             protein_id = protein_id.strip()
             if not protein_id or protein_id in protein_dict:
                 continue
-            name = str(row.get('protein_name', protein_id))
-            species = str(row.get('protein_species', 'Unknown'))
+            name_value = row.get('protein_name', protein_id)
+            # Data Transformation's own "cleaning up placeholder values" step
+            # (data_combiner.py) replaces the literal string 'Unknown' with
+            # pd.NA before the merged dataframe is saved -- so a transferred
+            # dataset's unresolved names arrive as pd.NA, not the string
+            # 'Unknown'. pd.isna() catches that (and None/NaN) uniformly,
+            # which plain string matching cannot. Treat any of those, or the
+            # literal string itself (belt-and-suspenders for other sources),
+            # as no name at all and fall back to the protein ID -- matches
+            # the Heatmap module's convention so an unmapped protein is never
+            # shown as a bare, unhelpful placeholder.
+            if pd.isna(name_value):
+                name = protein_id
+            else:
+                name = str(name_value).strip()
+                if not name or name.lower() in ('unknown', 'nan', 'none'):
+                    name = protein_id
+            species_value = row.get('protein_species', 'Unknown')
+            species = 'Unknown' if pd.isna(species_value) else str(species_value)
             protein_dict[protein_id] = {'name': name, 'species': species}
     return protein_dict
 
@@ -157,8 +187,16 @@ def get_selector_options(merged_df: pd.DataFrame, group_data_dict: dict, protein
     protein_abundance: dict[str, float] = {}
     if 'Protein' in merged_df.columns and avg_columns:
         for _, row in merged_df.iterrows():
-            protein_str = str(row.get('Protein', ''))
-            parts = [p.strip() for p in protein_str.split(';') if p.strip()]
+            protein_value = row.get('Protein', '')
+            if isinstance(protein_value, list):
+                parts = [str(p).strip() for p in protein_value if str(p).strip()]
+            elif pd.isna(protein_value):
+                parts = []
+            else:
+                parts = [
+                    p.strip() for p in re.split(r'\s*;\s*|\s*/\s*|\s*,\s*', str(protein_value))
+                    if p.strip()
+                ]
             total_ab = sum(
                 float(row.get(col, 0) or 0)
                 for col in avg_columns

@@ -445,6 +445,25 @@ def plot(request):
     if merged_df is None or group_data_dict is None:
         return JsonResponse({'error': 'Session data missing. Please re-upload your file.'}, status=400)
 
+    # Belt-and-suspenders check: load_merged_file() already rejects a dataset
+    # with no start/end columns at all, but a dataset that reached this session
+    # via a transfer path could in principle carry 'start'/'end' columns that
+    # are present but entirely empty. Either way, a sequence heatmap cannot be
+    # generated without real peptide position data, so refuse outright rather
+    # than attempt a plot and fail confusingly deeper in the pipeline.
+    if (
+        'start' not in merged_df.columns or 'end' not in merged_df.columns
+        or merged_df['start'].isna().all() or merged_df['end'].isna().all()
+    ):
+        return JsonResponse({
+            'error': 'Missing peptide position data.',
+            'message': (
+                'This dataset has no usable start/end (peptide position) values, '
+                'so a sequence heatmap cannot be generated. Upload data that '
+                'includes peptide start and end positions.'
+            ),
+        }, status=422)
+
     selected_proteins = body.get('selected_proteins', [])
     selected_var_keys = body.get('selected_var_keys', [])
     plot_params = body.get('plot_params', {})

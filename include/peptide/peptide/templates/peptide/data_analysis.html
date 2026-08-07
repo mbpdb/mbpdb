@@ -909,6 +909,7 @@ if (new URLSearchParams(window.location.search).get('from_dt') === '1') {
         populateSelectors(data);
         enableStep2();
         applyPlotFilterGreying();
+        applyPlotTypeGreying();  // set Show Stats visibility for the default plot type
     }
 }
 
