@@ -446,6 +446,11 @@ class DataAnalysisState:
         self.value_cols = {g: f'{self.value_prefix}{g}' for g in self.selected_groups}
         self.rel_cols = {g: f'{self.rel_prefix}{g}' for g in self.selected_groups}
 
+        # Non-fatal, user-facing notices collected while building a plot (e.g. a
+        # zero/negative value dropped under log transform). Surfaced alongside
+        # the figure by generate_plot() rather than raised as an error.
+        self.warnings: list = []
+
         # Computed by pipeline steps
         self.filtered_df: pd.DataFrame | None = None
         self.total_peptide_results_dict: dict = {}

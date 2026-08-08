@@ -195,6 +195,13 @@ def plot_total_peptides(state: DataAnalysisState):
     if use_log:
         abundances = [_safe_log(v) for v in abundances]
         counts = [_safe_log(v) for v in counts]
+        skipped_log_zero = sum(1 for v in (abundances if not state.use_count else counts) if v is None)
+        if skipped_log_zero:
+            state.warnings.append(
+                f'{skipped_log_zero} group(s) had a zero or missing total and were left blank '
+                'under log transform (log of zero/negative is undefined). Turn off log '
+                'transform to display them.'
+            )
         abundance_sems = [
             data[g]['abundance_sem'] / (data[g]['total_Abundance'] * np.log(10))
             if data[g]['total_Abundance'] > 0 else 0
@@ -212,7 +219,7 @@ def plot_total_peptides(state: DataAnalysisState):
         tickfmt = '.1e'
 
     if state.use_count:
-        count_label_text = [f"{c:.2f}" if use_log else f"{int(c):,}" for c in counts]
+        count_label_text = [('' if c is None else f"{c:.2f}") if use_log else f"{int(c):,}" for c in counts]
         fig = go.Figure()
         fig.add_trace(go.Bar(
             x=groups, y=counts, name='Peptide Count',
@@ -228,7 +235,7 @@ def plot_total_peptides(state: DataAnalysisState):
         ))
         fig.add_trace(go.Scatter(
             x=groups,
-            y=[c + (s * 1.2) for c, s in zip(counts, count_sems)],
+            y=[(0 if c is None else c) + (s * 1.2) for c, s in zip(counts, count_sems)],
             mode='text',
             text=count_label_text,
             textposition='top center',
@@ -252,7 +259,7 @@ def plot_total_peptides(state: DataAnalysisState):
             yaxis=dict(title=y_axis_title, **yaxis_kw),
         )
     else:
-        abundance_label_text = [f"{a:.2f}" if use_log else f"{a:.2e}" for a in abundances]
+        abundance_label_text = [('' if a is None else f"{a:.2f}") if use_log else f"{a:.2e}" for a in abundances]
         fig = go.Figure()
         fig.add_trace(go.Bar(
             x=groups, y=abundances, name='Abundance',
@@ -268,7 +275,7 @@ def plot_total_peptides(state: DataAnalysisState):
         ))
         fig.add_trace(go.Scatter(
             x=groups,
-            y=[a + s for a, s in zip(abundances, abundance_sems)],
+            y=[(0 if a is None else a) + s for a, s in zip(abundances, abundance_sems)],
             mode='text',
             text=abundance_label_text,
             textposition='top center',
@@ -299,9 +306,9 @@ def plot_total_peptides(state: DataAnalysisState):
 
     if state.show_significance and not state.is_relative:
         if state.use_count:
-            tops = {g: counts[i] + count_sems[i] for i, g in enumerate(groups)}
+            tops = {g: (0 if counts[i] is None else counts[i]) + count_sems[i] for i, g in enumerate(groups)}
         else:
-            tops = {g: abundances[i] + abundance_sems[i] for i, g in enumerate(groups)}
+            tops = {g: (0 if abundances[i] is None else abundances[i]) + abundance_sems[i] for i, g in enumerate(groups)}
         # Log-scale axis is used only for abundance, without the log checkbox, and
         # above the linear-scale threshold (see the yaxis block above) — the marker
         # placement must match whichever axis actually rendered.
@@ -309,7 +316,8 @@ def plot_total_peptides(state: DataAnalysisState):
             and max(abundances, default=0) >= LINEAR_SCALE_THRESHOLD
         _add_totals_significance(fig, groups, state.total_reps_dict,
                                  'count' if state.use_count else 'abundance', tops, is_log_axis,
-                                 method=state.significance_method)
+                                 method=state.significance_method,
+                                 sig_font_size=state.font_size_value_label)
     return fig
 
 
@@ -391,7 +399,7 @@ def _offset_fn(tops_vals, is_log_axis):
 
 
 def _add_totals_significance(fig, groups, total_reps, metric_key, tops, is_log_axis,
-                             method='tukey', x_categorical=True):
+                             method='tukey', x_categorical=True, sig_font_size=None):
     """Significance markers for a chart whose x-clusters are the sample groups.
 
     Used both by the totals bar chart and by grouped bars in "By Sample"
@@ -430,6 +438,8 @@ def _add_totals_significance(fig, groups, total_reps, metric_key, tops, is_log_a
     # One gap above each bar clears its numeric value label; markers go above that.
     label_top = {g: above(tops.get(g, 0), 1) for g in groups}
     anchor_y = None
+    star_size = sig_font_size if sig_font_size is not None else 14
+    letter_size = sig_font_size if sig_font_size is not None else 13
 
     if len(groups) == 2:
         g1, g2 = groups
@@ -452,7 +462,7 @@ def _add_totals_significance(fig, groups, total_reps, metric_key, tops, is_log_a
         star_y = float(np.log10(y)) if (is_log_axis and y > 0) else y
         fig.add_annotation(xref='x', yref='y', x=(idx[g1] + idx[g2]) / 2, y=star_y,
                            text=stars, showarrow=False, yanchor='bottom',
-                           font=dict(size=14, color='black'))
+                           font=dict(size=star_size, color='black'))
         anchor_y = above(y, 1.5)
     else:
         # Compact-letter display as a scatter-text trace, auto-extends the y-range.
@@ -463,7 +473,7 @@ def _add_totals_significance(fig, groups, total_reps, metric_key, tops, is_log_a
             mode='text',
             text=[f"<b>{res['letters'][g]}</b>" for g in letter_groups],
             textposition='top center',
-            textfont=dict(size=13, color='black'),
+            textfont=dict(size=letter_size, color='black'),
             showlegend=False, hoverinfo='none',
         ))
         anchor_y = above(max((label_top[g] for g in letter_groups),
@@ -482,7 +492,7 @@ def _add_totals_significance(fig, groups, total_reps, metric_key, tops, is_log_a
 
 
 def _add_grouped_significance(fig, categories, group_order, geom, reps_lookup, metric_key,
-                              method='tukey'):
+                              method='tukey', sig_font_size=None):
     """Overlay ANOVA + Tukey HSD significance markers on a grouped bar chart.
 
     For each category cluster (one function or one protein) the sample groups are
@@ -508,6 +518,8 @@ def _add_grouped_significance(fig, categories, group_order, geom, reps_lookup, m
     method_label = stats._METHOD_LABELS.get(
         stats._METHOD_ALIASES.get(str(method).strip().lower(), 'tukey'))
     excluded, min_ns, last_reason = set(), [], None
+    star_size = sig_font_size if sig_font_size is not None else 13
+    letter_size = sig_font_size if sig_font_size is not None else 12
 
     for ci, cat in enumerate(categories):
         reps = reps_lookup(cat) or {}
@@ -540,7 +552,7 @@ def _add_grouped_significance(fig, categories, group_order, geom, reps_lookup, m
                           line=dict(color='black', width=1))
             fig.add_shape(type='line', x0=x1, x1=x2, y0=y, y1=y, line=dict(color='black', width=1))
             fig.add_annotation(x=(x1 + x2) / 2, y=y + off * 0.2, text=label, showarrow=False,
-                               font=dict(size=13, color='black'), yanchor='bottom')
+                               font=dict(size=star_size, color='black'), yanchor='bottom')
             needed_top = max(needed_top, y + off * 2)
         else:
             # Three or more groups → compact-letter display above each bar.
@@ -548,7 +560,7 @@ def _add_grouped_significance(fig, categories, group_order, geom, reps_lookup, m
                 cg = cat_geom.get(g)
                 if cg and letter:
                     fig.add_annotation(x=cg['x'], y=cg['top'] + off * 0.35, text=f"<b>{letter}</b>",
-                                       showarrow=False, font=dict(size=12, color='black'),
+                                       showarrow=False, font=dict(size=letter_size, color='black'),
                                        yanchor='bottom')
             needed_top = max(needed_top, cluster_top + off * 2)
 
@@ -599,6 +611,7 @@ def create_grouped_bar_plot(state: DataAnalysisState):
         sig_geom = {}  # {(category_index, group): {'x': centre, 'top': bar+SEM top}}
         bysample_tops = {}  # By Sample: {sample: max bar+SEM in its cluster}
         all_values = []
+        skipped_log_zero = 0
 
         for idx, bar_group in enumerate(bar_groups):
             x_pos = [i + (idx - n_bars / 2 + 0.5) * bar_width for i in range(len(categories))]
@@ -621,6 +634,8 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                     v = abs_value
                     if use_log:
                         v = _safe_log(v)
+                        if v is None:
+                            skipped_log_zero += 1
                 values.append(v)
                 disp_sem = _display_sem(sem_raw, abs_value, use_log)
                 sems.append(disp_sem)
@@ -667,8 +682,15 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                 hovertext=hover, hoverinfo='text',
             ))
 
+        if skipped_log_zero:
+            state.warnings.append(
+                f'{skipped_log_zero} bar(s) had a zero or missing value and were left blank '
+                'under log transform (log of zero/negative is undefined). Turn off log '
+                'transform to display them.'
+            )
         y_title = state.ylabel or ('Log<sub>10</sub> ' if use_log else '') + state.metric_name
-        yaxis_fn = _build_grouped_yaxis(state, use_log, use_count, max(all_values, default=0))
+        finite_values = [v for v in all_values if v is not None]
+        yaxis_fn = _build_grouped_yaxis(state, use_log, use_count, max(finite_values, default=0))
         x_lbl, legend_lbl = _orientation_axis_titles(state)
         fig.update_layout(
             **_common_layout(state),
@@ -684,7 +706,7 @@ def create_grouped_bar_plot(state: DataAnalysisState):
             _add_grouped_significance(
                 fig, categories, list(bar_groups), sig_geom,
                 lambda fn: state.function_reps_dict.get(fn, {}), metric_key,
-                method=state.significance_method)
+                method=state.significance_method, sig_font_size=state.font_size_value_label)
         elif show_sig and orientation == 'By Sample' and bysample_tops:
             # Samples are the x-clusters here, so compare the samples on their
             # replicate-level filtered totals (total_reps_dict is computed on the
@@ -692,7 +714,8 @@ def create_grouped_bar_plot(state: DataAnalysisState):
             # Grouped bars use a numeric x-axis (tickvals/ticktext) -> x_categorical=False.
             _add_totals_significance(fig, categories, state.total_reps_dict, metric_key,
                                      bysample_tops, is_log_axis=False,
-                                     method=state.significance_method, x_categorical=False)
+                                     method=state.significance_method, x_categorical=False,
+                                     sig_font_size=state.font_size_value_label)
         elif state.show_significance and state.is_relative:
             _add_significance_caption(fig, RELATIVE_STATS_NOTE)
         return fig
@@ -723,6 +746,7 @@ def create_grouped_bar_plot(state: DataAnalysisState):
         sig_geom = {}  # {(category_index, group): {'x': centre, 'top': bar+SEM top}}
         bysample_tops = {}  # By Sample: {sample: max bar+SEM in its cluster}
         all_values = []
+        skipped_log_zero = 0
 
         for idx, bar_group in enumerate(bar_groups_list):
             x_pos = [i + (idx - n_bars / 2 + 0.5) * bar_width for i in range(len(categories))]
@@ -748,6 +772,8 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                     v = abs_value
                     if use_log:
                         v = _safe_log(v)
+                        if v is None:
+                            skipped_log_zero += 1
                 values.append(v)
                 disp_sem = _display_sem(sem_raw, abs_value, use_log)
                 sems.append(disp_sem)
@@ -789,8 +815,15 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                 hovertext=hover, hoverinfo='text',
             ))
 
+        if skipped_log_zero:
+            state.warnings.append(
+                f'{skipped_log_zero} bar(s) had a zero or missing value and were left blank '
+                'under log transform (log of zero/negative is undefined). Turn off log '
+                'transform to display them.'
+            )
         y_title = state.ylabel or ('Log<sub>10</sub> ' if use_log else '') + state.metric_name
-        yaxis_prot = _build_grouped_yaxis(state, use_log, use_count, max(all_values, default=0))
+        finite_values = [v for v in all_values if v is not None]
+        yaxis_prot = _build_grouped_yaxis(state, use_log, use_count, max(finite_values, default=0))
         x_lbl, legend_lbl = _orientation_axis_titles(state)
         fig.update_layout(
             **_common_layout(state),
@@ -805,14 +838,15 @@ def create_grouped_bar_plot(state: DataAnalysisState):
             _add_grouped_significance(
                 fig, categories, list(bar_groups_list), sig_geom,
                 lambda name: state.protein_reps_dict.get(name, {}), metric_key,
-                method=state.significance_method)
+                method=state.significance_method, sig_font_size=state.font_size_value_label)
         elif show_sig and orientation == 'By Sample' and bysample_tops:
             # Samples are the x-clusters; compare them on their replicate-level
             # filtered totals (total_reps_dict, computed on the selected-protein
             # filtered_df) and annotate per cluster. Numeric x-axis -> x_categorical=False.
             _add_totals_significance(fig, categories, state.total_reps_dict, metric_key,
                                      bysample_tops, is_log_axis=False,
-                                     method=state.significance_method, x_categorical=False)
+                                     method=state.significance_method, x_categorical=False,
+                                     sig_font_size=state.font_size_value_label)
         elif state.show_significance and state.is_relative:
             _add_significance_caption(fig, RELATIVE_STATS_NOTE)
         return fig
@@ -1814,6 +1848,8 @@ def generate_plot(merged_df: pd.DataFrame, group_data_dict: dict, protein_dict: 
     except Exception:
         warnings.append('Error generating plot: ' + traceback.format_exc())
         return None, warnings
+
+    warnings.extend(state.warnings)
 
     if fig is None:
         warnings.append('No plot generated. Please check your selections and data.')

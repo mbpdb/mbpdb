@@ -21,6 +21,11 @@ local_settings.py
 # ===========================================
 include/peptide/static_files/
 
+# Reference-only third-party format examples (MaxQuant/Skyline/PEAKS/Spectronaut/
+# PepEx exports, case-study provenance files) — not served by the app, kept for
+# local dev/test use only, not for public distribution in the repo.
+include/peptide/peptide/static/peptide/examples/not_in_use_examples/
+
 # ===========================================
 # Original ignores
 # ===========================================
