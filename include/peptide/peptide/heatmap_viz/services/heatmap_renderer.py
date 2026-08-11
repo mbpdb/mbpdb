@@ -2127,7 +2127,13 @@ def visualize_sequence_heatmap_interactive(
                     # always wraps to a fixed PORTRAIT_CHUNK=78-residue band
                     # regardless of protein length, so for anything longer than 78
                     # residues it gets proportionally more px per residue and can
-                    # afford a larger letter.
+                    # afford a larger letter. Ed-14: raising this declared size
+                    # alone does NOT grow the rendered glyphs — Plotly's
+                    # uniformtext shrinks text to fit the per-residue cell width
+                    # regardless of the declared size, and cell width (driven by
+                    # PORTRAIT_CHUNK) is already the binding constraint at 16px.
+                    # Confirmed empirically: bumping to 26px produced pixel-
+                    # identical output. Left at 16px; the real lever is chunk width.
                     textfont=dict(size=(16 if is_portrait else 13), color='#333333'),
                     insidetextanchor='middle', textangle=0,
                     marker_color='rgba(230,230,230,1.0)', marker_line_width=0,

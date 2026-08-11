@@ -1000,14 +1000,14 @@ class TestSummedPeptideResults(unittest.TestCase):
         merged = _make_merged_df()
         result = export_manager.summed_peptide_results(merged, make_group_data())
         group_a = result['GroupA']
-        for key in ['unique_peptides', 'total_Absorbance', 'total_sem',
+        for key in ['unique_peptides', 'total_Abundance', 'total_sem',
                     'abundance_sem', 'count_sem', 'replicate_data']:
             self.assertIn(key, group_a, msg=f"Missing key: {key}")
 
-    def test_total_absorbance_positive(self):
+    def test_total_abundance_positive(self):
         merged = _make_merged_df()
         result = export_manager.summed_peptide_results(merged, make_group_data())
-        self.assertGreater(result['GroupA']['total_Absorbance'], 0)
+        self.assertGreater(result['GroupA']['total_Abundance'], 0)
 
     def test_export_summed_peptide_data_returns_xlsx(self):
         merged = _make_merged_df()

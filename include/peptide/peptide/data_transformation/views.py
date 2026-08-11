@@ -1381,7 +1381,7 @@ def view_export(request, export_type):
                 return JsonResponse({'error': 'No summed peptide data'}, status=404)
             summary_rows, rep_rows = [], []
             for g, v in data.items():
-                summary_rows.append([g, safe_val(v['total_Absorbance']),
+                summary_rows.append([g, safe_val(v['total_Abundance']),
                                       safe_val(v['abundance_sem']),
                                       safe_val(v['unique_peptides']), safe_val(v['count_sem'])])
                 ri = v['replicate_data']
@@ -1391,10 +1391,10 @@ def view_export(request, export_type):
                     rep_rows.append([g, rep, safe_val(ab), safe_val(ct)])
             sheets = [
                 {'name': 'Summary',
-                 'columns': ['Group', 'Total Absorbance', 'Abundance SEM', 'Unique Peptides', 'Count SEM'],
+                 'columns': ['Group', 'Total Abundance', 'Abundance SEM', 'Unique Peptides', 'Count SEM'],
                  'rows': summary_rows, 'total_rows': len(summary_rows), 'truncated': False},
                 {'name': 'Replicate Details',
-                 'columns': ['Group', 'Replicate', 'Total Absorbance', 'Unique Peptides'],
+                 'columns': ['Group', 'Replicate', 'Total Abundance', 'Unique Peptides'],
                  'rows': rep_rows, 'total_rows': len(rep_rows), 'truncated': False},
             ]
 
@@ -1617,7 +1617,7 @@ def download_export(request, export_type):
 
     elif export_type == 'summed_function':
         content = export_manager.export_summed_function_data(merged_df, group_data)
-        filename = 'processed_mbpdb_results.xlsx'
+        filename = 'functional_analysis.xlsx'
         content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
     elif export_type == 'group_correlation':
@@ -1745,7 +1745,7 @@ def download_all_exports(request):
             _add('protein_analysis.xlsx', protein_content)
 
             if has_function:
-                _add('processed_mbpdb_results.xlsx',
+                _add('functional_analysis.xlsx',
                      export_manager.export_summed_function_data(merged_df, group_data))
 
             _add(f'group_correlations_{correlation_type.lower()}.xlsx',

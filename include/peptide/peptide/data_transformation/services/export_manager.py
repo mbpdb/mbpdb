@@ -75,19 +75,19 @@ def _convert_group_data_dict(merged_df, group_data):
     return updated_group_data, df
 
 
-def _get_absorbance_cols(group_data):
-    """Get the average absorbance column names from group_data."""
-    absorbance_cols = []
+def _get_abundance_cols(group_data):
+    """Get the average abundance column names from group_data."""
+    abundance_cols = []
     selected_groups = []
     for _, value in group_data.items():
         grouping_variable = value['grouping_variable']
         abundance_columns = value['abundance_columns']
         selected_groups.append(grouping_variable)
         if grouping_variable != abundance_columns:
-            absorbance_cols.append(f'Avg_{grouping_variable}')
+            abundance_cols.append(f'Avg_{grouping_variable}')
         else:
-            absorbance_cols.append(abundance_columns)
-    return absorbance_cols, selected_groups
+            abundance_cols.append(abundance_columns)
+    return abundance_cols, selected_groups
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +190,7 @@ def summed_peptide_results(merged_df, group_data):
         if temp_df.empty:
             total_peptide_results_dict[grouping_variable] = {
                 'unique_peptides': 0,
-                'total_Absorbance': 0,
+                'total_Abundance': 0,
                 'total_sem': 0,
                 'abundance_sem': 0,
                 'count_sem': 0,
@@ -225,7 +225,7 @@ def summed_peptide_results(merged_df, group_data):
 
         total_peptide_results_dict[grouping_variable] = {
             'unique_peptides': all_unique_peptides,
-            'total_Absorbance': total_abundance,
+            'total_Abundance': total_abundance,
             'total_sem': total_sem,
             'abundance_sem': total_sem,
             'count_sem': count_sem,
@@ -251,7 +251,7 @@ def export_summed_peptide_data(merged_df, group_data):
     for group, values in data.items():
         summary_data.append({
             'Group': group,
-            'Total_Absorbance': values['total_Absorbance'],
+            'Total_Abundance': values['total_Abundance'],
             'Abundance_SEM': values['abundance_sem'],
             'Unique_Peptides': values['unique_peptides'],
             'Count_SEM': values['count_sem']
@@ -270,14 +270,14 @@ def export_summed_peptide_data(merged_df, group_data):
                 replicate_data.append({
                     'Group': group,
                     'Replicate': replicate_name,
-                    'Total_Absorbance': replicate_abundances[i],
+                    'Total_Abundance': replicate_abundances[i],
                     'Unique_Peptides': replicate_counts[i]
                 })
             else:
                 replicate_data.append({
                     'Group': group,
                     'Replicate': replicate_name,
-                    'Total_Absorbance': 0,
+                    'Total_Abundance': 0,
                     'Unique_Peptides': 0
                 })
 
@@ -332,11 +332,11 @@ def export_protein_data(merged_df, group_data, protein_dict):
         return None, []
 
     df = merged_df.copy()
-    absorbance_cols, selected_groups = _get_absorbance_cols(group_data)
+    abundance_cols, selected_groups = _get_abundance_cols(group_data)
 
-    df['Total_Absorbance'] = df[absorbance_cols].sum(axis=1).astype(int)
-    result_df = df[['Unique Peptide ID', 'Total_Absorbance']]
-    result_df = result_df[result_df['Total_Absorbance'] == 0]
+    df['Total_Abundance'] = df[abundance_cols].sum(axis=1).astype(int)
+    result_df = df[['Unique Peptide ID', 'Total_Abundance']]
+    result_df = result_df[result_df['Total_Abundance'] == 0]
     all_zero_list = list(result_df['Unique Peptide ID'])
     peptides_df = df[~df['Unique Peptide ID'].isin(all_zero_list)].copy()
 
@@ -349,9 +349,9 @@ def export_protein_data(merged_df, group_data, protein_dict):
 
     peptides_df['Protein'] = peptides_df['Protein'].apply(normalize_protein)
 
-    proteins_df = peptides_df.groupby('Protein', as_index=False)[absorbance_cols].sum()
+    proteins_df = peptides_df.groupby('Protein', as_index=False)[abundance_cols].sum()
 
-    for col in absorbance_cols:
+    for col in abundance_cols:
         col_sum = proteins_df[col].sum()
         if col_sum > 0:
             proteins_df[f'Rel_{col}'] = (proteins_df[col] / col_sum) * 100
@@ -376,10 +376,10 @@ def export_protein_data(merged_df, group_data, protein_dict):
         r"['\['\]]", "", regex=True
     )
 
-    total_sum = proteins_df[absorbance_cols].sum().sum()
-    row_sums = proteins_df[absorbance_cols].sum(axis=1)
-    proteins_df['avg_absorbance_all'] = (row_sums / total_sum * 100).round(2) if total_sum > 0 else 0
-    proteins_df = proteins_df.sort_values('avg_absorbance_all', ascending=False)
+    total_sum = proteins_df[abundance_cols].sum().sum()
+    row_sums = proteins_df[abundance_cols].sum(axis=1)
+    proteins_df['avg_abundance_all'] = (row_sums / total_sum * 100).round(2) if total_sum > 0 else 0
+    proteins_df = proteins_df.sort_values('avg_abundance_all', ascending=False)
 
     # Track peptide-to-protein mappings
     protein_to_peptides = defaultdict(set)
@@ -469,7 +469,7 @@ def export_protein_data(merged_df, group_data, protein_dict):
     meta_cols = id_cols + desc_cols
 
     abs_abs_cols  = meta_cols + [c for c in all_cols if c.startswith('Avg_')] + \
-                    (['avg_absorbance_all'] if 'avg_absorbance_all' in all_cols else [])
+                    (['avg_abundance_all'] if 'avg_abundance_all' in all_cols else [])
     abs_rel_cols  = meta_cols + [c for c in all_cols if c.startswith('Rel_Avg_')]
     cnt_abs_cols  = meta_cols + [c for c in all_cols if c.startswith('Count_')]
     cnt_rel_cols  = meta_cols + [c for c in all_cols if c.startswith('Rel_Count_')]
@@ -490,8 +490,8 @@ def export_protein_data(merged_df, group_data, protein_dict):
 
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine='openpyxl') as writer:
-        proteins_df[abs_abs_cols].to_excel(writer, sheet_name='Absorbance Absolute', index=False)
-        abs_rel_df.to_excel(writer, sheet_name='Absorbance Relative', index=False)
+        proteins_df[abs_abs_cols].to_excel(writer, sheet_name='Abundance Absolute', index=False)
+        abs_rel_df.to_excel(writer, sheet_name='Abundance Relative', index=False)
         cnt_abs_df.to_excel(writer, sheet_name='Count Absolute',      index=False)
         cnt_rel_df.to_excel(writer, sheet_name='Count Relative',       index=False)
         for ws in writer.sheets.values():
@@ -510,23 +510,23 @@ def _process_bioactive_data(merged_df, group_data):
         return None
 
     df = merged_df.copy()
-    absorbance_cols = []
+    abundance_cols = []
     selected_groups = []
-    unique_function_absorbance = {}
+    unique_function_abundance = {}
 
     for _, value in group_data.items():
         grouping_variable = value['grouping_variable']
         abundance_columns = value['abundance_columns']
         selected_groups.append(grouping_variable)
         if grouping_variable != abundance_columns:
-            absorbance_cols.append(f'Avg_{grouping_variable}')
+            abundance_cols.append(f'Avg_{grouping_variable}')
         else:
-            absorbance_cols.append(abundance_columns)
+            abundance_cols.append(abundance_columns)
 
         if 'function' not in df.columns:
             return None
 
-        for column in absorbance_cols:
+        for column in abundance_cols:
             temp_df = df[['Unique Peptide ID', 'function', column]].copy()
             temp_df = temp_df[
                 (temp_df[column] != 0) &
@@ -543,9 +543,9 @@ def _process_bioactive_data(merged_df, group_data):
 
             if not exploded_df.empty:
                 function_grouped = exploded_df.groupby('function')[column].sum()
-                unique_function_absorbance[grouping_variable] = function_grouped.to_dict()
+                unique_function_abundance[grouping_variable] = function_grouped.to_dict()
 
-    return unique_function_absorbance, absorbance_cols
+    return unique_function_abundance, abundance_cols
 
 
 def _process_functional_peptide_export_data(merged_df, group_data):
@@ -553,18 +553,18 @@ def _process_functional_peptide_export_data(merged_df, group_data):
     result = _process_bioactive_data(merged_df, group_data)
     if result is None:
         return None
-    unique_function_absorbance, absorbance_cols = result
-    if not unique_function_absorbance:
+    unique_function_abundance, abundance_cols = result
+    if not unique_function_abundance:
         return None
 
-    groups = list(unique_function_absorbance.keys())
+    groups = list(unique_function_abundance.keys())
     df = merged_df.copy()
 
     summed_function_count = {}
     unique_function_counts = {}
     summed_function_abundance = {}
 
-    for group, abundance_column in zip(groups, absorbance_cols):
+    for group, abundance_column in zip(groups, abundance_cols):
         if abundance_column not in df.columns:
             continue
 
@@ -600,33 +600,33 @@ def _process_functional_peptide_export_data(merged_df, group_data):
     ).fillna(0).astype(int)
     combined_count_df = pd.concat([peptide_count_df, function_count_df], axis=1).T
 
-    peptide_absorbance_df = pd.DataFrame.from_dict(
-        summed_function_abundance, orient='index', columns=['Summed Absorbance']
+    peptide_abundance_df = pd.DataFrame.from_dict(
+        summed_function_abundance, orient='index', columns=['Summed Abundance']
     )
-    function_absorbance_df = pd.DataFrame.from_dict(
-        unique_function_absorbance, orient='index'
+    function_abundance_df = pd.DataFrame.from_dict(
+        unique_function_abundance, orient='index'
     ).fillna(0)
-    combined_absorbance_df = pd.concat(
-        [peptide_absorbance_df, function_absorbance_df], axis=1
+    combined_abundance_df = pd.concat(
+        [peptide_abundance_df, function_abundance_df], axis=1
     ).T
 
     combined_df = pd.DataFrame(
-        index=combined_absorbance_df.index,
-        columns=combined_absorbance_df.columns
+        index=combined_abundance_df.index,
+        columns=combined_abundance_df.columns
     )
-    for col in combined_absorbance_df.columns:
-        for idx in combined_absorbance_df.index:
-            abundance = combined_absorbance_df.loc[idx, col]
+    for col in combined_abundance_df.columns:
+        for idx in combined_abundance_df.index:
+            abundance = combined_abundance_df.loc[idx, col]
             count = (combined_count_df.loc['Counts of peptides', col]
-                     if idx == 'Summed Absorbance'
+                     if idx == 'Summed Abundance'
                      else combined_count_df.loc[idx, col])
             combined_df.loc[idx, col] = (
                 "-" if (abundance == 0 and count == 0)
                 else f"{abundance:.2e} ({round(count)})"
             )
-    combined_df.rename(index={'Summed Absorbance': 'Total'}, inplace=True)
+    combined_df.rename(index={'Summed Abundance': 'Total'}, inplace=True)
 
-    return combined_df, combined_count_df, combined_absorbance_df
+    return combined_df, combined_count_df, combined_abundance_df
 
 
 def export_summed_function_data(merged_df, group_data):
@@ -635,24 +635,24 @@ def export_summed_function_data(merged_df, group_data):
     if result is None:
         return None
 
-    combined_df, combined_count_df, combined_absorbance_df = result
+    combined_df, combined_count_df, combined_abundance_df = result
 
-    # --- Absorbance Relative ---
-    # Each function's % = function_absorbance / sum_of_all_function_absorbances * 100.
+    # --- Abundance Relative ---
+    # Each function's % = function_abundance / sum_of_all_function_abundances * 100.
     # Using the function-row sum (not the unique-peptide total) ensures percentages
     # sum to exactly 100%, even when peptides carry multiple functions.
-    absorbance_rel_df = combined_absorbance_df.copy().astype(float)
-    _abs_total_label = 'Summed Absorbance'
-    _abs_func_rows = absorbance_rel_df.index[absorbance_rel_df.index != _abs_total_label]
+    abundance_rel_df = combined_abundance_df.copy().astype(float)
+    _abs_total_label = 'Summed Abundance'
+    _abs_func_rows = abundance_rel_df.index[abundance_rel_df.index != _abs_total_label]
     if len(_abs_func_rows) > 0:
-        func_totals = absorbance_rel_df.loc[_abs_func_rows].sum(axis=0)
-        for col in absorbance_rel_df.columns:
+        func_totals = abundance_rel_df.loc[_abs_func_rows].sum(axis=0)
+        for col in abundance_rel_df.columns:
             denom = func_totals[col] if func_totals[col] != 0 else np.nan
-            absorbance_rel_df.loc[_abs_func_rows, col] = (
-                absorbance_rel_df.loc[_abs_func_rows, col] / denom * 100
+            abundance_rel_df.loc[_abs_func_rows, col] = (
+                abundance_rel_df.loc[_abs_func_rows, col] / denom * 100
             )
-    if _abs_total_label in absorbance_rel_df.index:
-        absorbance_rel_df.loc[_abs_total_label] = 100.0
+    if _abs_total_label in abundance_rel_df.index:
+        abundance_rel_df.loc[_abs_total_label] = 100.0
 
     # --- Count Relative ---
     # Each function's % = function_count / sum_of_all_function_counts * 100.
@@ -670,7 +670,7 @@ def export_summed_function_data(merged_df, group_data):
         count_rel_df.loc[_cnt_total_label] = 100.0
 
     # Round relative sheets to 2 dp; count absolute should be whole numbers.
-    absorbance_rel_rounded = absorbance_rel_df.round(2)
+    abundance_rel_rounded = abundance_rel_df.round(2)
     count_rel_rounded = count_rel_df.round(2)
     count_abs_rounded = combined_count_df.copy()
     count_abs_rounded = count_abs_rounded.round(0)
@@ -678,8 +678,8 @@ def export_summed_function_data(merged_df, group_data):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         combined_df.to_excel(writer, sheet_name='Combined', index=True)
-        combined_absorbance_df.to_excel(writer, sheet_name='Absorbance Absolute', index=True)
-        absorbance_rel_rounded.to_excel(writer, sheet_name='Absorbance Relative', index=True)
+        combined_abundance_df.to_excel(writer, sheet_name='Abundance Absolute', index=True)
+        abundance_rel_rounded.to_excel(writer, sheet_name='Abundance Relative', index=True)
         count_abs_rounded.to_excel(writer, sheet_name='Count Absolute', index=True)
         count_rel_rounded.to_excel(writer, sheet_name='Count Relative', index=True)
         for ws in writer.sheets.values():
