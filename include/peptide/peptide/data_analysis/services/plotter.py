@@ -600,9 +600,9 @@ def create_grouped_bar_plot(state: DataAnalysisState):
             color_seq = get_color_sequence(len(selected_groups), state.color_scheme)
             color_map = {g: color_seq[i] for i, g in enumerate(selected_groups)}
 
-        # Minor Functions always shown in grey
-        if 'Minor Functions' in color_map:
-            color_map['Minor Functions'] = '#808080'
+        # Other Functions always shown in grey
+        if 'Other Functions' in color_map:
+            color_map['Other Functions'] = '#808080'
 
         display_cats = [redact_string_descriptions(c) for c in categories]
         n_bars = len(bar_groups)
@@ -666,7 +666,7 @@ def create_grouped_bar_plot(state: DataAnalysisState):
 
             all_values.extend(values)
             fn_color = color_map.get(bar_group, '#999')
-            if bar_group in ('Minor Functions', 'Minor Proteins'):
+            if bar_group in ('Other Functions', 'Other Proteins'):
                 fn_color = '#808080'
             # Replicate-based SEM error bars: only on absolute metrics (a percentage
             # bar's replicate SEM is not the SEM of the ratio, so it is omitted).
@@ -735,9 +735,9 @@ def create_grouped_bar_plot(state: DataAnalysisState):
             color_seq = get_color_sequence(len(selected_groups), state.color_scheme)
             color_map = {g: color_seq[i] for i, g in enumerate(selected_groups)}
 
-        # Minor Proteins always shown in grey
-        if 'Minor Proteins' in color_map:
-            color_map['Minor Proteins'] = '#808080'
+        # Other Proteins always shown in grey
+        if 'Other Proteins' in color_map:
+            color_map['Other Proteins'] = '#808080'
 
         display_cats = [redact_string_descriptions(c) for c in categories]
         n_bars = len(bar_groups_list)
@@ -800,7 +800,7 @@ def create_grouped_bar_plot(state: DataAnalysisState):
 
             all_values.extend(values)
             bar_color = color_map.get(bar_group, '#999')
-            if bar_group == 'Minor Proteins':
+            if bar_group == 'Other Proteins':
                 bar_color = '#808080'
             # Replicate-based SEM error bars (absolute metrics only).
             bar_error_y = None
@@ -994,10 +994,10 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
     # ── Build color map ────────────────────────────────────────────────────────
     color_seq = get_color_sequence(len(selected_items), state.color_scheme)
     color_map = {item: color_seq[i] for i, item in enumerate(selected_items)}
-    if state.plot_minor and 'Minor Functions' in color_map:
-        color_map['Minor Functions'] = '#808080'
-    if state.plot_minor and 'Minor Proteins' in color_map:
-        color_map['Minor Proteins'] = '#808080'
+    if state.plot_minor and 'Other Functions' in color_map:
+        color_map['Other Functions'] = '#808080'
+    if state.plot_minor and 'Other Proteins' in color_map:
+        color_map['Other Proteins'] = '#808080'
 
     fig = go.Figure()
 
@@ -1069,7 +1069,7 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
 
             disp_name = redact_string_descriptions(item)
             color = color_map.get(item, '#999')
-            if item in ('Minor Functions', 'Minor Proteins'):
+            if item in ('Other Functions', 'Other Proteins'):
                 color = '#808080'
             fig.add_trace(go.Bar(
                 name=disp_name, x=selected_groups, y=values,
@@ -1349,7 +1349,7 @@ def create_pie_charts(state: DataAnalysisState):
             vals = [float(v) for v in pie_df.get(col_key, pd.Series([0] * len(pie_df)))]
             colors = get_color_sequence(len(labels), state.color_scheme)
             colors = [
-                '#808080' if lbl in ('Minor Proteins', 'Minor Functions') else c
+                '#808080' if lbl in ('Other Proteins', 'Other Functions') else c
                 for lbl, c in zip(labels, colors)
             ]
 

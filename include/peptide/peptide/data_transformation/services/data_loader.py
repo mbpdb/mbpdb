@@ -739,55 +739,23 @@ def _normalize_duplicate_column_names(df):
     return df.rename(columns=rename_map) if rename_map else df
 
 
-def _validate_mbpdb_file(df, filename):
-    """Validate MBPDB functional data file."""
-    required_columns_info = {
-        'search_peptide': {
-            'aliases': [
-                'Search peptide', 'search peptide', 'Search_Peptide', 'search_peptide',
-                'SEARCH_PEPTIDE', 'Search peptides', 'search peptides'
-            ],
-        },
-        'peptide': {
-            'aliases': ['Peptide', 'peptide'],
-        },
-        'function': {
-            'aliases': ['Function', 'function', 'FUNCTION', 'Functions', 'functions', 'Func', 'func'],
-        }
-    }
-
-    # Check for missing required columns
-    missing_explanations = []
-    for std_col, info in required_columns_info.items():
-        found = any(alias in df.columns for alias in info['aliases'])
-        if not found:
-            missing_explanations.append(f"'{std_col}' (tried: {', '.join(info['aliases'][:4])})")
-
-    if missing_explanations:
-        found_cols = ', '.join(df.columns[:20].tolist())
-        return None, 'no', (
-            f"MBPDB File Error: Missing required columns: {'; '.join(missing_explanations)}. "
-            f"Columns found in file: {found_cols}"
-            + (f" ... ({len(df.columns)} total)" if len(df.columns) > 20 else "")
-        ), ""
-
-    # Check for empty required columns
-    for std_col, info in required_columns_info.items():
-        for alias in info['aliases']:
-            if alias in df.columns:
-                if df[alias].isna().all() or (df[alias].astype(str).str.strip() == '').all():
-                    return None, 'no', f"MBPDB File Error: Required column '{std_col}' exists but is completely empty", ""
-                break
-
-    # Rename to standard names
-    df.rename(columns={
+def _mbpdb_column_mapping():
+    """Canonical alias -> standardized-name mapping for MBPDB functional data
+    files. Matched case-insensitively with surrounding whitespace stripped
+    (see _validate_mbpdb_file), so only genuinely distinct spellings (not
+    case variants) need separate entries here."""
+    return {
         'Search peptide': 'search_peptide',
+        'Search peptides': 'search_peptide',
+        'Search_Peptide': 'search_peptide',
         'Protein ID': 'protein_id',
         'Peptide': 'peptide',
         'Protein description': 'protein_description',
         'Species': 'species',
         'Intervals': 'intervals',
         'Function': 'function',
+        'Functions': 'function',
+        'Func': 'function',
         'Additional details': 'additional_details',
         'IC50 (μM)': 'ic50',
         'Inhibition type': 'inhibition_type',
@@ -799,7 +767,55 @@ def _validate_mbpdb_file(df, filename):
         'DOI': 'doi',
         'Search type': 'search_type',
         'Scoring matrix': 'scoring_matrix',
-    }, inplace=True)
+    }
+
+
+def _validate_mbpdb_file(df, filename):
+    """Validate MBPDB functional data file."""
+    required_std_cols = ['search_peptide', 'peptide', 'function']
+
+    # Case-insensitive, whitespace-stripped column matching: source headers
+    # vary in capitalization and stray leading/trailing spaces across
+    # hand-edited or export-tool-generated files.
+    mapping = _mbpdb_column_mapping()
+    mapping_norm = {k.strip().lower(): v for k, v in mapping.items()}
+    col_norm_to_actual = {c.strip().lower(): c for c in df.columns}
+
+    # Map each standardized field to the actual df column (if present)
+    std_to_actual = {}
+    for col_norm, actual_col in col_norm_to_actual.items():
+        std_name = mapping_norm.get(col_norm)
+        if std_name and std_name not in std_to_actual:
+            std_to_actual[std_name] = actual_col
+
+    # Check for missing required columns
+    missing_explanations = []
+    tried_aliases = {}
+    for alias, std_name in mapping.items():
+        tried_aliases.setdefault(std_name, []).append(alias)
+    for std_col in required_std_cols:
+        if std_col not in std_to_actual:
+            missing_explanations.append(
+                f"'{std_col}' (tried: {', '.join(tried_aliases[std_col][:4])})"
+            )
+
+    if missing_explanations:
+        found_cols = ', '.join(df.columns[:20].tolist())
+        return None, 'no', (
+            f"MBPDB File Error: Missing required columns: {'; '.join(missing_explanations)}. "
+            f"Columns found in file: {found_cols}"
+            + (f" ... ({len(df.columns)} total)" if len(df.columns) > 20 else "")
+        ), ""
+
+    # Check for empty required columns
+    for std_col in required_std_cols:
+        actual_col = std_to_actual[std_col]
+        if df[actual_col].isna().all() or (df[actual_col].astype(str).str.strip() == '').all():
+            return None, 'no', f"MBPDB File Error: Required column '{std_col}' exists but is completely empty", ""
+
+    # Rename to standard names
+    df.rename(columns={actual_col: std_name for std_name, actual_col in std_to_actual.items()},
+              inplace=True)
 
     return df, 'yes', "", ""
 

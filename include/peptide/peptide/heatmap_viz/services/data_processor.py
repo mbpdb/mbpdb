@@ -167,10 +167,18 @@ def _validate_and_standardize_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, s
         'protein_accession',
     ]
 
+    # Case-insensitive matching (headers are already whitespace-stripped by
+    # load_merged_file() before this runs). The 'Grouped:'/'Avg_*' markers
+    # handled elsewhere in this module are generated internally by the app in
+    # a fixed case and are intentionally left out of this normalization.
+    start_stop_map_norm = {k.strip().lower(): v for k, v in START_STOP_MAP.items()}
+    protein_id_columns_norm = [c.strip().lower() for c in PROTEIN_ID_COLUMNS]
+
     if 'start' not in df.columns or 'end' not in df.columns:
         for col in list(df.columns):
-            if col in START_STOP_MAP:
-                new_name = START_STOP_MAP[col]
+            norm = col.strip().lower()
+            if norm in start_stop_map_norm:
+                new_name = start_stop_map_norm[norm]
                 if new_name not in df.columns:
                     df = df.rename(columns={col: new_name})
 
@@ -183,9 +191,10 @@ def _validate_and_standardize_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, s
         )
 
     if 'Protein' not in df.columns:
-        for col in PROTEIN_ID_COLUMNS:
-            if col in df.columns:
-                df = df.rename(columns={col: 'Protein'})
+        cols_norm = {c.strip().lower(): c for c in df.columns}
+        for norm_name in protein_id_columns_norm:
+            if norm_name in cols_norm:
+                df = df.rename(columns={cols_norm[norm_name]: 'Protein'})
                 break
 
     if 'Protein' not in df.columns:

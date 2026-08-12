@@ -48,6 +48,7 @@ def load_file(file_obj, filename: str):
             df = pd.read_csv(file_obj, sep='\t', low_memory=False)
         else:
             df = pd.read_csv(file_obj, low_memory=False)
+        df.columns = df.columns.str.strip()
         # Excel-sourced exports can carry thousands of fully-blank trailing rows
         # (all-comma/all-empty lines past the real data). Their columns parse as
         # NaN/float while the real rows parse as str, which is what triggers
@@ -162,9 +163,15 @@ def extract_protein_dict(df: pd.DataFrame) -> dict:
 # ---------------------------------------------------------------------------
 
 def validate_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, list]:
-    """Ensure required columns exist. Returns (df, list_of_warnings)."""
+    """Ensure required columns exist. Returns (df, list_of_warnings).
+
+    Matching is case-insensitive (headers are already whitespace-stripped in
+    load_file()). This does not extend to the 'Grouped:'/'Avg_*' markers,
+    which are generated internally by the app in a fixed case and are never
+    user-authored column names.
+    """
     warnings = []
-    required = ['Unique Peptide ID']
+    required = ['Unique Peptide ID', 'Protein']
     for col in required:
         if col not in df.columns:
             for existing in df.columns:
@@ -172,7 +179,8 @@ def validate_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, list]:
                     df = df.rename(columns={existing: col})
                     break
             else:
-                warnings.append(f"Required column '{col}' not found.")
+                if col != 'Protein':
+                    warnings.append(f"Required column '{col}' not found.")
     # Ensure protein_name column (may come from different source)
     if 'protein_name' not in df.columns and 'Protein' in df.columns:
         df['protein_name'] = df['Protein']
@@ -229,7 +237,7 @@ def get_selector_options(merged_df: pd.DataFrame, group_data_dict: dict, protein
         'function' in merged_df.columns
         and not merged_df['function'].isna().all()
     )
-    broader = {'Functional Peptides', 'Non-Functional Peptides', 'All Functional Peptides', 'Minor Functions'}
+    broader = {'Functional Peptides', 'Non-Functional Peptides', 'All Functional Peptides', 'Other Functions'}
     function_totals: dict[str, float] = defaultdict(float)
     if has_functions:
         for func_str in merged_df['function'].dropna():
@@ -530,7 +538,7 @@ class DataAnalysisState:
         self.selected_proteins = resolved or list(self.all_proteins)
 
     def _resolve_all_functions(self):
-        broader = {'Functional Peptides', 'Non-Functional Peptides', 'All Functional Peptides', 'Minor Functions'}
+        broader = {'Functional Peptides', 'Non-Functional Peptides', 'All Functional Peptides', 'Other Functions'}
         function_totals: dict[str, float] = defaultdict(float)
         if 'function' in self.merged_df.columns:
             for func_str in self.merged_df['function'].dropna():
@@ -544,7 +552,7 @@ class DataAnalysisState:
 
     def _resolve_selected_functions(self):
         self._resolve_all_functions()
-        broader = {'Functional Peptides', 'Non-Functional Peptides', 'Minor Functions'}
+        broader = {'Functional Peptides', 'Non-Functional Peptides', 'Other Functions'}
 
         if self.plot_filter == 'Functional vs Non-Functional Peptides':
             self.selected_functions = ['Functional Peptides', 'Non-Functional Peptides']
@@ -558,7 +566,7 @@ class DataAnalysisState:
         self.function_color_map = {func: color for func, color in zip(self.all_functions, colors)}
         self.function_color_map.setdefault('Functional Peptides', '#4CAF50')
         self.function_color_map.setdefault('Non-Functional Peptides', '#9E9E9E')
-        self.function_color_map.setdefault('Minor Functions', '#808080')
+        self.function_color_map.setdefault('Other Functions', '#808080')
 
     # ------------------------------------------------------------------
     # Step 2: Filter dataframe + total peptide results
@@ -571,7 +579,7 @@ class DataAnalysisState:
 
         # Protein filter – match by ID against the 'Protein' column (semicolon-separated IDs).
         # When plot_minor=True, skip the protein restriction so all protein rows remain in
-        # filtered_df; process_protein_data() will aggregate non-selected ones into "Minor Proteins".
+        # filtered_df; process_protein_data() will aggregate non-selected ones into "Other Proteins".
         if (self.plot_filter in ('Selected Protein(s)', 'Both')
                 and 'Protein' in df.columns
                 and not self.plot_minor):
@@ -588,7 +596,7 @@ class DataAnalysisState:
                 pass  # don't filter here
             elif self.plot_minor:
                 # When grouping minor functions, keep all functional rows so
-                # create_function_df() can aggregate non-selected ones into "Minor Functions".
+                # create_function_df() can aggregate non-selected ones into "Other Functions".
                 function_mask = df['function'].notna() & (df['function'] != '')
             elif 'All Functional Peptides' in self.selected_functions_raw:
                 function_mask = df['function'].notna() & (df['function'] != '')
@@ -842,7 +850,7 @@ class DataAnalysisState:
         if self.plot_filter == 'Functional vs Non-Functional Peptides':
             all_fns = ['Functional Peptides', 'Non-Functional Peptides']
         else:
-            broader = {'Functional Peptides', 'Non-Functional Peptides', 'Minor Functions'}
+            broader = {'Functional Peptides', 'Non-Functional Peptides', 'Other Functions'}
             all_fns = [f for f in self.all_functions if f not in broader]
 
         rows = []
@@ -881,21 +889,21 @@ class DataAnalysisState:
         ).round(6)
         self.function_df = self.function_df.sort_values('avg_abundance_all', ascending=False)
 
-        # Handle "Minor Functions"
+        # Handle "Other Functions"
         if self.plot_minor and self.plot_filter not in ('Functional vs Non-Functional Peptides',):
             selected_fn_set = set(self.selected_functions)
             minor_rows = self.function_df[~self.function_df['Description'].isin(selected_fn_set)]
             main_rows = self.function_df[self.function_df['Description'].isin(selected_fn_set)]
 
             if not minor_rows.empty:
-                minor_row = {'Description': 'Minor Functions'}
+                minor_row = {'Description': 'Other Functions'}
                 for g in self.selected_groups:
                     minor_row[f'Avg_{g}'] = minor_rows[f'Avg_{g}'].sum()
                     minor_row[f'Rel_Avg_{g}'] = minor_rows[f'Rel_Avg_{g}'].sum()
                     minor_row[f'Count_{g}'] = minor_rows[f'Count_{g}'].sum()
                     minor_row[f'Rel_Count_{g}'] = minor_rows[f'Rel_Count_{g}'].sum()
                     # SEM does not sum across the pooled minor functions; leave the
-                    # aggregate "Minor Functions" bar without an error bar rather
+                    # aggregate "Other Functions" bar without an error bar rather
                     # than report a statistically meaningless summed SEM.
                     minor_row[f'SEM_Avg_{g}'] = 0.0
                     minor_row[f'SEM_Count_{g}'] = 0.0
@@ -904,8 +912,8 @@ class DataAnalysisState:
                     [main_rows, pd.DataFrame([minor_row])],
                     ignore_index=True,
                 )
-                if 'Minor Functions' not in self.selected_functions:
-                    self.selected_functions = list(self.selected_functions) + ['Minor Functions']
+                if 'Other Functions' not in self.selected_functions:
+                    self.selected_functions = list(self.selected_functions) + ['Other Functions']
 
     # ------------------------------------------------------------------
     # Step 5: Build protein DataFrame
@@ -998,9 +1006,9 @@ class DataAnalysisState:
         ).round(2)
         self.protein_df = self.protein_df.sort_values('avg_abundance_all', ascending=False)
 
-        # ── Handle Minor Proteins ──────────────────────────────────────────────
+        # ── Handle Other Proteins ──────────────────────────────────────────────
         # When plot_minor=True and specific proteins are selected (not "All"),
-        # aggregate non-selected proteins into a single "Minor Proteins" entry.
+        # aggregate non-selected proteins into a single "Other Proteins" entry.
         if (self.plot_minor
                 and 'All Proteins (No Filter)' not in self.selected_proteins_raw
                 and self.selected_proteins):
@@ -1009,13 +1017,13 @@ class DataAnalysisState:
             main_rows = self.protein_df[self.protein_df['Description'].isin(selected_names_set)]
 
             if not minor_rows.empty:
-                minor_entry = {'Protein': 'Minor Proteins', 'Description': 'Minor Proteins'}
+                minor_entry = {'Protein': 'Other Proteins', 'Description': 'Other Proteins'}
                 for g in self.selected_groups:
                     ab_col = f'Avg_{g}'
                     ct_col = f'Count_{g}'
                     minor_entry[ab_col] = float(minor_rows[ab_col].sum()) if ab_col in minor_rows.columns else 0.0
                     minor_entry[ct_col] = float(minor_rows[ct_col].sum()) if ct_col in minor_rows.columns else 0.0
-                    # No meaningful summed SEM for the pooled "Minor Proteins" bar.
+                    # No meaningful summed SEM for the pooled "Other Proteins" bar.
                     minor_entry[f'SEM_Avg_{g}'] = 0.0
                     minor_entry[f'SEM_Count_{g}'] = 0.0
                 minor_entry['unique_peptide_count'] = (
@@ -1023,7 +1031,7 @@ class DataAnalysisState:
                     if 'unique_peptide_count' in minor_rows.columns else 0
                 )
 
-                # Keep only selected proteins + "Minor Proteins"
+                # Keep only selected proteins + "Other Proteins"
                 self.protein_df = pd.concat(
                     [main_rows, pd.DataFrame([minor_entry])], ignore_index=True
                 )
@@ -1059,9 +1067,9 @@ class DataAnalysisState:
                     ],
                 })
 
-                # Add "Minor Proteins" to selected_proteins list
-                if 'Minor Proteins' not in self.selected_proteins:
-                    self.selected_proteins = list(self.selected_proteins) + ['Minor Proteins']
+                # Add "Other Proteins" to selected_proteins list
+                if 'Other Proteins' not in self.selected_proteins:
+                    self.selected_proteins = list(self.selected_proteins) + ['Other Proteins']
 
         # Build protein_sample_distribution_dict.
         # 'abundance_relative' = protein's contribution to each group total (for By Sample hover).
@@ -1091,8 +1099,8 @@ class DataAnalysisState:
                 'total_Abundance': tot_ab,
                 'total_count': tot_ct,
             }
-            # Minor Proteins gets grey colour in plots
-            if pname == 'Minor Proteins':
+            # Other Proteins gets grey colour in plots
+            if pname == 'Other Proteins':
                 psdd[pname]['color'] = '#808080'
         self.protein_sample_distribution_dict = psdd
 
@@ -1113,7 +1121,7 @@ class DataAnalysisState:
         fdd = {}
         include_fns = set(self.selected_functions)
         if self.plot_minor:
-            include_fns.add('Minor Functions')
+            include_fns.add('Other Functions')
 
         for _, row in self.function_df.iterrows():
             fn = row['Description']
