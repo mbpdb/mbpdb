@@ -383,35 +383,34 @@ def extract_protein_id(protein_string, protein_dict=None):
 
 def handle_separate_position_columns(df):
     """Handle software that provides separate protein, start, and end columns."""
+    # Case-insensitive: header capitalization for these columns varies across
+    # proteomics software and export versions (e.g. 'start' vs 'Start').
     position_patterns = [
         {'protein': ['Protein', 'Proteins', 'Leading proteins'], 'start': ['Start position'], 'end': ['End position']},
-        {'protein': ['Protein', 'Protein'], 'start': ['Peptide start'], 'end': ['Peptide end']},
-        {'protein': ['Protein', 'Protein'], 'start': ['Start'], 'end': ['End'], 'sequence': ['Peptide Sequence']},
+        {'protein': ['Protein'], 'start': ['Peptide start'], 'end': ['Peptide end']},
+        {'protein': ['Protein'], 'start': ['Start'], 'end': ['End'], 'sequence': ['Peptide Sequence']},
         {'protein': ['Protein', 'prot_acc'], 'start': ['pep_res_before'], 'end': ['pep_res_after']},
         {'protein': ['Protein', 'Protein Accession'], 'start': ['Start'], 'end': ['End']},
-        {'protein': ['Protein', 'protein'], 'start': ['protein_start'], 'end': ['protein_end']},
+        {'protein': ['Protein'], 'start': ['protein_start'], 'end': ['protein_end']},
         {'protein': ['Protein', 'accessions'], 'start': ['start'], 'end': ['end']},
         {'protein': ['Protein', 'Accessions'], 'start': ['Start'], 'end': ['End']},
     ]
+
+    cols_lower = {c.lower(): c for c in df.columns}
+
+    def _find(col_names):
+        for col_name in col_names:
+            actual = cols_lower.get(col_name.lower())
+            if actual is not None:
+                return actual
+        return None
 
     created_start = False
     created_stop = False
 
     for pattern in position_patterns:
-        start_col = None
-        end_col = None
-
-        if pattern.get('start'):
-            for col_name in pattern['start']:
-                if col_name in df.columns:
-                    start_col = col_name
-                    break
-
-        if pattern.get('end'):
-            for col_name in pattern['end']:
-                if col_name in df.columns:
-                    end_col = col_name
-                    break
+        start_col = _find(pattern.get('start', []))
+        end_col = _find(pattern.get('end', []))
 
         if start_col and 'start' not in df.columns:
             df['start'] = pd.to_numeric(df[start_col], errors='coerce')
@@ -556,10 +555,12 @@ _STANDARD_SCHEMA_COLUMNS = {
 
 def _schema_relevant_columns(df):
     """Columns from df that Table 1's column mapping actually recognises
-    (as either a source name or a standardised target name)."""
+    (as either a source name or a standardised target name), matched
+    case-insensitively since source header capitalization varies by software."""
     mapping = get_comprehensive_column_mapping()
-    relevant = _STANDARD_SCHEMA_COLUMNS | set(mapping.keys()) | set(mapping.values())
-    return [c for c in df.columns if c in relevant]
+    relevant_lower = {c.lower() for c in
+                       _STANDARD_SCHEMA_COLUMNS | set(mapping.keys()) | set(mapping.values())}
+    return [c for c in df.columns if c.lower() in relevant_lower]
 
 
 def pivot_long_to_wide(df, sample_col, value_col):
@@ -808,11 +809,13 @@ def _validate_peptidomic_file(df, filename, protein_dict=None):
     warning_msg = ""
     required_columns = ['Positions in Proteins', 'Sequence', 'Protein']
 
-    # Apply comprehensive column mapping
+    # Apply comprehensive column mapping (case-insensitive: source headers vary
+    # in capitalization across proteomics software and export versions)
     column_mapping = get_comprehensive_column_mapping()
+    column_mapping_lower = {k.lower(): v for k, v in column_mapping.items()}
     for original_col in list(df.columns):
-        if original_col in column_mapping:
-            new_col_name = column_mapping[original_col]
+        if original_col.lower() in column_mapping_lower:
+            new_col_name = column_mapping_lower[original_col.lower()]
             if new_col_name not in df.columns:
                 if new_col_name == 'Protein':
                     df[new_col_name] = df[original_col].apply(
