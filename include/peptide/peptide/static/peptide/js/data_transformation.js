@@ -1477,6 +1477,7 @@
         container.innerHTML = '';
 
         var items = [
+<<<<<<< Updated upstream
             {key: 'mbpdb_results', icon: 'fa-database', label: 'MBPDB Results'},
             {key: 'group_definitions', icon: 'fa-layer-group', label: 'Group Definitions'},
             {key: 'merged_dataset', icon: 'fa-table', label: 'Merged Dataset'},
@@ -1488,9 +1489,39 @@
             {key: 'replicate_correlation', icon: 'fa-chart-area', label: 'Replicate Correlations'},
             {key: 'tech_rep_correlation', icon: 'fa-vials', label: 'Technical Replicate Correlations'},
             {key: 'tech_rep_key', icon: 'fa-key', label: 'Technical Replicate Key'},
+<<<<<<< HEAD
             {key: 'column_rename_key', icon: 'fa-pen-to-square', label: 'Column Rename Key'},
+=======
+=======
+            {key: 'merged_dataset', icon: 'fa-table', label: 'Merged Dataset',
+             title: 'Full peptide-level dataset with abundances, functional annotations and study-variable groupings'},
+            {key: 'mbpdb_results', icon: 'fa-database', label: 'MBPDB Results',
+             title: 'MBPDB search matches for each queried peptide, with the database sequence and reported bioactivity'},
+            {key: 'summed_function', icon: 'fa-flask', label: 'Summed Functional Data',
+             title: 'Peptide abundance and count summed by functional category for each group'},
+            {key: 'column_rename_key', icon: 'fa-pen-to-square', label: 'Column Rename Key',
+             title: 'Reusable key mapping instrument-generated column names to your simplified sample names'},
+            {key: 'tech_rep_key', icon: 'fa-key', label: 'Technical Replicate Key',
+             title: 'Reusable key mapping each biological replicate to its technical replicate columns'},
+            {key: 'tech_rep_correlation', icon: 'fa-vials', label: 'Within-Sample Correlations (Technical Replicates)',
+             title: 'Within one sample: agreement between its technical replicate runs'},
+            {key: 'group_definitions', icon: 'fa-layer-group', label: 'Group Definitions',
+             title: 'Study-variable group assignments for each abundance column'},
+            {key: 'replicate_correlation', icon: 'fa-chart-area', label: 'Within-Group Correlations (Biological Replicates)',
+             title: 'Within one group: agreement between its biological replicate samples'},
+>>>>>>> Stashed changes
+>>>>>>> f6f4b5d8 (reordered exports)
             {key: 'protein_map', icon: 'fa-file-export', label: 'Protein Mapping Key',
-             download_url: 'download-protein-map/'},
+             download_url: 'download-protein-map/',
+             title: 'Reusable key recording peptide-to-protein mapping and any merge/rename decisions'},
+            {key: 'group_correlation', icon: 'fa-chart-line', label: 'Between-Group Correlations (Group Averages)',
+             title: 'Across groups: agreement between each pair of group averages'},
+            {key: 'protein_analysis', icon: 'fa-dna', label: 'Protein Analysis',
+             title: 'Protein-level abundance and peptide-count distributions across groups'},
+            {key: 'summed_peptide', icon: 'fa-chart-bar', label: 'Summed Peptide Results',
+             title: 'Total abundance and unique-peptide counts summed per group'},
+            {key: 'sequence_list', icon: 'fa-list', label: 'Sequence List',
+             title: 'Unique peptide sequences detected in each group'},
         ];
 
         items.forEach(function(item) {
@@ -1500,6 +1531,7 @@
 
             var lbl = document.createElement('span');
             lbl.className = 'dt-export-label';
+            lbl.title = item.title || '';
             lbl.innerHTML = '<i class="fas ' + item.icon + '"></i> ' + item.label;
             row.appendChild(lbl);
 
