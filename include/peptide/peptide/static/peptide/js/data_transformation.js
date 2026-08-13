@@ -1477,22 +1477,6 @@
         container.innerHTML = '';
 
         var items = [
-<<<<<<< Updated upstream
-            {key: 'mbpdb_results', icon: 'fa-database', label: 'MBPDB Results'},
-            {key: 'group_definitions', icon: 'fa-layer-group', label: 'Group Definitions'},
-            {key: 'merged_dataset', icon: 'fa-table', label: 'Merged Dataset'},
-            {key: 'sequence_list', icon: 'fa-list', label: 'Sequence List'},
-            {key: 'summed_peptide', icon: 'fa-chart-bar', label: 'Summed Peptide Results'},
-            {key: 'protein_analysis', icon: 'fa-dna', label: 'Protein Analysis'},
-            {key: 'summed_function', icon: 'fa-flask', label: 'Summed Functional Data'},
-            {key: 'group_correlation', icon: 'fa-chart-line', label: 'Sample-to-Sample Correlations'},
-            {key: 'replicate_correlation', icon: 'fa-chart-area', label: 'Replicate Correlations'},
-            {key: 'tech_rep_correlation', icon: 'fa-vials', label: 'Technical Replicate Correlations'},
-            {key: 'tech_rep_key', icon: 'fa-key', label: 'Technical Replicate Key'},
-<<<<<<< HEAD
-            {key: 'column_rename_key', icon: 'fa-pen-to-square', label: 'Column Rename Key'},
-=======
-=======
             {key: 'merged_dataset', icon: 'fa-table', label: 'Merged Dataset',
              title: 'Full peptide-level dataset with abundances, functional annotations and study-variable groupings'},
             {key: 'mbpdb_results', icon: 'fa-database', label: 'MBPDB Results',
@@ -1509,8 +1493,6 @@
              title: 'Study-variable group assignments for each abundance column'},
             {key: 'replicate_correlation', icon: 'fa-chart-area', label: 'Within-Group Correlations (Biological Replicates)',
              title: 'Within one group: agreement between its biological replicate samples'},
->>>>>>> Stashed changes
->>>>>>> f6f4b5d8 (reordered exports)
             {key: 'protein_map', icon: 'fa-file-export', label: 'Protein Mapping Key',
              download_url: 'download-protein-map/',
              title: 'Reusable key recording peptide-to-protein mapping and any merge/rename decisions'},
