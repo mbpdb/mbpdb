@@ -898,6 +898,11 @@ def _plot_no_filter_stacked(state: DataAnalysisState):
 
     y_title = ('Relative ' if state.is_relative else '') + state.metric_name
     yaxis_kw = _axis_style(state.font_size_ylabel, state.font_size_ytick)
+    # Notebook parity (data_analysis.ipynb Plotter.plot_stacked_bar_scaled):
+    # this bar stacks one segment per sample group, so absolute/scaled tick
+    # values don't correspond to any single meaningful quantity — only the
+    # relative (%) case gets readable tick labels.
+    yaxis_kw['showticklabels'] = state.is_relative
     if state.is_relative:
         yaxis_kw['range'] = [0, 100]
         yaxis_kw['tickformat'] = '.1f'
@@ -1240,6 +1245,10 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
     y_title = ('Relative ' if state.is_relative else '') + \
                ('Log<sub>10</sub> ' if (use_log and not state.is_relative) else '') + state.metric_name
     yaxis_stk = _axis_style(state.font_size_ylabel, state.font_size_ytick)
+    # Notebook parity (data_analysis.ipynb Plotter.plot_stacked_bar_scaled): once
+    # items are stacked into layered segments, absolute/scaled tick values don't
+    # map to any one meaningful number — only the relative (%) case shows ticks.
+    yaxis_stk['showticklabels'] = state.is_relative
     if state.is_relative:
         yaxis_stk['range'] = [0, 100]
         yaxis_stk['tickformat'] = '.1f'

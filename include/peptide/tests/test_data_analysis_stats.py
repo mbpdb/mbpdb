@@ -764,5 +764,87 @@ class TestSelectorReplicateFlags(unittest.TestCase):
         self.assertFalse(any(opts['var_replicates'].values()))
 
 
+class TestStackedBarTickLabels(unittest.TestCase):
+    """Notebook parity: on a stacked bar, an absolute/scaled segment's y-value is
+    a proportional share of a group total, not a directly-readable number — so
+    y-axis tick labels are hidden unless the metric is Relative (%). A plain,
+    non-stacked summary bar (plot_total_peptides) has no such caveat and always
+    keeps its tick labels. See data_analysis.ipynb Plotter.plot_stacked_bar_scaled
+    (`showticklabels_tf`)."""
+
+    GROUPS = ['Ctrl', 'LowDose', 'HighDose']
+
+    def _dataset(self):
+        rng = np.random.default_rng(0)
+        reps = {g: [f'{g}_{i}' for i in range(1, 4)] for g in self.GROUPS}
+        rows = []
+        for i in range(12):
+            fn = 'ACE-inhibitory' if i % 2 == 0 else 'Antioxidant'
+            prot = 'P02666' if i < 6 else 'P02662'
+            row = {'Unique Peptide ID': f'pep{i}', 'Protein': prot, 'function': fn}
+            for g in self.GROUPS:
+                base = {'Ctrl': 100, 'LowDose': 120, 'HighDose': 500}[g]
+                for rc in reps[g]:
+                    row[rc] = float(base + rng.normal(0, 8))
+                row[f'Avg_{g}'] = float(np.mean([row[rc] for rc in reps[g]]))
+            rows.append(row)
+        protein_dict = {'P02666': {'name': 'Beta-casein'},
+                        'P02662': {'name': 'Alpha-S1-casein'}}
+        return pd.DataFrame(rows), reps, protein_dict
+
+    def _state(self, reps, merged, protein_dict, **extra):
+        params = dict(selected_groups=self.GROUPS,
+                      selected_functions=['All Functional Peptides'],
+                      selected_proteins=['All Proteins (No Filter)'],
+                      abs_or_count='Abundance', metric_type='Absolute')
+        params.update(extra)
+        st = DataAnalysisState(merged, reps, protein_dict, params)
+        st.run_pipeline()
+        return st
+
+    def _showticklabels(self, fig):
+        return fig.layout.yaxis.showticklabels
+
+    def test_no_filter_stacked_hides_ticks_for_absolute_shows_for_relative(self):
+        merged, reps, pdct = self._dataset()
+        st_abs = self._state(reps, merged, pdct, orientation='By Sample',
+                              plot_filter='No Filter', metric_type='Absolute')
+        fig_abs = plotter.plot_stacked_bar_scaled(st_abs)
+        self.assertIs(self._showticklabels(fig_abs), False,
+                       'scaled/absolute stacked-by-sample bar should hide y ticks')
+
+        st_rel = self._state(reps, merged, pdct, orientation='By Sample',
+                              plot_filter='No Filter', metric_type='Relative')
+        fig_rel = plotter.plot_stacked_bar_scaled(st_rel)
+        self.assertTrue(self._showticklabels(fig_rel),
+                        'relative (%) stacked-by-sample bar should show y ticks')
+
+    def test_selected_function_stacked_hides_ticks_for_absolute_shows_for_relative(self):
+        merged, reps, pdct = self._dataset()
+        st_abs = self._state(reps, merged, pdct, orientation='By Sample',
+                              plot_filter='Selected Function(s)', metric_type='Absolute',
+                              selected_functions=['ACE-inhibitory', 'Antioxidant'])
+        fig_abs = plotter.plot_stacked_bar_scaled(st_abs)
+        self.assertIs(self._showticklabels(fig_abs), False,
+                       'scaled/absolute stacked-by-function bar should hide y ticks')
+
+        st_rel = self._state(reps, merged, pdct, orientation='By Sample',
+                              plot_filter='Selected Function(s)', metric_type='Relative',
+                              selected_functions=['ACE-inhibitory', 'Antioxidant'])
+        fig_rel = plotter.plot_stacked_bar_scaled(st_rel)
+        self.assertTrue(self._showticklabels(fig_rel),
+                        'relative (%) stacked-by-function bar should show y ticks')
+
+    def test_plain_summary_plot_always_shows_ticks(self):
+        # plot_total_peptides: one non-stacked bar per sample, no scaling, no
+        # layered segments -> tick labels are always meaningful and shown.
+        merged, reps, pdct = self._dataset()
+        st = self._state(reps, merged, pdct, orientation='By Sample',
+                         plot_filter='No Filter', metric_type='Absolute')
+        fig = plotter.plot_total_peptides(st)
+        self.assertIsNot(self._showticklabels(fig), False,
+                         'plain summary bar should not hide y ticks')
+
+
 if __name__ == '__main__':
     unittest.main()
