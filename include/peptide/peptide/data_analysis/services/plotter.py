@@ -16,6 +16,36 @@ from .data_processor import (
     redact_string_descriptions,
 )
 
+# Largest square edge, in px, for the correlation scatter-plot matrix. Keeps a
+# many-group SPLOM inside the browser viewport instead of overflowing the page.
+MAX_SPLOM_SIZE = 1000
+
+# ── Shared figure styling ──────────────────────────────────────────────────
+# Single source of truth so every Data Analysis plot type (bar, stacked, pie,
+# correlation, SPLOM) shares one typeface, hover style and margins. Plotly's
+# layout.font.family cascades to titles, axes, legend and annotations — which
+# set only size/colour, not family — so defining the global font once here
+# standardises the type across the whole figure. Change these to restyle all
+# figures at once.
+FONT_FAMILY = 'Arial, Helvetica, sans-serif'
+BASE_FONT   = dict(family=FONT_FAMILY, color='black')
+HOVERLABEL  = dict(bgcolor='white', font_size=12, font_family=FONT_FAMILY)
+PLOT_MARGIN = dict(t=100, l=100, r=100, b=100)
+
+# Below this max plotted value, an abundance chart defaults to a linear y-axis
+# instead of the usual log scale (the log-transform checkbox still overrides).
+LINEAR_SCALE_THRESHOLD = 1e4
+
+# Shown when the user enables Show Stats on a Relative (composition) plot. The
+# group comparison is defined on the replicate-level absolute values; relative
+# percentages are compositional (constrained to sum to 100%), so their replicate
+# variance is not the replicate SEM and an ANOVA on them would violate the
+# independence assumption. Switch to Absolute (or Peptide Count) for significance.
+RELATIVE_STATS_NOTE = (
+    'Significance not shown for relative (composition) metrics — the group '
+    'comparison is defined on absolute values. Switch to an Absolute metric.'
+)
+
 
 def _safe_log(val):
     try:
@@ -27,26 +57,118 @@ def _safe_log(val):
     return np.log10(v)
 
 
+def _display_sem(sem, value, use_log):
+    """Transform a raw replicate SEM so it matches the plotted y value.
+
+    Linear axis: return the SEM unchanged. Log10 axis: apply the delta-method
+    transform SEM/(value·ln10) (the same conversion the totals plot uses at
+    ``plot_total_peptides``). Returns 0.0 for a non-positive SEM or, under log,
+    a non-positive value — which renders as no error bar.
+    """
+    try:
+        s = float(sem)
+    except (TypeError, ValueError):
+        return 0.0
+    if s <= 0 or np.isnan(s):
+        return 0.0
+    if use_log:
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        return s / (v * np.log(10)) if v > 0 else 0.0
+    return s
+
+
 # ---------------------------------------------------------------------------
 # Title / label helpers
 # ---------------------------------------------------------------------------
 
-def _make_title(state: DataAnalysisState) -> str:
-    title = state.plot_title
-    if not title:
-        parts = []
-        if state.plot_filter not in ('No Filter',):
-            if state.selected_proteins and state.plot_filter in ('Selected Protein(s)', 'Both'):
-                parts.append('Filtered By: ' + ', '.join(state.selected_protein_names[:3]))
-            if state.selected_functions and state.plot_filter in ('Selected Function(s)', 'Both'):
-                parts.append('Function: ' + ', '.join(state.selected_functions[:3]))
-        title = ' | '.join(parts) if parts else f'{state.abs_or_count} Distribution - {state.orientation}'
+def _make_title(state: DataAnalysisState, kind: str = 'bar') -> str:
+    """Build the dynamic plot title from the active selections.
+
+    Bar plots: "<Absolute|Relative> <Abundance|Count> Distribution[ by <Protein|
+    Function>]". The metric qualifier states absolute vs relative; the orientation
+    qualifier is kept only when it is meaningful (By Protein / By Function) and
+    dropped for By Sample.
+
+    Correlation plots use a distinct, correlation-specific title (they show a
+    pairwise relationship, not a distribution). A user-supplied ``plot_title``
+    always overrides.
+    """
+    if state.plot_title:
+        return state.plot_title
+
+    if kind == 'correlation':
+        # Correlation is computed on absolute abundance (Avg_ columns); relative
+        # composition isn't meaningful for a pairwise correlation, so no metric
+        # qualifier is needed here.
+        return 'Pairwise Abundance Correlation'
+
+    metric_qual = 'Relative' if state.is_relative else 'Absolute'
+    base_metric = 'Count' if state.use_count else 'Abundance'
+    title = f'{metric_qual} {base_metric} Distribution'
+    if state.orientation in ('By Protein', 'By Function'):
+        title += ' ' + state.orientation.replace('By ', 'by ')
     return title
 
 
 # ---------------------------------------------------------------------------
-# Plot 1: Total peptides (By Sample, No Filter, Absolute)
+# Plot 1: Total peptides (By Sample, No Filter / Both)
 # ---------------------------------------------------------------------------
+
+def _plot_totals_relative(state: DataAnalysisState):
+    """Relative version of the sample-totals chart (No Filter / Both, By Sample):
+    each sample as a percentage of the grand total across the selected samples.
+
+    Relative composition is descriptive only — no SEM error bars, no log axis, and
+    no significance markers (those are defined on absolute values; see
+    RELATIVE_STATS_NOTE). This is the counterpart that was missing, so toggling
+    Relative under No Filter / Both had no effect and the plot stayed absolute.
+    """
+    import plotly.graph_objects as go
+
+    data = state.total_peptide_results_dict
+    if not data:
+        return None
+
+    groups = list(data.keys())
+    key = 'unique_peptides' if state.use_count else 'total_Abundance'
+    total = sum(data[g][key] for g in groups) or 1.0
+    rels = [data[g][key] / total * 100.0 for g in groups]
+    first_color = get_single_color(state.color_scheme)
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=groups, y=rels, name='Relative ' + state.metric_name,
+        marker=dict(color=first_color, line=dict(color='black', width=1)),
+        hovertext=[
+            f"Group: {g}<br>Contribution: {r:.2f}%<br>"
+            f"{state.metric_name}: {data[g][key]:{state.num_format}}"
+            for g, r in zip(groups, rels)
+        ],
+        hoverinfo='text',
+    ))
+    fig.add_trace(go.Scatter(
+        x=groups, y=[r + 1.5 for r in rels], mode='text',
+        text=[f"{r:.1f}%" for r in rels], textposition='top center',
+        textfont=dict(size=state.font_size_value_label, color='black'),
+        showlegend=False, hoverinfo='none',
+    ))
+
+    y_title = 'Relative ' + state.metric_name
+    yaxis_kw = _axis_style(state.font_size_ylabel, state.font_size_ytick)
+    yaxis_kw['range'] = [0, 100]
+    yaxis_kw['tickformat'] = '.1f'
+    fig.update_layout(**{
+        **_common_layout(state),
+        'showlegend': False,
+        'hoverlabel': HOVERLABEL,
+        'xaxis': dict(title=state.xlabel or '', tickangle=45, **_axis_style(state.font_size_xlabel, state.font_size_xtick)),
+        'yaxis': dict(title=state.ylabel or y_title, **yaxis_kw),
+    })
+    return fig
+
 
 def plot_total_peptides(state: DataAnalysisState):
     import plotly.graph_objects as go
@@ -54,6 +176,12 @@ def plot_total_peptides(state: DataAnalysisState):
     data = state.total_peptide_results_dict
     if not data:
         return None
+
+    # Relative metric: each sample as a share of the grand total. Without this the
+    # Relative toggle was ignored for No Filter / Both (this chart only rendered
+    # absolute values). See _plot_totals_relative.
+    if state.is_relative:
+        return _plot_totals_relative(state)
 
     first_color = get_single_color(state.color_scheme)
     use_log = state.log_transform
@@ -67,6 +195,13 @@ def plot_total_peptides(state: DataAnalysisState):
     if use_log:
         abundances = [_safe_log(v) for v in abundances]
         counts = [_safe_log(v) for v in counts]
+        skipped_log_zero = sum(1 for v in (abundances if not state.use_count else counts) if v is None)
+        if skipped_log_zero:
+            state.warnings.append(
+                f'{skipped_log_zero} group(s) had a zero or missing total and were left blank '
+                'under log transform (log of zero/negative is undefined). Turn off log '
+                'transform to display them.'
+            )
         abundance_sems = [
             data[g]['abundance_sem'] / (data[g]['total_Abundance'] * np.log(10))
             if data[g]['total_Abundance'] > 0 else 0
@@ -83,20 +218,8 @@ def plot_total_peptides(state: DataAnalysisState):
         y_prefix = ''
         tickfmt = '.1e'
 
-    COMMON_LAYOUT = dict(
-        template='plotly_white',
-        height=800, width=1000,
-        margin=dict(t=100, l=100, r=100),
-        showlegend=False,
-        font=dict(color='black'),
-    )
-    AXIS_STYLE = dict(
-        showline=True, linewidth=1, linecolor='black',
-        mirror=False, gridcolor='lightgray', showgrid=True, zeroline=False,
-    )
-
     if state.use_count:
-        count_label_text = [f"{c:.2f}" if use_log else f"{int(c):,}" for c in counts]
+        count_label_text = [('' if c is None else f"{c:.2f}") if use_log else f"{int(c):,}" for c in counts]
         fig = go.Figure()
         fig.add_trace(go.Bar(
             x=groups, y=counts, name='Peptide Count',
@@ -112,33 +235,31 @@ def plot_total_peptides(state: DataAnalysisState):
         ))
         fig.add_trace(go.Scatter(
             x=groups,
-            y=[c + (s * 1.2) for c, s in zip(counts, count_sems)],
+            y=[(0 if c is None else c) + (s * 1.2) for c, s in zip(counts, count_sems)],
             mode='text',
             text=count_label_text,
             textposition='top center',
-            textfont=dict(size=12),
+            textfont=dict(size=state.font_size_value_label),
             showlegend=False,
             hoverinfo='none',
         ))
         y_axis_title = f'{y_prefix}Unique Peptide Count'
         if use_log:
-            yaxis_kw = dict(tickformat=tickfmt, title_font=dict(size=18, color='black'),
-                            tickfont=dict(size=16, color='black'), **AXIS_STYLE)
+            yaxis_kw = dict(tickformat=tickfmt, **_axis_style(state.font_size_ylabel, state.font_size_ytick))
         else:
             yaxis_kw = dict(tickformat=',d', exponentformat='none',
-                            title_font=dict(size=18, color='black'),
-                            tickfont=dict(size=16, color='black'), **AXIS_STYLE)
+                            **_axis_style(state.font_size_ylabel, state.font_size_ytick))
         fig.update_layout(
-            **COMMON_LAYOUT,
-            title=dict(text=_make_title(state), y=0.95, x=0.5, xanchor='center',
-                       yanchor='top', font=dict(size=18, color='black')),
-            xaxis=dict(title='Sample', **AXIS_STYLE, tickangle=45,
-                       title_font=dict(size=18, color='black'),
-                       tickfont=dict(size=16, color='black')),
+            **_common_layout(state),
+            showlegend=False,
+            hoverlabel=HOVERLABEL,
+            # Totals plot is always by sample and the group ticks are self-
+            # explanatory, so no default axis title — only what the user supplies.
+            xaxis=dict(title=state.xlabel or '', tickangle=45, **_axis_style(state.font_size_xlabel, state.font_size_xtick)),
             yaxis=dict(title=y_axis_title, **yaxis_kw),
         )
     else:
-        abundance_label_text = [f"{a:.2f}" if use_log else f"{a:.2e}" for a in abundances]
+        abundance_label_text = [('' if a is None else f"{a:.2f}") if use_log else f"{a:.2e}" for a in abundances]
         fig = go.Figure()
         fig.add_trace(go.Bar(
             x=groups, y=abundances, name='Abundance',
@@ -154,37 +275,305 @@ def plot_total_peptides(state: DataAnalysisState):
         ))
         fig.add_trace(go.Scatter(
             x=groups,
-            y=[a + s for a, s in zip(abundances, abundance_sems)],
+            y=[(0 if a is None else a) + s for a, s in zip(abundances, abundance_sems)],
             mode='text',
             text=abundance_label_text,
             textposition='top center',
-            textfont=dict(size=14),
+            textfont=dict(size=state.font_size_value_label),
             showlegend=False,
             hoverinfo='none',
         ))
         y_axis_title = f'{y_prefix}Summed Abundance'
         if use_log:
-            yaxis_kw = dict(tickformat=tickfmt, title_font=dict(size=18, color='black'),
-                            tickfont=dict(size=16, color='black'), **AXIS_STYLE)
+            yaxis_kw = dict(tickformat=tickfmt, **_axis_style(state.font_size_ylabel, state.font_size_ytick))
+        elif max(abundances, default=0) < LINEAR_SCALE_THRESHOLD:
+            # Small values read better on a linear axis than a log axis; the
+            # log-transform checkbox is untouched and still forces log when ticked.
+            # Below this threshold (including abundance data that was already
+            # log-transformed upstream) plain integers read better than scientific notation.
+            yaxis_kw = dict(type='linear', tickformat=',d', exponentformat='none',
+                            **_axis_style(state.font_size_ylabel, state.font_size_ytick))
         else:
             yaxis_kw = dict(type='log', exponentformat='e',
-                            title_font=dict(size=18, color='black'),
-                            tickfont=dict(size=16, color='black'), **AXIS_STYLE)
+                            **_axis_style(state.font_size_ylabel, state.font_size_ytick))
         fig.update_layout(
-            **COMMON_LAYOUT,
-            title=dict(text=_make_title(state), y=0.95, x=0.5, xanchor='center',
-                       yanchor='top', font=dict(size=18, color='black')),
-            xaxis=dict(title=state.xlabel or 'Sample', **AXIS_STYLE, tickangle=45,
-                       title_font=dict(size=18, color='black'),
-                       tickfont=dict(size=16, color='black')),
+            **_common_layout(state),
+            showlegend=False,
+            hoverlabel=HOVERLABEL,
+            xaxis=dict(title=state.xlabel or '', tickangle=45, **_axis_style(state.font_size_xlabel, state.font_size_xtick)),
             yaxis=dict(title=state.ylabel or y_axis_title, **yaxis_kw),
         )
+
+    if state.show_significance and not state.is_relative:
+        if state.use_count:
+            tops = {g: (0 if counts[i] is None else counts[i]) + count_sems[i] for i, g in enumerate(groups)}
+        else:
+            tops = {g: (0 if abundances[i] is None else abundances[i]) + abundance_sems[i] for i, g in enumerate(groups)}
+        # Log-scale axis is used only for abundance, without the log checkbox, and
+        # above the linear-scale threshold (see the yaxis block above) — the marker
+        # placement must match whichever axis actually rendered.
+        is_log_axis = (not state.use_count) and (not use_log) \
+            and max(abundances, default=0) >= LINEAR_SCALE_THRESHOLD
+        _add_totals_significance(fig, groups, state.total_reps_dict,
+                                 'count' if state.use_count else 'abundance', tops, is_log_axis,
+                                 method=state.significance_method,
+                                 sig_font_size=state.font_size_value_label)
     return fig
 
 
 # ---------------------------------------------------------------------------
 # Plot 2: Grouped bar plot
 # ---------------------------------------------------------------------------
+
+def _significance_caption(method_label, excluded, min_n, tested_any, reason=None):
+    """Build the footnote that keeps the significance overlay honest.
+
+    When a comparison ran, it names the test + alpha, lists any groups dropped for
+    too few replicates, and — because power is dire at these replicate counts —
+    warns that a non-significant result is inconclusive when n is small. When
+    nothing could be tested, it says *why* rather than leaving the user staring at
+    a checkbox that silently did nothing.
+    """
+    if not tested_any:
+        why = reason or 'need at least 3 replicates in at least 2 groups'
+        return f'Significance ({method_label}) not shown: {why}.'
+    parts = [f'{method_label}, α = 0.05']
+    if excluded:
+        parts.append('excluded (fewer than 3 replicates): ' + ', '.join(excluded))
+    if min_n is not None and min_n <= 4:
+        parts.append(
+            f'smallest group n = {min_n}: power is low, so a shared letter / "ns" '
+            'means not resolvable at this sample size, not "no difference"')
+    return '; '.join(parts) + '.'
+
+
+def _add_significance_caption(fig, text):
+    """Append the significance footnote below the x-axis.
+
+    Rendered as an extra line of the x-axis title with ``automargin=True`` (rather
+    than a fixed paper-y annotation) so Plotly places it *below* the tick labels
+    no matter how long or steeply-rotated the category labels are — a fixed-offset
+    annotation collides with long rotated labels on the By-Function / By-Protein
+    charts. The footnote is kept visually distinct (smaller, grey) from any real
+    axis title it sits under.
+    """
+    if not text:
+        return
+    try:
+        existing = fig.layout.xaxis.title.text or ''
+    except Exception:
+        existing = ''
+    caption = f'<span style="font-size:11px;color:#555555">{text}</span>'
+    # Strip a caption already appended on a prior pass (defensive; each figure is
+    # built fresh, so this normally just guards against double-calls).
+    existing = existing.split('<br> <br>', 1)[0]
+    new_title = f'{existing}<br> <br>{caption}' if existing.strip() else caption
+    fig.update_xaxes(title_text=new_title, automargin=True)
+
+
+def _offset_fn(tops_vals, is_log_axis):
+    """Build ``above(base, steps)`` placing markers ``steps`` gaps above a value.
+
+    The gap is sized to the *visible* spread of the bars so markers clear labels
+    without ballooning: on a linear axis it's a fraction of the value span; on a
+    log axis it's a fraction of the log-range of the bar tops (a fixed
+    multiplicative factor would swallow a sub-decade view). One gap ≈ clears a
+    line of label text.
+    """
+    import math
+
+    vals = [v for v in tops_vals if v is not None]
+    if is_log_axis:
+        logs = [math.log10(v) for v in vals if v > 0] or [0.0]
+        step = 0.11 * max(max(logs) - min(logs), 0.3)  # decades per gap
+
+        def above(base, steps):
+            return 10 ** (math.log10(base) + steps * step) if base and base > 0 else base
+    else:
+        span = max(vals, default=0) or 1.0
+        step = 0.06 * span
+
+        def above(base, steps):
+            return (base or 0) + steps * step
+    return above
+
+
+def _add_totals_significance(fig, groups, total_reps, metric_key, tops, is_log_axis,
+                             method='tukey', x_categorical=True, sig_font_size=None):
+    """Significance markers for a chart whose x-clusters are the sample groups.
+
+    Used both by the totals bar chart and by grouped bars in "By Sample"
+    orientation (where each sample is a cluster). Compares the sample groups on
+    their replicate totals: two groups get a bracket, three or more a compact-letter
+    display.
+
+    ``tops`` maps each group to the data-space top of its bar+SEM. Markers are
+    lifted a gap (``above(base, 1)``) to clear the numeric value label the totals
+    chart prints, and the two-group bracket is drawn in data coordinates at the max
+    of the two bars — never a fixed height that could collide with an error bar or
+    label. Markers are emitted as Scatter traces so the y-axis auto-extends on both
+    linear and log axes.
+
+    ``x_categorical`` selects how the scatter-based markers reference x: True for a
+    true Plotly category axis (totals plot — reference by group NAME; a numeric x
+    would spawn stray "0"/"1" categories), False for a numeric axis with
+    tickvals/ticktext (grouped By-Sample — reference by position index). Shapes and
+    annotations always use the numeric position index, which is valid on both.
+    ``method`` selects the test; see services/stats.py.
+    """
+    import plotly.graph_objects as go
+
+    from . import stats
+
+    rep_arrays = {g: list(total_reps.get(g, {}).get(metric_key, []) or []) for g in groups}
+    res = stats.compare_groups(rep_arrays, method=method)
+    excluded = [redact_string_descriptions(g) for g in res.get('excluded', [])]
+    if not res['testable']:
+        _add_significance_caption(fig, _significance_caption(
+            res['method'], excluded, None, False, res.get('reason')))
+        return
+
+    above = _offset_fn(tops.values(), is_log_axis)
+    idx = {g: i for i, g in enumerate(groups)}
+    # One gap above each bar clears its numeric value label; markers go above that.
+    label_top = {g: above(tops.get(g, 0), 1) for g in groups}
+    anchor_y = None
+    star_size = sig_font_size if sig_font_size is not None else 14
+    letter_size = sig_font_size if sig_font_size is not None else 13
+
+    if len(groups) == 2:
+        g1, g2 = groups
+        stars = stats.significance_stars(res['pairwise'].get(frozenset((g1, g2))))
+        y = above(max(label_top[g1], label_top[g2]), 1)
+        # Bracket via shapes/annotation: on a category axis, numeric x in a SHAPE
+        # is a position index (0, 1, 0.5 = midpoint) — unlike a scatter trace,
+        # where numbers would create spurious categories. Each riser starts above
+        # its own bar's value label; the crossbar sits above the taller of the two.
+        line = dict(color='black', width=1)
+        fig.add_shape(type='line', xref='x', yref='y', x0=idx[g1], x1=idx[g1],
+                      y0=label_top[g1], y1=y, line=line)
+        fig.add_shape(type='line', xref='x', yref='y', x0=idx[g2], x1=idx[g2],
+                      y0=label_top[g2], y1=y, line=line)
+        fig.add_shape(type='line', xref='x', yref='y', x0=idx[g1], x1=idx[g2],
+                      y0=y, y1=y, line=line)
+        # Plotly quirk: layout ANNOTATIONS on a log axis take log10(value) for y
+        # (unlike shapes and scatter traces, which use the raw value). Without this
+        # the star lands at 10**y and is clipped off the top of the chart.
+        star_y = float(np.log10(y)) if (is_log_axis and y > 0) else y
+        fig.add_annotation(xref='x', yref='y', x=(idx[g1] + idx[g2]) / 2, y=star_y,
+                           text=stars, showarrow=False, yanchor='bottom',
+                           font=dict(size=star_size, color='black'))
+        anchor_y = above(y, 1.5)
+    else:
+        # Compact-letter display as a scatter-text trace, auto-extends the y-range.
+        letter_groups = [g for g in groups if res['letters'].get(g)]
+        fig.add_trace(go.Scatter(
+            x=(letter_groups if x_categorical else [idx[g] for g in letter_groups]),
+            y=[label_top[g] for g in letter_groups],
+            mode='text',
+            text=[f"<b>{res['letters'][g]}</b>" for g in letter_groups],
+            textposition='top center',
+            textfont=dict(size=letter_size, color='black'),
+            showlegend=False, hoverinfo='none',
+        ))
+        anchor_y = above(max((label_top[g] for g in letter_groups),
+                             default=max(tops.values(), default=1.0)), 1.5)
+
+    # Shapes/annotations do not auto-extend the axis, so drop an invisible marker to
+    # pull the y-range up and keep the markers on-canvas (linear and log axes).
+    if anchor_y is not None:
+        fig.add_trace(go.Scatter(
+            x=([groups[0]] if x_categorical else [0]), y=[anchor_y], mode='markers',
+            marker=dict(opacity=0), showlegend=False, hoverinfo='none',
+        ))
+
+    _add_significance_caption(fig, _significance_caption(
+        res['method'], excluded, res.get('min_n'), True))
+
+
+def _add_grouped_significance(fig, categories, group_order, geom, reps_lookup, metric_key,
+                              method='tukey', sig_font_size=None):
+    """Overlay ANOVA + Tukey HSD significance markers on a grouped bar chart.
+
+    For each category cluster (one function or one protein) the sample groups are
+    compared on their replicate-level values. Two groups get a significance
+    bracket (``*``/``**``/``***``/``ns``); three or more get a compact-letter
+    display (bars sharing a letter are not significantly different). Markers are
+    only drawn where a valid test exists (≥3 replicates per group); the y-range
+    is extended so they sit clear of the tallest bar.
+
+    Parameters
+    ----------
+    geom : dict          {(category_index, group): {'x': centre, 'top': bar+SEM top}}
+    reps_lookup : callable   category name -> {group: {'abundance': [...], 'count': [...]}}
+    metric_key : str     'abundance' or 'count'
+    """
+    from . import stats
+
+    tops = [v['top'] for v in geom.values() if v and v['top'] is not None]
+    axis_max = max(tops, default=0.0)
+    off = (axis_max * 0.04) if axis_max > 0 else 1.0
+    needed_top = axis_max
+    any_marker = False
+    method_label = stats._METHOD_LABELS.get(
+        stats._METHOD_ALIASES.get(str(method).strip().lower(), 'tukey'))
+    excluded, min_ns, last_reason = set(), [], None
+    star_size = sig_font_size if sig_font_size is not None else 13
+    letter_size = sig_font_size if sig_font_size is not None else 12
+
+    for ci, cat in enumerate(categories):
+        reps = reps_lookup(cat) or {}
+        rep_arrays = {g: list(reps.get(g, {}).get(metric_key, []) or []) for g in group_order}
+        res = stats.compare_groups(rep_arrays, method=method)
+        excluded.update(res.get('excluded', []))
+        if not res['testable']:
+            last_reason = last_reason or res.get('reason')
+            continue
+        if res.get('min_n') is not None:
+            min_ns.append(res['min_n'])
+        cat_geom = {g: geom.get((ci, g)) for g in group_order if geom.get((ci, g))}
+        if not cat_geom:
+            continue
+        any_marker = True
+        cluster_top = max(v['top'] for v in cat_geom.values())
+
+        # Two displayed groups → significance bracket with stars. Each vertical
+        # riser starts just above its OWN bar+SEM top and the horizontal sits above
+        # the taller of the two, so the bracket never overlaps either error bar.
+        if len(group_order) == 2 and all(g in cat_geom for g in group_order):
+            g1, g2 = group_order
+            label = stats.significance_stars(res['pairwise'].get(frozenset((g1, g2))))
+            t1, t2 = cat_geom[g1]['top'], cat_geom[g2]['top']
+            x1, x2 = cat_geom[g1]['x'], cat_geom[g2]['x']
+            y = max(t1, t2) + off * 1.5
+            fig.add_shape(type='line', x0=x1, x1=x1, y0=t1 + off * 0.4, y1=y,
+                          line=dict(color='black', width=1))
+            fig.add_shape(type='line', x0=x2, x1=x2, y0=t2 + off * 0.4, y1=y,
+                          line=dict(color='black', width=1))
+            fig.add_shape(type='line', x0=x1, x1=x2, y0=y, y1=y, line=dict(color='black', width=1))
+            fig.add_annotation(x=(x1 + x2) / 2, y=y + off * 0.2, text=label, showarrow=False,
+                               font=dict(size=star_size, color='black'), yanchor='bottom')
+            needed_top = max(needed_top, y + off * 2)
+        else:
+            # Three or more groups → compact-letter display above each bar.
+            for g, letter in res['letters'].items():
+                cg = cat_geom.get(g)
+                if cg and letter:
+                    fig.add_annotation(x=cg['x'], y=cg['top'] + off * 0.35, text=f"<b>{letter}</b>",
+                                       showarrow=False, font=dict(size=letter_size, color='black'),
+                                       yanchor='bottom')
+            needed_top = max(needed_top, cluster_top + off * 2)
+
+    if any_marker and needed_top > axis_max:
+        # Linear grouped-bar axis (log-transform pre-logs the values), so a plain
+        # [0, top] range is valid and leaves headroom for the markers.
+        fig.update_yaxes(range=[0, needed_top + off])
+
+    excluded_disp = [redact_string_descriptions(g) for g in group_order if g in excluded]
+    _add_significance_caption(fig, _significance_caption(
+        method_label, excluded_disp, min(min_ns) if min_ns else None,
+        any_marker, last_reason))
+
 
 def create_grouped_bar_plot(state: DataAnalysisState):
     import plotly.graph_objects as go
@@ -194,6 +583,8 @@ def create_grouped_bar_plot(state: DataAnalysisState):
     selected_groups = state.selected_groups
     use_count = state.use_count
     use_log = state.log_transform
+    metric_key = 'count' if use_count else 'abundance'
+    show_sig = state.show_significance and not state.is_relative
 
     if orientation == 'By Function' or (orientation == 'By Sample' and plot_filter in ('Selected Function(s)', 'Functional vs Non-Functional Peptides')):
         if not state.function_distribution_dict:
@@ -209,21 +600,25 @@ def create_grouped_bar_plot(state: DataAnalysisState):
             color_seq = get_color_sequence(len(selected_groups), state.color_scheme)
             color_map = {g: color_seq[i] for i, g in enumerate(selected_groups)}
 
-        # Minor Functions always shown in grey
-        if 'Minor Functions' in color_map:
-            color_map['Minor Functions'] = '#808080'
+        # Other Functions always shown in grey
+        if 'Other Functions' in color_map:
+            color_map['Other Functions'] = '#808080'
 
         display_cats = [redact_string_descriptions(c) for c in categories]
         n_bars = len(bar_groups)
         bar_width = 0.8 / max(n_bars, 1)
         fig = go.Figure()
+        sig_geom = {}  # {(category_index, group): {'x': centre, 'top': bar+SEM top}}
+        bysample_tops = {}  # By Sample: {sample: max bar+SEM in its cluster}
+        all_values = []
+        skipped_log_zero = 0
 
         for idx, bar_group in enumerate(bar_groups):
             x_pos = [i + (idx - n_bars / 2 + 0.5) * bar_width for i in range(len(categories))]
-            values, hover = [], []
+            values, hover, sems = [], [], []
             disp_bg = redact_string_descriptions(bar_group)
 
-            for cat in categories:
+            for ci_cat, cat in enumerate(categories):
                 if orientation == 'By Sample':
                     item, group = bar_group, cat
                 else:
@@ -232,13 +627,27 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                 entry = state.function_distribution_dict.get(item, {})
                 abs_value = entry.get('counts' if use_count else 'Abundance', {}).get(group, 0)
                 rel_value = entry.get('count_relative' if use_count else 'abundance_relative', {}).get(group, 0)
+                sem_raw = entry.get('count_sem' if use_count else 'abundance_sem', {}).get(group, 0)
                 if state.is_relative:
                     v = rel_value
                 else:
                     v = abs_value
                     if use_log:
                         v = _safe_log(v)
+                        if v is None:
+                            skipped_log_zero += 1
                 values.append(v)
+                disp_sem = _display_sem(sem_raw, abs_value, use_log)
+                sems.append(disp_sem)
+                # Record bar geometry for significance markers. By Function: each
+                # category cluster holds one bar per sample, compared within-cluster.
+                # By Sample: samples ARE the clusters, so track each cluster's top
+                # and compare samples on the filtered aggregate (see below).
+                if show_sig and orientation == 'By Function':
+                    sig_geom[(ci_cat, group)] = {'x': x_pos[ci_cat],
+                                                 'top': (v or 0) + disp_sem}
+                elif show_sig and orientation == 'By Sample':
+                    bysample_tops[cat] = max(bysample_tops.get(cat, 0.0), (v or 0) + disp_sem)
                 item_label = 'Function' if plot_filter in ('Selected Function(s)', 'Functional vs Non-Functional Peptides') else 'Protein'
                 if state.is_relative:
                     hover.append(
@@ -255,30 +664,60 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                         f"Relative Contribution: {rel_value:.1f}%"
                     )
 
+            all_values.extend(values)
             fn_color = color_map.get(bar_group, '#999')
-            if bar_group in ('Minor Functions', 'Minor Proteins'):
+            if bar_group in ('Other Functions', 'Other Proteins'):
                 fn_color = '#808080'
+            # Replicate-based SEM error bars: only on absolute metrics (a percentage
+            # bar's replicate SEM is not the SEM of the ratio, so it is omitted).
+            bar_error_y = None
+            if not state.is_relative and any(s > 0 for s in sems):
+                bar_error_y = dict(type='data', array=sems, visible=True,
+                                   thickness=1.2, width=3, color='#000000')
             fig.add_trace(go.Bar(
                 x=x_pos, y=values, name=disp_bg,
                 marker=dict(color=fn_color, line=dict(color='black', width=0.5)),
                 width=bar_width * 0.9,
+                error_y=bar_error_y,
                 hovertext=hover, hoverinfo='text',
             ))
 
+        if skipped_log_zero:
+            state.warnings.append(
+                f'{skipped_log_zero} bar(s) had a zero or missing value and were left blank '
+                'under log transform (log of zero/negative is undefined). Turn off log '
+                'transform to display them.'
+            )
         y_title = state.ylabel or ('Log<sub>10</sub> ' if use_log else '') + state.metric_name
-        yaxis_fn = _build_grouped_yaxis(state, use_log, use_count)
+        finite_values = [v for v in all_values if v is not None]
+        yaxis_fn = _build_grouped_yaxis(state, use_log, use_count, max(finite_values, default=0))
+        x_lbl, legend_lbl = _orientation_axis_titles(state)
         fig.update_layout(
             **_common_layout(state),
             xaxis=dict(tickvals=list(range(len(categories))), ticktext=display_cats,
-                       tickangle=45, title=state.xlabel or 'Category',
-                       **_axis_style()),
+                       tickangle=45, title=x_lbl,
+                       **_axis_style(state.font_size_xlabel, state.font_size_xtick)),
             yaxis=dict(title=y_title, **yaxis_fn),
             barmode='group',
-            hoverlabel=dict(bgcolor='white', font_size=12, font_family='Arial'),
-            legend=dict(title=dict(text=state.legend_title or 'Item'),
-                        yanchor='top', y=1.0, xanchor='left', x=1.05,
-                        font=dict(size=12, color='black')),
+            hoverlabel=HOVERLABEL,
+            legend=_legend_style(state, legend_lbl, yanchor='top', y=1.0, xanchor='left', x=1.05),
         )
+        if show_sig and orientation == 'By Function' and sig_geom:
+            _add_grouped_significance(
+                fig, categories, list(bar_groups), sig_geom,
+                lambda fn: state.function_reps_dict.get(fn, {}), metric_key,
+                method=state.significance_method, sig_font_size=state.font_size_value_label)
+        elif show_sig and orientation == 'By Sample' and bysample_tops:
+            # Samples are the x-clusters here, so compare the samples on their
+            # replicate-level filtered totals (total_reps_dict is computed on the
+            # filtered_df, i.e. the selected functions) and annotate per cluster.
+            # Grouped bars use a numeric x-axis (tickvals/ticktext) -> x_categorical=False.
+            _add_totals_significance(fig, categories, state.total_reps_dict, metric_key,
+                                     bysample_tops, is_log_axis=False,
+                                     method=state.significance_method, x_categorical=False,
+                                     sig_font_size=state.font_size_value_label)
+        elif state.show_significance and state.is_relative:
+            _add_significance_caption(fig, RELATIVE_STATS_NOTE)
         return fig
 
     elif orientation == 'By Protein' or (orientation == 'By Sample' and plot_filter == 'Selected Protein(s)'):
@@ -296,21 +735,25 @@ def create_grouped_bar_plot(state: DataAnalysisState):
             color_seq = get_color_sequence(len(selected_groups), state.color_scheme)
             color_map = {g: color_seq[i] for i, g in enumerate(selected_groups)}
 
-        # Minor Proteins always shown in grey
-        if 'Minor Proteins' in color_map:
-            color_map['Minor Proteins'] = '#808080'
+        # Other Proteins always shown in grey
+        if 'Other Proteins' in color_map:
+            color_map['Other Proteins'] = '#808080'
 
         display_cats = [redact_string_descriptions(c) for c in categories]
         n_bars = len(bar_groups_list)
         bar_width = 0.8 / max(n_bars, 1)
         fig = go.Figure()
+        sig_geom = {}  # {(category_index, group): {'x': centre, 'top': bar+SEM top}}
+        bysample_tops = {}  # By Sample: {sample: max bar+SEM in its cluster}
+        all_values = []
+        skipped_log_zero = 0
 
         for idx, bar_group in enumerate(bar_groups_list):
             x_pos = [i + (idx - n_bars / 2 + 0.5) * bar_width for i in range(len(categories))]
-            values, hover = [], []
+            values, hover, sems = [], [], []
             disp_bg = redact_string_descriptions(bar_group)
 
-            for cat in categories:
+            for ci_cat, cat in enumerate(categories):
                 if orientation == 'By Sample':
                     item, group = bar_group, cat
                 else:
@@ -318,16 +761,27 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                 # Use Count columns when Peptide Count is selected, Avg columns for Abundance
                 abs_col = f'Count_{group}' if use_count else f'Avg_{group}'
                 rel_col = f'Rel_Count_{group}' if use_count else f'Rel_Avg_{group}'
+                sem_col = f'SEM_Count_{group}' if use_count else f'SEM_Avg_{group}'
                 row = df[df['Description'] == item]
                 abs_value = float(row[abs_col].values[0]) if len(row) > 0 and abs_col in row.columns else 0
                 rel_value = float(row[rel_col].values[0]) if len(row) > 0 and rel_col in row.columns else 0
+                sem_raw = float(row[sem_col].values[0]) if len(row) > 0 and sem_col in row.columns else 0
                 if state.is_relative:
                     v = rel_value
                 else:
                     v = abs_value
                     if use_log:
                         v = _safe_log(v)
+                        if v is None:
+                            skipped_log_zero += 1
                 values.append(v)
+                disp_sem = _display_sem(sem_raw, abs_value, use_log)
+                sems.append(disp_sem)
+                if show_sig and orientation == 'By Protein':
+                    sig_geom[(ci_cat, group)] = {'x': x_pos[ci_cat],
+                                                 'top': (v or 0) + disp_sem}
+                elif show_sig and orientation == 'By Sample':
+                    bysample_tops[cat] = max(bysample_tops.get(cat, 0.0), (v or 0) + disp_sem)
                 count_fmt = ',.0f' if use_count else state.num_format
                 if state.is_relative:
                     hover.append(
@@ -344,33 +798,62 @@ def create_grouped_bar_plot(state: DataAnalysisState):
                         f"Relative Contribution: {rel_value:.1f}%"
                     )
 
+            all_values.extend(values)
             bar_color = color_map.get(bar_group, '#999')
-            if bar_group == 'Minor Proteins':
+            if bar_group == 'Other Proteins':
                 bar_color = '#808080'
+            # Replicate-based SEM error bars (absolute metrics only).
+            bar_error_y = None
+            if not state.is_relative and any(s > 0 for s in sems):
+                bar_error_y = dict(type='data', array=sems, visible=True,
+                                   thickness=1.2, width=3, color='#000000')
             fig.add_trace(go.Bar(
                 x=x_pos, y=values, name=disp_bg,
                 marker=dict(color=bar_color, line=dict(color='black', width=0.5)),
                 width=bar_width * 0.9,
+                error_y=bar_error_y,
                 hovertext=hover, hoverinfo='text',
             ))
 
+        if skipped_log_zero:
+            state.warnings.append(
+                f'{skipped_log_zero} bar(s) had a zero or missing value and were left blank '
+                'under log transform (log of zero/negative is undefined). Turn off log '
+                'transform to display them.'
+            )
         y_title = state.ylabel or ('Log<sub>10</sub> ' if use_log else '') + state.metric_name
-        yaxis_prot = _build_grouped_yaxis(state, use_log, use_count)
+        finite_values = [v for v in all_values if v is not None]
+        yaxis_prot = _build_grouped_yaxis(state, use_log, use_count, max(finite_values, default=0))
+        x_lbl, legend_lbl = _orientation_axis_titles(state)
         fig.update_layout(
             **_common_layout(state),
             xaxis=dict(tickvals=list(range(len(categories))), ticktext=display_cats,
-                       tickangle=45, title=state.xlabel or 'Category', **_axis_style()),
+                       tickangle=45, title=x_lbl, **_axis_style(state.font_size_xlabel, state.font_size_xtick)),
             yaxis=dict(title=y_title, **yaxis_prot),
             barmode='group',
-            hoverlabel=dict(bgcolor='white', font_size=12, font_family='Arial'),
-            legend=dict(title=dict(text=state.legend_title or 'Item'),
-                        yanchor='top', y=1.0, xanchor='left', x=1.05,
-                        font=dict(size=12, color='black')),
+            hoverlabel=HOVERLABEL,
+            legend=_legend_style(state, legend_lbl, yanchor='top', y=1.0, xanchor='left', x=1.05),
         )
+        if show_sig and orientation == 'By Protein' and sig_geom:
+            _add_grouped_significance(
+                fig, categories, list(bar_groups_list), sig_geom,
+                lambda name: state.protein_reps_dict.get(name, {}), metric_key,
+                method=state.significance_method, sig_font_size=state.font_size_value_label)
+        elif show_sig and orientation == 'By Sample' and bysample_tops:
+            # Samples are the x-clusters; compare them on their replicate-level
+            # filtered totals (total_reps_dict, computed on the selected-protein
+            # filtered_df) and annotate per cluster. Numeric x-axis -> x_categorical=False.
+            _add_totals_significance(fig, categories, state.total_reps_dict, metric_key,
+                                     bysample_tops, is_log_axis=False,
+                                     method=state.significance_method, x_categorical=False,
+                                     sig_font_size=state.font_size_value_label)
+        elif state.show_significance and state.is_relative:
+            _add_significance_caption(fig, RELATIVE_STATS_NOTE)
         return fig
 
     elif plot_filter in ('No Filter', 'Both') and orientation == 'By Sample':
-        # Total peptide absolute
+        # Sample totals: absolute bars, or per-sample % of the grand total when the
+        # Relative metric is selected (plot_total_peptides handles both).
         return plot_total_peptides(state)
 
     return None
@@ -414,16 +897,25 @@ def _plot_no_filter_stacked(state: DataAnalysisState):
         ))
 
     y_title = ('Relative ' if state.is_relative else '') + state.metric_name
-    yaxis_kw = _axis_style()
+    yaxis_kw = _axis_style(state.font_size_ylabel, state.font_size_ytick)
     if state.is_relative:
         yaxis_kw['range'] = [0, 100]
+        yaxis_kw['tickformat'] = '.1f'
+    elif use_count:
+        yaxis_kw['tickformat'] = ',d'
+        yaxis_kw['exponentformat'] = 'none'
+    else:
+        # Abundance totals are large; use scientific notation ("3E+11") rather than
+        # Plotly's default SI suffix ("300B"), matching the other stacked/bar plots.
+        yaxis_kw['exponentformat'] = 'E'
+        yaxis_kw['showexponent'] = 'all'
     fig.update_layout(
         **_common_layout(state),
         barmode='stack',
-        xaxis=dict(title='', **_axis_style()),
+        xaxis=dict(title='', **_axis_style(state.font_size_xlabel, state.font_size_xtick)),
         yaxis=dict(title=state.ylabel or y_title, **yaxis_kw),
-        hoverlabel=dict(bgcolor='white', font_size=12, font_family='Arial'),
-        legend=dict(title=dict(text=state.legend_title or 'Sample'), font=dict(size=12)),
+        hoverlabel=HOVERLABEL,
+        legend=_legend_style(state, state.legend_title or 'Sample'),
     )
     return fig
 
@@ -451,8 +943,24 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
     plot_filter = state.plot_filter
     orientation = state.orientation
 
+    # "No Filter" is orientation-driven for stacked bars. By Sample keeps the single
+    # stacked "Total" bar (sample composition). By Protein / By Function instead
+    # plot EVERY protein / function — i.e. the identical figure to
+    # "Selected Protein(s) + By Protein" / "Selected Function(s) + By Function" with
+    # all items selected. (Previously every No-Filter case returned the Total bar,
+    # so switching orientation appeared to do nothing.)
+    all_items_override = None
     if plot_filter == 'No Filter':
-        return _plot_no_filter_stacked(state)
+        if orientation == 'By Protein':
+            plot_filter = 'Selected Protein(s)'
+            if state.protein_df is not None and not state.protein_df.empty:
+                all_items_override = list(state.protein_df['Description'])
+        elif orientation == 'By Function':
+            plot_filter = 'Selected Function(s)'
+            if state.function_df is not None and not state.function_df.empty:
+                all_items_override = list(state.function_df['Description'])
+        else:  # By Sample
+            return _plot_no_filter_stacked(state)
 
     # ── Resolve data source and selected items ─────────────────────────────────
     is_func_filter = plot_filter in ('Selected Function(s)', 'Functional vs Non-Functional Peptides')
@@ -462,12 +970,12 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
     if is_func_filter:
         df = state.function_df
         items_col = 'Description'
-        selected_items = state.selected_functions
+        selected_items = all_items_override if all_items_override is not None else state.selected_functions
         item_label = 'Function'
     elif is_prot_filter:
         df = state.protein_df
         items_col = 'Description'
-        selected_items = state.selected_protein_names
+        selected_items = all_items_override if all_items_override is not None else state.selected_protein_names
         item_label = 'Protein'
     else:  # Both
         # Combine function and protein items
@@ -486,10 +994,10 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
     # ── Build color map ────────────────────────────────────────────────────────
     color_seq = get_color_sequence(len(selected_items), state.color_scheme)
     color_map = {item: color_seq[i] for i, item in enumerate(selected_items)}
-    if state.plot_minor and 'Minor Functions' in color_map:
-        color_map['Minor Functions'] = '#808080'
-    if state.plot_minor and 'Minor Proteins' in color_map:
-        color_map['Minor Proteins'] = '#808080'
+    if state.plot_minor and 'Other Functions' in color_map:
+        color_map['Other Functions'] = '#808080'
+    if state.plot_minor and 'Other Proteins' in color_map:
+        color_map['Other Proteins'] = '#808080'
 
     fig = go.Figure()
 
@@ -561,7 +1069,7 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
 
             disp_name = redact_string_descriptions(item)
             color = color_map.get(item, '#999')
-            if item in ('Minor Functions', 'Minor Proteins'):
+            if item in ('Other Functions', 'Other Proteins'):
                 color = '#808080'
             fig.add_trace(go.Bar(
                 name=disp_name, x=selected_groups, y=values,
@@ -591,7 +1099,8 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
                 x=selected_groups, y=y_totals,
                 mode='text', text=text_vals,
                 textposition='top center',
-                textfont=dict(size=10 if len(selected_groups) > 12 else 12, color='black'),
+                textfont=dict(size=max(8, state.font_size_value_label - 2) if len(selected_groups) > 12
+                              else state.font_size_value_label, color='black'),
                 showlegend=True,
                 name=f'Total {state.metric_name}',
                 hoverinfo='none',
@@ -645,9 +1154,20 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
                 data = item_data_dict[item]
 
                 # Use group's contribution to item total ('relative' key)
-                # so stacked bars show distribution of this item across samples
-                rel_key = 'count_relative_to_function' if use_count else 'relative'
-                rel_percentage = data.get(rel_key, {}).get(g, 0.0)
+                # so stacked bars show distribution of this item across samples.
+                # For counts the per-group share lives under a source-specific
+                # key: 'count_relative_to_function' for functions,
+                # 'count_relative_to_protein' for proteins (and a "Both" figure
+                # mixes the two). Fall back across both so protein bars don't
+                # collapse to zero. See protein_sample_distribution_dict /
+                # function_distribution_dict in data_processor.
+                if use_count:
+                    rel = data.get('count_relative_to_function')
+                    if rel is None:
+                        rel = data.get('count_relative_to_protein', {})
+                else:
+                    rel = data.get('relative', {})
+                rel_percentage = rel.get(g, 0.0)
 
                 abs_value = (
                     data.get('counts' if use_count else 'Abundance', {}).get(g, 0.0)
@@ -710,7 +1230,7 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
                 x=display_items, y=y_totals,
                 mode='text', text=text_vals,
                 textposition='top center',
-                textfont=dict(size=12, color='black'),
+                textfont=dict(size=state.font_size_value_label, color='black'),
                 showlegend=True,
                 name=f'Total {state.metric_name}',
                 hoverinfo='none',
@@ -719,7 +1239,7 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
     # ── Layout ─────────────────────────────────────────────────────────────────
     y_title = ('Relative ' if state.is_relative else '') + \
                ('Log<sub>10</sub> ' if (use_log and not state.is_relative) else '') + state.metric_name
-    yaxis_stk = _axis_style()
+    yaxis_stk = _axis_style(state.font_size_ylabel, state.font_size_ytick)
     if state.is_relative:
         yaxis_stk['range'] = [0, 100]
         yaxis_stk['tickformat'] = '.1f'
@@ -734,23 +1254,32 @@ def plot_stacked_bar_scaled(state: DataAnalysisState):
         yaxis_stk['tickformat'] = '.1f'
         yaxis_stk['exponentformat'] = 'none'
     else:
-        yaxis_stk['exponentformat'] = 'E'
-        yaxis_stk['showexponent'] = 'all'
+        # Abundance, absolute, non-log: the stacked total (already log-transformed
+        # abundance data included) can still be small, in which case plain integers
+        # read better than scientific notation. See LINEAR_SCALE_THRESHOLD.
+        if orientation == 'By Sample':
+            stack_max = max(total_sums.values(), default=0)
+        else:
+            stack_max = max((d.get('total_Abundance', 0.0) for d in item_data_dict.values()), default=0)
+        if stack_max < LINEAR_SCALE_THRESHOLD:
+            yaxis_stk['tickformat'] = ',d'
+            yaxis_stk['exponentformat'] = 'none'
+            yaxis_stk['showexponent'] = 'none'
+        else:
+            yaxis_stk['exponentformat'] = 'E'
+            yaxis_stk['showexponent'] = 'all'
 
-    xlabel = state.xlabel or ('Sample' if orientation == 'By Sample' else 'Function / Protein')
+    xlabel, legend_lbl = _orientation_axis_titles(state)
     fig.update_layout(**{
         **_common_layout(state),
         'barmode': 'stack',
-        'xaxis': dict(title=xlabel, tickangle=-90 if orientation == 'By Sample' else 45, **_axis_style()),
+        'xaxis': dict(title=xlabel, tickangle=-90 if orientation == 'By Sample' else 45,
+                      **_axis_style(state.font_size_xlabel, state.font_size_xtick)),
         'yaxis': dict(title=state.ylabel or y_title, **yaxis_stk),
-        'hoverlabel': dict(bgcolor='white', font_size=12, font_family='Arial'),
-        'legend': dict(
-            title=dict(text=state.legend_title or ('Item' if orientation == 'By Sample' else 'Sample')),
-            font=dict(size=16, color='black'),
-            yanchor='top', y=0.95, xanchor='left', x=1.05,
-            bgcolor='rgba(255,255,255,0.9)',
-        ),
-        'height': 820, 'width': 1200,
+        'hoverlabel': HOVERLABEL,
+        'legend': _legend_style(state, legend_lbl, yanchor='top', y=0.95, xanchor='left', x=1.05,
+                                bgcolor='rgba(255,255,255,0.9)'),
+        'height': 820,
         'margin': dict(t=100, l=100, r=100, b=100),
     })
     return fig
@@ -789,11 +1318,13 @@ def create_pie_charts(state: DataAnalysisState):
             labels=labels, values=vals,
             marker_colors=colors,
             textposition='inside', textinfo='percent',
+            textfont=dict(size=state.font_size_value_label),
             hovertemplate=_hover_fmt_nf,
         ))
         fig.update_layout(**{**_common_layout(state),
                           'showlegend': True,
-                          'legend': dict(title=dict(text=state.legend_title or 'Sample'))})
+                          'hoverlabel': HOVERLABEL,
+                          'legend': _legend_style(state, state.legend_title or 'Sample')})
         return fig
 
     if df is None or df.empty:
@@ -818,7 +1349,7 @@ def create_pie_charts(state: DataAnalysisState):
             vals = [float(v) for v in pie_df.get(col_key, pd.Series([0] * len(pie_df)))]
             colors = get_color_sequence(len(labels), state.color_scheme)
             colors = [
-                '#808080' if lbl in ('Minor Proteins', 'Minor Functions') else c
+                '#808080' if lbl in ('Other Proteins', 'Other Functions') else c
                 for lbl, c in zip(labels, colors)
             ]
 
@@ -828,13 +1359,15 @@ def create_pie_charts(state: DataAnalysisState):
                 values=vals, name=group,
                 marker_colors=colors,
                 textposition='inside', textinfo='percent',
+                textfont=dict(size=state.font_size_value_label),
                 title=dict(text=group, font=dict(size=14)),
                 hovertemplate=hover_fmt,
             ), row=row_idx, col=col_idx)
 
         fig.update_layout(**{**_common_layout(state),
                           'height': 400 * rows, 'width': 1000,
-                          'legend': dict(title=dict(text=state.legend_title or 'Item'))})
+                          'hoverlabel': HOVERLABEL,
+                          'legend': _legend_style(state, state.legend_title or 'Item')})
         return fig
     else:
         # By Function/Protein: one pie per item
@@ -862,13 +1395,15 @@ def create_pie_charts(state: DataAnalysisState):
                 labels=labels, values=vals, name=item,
                 marker_colors=colors,
                 textposition='inside', textinfo='percent',
+                textfont=dict(size=state.font_size_value_label),
                 title=dict(text=redact_string_descriptions(item), font=dict(size=12)),
                 hovertemplate=_item_hover_fmt,
             ), row=row_idx, col=col_idx)
 
         fig.update_layout(**{**_common_layout(state),
                           'height': 400 * rows, 'width': 1000,
-                          'legend': dict(title=dict(text=state.legend_title or 'Sample'))})
+                          'hoverlabel': HOVERLABEL,
+                          'legend': _legend_style(state, state.legend_title or 'Sample')})
         return fig
 
 
@@ -905,7 +1440,13 @@ def create_correlation_plot(state: DataAnalysisState):
     else:
         x_vals = fdf[col1]
         y_vals = fdf[col2]
-        tickfmt = '.1e'
+        # Already-log-transformed abundance data can still land here with small
+        # values; scientific notation is misleading noise below the same
+        # linear-scale threshold used elsewhere. See LINEAR_SCALE_THRESHOLD.
+        if max(float(x_vals.max()), float(y_vals.max())) < LINEAR_SCALE_THRESHOLD:
+            tickfmt = ',d'
+        else:
+            tickfmt = '.1e'
         x_label, y_label = g1, g2
 
     corr_text = 'n/a'
@@ -975,25 +1516,25 @@ def create_correlation_plot(state: DataAnalysisState):
     ax_kw = dict(tickformat=tickfmt, tickvals=tick_vals, nticks=5,
                  range=combined_range,
                  showline=True, linewidth=1, linecolor='black',
-                 gridcolor='lightgray', showgrid=True, zeroline=False,
-                 tickfont=dict(size=14, color='black'),
-                 title_font=dict(size=16, color='black'))
+                 gridcolor='lightgray', showgrid=True, zeroline=False)
 
     leg_title = state.legend_title or f'{state.correlation_type} Correlation Values'
     fig.update_layout(
-        title=dict(text=_make_title(state), x=0.5, xanchor='center',
-                   font=dict(size=18, color='black')),
-        xaxis=dict(title=x_label, tickangle=45, **ax_kw),
-        yaxis=dict(title=y_label, **ax_kw),
+        title=dict(text=_make_title(state, kind='correlation'), x=0.5, xanchor='center',
+                   font=dict(size=state.font_size_plot_title, color='black')),
+        xaxis=dict(title=x_label, tickangle=45,
+                   title_font=dict(size=state.font_size_xlabel, color='black'),
+                   tickfont=dict(size=state.font_size_xtick, color='black'), **ax_kw),
+        yaxis=dict(title=y_label,
+                   title_font=dict(size=state.font_size_ylabel, color='black'),
+                   tickfont=dict(size=state.font_size_ytick, color='black'), **ax_kw),
         height=500, width=600,
         template='plotly_white',
+        font=BASE_FONT,
+        hoverlabel=HOVERLABEL,
         showlegend=True,
-        legend=dict(
-            title=dict(text=leg_title, font=dict(size=16, color='black')),
-            yanchor='top', y=0.99, xanchor='right', x=0.99,
-            bgcolor='rgba(255, 255, 255, 0.8)',
-            font=dict(size=14),
-        ),
+        legend=_legend_style(state, leg_title, yanchor='top', y=0.99, xanchor='right', x=0.99,
+                             bgcolor='rgba(255, 255, 255, 0.8)'),
         margin=dict(t=100, b=80, l=80, r=50),
     )
     return fig
@@ -1041,7 +1582,13 @@ def create_correlation_splom(state: DataAnalysisState):
         fdf[pn_col].fillna('N/A') if pn_col else ['N/A'] * len(fdf),
     ])
 
-    tickfmt = '.0f' if use_log else '.1e'
+    if use_log:
+        tickfmt = '.0f'
+    else:
+        # Already-log-transformed abundance data can still land here with small
+        # values; scientific notation is misleading noise below the same
+        # linear-scale threshold used elsewhere. See LINEAR_SCALE_THRESHOLD.
+        tickfmt = ',d' if max(all_vals) < LINEAR_SCALE_THRESHOLD else '.1e'
     splom = go.Splom(
         dimensions=dimensions,
         marker=dict(color=first_color, size=8, line=dict(width=1, color='white')),
@@ -1080,15 +1627,19 @@ def create_correlation_splom(state: DataAnalysisState):
             ))
 
     fig = go.Figure(data=[splom] + corr_traces)
-    sz = 250 * len(valid_groups)
+    # Cap the overall figure so many groups shrink the panels rather than
+    # growing the figure past the viewport. Uncapped, this scaled linearly
+    # (20 groups -> 5000px) and overflowed the browser window.
+    sz = min(250 * len(valid_groups), MAX_SPLOM_SIZE)
     leg_title = state.legend_title or f'{ct} Correlation'
     fig.update_layout(
-        title=dict(text=_make_title(state), x=0.5, xanchor='center',
-                   font=dict(size=18, color='black')),
+        title=dict(text=_make_title(state, kind='correlation'), x=0.5, xanchor='center',
+                   font=dict(size=state.font_size_plot_title, color='black')),
         width=sz + 250, height=sz,
         template='plotly_white',
-        legend=dict(title=dict(text=leg_title, font=dict(size=14, color='black')),
-                    font=dict(size=13), x=1.01, y=1, yanchor='top'),
+        font=BASE_FONT,
+        hoverlabel=HOVERLABEL,
+        legend=_legend_style(state, leg_title, x=1.01, y=1, yanchor='top'),
     )
     # Apply consistent axis ranges/formats
     overall_min, overall_max = min(all_vals), max(all_vals)
@@ -1097,9 +1648,11 @@ def create_correlation_splom(state: DataAnalysisState):
     for k in range(1, len(valid_groups) + 1):
         fig.update_layout({
             f'xaxis{k}': dict(range=combined_range, tickvals=tick_vals, tickformat=tickfmt,
-                              tickfont=dict(size=12, color='black'), tickangle=45),
+                              tickfont=dict(size=state.font_size_xtick, color='black'), tickangle=45,
+                              title_font=dict(size=state.font_size_xlabel, color='black')),
             f'yaxis{k}': dict(range=combined_range, tickvals=tick_vals, tickformat=tickfmt,
-                              tickfont=dict(size=12, color='black')),
+                              tickfont=dict(size=state.font_size_ytick, color='black'),
+                              title_font=dict(size=state.font_size_ylabel, color='black')),
         })
     return fig
 
@@ -1108,9 +1661,9 @@ def create_correlation_splom(state: DataAnalysisState):
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _build_grouped_yaxis(state: DataAnalysisState, use_log: bool, use_count: bool) -> dict:
+def _build_grouped_yaxis(state: DataAnalysisState, use_log: bool, use_count: bool, max_value: float = None) -> dict:
     """Return y-axis kwargs matching notebook grouped bar plot formatting."""
-    kw = _axis_style()
+    kw = _axis_style(state.font_size_ylabel, state.font_size_ytick)
     if state.is_relative:
         kw['range'] = [0, 100]
     elif use_count and use_log:
@@ -1126,6 +1679,13 @@ def _build_grouped_yaxis(state: DataAnalysisState, use_log: bool, use_count: boo
     elif not use_count and use_log:
         kw['type'] = 'linear'
         kw['tickformat'] = '.1f'
+        kw['exponentformat'] = 'none'
+        kw['showexponent'] = 'none'
+    elif max_value is not None and max_value < LINEAR_SCALE_THRESHOLD:
+        # Small values (including abundance data already log-transformed
+        # upstream) read better as plain integers than scientific notation.
+        kw['type'] = 'linear'
+        kw['tickformat'] = ',d'
         kw['exponentformat'] = 'none'
         kw['showexponent'] = 'none'
     else:  # abundance, no log
@@ -1175,24 +1735,68 @@ def _power_ticks(fig, y_axis='yaxis', x_axis=None):
 
 
 def _common_layout(state: DataAnalysisState) -> dict:
+    # NB: callers spread this as **kwargs and add their own hoverlabel/legend,
+    # so those keys must NOT be set here (would raise a duplicate-kwarg error).
     return dict(
         template='plotly_white',
-        height=800, width=1000,
-        margin=dict(t=100, l=100, r=100),
-        font=dict(color='black'),
+        # Width intentionally omitted: with config.responsive=True, Plotly.js
+        # only stretches a dimension left unset in the layout. A fixed width
+        # here pins the plot to that pixel size regardless of container size,
+        # which is what produced the large blank strip on wide containers
+        # (the plot rendered at 1000px inside a much wider #plot-container).
+        # Height stays fixed since chart height isn't container-width-dependent.
+        height=800,
+        margin=PLOT_MARGIN,
+        font=BASE_FONT,
         title=dict(text=_make_title(state), y=0.95, x=0.5,
                    xanchor='center', yanchor='top',
-                   font=dict(size=18, color='black')),
+                   font=dict(size=state.font_size_plot_title, color='black')),
     )
 
 
-def _axis_style() -> dict:
+def _axis_style(title_size: int = 18, tick_size: int = 16) -> dict:
     return dict(
         showline=True, linewidth=1, linecolor='black',
         mirror=False, gridcolor='lightgray', showgrid=True, zeroline=False,
-        title_font=dict(size=18, color='black'),
-        tickfont=dict(size=16, color='black'),
+        title_font=dict(size=title_size, color='black'),
+        tickfont=dict(size=tick_size, color='black'),
     )
+
+
+def _legend_style(state: DataAnalysisState, text: str, **extra) -> dict:
+    """Legend dict with the Appearance Settings legend-title font size driving
+    both the legend title and the legend item text, per the Appearance Settings
+    control (one input governs the whole legend's type size)."""
+    size = state.font_size_legend_title
+    return dict(
+        title=dict(text=text, font=dict(size=size, color='black')),
+        font=dict(size=size, color='black'),
+        **extra,
+    )
+
+
+def _orientation_axis_titles(state: DataAnalysisState):
+    """Return (x_axis_label, legend_title) for the current orientation, matching
+    the notebook's invert_plot / x-axis-label logic. When the x-axis holds the
+    categories (By Function / By Protein) it is named for them and the legend
+    holds the samples; By Sample keeps samples on the x-axis and names the legend
+    for whatever is stacked/grouped. User-supplied labels always win.
+    """
+    orient = state.orientation
+    pf = state.plot_filter
+    if orient == 'By Protein':
+        x_lbl, legend = 'Proteins', 'Samples'
+    elif orient == 'By Function':
+        x_lbl, legend = 'Functions', 'Samples'
+    else:  # By Sample
+        x_lbl = 'Samples'
+        if pf in ('Selected Function(s)', 'Functional vs Non-Functional Peptides'):
+            legend = 'Functions'
+        elif pf == 'Selected Protein(s)':
+            legend = 'Proteins'
+        else:
+            legend = 'Sample'
+    return (state.xlabel or x_lbl, state.legend_title or legend)
 
 
 # ---------------------------------------------------------------------------
@@ -1244,6 +1848,8 @@ def generate_plot(merged_df: pd.DataFrame, group_data_dict: dict, protein_dict: 
     except Exception:
         warnings.append('Error generating plot: ' + traceback.format_exc())
         return None, warnings
+
+    warnings.extend(state.warnings)
 
     if fig is None:
         warnings.append('No plot generated. Please check your selections and data.')

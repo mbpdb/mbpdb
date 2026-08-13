@@ -21,6 +21,11 @@ local_settings.py
 # ===========================================
 include/peptide/static_files/
 
+# Reference-only third-party format examples (MaxQuant/Skyline/PEAKS/Spectronaut/
+# PepEx exports, case-study provenance files) — not served by the app, kept for
+# local dev/test use only, not for public distribution in the repo.
+include/peptide/peptide/static/peptide/examples/not_in_use_examples/
+
 # ===========================================
 # Original ignores
 # ===========================================
@@ -74,3 +79,14 @@ __pycache__/
 lfg.sh
 todo*
 dev.sh
+
+# Local working notes (not part of the application)
+node_js_update.txt
+results_optimization.txt
+peptiline_optimization.txt
+
+# Manuscript under peer review — tracked in its own private repo
+# (Kuhfeldrf/manuscript). Must never enter the application repo.
+manuscript/
+revision_status.md
+revison.txt

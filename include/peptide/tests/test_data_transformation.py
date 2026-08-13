@@ -29,7 +29,7 @@ import pandas as pd
 import numpy as np
 
 # conftest.py already bootstrapped Django — just import the services.
-from peptide.data_transformation.services import data_loader, group_processing, data_combiner, export_manager
+from peptide.data_transformation.services import data_loader, group_processing, data_combiner, export_manager, protein_handler
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +167,18 @@ class TestExtractProteinId(unittest.TestCase):
         result = data_loader.extract_protein_id("sp|P02666|CASB_BOVIN")
         self.assertEqual(result, "P02666")
 
+    def test_peaks_two_part_pipe(self):
+        """PEAKS uses ACCESSION|NAME (2 fields); accession is the first field."""
+        result = data_loader.extract_protein_id("A0A087WWV8|A0A087WWV8_HUMAN")
+        self.assertEqual(result, "A0A087WWV8")
+
+    def test_peaks_semicolon_pipe_multi(self):
+        """PEAKS lists multiple proteins with ';' between ACCESSION|NAME pairs."""
+        result = data_loader.extract_protein_id(
+            "A0A087WWV8|A0A087WWV8_HUMAN;P01834|IGKC_HUMAN"
+        )
+        self.assertEqual(result, ["A0A087WWV8", "P01834"])
+
     def test_plain_accession(self):
         result = data_loader.extract_protein_id("P02666")
         self.assertEqual(result, "P02666")
@@ -235,6 +247,269 @@ class TestLoadAndValidateFile(unittest.TestCase):
         )
         self.assertEqual(status, 'yes')
         self.assertIn('Protein', result_df.columns)
+
+    def test_peaks_accession_column_mapped_and_split(self):
+        """PEAKS 'Accession' column (';'-joined ACCESSION|NAME pairs) maps to
+        Protein and splits into clean accessions; inline mods stripped."""
+        df = pd.DataFrame({
+            'Peptide': ['ADYEKHKVYAC(+57.02)EVTHQG', 'AENTLQSFR'],
+            'Accession': [
+                'A0A087WWV8|A0A087WWV8_HUMAN;P01834|IGKC_HUMAN',
+                'P02666|CASB_BOVIN',
+            ],
+            'Area': [100, 200],
+        })
+        content = self._make_csv_bytes(df)
+        result_df, status, _, _ = data_loader.load_and_validate_file(
+            content, 'peaks.csv', 'Peptidomic'
+        )
+        self.assertEqual(status, 'yes')
+        self.assertIn('Protein', result_df.columns)
+        # multi-protein row split into clean accessions
+        self.assertEqual(result_df['Protein'].iloc[0], ['A0A087WWV8', 'P01834'])
+        self.assertEqual(result_df['Protein'].iloc[1], 'P02666')
+        # inline (+57.02) modification stripped from the sequence
+        self.assertEqual(result_df['Sequence'].iloc[0], 'ADYEKHKVYACEVTHQG')
+
+    def test_literal_protein_column_normalized(self):
+        """A column literally named 'Protein' with full 'sp|ACC|NAME'
+        accessions (Skyline / native PEPEX) is reduced to bare IDs."""
+        df = pd.DataFrame({
+            'Peptide': ['YLLPEVTVLDYGKK'],
+            'Protein': ['sp|O15194|CTDSL_HUMAN'],
+            'Area': [100],
+        })
+        content = self._make_csv_bytes(df)
+        result_df, status, _, _ = data_loader.load_and_validate_file(
+            content, 'skyline.csv', 'Peptidomic'
+        )
+        self.assertEqual(status, 'yes')
+        self.assertEqual(result_df['Protein'].iloc[0], 'O15194')
+
+
+class TestDetectLongFormat(unittest.TestCase):
+    """PEAKS/Spectronaut-style long (one row per peptide per run) exports
+    must be recognised; already-wide exports (MaxQuant/Skyline/PEPEX-style)
+    must not be, even when the same base sequence repeats across rows."""
+
+    def test_peaks_style_long_data_detected(self):
+        df = pd.DataFrame({
+            'Sequence': ['PEPTIDEK', 'PEPTIDEK', 'SAMPLER', 'SAMPLER'],
+            'Accession': ['A0A087WWV8|A0A087WWV8_HUMAN'] * 4,
+            'Area': [100, 200, 300, 400],
+            'Source File': ['run1.d', 'run2.d', 'run1.d', 'run2.d'],
+        })
+        needs_pivot, sample_col, value_col = data_loader.detect_long_format(df)
+        self.assertTrue(needs_pivot)
+        self.assertEqual(sample_col, 'Source File')
+        self.assertEqual(value_col, 'Area')
+
+    def test_spectronaut_style_long_data_detected(self):
+        df = pd.DataFrame({
+            'Sequence': ['PEPTIDEK', 'PEPTIDEK', 'SAMPLER', 'SAMPLER'],
+            'EG.ModifiedPeptide': ['_PEPTIDEK_'] * 2 + ['_SAMPLER_'] * 2,
+            'PG.ProteinGroups': ['P02666'] * 4,
+            'EG.TotalQuantity (Settings)': [10.0, 20.0, 30.0, 40.0],
+            'R.FileName': ['run1', 'run2', 'run1', 'run2'],
+        })
+        needs_pivot, sample_col, value_col = data_loader.detect_long_format(df)
+        self.assertTrue(needs_pivot)
+        self.assertEqual(sample_col, 'R.FileName')
+        self.assertEqual(value_col, 'EG.TotalQuantity (Settings)')
+
+    def test_wide_maxquant_style_data_not_detected(self):
+        df = make_peptidomic_df().rename(columns={'Master Protein Accessions': 'Proteins'})
+        needs_pivot, sample_col, value_col = data_loader.detect_long_format(df)
+        self.assertFalse(needs_pivot)
+        self.assertIsNone(sample_col)
+        self.assertIsNone(value_col)
+
+    def test_no_sample_column_not_detected(self):
+        """Area/Intensity columns alone (no run identifier) must not trigger a pivot."""
+        df = pd.DataFrame({
+            'Sequence': ['PEPTIDEK', 'PEPTIDEK'],
+            'Area': [100, 200],
+        })
+        needs_pivot, _, _ = data_loader.detect_long_format(df)
+        self.assertFalse(needs_pivot)
+
+    def test_skyline_style_repeated_base_sequence_not_detected(self):
+        """Different charge states/mods of the same base 'Peptide' share a
+        Source File-like column only coincidentally — since the Unique
+        Peptide ID (from 'Peptide Modified Sequence') is already one row per
+        peptide, this must not be treated as long format."""
+        df = pd.DataFrame({
+            'Sequence': ['PEPTIDEK', 'PEPTIDEK'],
+            'Peptide Modified Sequence': ['PEPTIDEK', 'PEPTIDEK[+16]'],
+            'Source File': ['run1.d', 'run1.d'],
+            'Area': [100, 200],
+        })
+        needs_pivot, _, _ = data_loader.detect_long_format(df)
+        self.assertFalse(needs_pivot)
+
+
+class TestPivotLongToWide(unittest.TestCase):
+
+    def test_peaks_style_pivot_sums_psms_within_sample(self):
+        df = pd.DataFrame({
+            'Sequence': ['PEPTIDEK', 'PEPTIDEK', 'PEPTIDEK', 'SAMPLER'],
+            'Protein': ['P02666', 'P02666', 'P02666', 'Q9NR61'],
+            'Area': [100, 50, 300, 400],
+            'Source File': ['run1.d', 'run1.d', 'run2.d', 'run1.d'],
+        })
+        result = data_loader.pivot_long_to_wide(df, 'Source File', 'Area')
+        self.assertEqual(len(result), 2)
+        row = result[result['Sequence'] == 'PEPTIDEK'].iloc[0]
+        # Two PSMs of PEPTIDEK in run1.d (100 + 50) must be summed
+        self.assertEqual(row['run1.d'], 150)
+        self.assertEqual(row['run2.d'], 300)
+        sampler_row = result[result['Sequence'] == 'SAMPLER'].iloc[0]
+        self.assertTrue(pd.isna(sampler_row['run2.d']))
+
+    def test_spectronaut_style_pivot_does_not_double_count_elution_group(self):
+        """EG.TotalQuantity (Settings) is already reported once per
+        (modified peptide, run) — residual duplicate rows (e.g. multiple
+        charge states) must be collapsed with max, not summed."""
+        df = pd.DataFrame({
+            'Sequence': ['PEPTIDEK', 'PEPTIDEK'],
+            'EG.ModifiedPeptide': ['_PEPTIDEK_', '_PEPTIDEK_'],
+            'PG.ProteinGroups': ['P02666', 'P02666'],
+            'EG.TotalQuantity (Settings)': [500.0, 500.0],
+            'R.FileName': ['run1', 'run1'],
+        })
+        result = data_loader.pivot_long_to_wide(df, 'R.FileName', 'EG.TotalQuantity (Settings)')
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result.iloc[0]['run1'], 500.0)
+
+    def test_pivot_drops_non_schema_psm_columns(self):
+        """Per-PSM descriptors with no Table 1 mapping (e.g. PEAKS '-10LgP',
+        'Scan') must be dropped, not collapsed to an arbitrary first value
+        that would then look like a spurious abundance column."""
+        df = pd.DataFrame({
+            'Sequence': ['PEPTIDEK', 'PEPTIDEK'],
+            'Protein': ['P02666', 'P02666'],
+            'Area': [100, 200],
+            'Source File': ['run1.d', 'run2.d'],
+            '-10LgP': [30.5, 31.2],
+            'Scan': [111, 222],
+        })
+        result = data_loader.pivot_long_to_wide(df, 'Source File', 'Area')
+        self.assertNotIn('-10LgP', result.columns)
+        self.assertNotIn('Scan', result.columns)
+
+
+class TestLoadAndValidateFileLongFormatPivot(unittest.TestCase):
+    """End-to-end: uploading a long-format export auto-pivots before the
+    rest of the pipeline sees it, and the resulting sample columns are
+    correctly picked up as abundance columns."""
+
+    def _make_csv_bytes(self, df):
+        buf = io.BytesIO()
+        df.to_csv(buf, index=False)
+        return buf.getvalue()
+
+    def test_peaks_long_export_pivots_and_is_flagged(self):
+        df = pd.DataFrame({
+            'Peptide': ['PEPTIDEK', 'PEPTIDEK', 'SAMPLER', 'SAMPLER'],
+            'Accession': ['A0A087WWV8|A0A087WWV8_HUMAN'] * 4,
+            'Area': [100, 200, 300, 400],
+            'Source File': ['run1.d', 'run2.d', 'run1.d', 'run2.d'],
+        })
+        content = self._make_csv_bytes(df)
+        result_df, status, err, warn = data_loader.load_and_validate_file(
+            content, 'peaks.csv', 'Peptidomic'
+        )
+        self.assertEqual(status, 'yes', msg=err)
+        self.assertIn('long-format', warn)
+        self.assertEqual(len(result_df), 2)  # PEPTIDEK, SAMPLER
+        filtered = data_loader.get_filtered_columns(result_df)
+        self.assertEqual(set(filtered), {'run1.d', 'run2.d'})
+
+    def test_spectronaut_long_export_pivots_and_is_flagged(self):
+        df = pd.DataFrame({
+            'PEP.StrippedSequence': ['PEPTIDEK', 'PEPTIDEK', 'SAMPLER', 'SAMPLER'],
+            'EG.ModifiedPeptide': ['_PEPTIDEK_'] * 2 + ['_SAMPLER_'] * 2,
+            'PG.ProteinGroups': ['P02666'] * 4,
+            'EG.TotalQuantity (Settings)': [10.0, 20.0, 30.0, 40.0],
+            'R.FileName': ['run1', 'run2', 'run1', 'run2'],
+        })
+        content = self._make_csv_bytes(df)
+        result_df, status, err, warn = data_loader.load_and_validate_file(
+            content, 'spectronaut.csv', 'Peptidomic'
+        )
+        self.assertEqual(status, 'yes', msg=err)
+        self.assertIn('long-format', warn)
+        self.assertEqual(len(result_df), 2)
+        filtered = data_loader.get_filtered_columns(result_df)
+        self.assertEqual(set(filtered), {'run1', 'run2'})
+
+    def test_wide_export_not_pivoted(self):
+        df = make_peptidomic_df().rename(columns={'Master Protein Accessions': 'Proteins'})
+        content = self._make_csv_bytes(df)
+        result_df, status, err, warn = data_loader.load_and_validate_file(
+            content, 'wide.csv', 'Peptidomic'
+        )
+        self.assertEqual(status, 'yes', msg=err)
+        self.assertNotIn('long-format', warn)
+        self.assertEqual(len(result_df), len(df))
+
+
+class TestGetFilteredColumnsAccessionAndId(unittest.TestCase):
+    """Regression coverage for the exclusion-list fixes needed to support
+    PEAKS long-format uploads: 'Accession' is a Table 1 protein-ID source
+    column (always metadata), while the literal 'id' column (MaxQuant) must
+    only be excluded on an exact match — not as a substring, which used to
+    false-positive on sample names like a PEAKS Source File containing
+    '...IDB001031...'."""
+
+    def test_accession_excluded(self):
+        df = pd.DataFrame({'Sequence': ['A'], 'Accession': ['P1|NAME'], 'Sample1': [100]})
+        filtered = data_loader.get_filtered_columns(df)
+        self.assertNotIn('Accession', filtered)
+        self.assertIn('Sample1', filtered)
+
+    def test_literal_id_column_excluded(self):
+        df = pd.DataFrame({'Sequence': ['A'], 'id': [0], 'Sample1': [100]})
+        filtered = data_loader.get_filtered_columns(df)
+        self.assertNotIn('id', filtered)
+
+    def test_sample_name_containing_id_substring_not_excluded(self):
+        df = pd.DataFrame({
+            'Sequence': ['A'],
+            '20230208_TTS1_ptran0117_OBJ42352_IDB001031_9D1_Boco_IP1_L243_MAPPs_1_1_1419.d': [100],
+        })
+        filtered = data_loader.get_filtered_columns(df)
+        self.assertEqual(len(filtered), 1)
+
+
+class TestStripInlineModifications(unittest.TestCase):
+
+    def test_peaks_parenthetical_mod(self):
+        self.assertEqual(
+            data_loader.strip_inline_modifications('ADYEKHKVYAC(+57.02)EVTHQG'),
+            'ADYEKHKVYACEVTHQG',
+        )
+
+    def test_bracket_annotation(self):
+        self.assertEqual(
+            data_loader.strip_inline_modifications('NILREKQTDEIK[DN]'),
+            'NILREKQTDEIK',
+        )
+
+    def test_enzymatic_flanks(self):
+        self.assertEqual(
+            data_loader.strip_inline_modifications('K.PEPTIDE.R'), 'PEPTIDE'
+        )
+
+    def test_clean_sequence_unchanged(self):
+        self.assertEqual(
+            data_loader.strip_inline_modifications('PEPTIDE'), 'PEPTIDE'
+        )
+
+    def test_non_string_passthrough(self):
+        self.assertTrue(pd.isna(
+            data_loader.strip_inline_modifications(float('nan'))
+        ))
 
 
 class TestExtractSequences(unittest.TestCase):
@@ -500,6 +775,59 @@ class TestProcessPdResults(unittest.TestCase):
         self.assertEqual(row['end'], 27)
 
 
+class TestCollapseMultiproteinDuplicateRows(unittest.TestCase):
+    """Skyline reports a peptide mapped to multiple proteins as separate
+    rows with otherwise-identical data (abundances included), unlike
+    Proteome Discoverer/MaxQuant/PEAKS/Spectronaut which join multi-protein
+    peptides into one row. Left uncollapsed this duplicates the same
+    measured abundance under one 'Unique Peptide ID' — a real risk for any
+    sum-based downstream analysis."""
+
+    def test_identical_rows_collapsed_with_proteins_joined(self):
+        df = pd.DataFrame({
+            'Sequence': ['PEPTIDEK', 'PEPTIDEK'],
+            'Protein': ['P12931', 'P07947'],
+            'Protein Name': ['sp|P12931|SRC_HUMAN', 'sp|P07947|YES_HUMAN'],
+            'Sample_A1': [100.0, 100.0],
+        })
+        result = data_combiner.process_pd_results(df, None, {})
+        self.assertEqual(len(result), 1)
+        row = result.iloc[0]
+        self.assertEqual(row['Protein'], 'P12931; P07947')
+        self.assertEqual(row['Protein Name'], 'sp|P12931|SRC_HUMAN; sp|P07947|YES_HUMAN')
+        self.assertEqual(row['Sample_A1'], 100.0)
+
+    def test_genuinely_different_abundance_not_collapsed(self):
+        """If the 'duplicate' rows actually differ in a non-protein column,
+        collapsing would silently discard real data — must be left as-is."""
+        df = pd.DataFrame({
+            'Sequence': ['PEPTIDEK', 'PEPTIDEK'],
+            'Protein': ['P12931', 'P07947'],
+            'Sample_A1': [100.0, 250.0],
+        })
+        result = data_combiner.process_pd_results(df, None, {})
+        self.assertEqual(len(result), 2)
+
+    def test_no_duplicates_unaffected(self):
+        df = pd.DataFrame({
+            'Sequence': ['PEPTIDEK', 'SAMPLER'],
+            'Protein': ['P12931', 'P07947'],
+            'Sample_A1': [100.0, 200.0],
+        })
+        result = data_combiner.process_pd_results(df, None, {})
+        self.assertEqual(len(result), 2)
+
+    def test_three_way_duplicate_all_proteins_joined(self):
+        df = pd.DataFrame({
+            'Sequence': ['PEPTIDEK'] * 3,
+            'Protein': ['P1', 'P2', 'P3'],
+            'Sample_A1': [50.0, 50.0, 50.0],
+        })
+        result = data_combiner.process_pd_results(df, None, {})
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result.iloc[0]['Protein'], 'P1; P2; P3')
+
+
 class TestCalculateGroupAbundanceAverages(unittest.TestCase):
 
     def test_avg_columns_added(self):
@@ -672,14 +1000,14 @@ class TestSummedPeptideResults(unittest.TestCase):
         merged = _make_merged_df()
         result = export_manager.summed_peptide_results(merged, make_group_data())
         group_a = result['GroupA']
-        for key in ['unique_peptides', 'total_Absorbance', 'total_sem',
+        for key in ['unique_peptides', 'total_Abundance', 'total_sem',
                     'abundance_sem', 'count_sem', 'replicate_data']:
             self.assertIn(key, group_a, msg=f"Missing key: {key}")
 
-    def test_total_absorbance_positive(self):
+    def test_total_abundance_positive(self):
         merged = _make_merged_df()
         result = export_manager.summed_peptide_results(merged, make_group_data())
-        self.assertGreater(result['GroupA']['total_Absorbance'], 0)
+        self.assertGreater(result['GroupA']['total_Abundance'], 0)
 
     def test_export_summed_peptide_data_returns_xlsx(self):
         merged = _make_merged_df()
@@ -877,6 +1205,189 @@ def _load_real(filename, file_type='Peptidomic'):
         content, filename, file_type
     )
     return df, status, err, warn
+
+
+# ---------------------------------------------------------------------------
+# not_in_use_examples — one real, unmodified export per engine (MaxQuant,
+# Skyline, PEAKS, Spectronaut, plus a Skyline-based lab pipeline export)
+# exercising Table 1's full column-mapping surface, including the
+# long/per-run -> wide pivot (PEAKS, Spectronaut) and the Skyline
+# multi-protein-row collapse. Tracked in git but not linked from any
+# template — see the README in that directory.
+# ---------------------------------------------------------------------------
+
+ADDITIONAL_FORMATS = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)),
+    'peptide', 'static', 'peptide', 'examples', 'not_in_use_examples'
+)
+
+
+def _load_additional_format(filename, file_type='Peptidomic'):
+    path = os.path.join(ADDITIONAL_FORMATS, filename)
+    with open(path, 'rb') as f:
+        content = f.read()
+    df, status, err, warn = data_loader.load_and_validate_file(
+        content, filename, file_type
+    )
+    return df, status, err, warn
+
+
+def _run_full_pipeline(df):
+    """Load -> detect abundance columns -> group (one group per column) ->
+    process. Mirrors the wizard's Step 1 -> Step 2 -> Step 4 path so a real
+    export's *output* shape can be checked, not just that it loads."""
+    filtered = data_loader.get_filtered_columns(df)
+    if len(filtered) < 2:
+        filtered = data_loader.get_filtered_columns_fallback(df)
+    gd, err = group_processing.build_no_group_data(filtered)
+    result = data_combiner.process_data(df, None, None, gd, {})
+    return result, filtered
+
+
+class TestRealData_MaxQuant(unittest.TestCase):
+    """max_quant.csv — real MaxQuant peptides.txt export, wide (one
+    'Intensity <expt>' column per sample), 25 rows, no pivot needed."""
+
+    FILE = 'max_quant.csv'
+
+    def setUp(self):
+        self.df, self.status, self.err, self.warn = _load_additional_format(self.FILE)
+
+    def test_loads_successfully(self):
+        self.assertEqual(self.status, 'yes', msg=self.err)
+
+    def test_not_treated_as_long_format(self):
+        self.assertNotIn('long-format', self.warn or '')
+
+    def test_protein_and_sequence_mapped(self):
+        self.assertIn('Protein', self.df.columns)
+        self.assertIn('Sequence', self.df.columns)
+
+    def test_full_pipeline_matches_reference_schema(self):
+        result, filtered = _run_full_pipeline(self.df)
+        self.assertIsNotNone(result)
+        self.assertEqual(len(result), len(self.df))  # already peptide-per-row
+        for col in ('Unique Peptide ID', 'Sequence', 'Protein', 'protein_species', 'protein_name'):
+            self.assertIn(col, result.columns)
+        self.assertEqual(result['Unique Peptide ID'].duplicated().sum(), 0)
+        self.assertTrue(any(c.startswith('Avg_') for c in result.columns))
+
+
+class TestRealData_SkylineExample(unittest.TestCase):
+    """'Skyline example.csv' — real Skyline custom report, wide (one
+    'Normalized Area' column per sample). Reports a peptide mapped to
+    multiple proteins as separate rows with identical data, which
+    process_pd_results must collapse to one row per peptide."""
+
+    FILE = 'Skyline example.csv'
+
+    def setUp(self):
+        self.df, self.status, self.err, self.warn = _load_additional_format(self.FILE)
+
+    def test_loads_successfully(self):
+        self.assertEqual(self.status, 'yes', msg=self.err)
+
+    def test_not_treated_as_long_format(self):
+        self.assertNotIn('long-format', self.warn or '')
+
+    def test_raw_file_has_multiprotein_duplicate_rows(self):
+        """Sanity check on the fixture itself: confirms the scenario this
+        test class exists to cover is actually present in the real file."""
+        self.assertGreater(len(self.df), self.df['Peptide Modified Sequence'].nunique())
+
+    def test_full_pipeline_collapses_multiprotein_rows(self):
+        result, filtered = _run_full_pipeline(self.df)
+        self.assertIsNotNone(result)
+        self.assertGreater(len(filtered), 0)
+        # One row per Unique Peptide ID — no duplicates left over from
+        # Skyline's one-row-per-(peptide, protein) convention.
+        self.assertEqual(result['Unique Peptide ID'].duplicated().sum(), 0)
+        for col in ('Unique Peptide ID', 'Sequence', 'Protein', 'protein_species', 'protein_name'):
+            self.assertIn(col, result.columns)
+        # A peptide known (from the raw file) to map to 2 proteins should
+        # now appear once, with both proteins joined.
+        row = result[result['Unique Peptide ID'] == 'AANILVGENLVC[+57]K']
+        self.assertEqual(len(row), 1)
+        self.assertIn(';', str(row.iloc[0]['Protein']))
+
+
+class TestRealData_PepexInput(unittest.TestCase):
+    """PEPEX_input.tsv — the lab's own Skyline-based pipeline export, wide
+    (one 'Total Area' column per sample), 993 rows, no pivot needed."""
+
+    FILE = 'PEPEX_input.tsv'
+
+    def setUp(self):
+        self.df, self.status, self.err, self.warn = _load_additional_format(self.FILE)
+
+    def test_loads_successfully(self):
+        self.assertEqual(self.status, 'yes', msg=self.err)
+
+    def test_not_treated_as_long_format(self):
+        self.assertNotIn('long-format', self.warn or '')
+
+    def test_full_pipeline_matches_reference_schema(self):
+        result, filtered = _run_full_pipeline(self.df)
+        self.assertIsNotNone(result)
+        self.assertEqual(len(result), len(self.df))
+        for col in ('Unique Peptide ID', 'Sequence', 'Protein', 'protein_species', 'protein_name'):
+            self.assertIn(col, result.columns)
+        self.assertEqual(result['Unique Peptide ID'].duplicated().sum(), 0)
+
+
+class TestRealData_PeaksLongFormat(unittest.TestCase):
+    """PEAKS_example.csv — real PEAKS peptide.csv export (immunopeptidomics/
+    MAPPs style, timsTOF ion-mobility columns), one row per PSM per
+    'Source File'. Must be auto-pivoted before the rest of the pipeline
+    (moved here from needs_transformation/ now that pivoting is automatic)."""
+
+    FILE = 'PEAKS_example.csv'
+
+    def setUp(self):
+        self.df, self.status, self.err, self.warn = _load_additional_format(self.FILE)
+
+    def test_loads_successfully(self):
+        self.assertEqual(self.status, 'yes', msg=self.err)
+
+    def test_pivoted_to_one_row_per_peptide(self):
+        self.assertIn('long-format', self.warn or '')
+        self.assertEqual(len(self.df), self.df['Sequence'].nunique())
+
+    def test_full_pipeline_matches_reference_schema(self):
+        result, filtered = _run_full_pipeline(self.df)
+        self.assertIsNotNone(result)
+        self.assertEqual(len(filtered), 8)  # 8 raw files (samples)
+        for col in ('Unique Peptide ID', 'Sequence', 'Protein', 'protein_species', 'protein_name'):
+            self.assertIn(col, result.columns)
+        self.assertEqual(result['Unique Peptide ID'].duplicated().sum(), 0)
+        self.assertTrue(any(c.startswith('Avg_') for c in result.columns))
+
+
+class TestRealData_SpectronautLongFormat(unittest.TestCase):
+    """spectronaut.tsv — real Spectronaut Normal Report (DIA, HYE mix
+    conditions), one row per precursor per 'R.FileName'. Must be
+    auto-pivoted (moved here from needs_transformation/ now that pivoting
+    is automatic)."""
+
+    FILE = 'spectronaut.tsv'
+
+    def setUp(self):
+        self.df, self.status, self.err, self.warn = _load_additional_format(self.FILE)
+
+    def test_loads_successfully(self):
+        self.assertEqual(self.status, 'yes', msg=self.err)
+
+    def test_pivoted_to_one_row_per_peptide(self):
+        self.assertIn('long-format', self.warn or '')
+
+    def test_full_pipeline_matches_reference_schema(self):
+        result, filtered = _run_full_pipeline(self.df)
+        self.assertIsNotNone(result)
+        self.assertEqual(len(filtered), 8)  # 8 raw files (samples)
+        for col in ('Unique Peptide ID', 'Sequence', 'Protein', 'protein_species', 'protein_name'):
+            self.assertIn(col, result.columns)
+        self.assertEqual(result['Unique Peptide ID'].duplicated().sum(), 0)
+        self.assertTrue(any(c.startswith('Avg_') for c in result.columns))
 
 
 class TestRealData_ProteomeDiscoverer(unittest.TestCase):
@@ -1109,6 +1620,337 @@ class TestRealData_ManyPositions(unittest.TestCase):
         combos = protein_handler.get_protein_combinations(self.df, {})
         # File has multi-protein rows — should find at least one combination
         self.assertIsInstance(combos, list)
+
+
+class TestDecisionsToUi(unittest.TestCase):
+    """Restore-hints for the Step-3 protein-mapping UI.
+
+    Regression coverage for the bug where a saved Custom ID (and split/asis
+    selections) were not restored when returning to the Protein Mapping step.
+    """
+
+    def setUp(self):
+        from peptide.data_transformation.views import _decisions_to_ui
+        self._to_ui = _decisions_to_ui
+
+    def test_ui_custom_id_restored(self):
+        out = self._to_ui({'P02666A1; P02666A2': {'action': 'CUSTOM', 'protein_id': 'P02666'}})
+        self.assertEqual(out['P02666A1; P02666A2'],
+                         {'mode': 'custom', 'protein_id': 'P02666'})
+
+    def test_ui_split_selection_restored(self):
+        out = self._to_ui({'Q1; Q2; Q3': {'action': 'SPLIT', 'protein_ids': ['Q1', 'Q3']}})
+        self.assertEqual(out['Q1; Q2; Q3'], {'mode': 'split', 'protein_ids': ['Q1', 'Q3']})
+
+    def test_ui_asis_restored(self):
+        out = self._to_ui({'R1; R2': {'action': 'ASIS'}})
+        self.assertEqual(out['R1; R2'], {'mode': 'asis'})
+
+    def test_backend_format_custom_restored(self):
+        # Format produced by an uploaded mapping key
+        out = self._to_ui({'S1; S2': {'S1': 'CUSTOM:MYID', 'S2': 'REMOVE'}})
+        self.assertEqual(out['S1; S2'], {'mode': 'custom', 'protein_id': 'MYID'})
+
+    def test_custom_name_restored(self):
+        out = self._to_ui({'P02666A1; P02666A2': {
+            'action': 'CUSTOM', 'protein_id': 'P02666', 'protein_name': 'Beta-casein'}})
+        self.assertEqual(out['P02666A1; P02666A2'],
+                         {'mode': 'custom', 'protein_id': 'P02666', 'protein_name': 'Beta-casein'})
+
+    def test_custom_without_name_omits_key(self):
+        # Unchanged behavior when no name was entered.
+        out = self._to_ui({'P02666A1; P02666A2': {'action': 'CUSTOM', 'protein_id': 'P02666'}})
+        self.assertNotIn('protein_name', out['P02666A1; P02666A2'])
+
+    def test_backend_format_split_restored(self):
+        out = self._to_ui({'T1; T2': {'T1': 'NEW', 'T2': 'NEW'}})
+        self.assertEqual(out['T1; T2'], {'mode': 'split', 'protein_ids': ['T1', 'T2']})
+
+    def test_empty_and_malformed_ignored(self):
+        self.assertEqual(self._to_ui({}), {})
+        self.assertEqual(self._to_ui({'X': 'not-a-dict'}), {})
+
+
+class TestApplyCustomNames(unittest.TestCase):
+    """Custom protein names entered alongside a CUSTOM decision are persisted
+    into protein_dict so add_protein_info fills them in at process time."""
+
+    def setUp(self):
+        from peptide.data_transformation.views import _apply_custom_names
+        self._apply = _apply_custom_names
+
+    def test_custom_name_written_to_protein_dict(self):
+        protein_dict = {}
+        self._apply(
+            {'P02666A1; P02666A2': {'action': 'CUSTOM', 'protein_id': 'P02666',
+                                     'protein_name': 'Beta-casein'}},
+            protein_dict)
+        self.assertEqual(protein_dict['P02666']['name'], 'Beta-casein')
+
+    def test_custom_without_name_leaves_dict_untouched(self):
+        protein_dict = {}
+        self._apply({'A; B': {'action': 'CUSTOM', 'protein_id': 'X'}}, protein_dict)
+        self.assertEqual(protein_dict, {})
+
+    def test_non_custom_actions_ignored(self):
+        protein_dict = {}
+        self._apply({'A; B': {'action': 'SPLIT', 'protein_ids': ['A']}}, protein_dict)
+        self.assertEqual(protein_dict, {})
+
+    def test_legacy_backend_format_ignored(self):
+        # No 'action' key → legacy backend format, which has no room for a name.
+        protein_dict = {}
+        self._apply({'A; B': {'A': 'CUSTOM:X'}}, protein_dict)
+        self.assertEqual(protein_dict, {})
+
+    def test_existing_entry_updated_not_overwritten(self):
+        protein_dict = {'P02666': {'species': 'Bovine'}}
+        self._apply(
+            {'A; B': {'action': 'CUSTOM', 'protein_id': 'P02666', 'protein_name': 'Beta-casein'}},
+            protein_dict)
+        self.assertEqual(protein_dict['P02666'], {'species': 'Bovine', 'name': 'Beta-casein'})
+
+
+def make_beta_casein_df():
+    """
+    Mirrors the β-casein variant situation in merged_dataframetemp.csv:
+    a multi-accession row already collapsed to P02666, plus singleton
+    P02666A1 / P02666A2 rows that the combination step can't reach.
+    """
+    return pd.DataFrame({
+        'Sequence': ['PPFLQPEVM', 'AAAA', 'BBBB', 'CCCC'],
+        'Protein': ['P02666', 'P02666A2', 'P02666A1', 'P08037'],
+        'protein_species': ['Bovine', 'Bovine', 'Bovine', 'Bovine'],
+        'protein_name': [
+            'CASB_BOVIN Beta-casein',
+            'CASB_BOVIN Beta-casein A2',
+            'CASB_BOVIN Beta-casein A1',
+            'B4GT1_BOVIN Beta-1,4-galactosyltransferase 1',
+        ],
+        'Positions in Proteins': [
+            'P02666 [85-93]',
+            'P02666A2 [61-68]',
+            'P02666A1 [61-69]',
+            'P08037 [68-79]',
+        ],
+        'start': [85, 61, 61, 68],
+        'end': [93, 68, 69, 79],
+        'Master Protein Accessions': ['P02666A1; P02666A2', 'P02666A2', 'P02666A1', 'P08037'],
+    })
+
+
+class TestGetProteinSources(unittest.TestCase):
+    def test_lists_every_accession_with_counts(self):
+        df = make_beta_casein_df()
+        protein_dict = {'P02666': {'name': 'Beta-casein', 'species': 'Bovine'}}
+        sources = protein_handler.get_protein_sources(df, protein_dict)
+        by_id = {s['id']: s for s in sources}
+        self.assertEqual(set(by_id), {'P02666', 'P02666A1', 'P02666A2', 'P08037'})
+        self.assertEqual(by_id['P02666']['count'], 1)
+        self.assertEqual(by_id['P02666A1']['count'], 1)
+        # dict-backed name/species come through for known accessions
+        self.assertEqual(by_id['P02666']['name'], 'Beta-casein')
+
+    def test_counts_multi_protein_members(self):
+        df = pd.DataFrame({
+            'Protein': ['P1; P2', 'P1'],
+            'Positions in Proteins': ['P1 [1-5]; P2 [3-7]', 'P1 [1-5]'],
+        })
+        sources = protein_handler.get_protein_sources(df, {})
+        by_id = {s['id']: s['count'] for s in sources}
+        self.assertEqual(by_id, {'P1': 2, 'P2': 1})
+
+    def test_empty_df(self):
+        self.assertEqual(protein_handler.get_protein_sources(pd.DataFrame(), {}), [])
+
+
+class TestApplySourceRenames(unittest.TestCase):
+    def _merge_group(self):
+        return [{
+            'sources': ['P02666', 'P02666A1', 'P02666A2'],
+            'target_id': 'P02666',
+            'target_name': 'Beta-casein',
+        }]
+
+    def test_variants_unified_to_single_target(self):
+        df = make_beta_casein_df()
+        protein_dict = {}
+        out, err = protein_handler.apply_source_renames(df, self._merge_group(), protein_dict)
+        self.assertIsNone(err)
+        beta = out[out['Sequence'].isin(['PPFLQPEVM', 'AAAA', 'BBBB'])]
+        # All three β-casein rows collapse to the canonical accession + name
+        self.assertTrue((beta['Protein'] == 'P02666').all())
+        self.assertTrue((beta['protein_name'] == 'Beta-casein').all())
+        # Species is not tracked by merge/rename groups; existing per-row
+        # values are left untouched (all 'Bovine' in this fixture already).
+        self.assertTrue((beta['protein_species'] == 'Bovine').all())
+        # Positions rewritten to the target prefix, ranges (and start/end) retained
+        pos = dict(zip(out['Sequence'], out['Positions in Proteins']))
+        self.assertEqual(pos['AAAA'], 'P02666 [61-68]')
+        self.assertEqual(pos['BBBB'], 'P02666 [61-69]')
+        start = dict(zip(out['Sequence'], out['start']))
+        self.assertEqual(start['AAAA'], 61)
+        self.assertEqual(start['BBBB'], 61)
+
+    def test_master_protein_accessions_untouched(self):
+        df = make_beta_casein_df()
+        out, err = protein_handler.apply_source_renames(df, self._merge_group(), {})
+        self.assertIsNone(err)
+        mpa = dict(zip(out['Sequence'], out['Master Protein Accessions']))
+        self.assertEqual(mpa['PPFLQPEVM'], 'P02666A1; P02666A2')
+        self.assertEqual(mpa['AAAA'], 'P02666A2')
+        self.assertEqual(mpa['BBBB'], 'P02666A1')
+
+    def test_unrelated_protein_unchanged(self):
+        df = make_beta_casein_df()
+        out, _ = protein_handler.apply_source_renames(df, self._merge_group(), {})
+        row = out[out['Sequence'] == 'CCCC'].iloc[0]
+        self.assertEqual(row['Protein'], 'P08037')
+        self.assertEqual(row['Positions in Proteins'], 'P08037 [68-79]')
+
+    def test_member_in_multi_protein_row_replaced_and_deduped(self):
+        df = pd.DataFrame({
+            'Sequence': ['X', 'Y'],
+            'Protein': ['P02666A1; P02668', 'P02666A1; P02666A2'],
+            'protein_name': ['n1', 'n2'],
+            'protein_species': ['Bovine', 'Bovine'],
+            'Positions in Proteins': [
+                'P02666A1 [61-69]; P02668 [109-122]',
+                'P02666A1 [61-69]; P02666A2 [61-68]',
+            ],
+        })
+        groups = [{'sources': ['P02666A1', 'P02666A2'], 'target_id': 'P02666',
+                   'target_name': 'Beta-casein'}]
+        out, err = protein_handler.apply_source_renames(df, groups, {})
+        self.assertIsNone(err)
+        rows = dict(zip(out['Sequence'], out['Protein']))
+        # In-place member replacement, still multi-protein → name/species left alone
+        self.assertEqual(rows['X'], 'P02666; P02668')
+        # Two variants collapse to one accession, de-duplicated to a single-protein row
+        self.assertEqual(rows['Y'], 'P02666')
+        yrow = out[out['Sequence'] == 'Y'].iloc[0]
+        self.assertEqual(yrow['protein_name'], 'Beta-casein')
+        # Positions de-duplicated where identical after rewrite is not the case here,
+        # but the P02666A2 part rewrites to a distinct range so both remain
+        self.assertIn('P02666 [61-69]', yrow['Positions in Proteins'])
+        self.assertIn('P02666 [61-68]', yrow['Positions in Proteins'])
+
+    def test_target_name_falls_back_to_protein_dict(self):
+        df = make_beta_casein_df()
+        protein_dict = {'P02666': {'name': 'Dict Beta-casein', 'species': 'Cow'}}
+        groups = [{'sources': ['P02666A1'], 'target_id': 'P02666', 'target_name': ''}]
+        out, err = protein_handler.apply_source_renames(df, groups, protein_dict)
+        self.assertIsNone(err)
+        row = out[out['Sequence'] == 'BBBB'].iloc[0]
+        self.assertEqual(row['protein_name'], 'Dict Beta-casein')
+        # Species is never written by merge/rename groups, even via protein_dict.
+        self.assertEqual(row['protein_species'], 'Bovine')
+
+    def test_species_column_never_touched(self):
+        df = make_beta_casein_df()
+        protein_dict = {'P02666': {'name': 'Beta-casein', 'species': 'SomeOtherSpecies'}}
+        out, err = protein_handler.apply_source_renames(df, self._merge_group(), protein_dict)
+        self.assertIsNone(err)
+        beta = out[out['Sequence'].isin(['PPFLQPEVM', 'AAAA', 'BBBB'])]
+        self.assertTrue((beta['protein_species'] == 'Bovine').all())
+
+    def test_validation_errors(self):
+        df = make_beta_casein_df()
+        _, err = protein_handler.apply_source_renames(
+            df, [{'sources': [], 'target_id': 'P02666'}], {})
+        self.assertIsNotNone(err)
+        _, err = protein_handler.apply_source_renames(
+            df, [{'sources': ['P02666A1'], 'target_id': ''}], {})
+        self.assertIsNotNone(err)
+        # Same source pointed at two targets
+        _, err = protein_handler.apply_source_renames(df, [
+            {'sources': ['P02666A1'], 'target_id': 'P02666'},
+            {'sources': ['P02666A1'], 'target_id': 'Q99999'},
+        ], {})
+        self.assertIsNotNone(err)
+
+
+class TestDetectRenameConflicts(unittest.TestCase):
+    def test_overlap_with_non_asis_decision_warns(self):
+        renames = [{'sources': ['P02666A1', 'P02666A2'], 'target_id': 'P02666'}]
+        decisions = {'P02666A1; P02666A2': {'action': 'CUSTOM', 'protein_id': 'P02666'}}
+        warnings = protein_handler.detect_rename_conflicts(renames, decisions)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn('P02666A1', warnings[0])
+
+    def test_backend_format_overlap_warns(self):
+        renames = [{'sources': ['S1'], 'target_id': 'S1'}]
+        decisions = {'S1; S2': {'S1': 'CUSTOM:MYID', 'S2': 'REMOVE'}}
+        warnings = protein_handler.detect_rename_conflicts(renames, decisions)
+        self.assertEqual(len(warnings), 1)
+
+    def test_asis_decision_does_not_warn(self):
+        renames = [{'sources': ['P02666A1'], 'target_id': 'P02666'}]
+        decisions = {'P02666A1; P02666A2': {'action': 'ASIS'}}
+        self.assertEqual(protein_handler.detect_rename_conflicts(renames, decisions), [])
+
+    def test_no_overlap_no_warning(self):
+        renames = [{'sources': ['P02666A1'], 'target_id': 'P02666'}]
+        decisions = {'Q1; Q2': {'action': 'SPLIT', 'protein_ids': ['Q1']}}
+        self.assertEqual(protein_handler.detect_rename_conflicts(renames, decisions), [])
+
+
+class TestMergeGroupsAsDecisions(unittest.TestCase):
+    """Unified protein-mapping-key format: merge/rename groups folded into
+    protein_decisions as action:"MERGE" entries, keyed like other combo
+    decisions (sorted, semicolon-joined source accessions)."""
+
+    def test_group_becomes_merge_entry(self):
+        groups = [{'sources': ['P02666A2', 'P02666A1'], 'target_id': 'P02666',
+                   'target_name': 'Beta-casein'}]
+        entries = protein_handler.merge_groups_as_decisions(groups)
+        self.assertEqual(entries, {
+            'P02666A1; P02666A2': {
+                'action': 'MERGE',
+                'protein_ids': ['P02666A2', 'P02666A1'],
+                'target_id': 'P02666',
+                'target_name': 'Beta-casein',
+            }
+        })
+
+    def test_empty_and_invalid_groups_produce_no_entries(self):
+        self.assertEqual(protein_handler.merge_groups_as_decisions([]), {})
+        self.assertEqual(protein_handler.merge_groups_as_decisions(None), {})
+        # Invalid group (no target) is dropped rather than raising here —
+        # validation errors surface through apply_source_renames instead.
+        self.assertEqual(
+            protein_handler.merge_groups_as_decisions([{'sources': ['A'], 'target_id': ''}]), {})
+
+    def test_round_trip_through_extract(self):
+        groups = [{'sources': ['P02666A1', 'P02666A2'], 'target_id': 'P02666',
+                   'target_name': 'Beta-casein'}]
+        entries = protein_handler.merge_groups_as_decisions(groups)
+        combined = {'Q1; Q2': {'action': 'SPLIT', 'protein_ids': ['Q1']}, **entries}
+        remaining, extracted_groups = protein_handler.extract_merge_groups(combined)
+        self.assertEqual(remaining, {'Q1; Q2': {'action': 'SPLIT', 'protein_ids': ['Q1']}})
+        self.assertEqual(extracted_groups, [
+            {'sources': ['P02666A1', 'P02666A2'], 'target_id': 'P02666',
+             'target_name': 'Beta-casein'}
+        ])
+
+    def test_extract_falls_back_to_key_when_protein_ids_missing(self):
+        combined = {'P1; P2': {'action': 'MERGE', 'target_id': 'P1', 'target_name': ''}}
+        remaining, groups = protein_handler.extract_merge_groups(combined)
+        self.assertEqual(remaining, {})
+        self.assertEqual(groups, [{'sources': ['P1', 'P2'], 'target_id': 'P1', 'target_name': ''}])
+
+    def test_extract_leaves_non_merge_entries_untouched(self):
+        combined = {
+            'A; B': {'action': 'ASIS'},
+            'legacy': {'X': 'CUSTOM:Y'},
+        }
+        remaining, groups = protein_handler.extract_merge_groups(combined)
+        self.assertEqual(remaining, combined)
+        self.assertEqual(groups, [])
+
+    def test_empty_and_none_input(self):
+        self.assertEqual(protein_handler.extract_merge_groups({}), ({}, []))
+        self.assertEqual(protein_handler.extract_merge_groups(None), ({}, []))
 
 
 if __name__ == '__main__':

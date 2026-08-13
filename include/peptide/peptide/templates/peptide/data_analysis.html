@@ -10,7 +10,7 @@
 .da-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .da-header h1 { font-size: 1.8rem; margin: 0; font-weight: 500; }
 .da-header .icon { font-size: 1.6rem; color: #1976d2; }
-.btn-back-dt { margin-left: auto; padding: 6px 14px; font-size: 0.85rem; color: #6c757d; border: 1px solid #dee2e6; border-radius: 4px; text-decoration: none; background: #f8f9fa; white-space: nowrap; }
+.btn-back-dt { margin-left: auto; padding: 6px 14px; font-size: .95rem; color: #6c757d; border: 1px solid #dee2e6; border-radius: 4px; text-decoration: none; background: #f8f9fa; white-space: nowrap; }
 .btn-back-dt:hover { background: #e9ecef; color: #495057; text-decoration: none; }
 
 .step-card {
@@ -25,7 +25,7 @@
 .step-badge {
     display: inline-flex; align-items: center; justify-content: center;
     width: 26px; height: 26px; border-radius: 50%; background: #1976d2;
-    color: #fff; font-size: 0.85rem; font-weight: 700; flex-shrink: 0;
+    color: #fff; font-size: .95rem; font-weight: 700; flex-shrink: 0;
 }
 
 /* Compact upload zone */
@@ -40,20 +40,20 @@
 
 .selector-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 @media(max-width:768px){ .selector-grid { grid-template-columns: 1fr; } }
-.selector-block label { font-weight: 600; font-size: 0.85rem; margin-bottom: 4px; display: block; }
+.selector-block label { font-weight: 600; font-size: .95rem; margin-bottom: 4px; display: block; }
 select.multi-select {
     width: 100%; height: 120px; border: 1px solid #ced4da; border-radius: 4px;
-    padding: 4px; font-size: 0.82rem;
+    padding: 4px; font-size: .92rem;
 }
 select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
 .settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 12px; margin-top: 12px; }
-.settings-grid label { font-weight: 600; font-size: 0.82rem; margin-bottom: 2px; display: block; }
+.settings-grid label { font-weight: 600; font-size: .92rem; margin-bottom: 2px; display: block; }
 .settings-grid select, .settings-grid input[type=text] {
-    width: 100%; border: 1px solid #ced4da; border-radius: 4px; padding: 5px 8px; font-size: 0.82rem;
+    width: 100%; border: 1px solid #ced4da; border-radius: 4px; padding: 5px 8px; font-size: .92rem;
 }
 .settings-grid select:disabled, .settings-grid input:disabled { background: #f8f9fa; color: #aaa; }
-.checkbox-row { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; }
+.checkbox-row { display: flex; align-items: center; gap: 6px; font-size: .95rem; }
 
 .btn-generate {
     background: #1976d2; color: #fff; border: none; border-radius: 5px;
@@ -63,12 +63,12 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 .btn-generate:disabled { background: #90caf9; cursor: not-allowed; }
 .btn-download {
     background: #0288d1; color: #fff; border: none; border-radius: 5px;
-    padding: 7px 18px; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 18px; font-size: .95rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
 }
 .btn-download:hover { background: #0277bd; }
 .btn-download:disabled { background: #b3e5fc; cursor: not-allowed; }
 
-.status-box { padding: 10px 14px; border-radius: 5px; margin-bottom: 10px; font-size: 0.88rem; }
+.status-box { padding: 10px 14px; border-radius: 5px; margin-bottom: 10px; font-size: .95rem; }
 .status-info    { background: #e3f2fd; border-left: 4px solid #1976d2; }
 .status-success { background: #e8f5e9; border-left: 4px solid #388e3c; }
 .status-warning { background: #fff8e1; border-left: 4px solid #f9a825; }
@@ -78,9 +78,11 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 #plot-area { min-height: 200px; }
-#plot-container { width: 100%; }
+/* Oversized figures (e.g. a many-group correlation matrix) scroll inside
+   their own container rather than overflowing the page. */
+#plot-container { width: 100%; overflow-x: auto; }
 
-.page-box { max-width: 960px; margin: 0 auto; }
+.page-box { width: 100%; max-width: min(96vw, 1600px); margin: 0 auto; }
 .color-swatch {
     width: 72px; min-width: 0; height: 22px; border-radius: 3px; border: 1px solid #ccc;
     flex-shrink: 1; display: inline-block; overflow: hidden;
@@ -99,7 +101,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 }
 .radio-group label {
     display: inline-flex; align-items: center; gap: 5px;
-    font-size: .82rem; font-weight: 400; cursor: pointer; white-space: nowrap;
+    font-size: .92rem; font-weight: 400; cursor: pointer; white-space: nowrap;
 }
 .radio-group input[type=radio] {
     width: 14px; height: 14px; cursor: pointer; accent-color: #1976d2; flex-shrink: 0;
@@ -108,7 +110,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 .radio-group.rg-disabled input[type=radio] { cursor: not-allowed; }
 .rg-field { margin-bottom: 4px; }
 .rg-field > .rg-label {
-    font-weight: 600; font-size: .82rem; margin-bottom: 2px; display: block; color: #333;
+    font-weight: 600; font-size: .92rem; margin-bottom: 2px; display: block; color: #333;
 }
 </style>
 {% endblock %}
@@ -136,8 +138,11 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
             <a href="/data_transformation/">Data Transformation</a> module.
             Accepted formats: CSV or XLSX.
             The file must contain <code>Protein</code>, <code>Unique Peptide ID</code>,
-            and <code>Avg_*</code> columns.
+            <code>Avg_*</code>, and per-replicate
+            <code>"&lt;sample&gt; 'Grouped: (Group)'"</code> columns.
         </div>
+
+        <div id="da-replicate-banner" class="status-box" style="margin-bottom:12px; display:none;"></div>
 
         <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
             <!-- Upload zone -->
@@ -149,13 +154,13 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                         Click or drag CSV / XLSX
                     </div>
                 </div>
-                <div id="upload-file-name" style="margin-top:4px; font-size:0.82rem; color:#555;"></div>
-                <div style="margin-top:6px; font-size:0.82rem; color:#666;">
+                <div id="upload-file-name" style="margin-top:4px; font-size:.92rem; color:#555;"></div>
+                <div style="margin-top:6px; font-size:.92rem; color:#666;">
                     <a href="/static/peptide/examples/example_merged_dataframe.csv" download>
                         <i class="fas fa-download"></i> Download example file</a>
                     &middot;
                     <a href="#" id="da-load-example" style="color:#1976d2; text-decoration:none;">
-                        <i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a>
+                        <i class="fas fa-upload" style="font-size:.85rem;"></i> Load example</a>
                 </div>
             </div>
 
@@ -194,10 +199,10 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
         <!-- Plot Filter (below selectors) -->
         <div style="margin-bottom:14px; max-width:200px;">
-            <label style="font-weight:600; font-size:.82rem; margin-bottom:4px; display:block;">
+            <label style="font-weight:600; font-size:.92rem; margin-bottom:4px; display:block;">
                 <i class="fas fa-filter"></i> Plot Filter
             </label>
-            <select id="plot-filter" disabled style="width:100%; border:1px solid #ced4da; border-radius:4px; padding:5px 8px; font-size:.82rem;">
+            <select id="plot-filter" disabled style="width:100%; border:1px solid #ced4da; border-radius:4px; padding:5px 8px; font-size:.92rem;">
                 <option value="No Filter">No Filter</option>
                 <option value="Selected Protein(s)">Selected Protein(s)</option>
                 <option value="Selected Function(s)">Selected Function(s)</option>
@@ -273,6 +278,20 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                     <label class="checkbox-row">
                         <input type="checkbox" id="plot-minor" disabled> Group Unselected Proteins or Functions
                     </label>
+                    <!-- Significance control: shown only for Grouped Bar Plots + the
+                         Absolute metric; JS hides this whole block otherwise. -->
+                    <div id="significance-controls" style="display:flex; flex-direction:column; gap:4px;">
+                        <label class="checkbox-row" title="Compare sample groups on replicate-level values and annotate the bars. Two groups show a significance bracket (*/**/***); three or more show a compact-letter display (bars sharing a letter are not significantly different). Requires ≥3 replicates per group; shown on absolute (non-relative) bar charts. Because replicate counts are small, power is low: a shared letter / 'ns' means 'not resolvable at this sample size', not 'no difference'.">
+                            <input type="checkbox" id="show-significance" disabled> Plot Significance
+                        </label>
+                        <label class="checkbox-row" style="padding-left:22px; gap:6px;" title="ANOVA + Tukey HSD assumes equal variance across groups (the convention in the peptidomics literature). Welch + Games–Howell does not assume equal variance and is more reliable when group spreads differ, as abundance data often do.">
+                            Test:
+                            <select id="significance-method" disabled style="border:1px solid #ced4da; border-radius:4px; padding:2px 6px; font-size:.85rem;">
+                                <option value="tukey" selected>ANOVA + Tukey HSD (equal variance)</option>
+                                <option value="games-howell">Welch + Games–Howell (unequal variance)</option>
+                            </select>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -283,24 +302,40 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                 </div>
                 <div style="display:flex; flex-direction:column; gap:4px;">
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">X-Axis Label</label>
-                        <input type="text" id="xlabel" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:90px;">X-Axis Label</label>
+                        <input type="text" id="xlabel" placeholder="Auto" title="X-axis label text (blank = auto)" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
+                        <input type="number" id="font-size-xlabel" value="18" min="6" max="48" step="1" title="X-axis label font size" disabled style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">Y-Axis Label</label>
-                        <input type="text" id="ylabel" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:90px;">X-Axis Ticks</label>
+                        <input type="number" id="font-size-xtick" value="16" min="6" max="48" step="1" title="X-axis tick label font size (category names / numeric ticks)" disabled style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">Legend Title</label>
-                        <input type="text" id="legend-title" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:90px;">Y-Axis Label</label>
+                        <input type="text" id="ylabel" placeholder="Auto" title="Y-axis label text (blank = auto)" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
+                        <input type="number" id="font-size-ylabel" value="18" min="6" max="48" step="1" title="Y-axis label font size" disabled style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">Plot Title</label>
-                        <input type="text" id="plot-title" placeholder="Auto" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:90px;">Y-Axis Ticks</label>
+                        <input type="number" id="font-size-ytick" value="16" min="6" max="48" step="1" title="Y-axis tick label font size (numeric ticks)" disabled style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                        <label style="font-weight:600; font-size:.82rem; white-space:nowrap; flex-shrink:0; width:90px;">Color Scheme</label>
-                        <select id="color-scheme" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.82rem;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:90px;">Legend Title</label>
+                        <input type="text" id="legend-title" placeholder="Auto" title="Legend title text (blank = auto)" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
+                        <input type="number" id="font-size-legend-title" value="14" min="6" max="48" step="1" title="Legend title &amp; item font size" disabled style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:90px;">Plot Title</label>
+                        <input type="text" id="plot-title" placeholder="Auto" title="Plot title text (blank = auto)" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
+                        <input type="number" id="font-size-plot-title" value="18" min="6" max="48" step="1" title="Plot title font size" disabled style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:90px;">Value Labels</label>
+                        <input type="number" id="font-size-value-label" value="12" min="6" max="48" step="1" title="Font size of the numeric values shown above bars/stacked bars and inside pie slices" disabled style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:90px;">Color Scheme</label>
+                        <select id="color-scheme" title="Color scheme used for plot series" disabled style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                             <optgroup label="Default">
                                 <option value="HSV">HSV (Default)</option>
                             </optgroup>
@@ -350,6 +385,9 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                         </select>
                         <div class="color-swatch" id="color-scheme-swatch"></div>
                     </div>
+                    <label class="checkbox-row" style="margin-top:2px;" title="Drop trailing UniProt descriptors (e.g. ' OS=Bos taurus GN=CSN2 …') from protein labels, leaving the short name. Uncheck to show the full protein name.">
+                        <input type="checkbox" id="strip-protein-name" checked disabled> Strip protein name
+                    </label>
                 </div>
             </div>
 
@@ -360,9 +398,15 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                 <i class="fas fa-chart-bar"></i> Generate / Update Plot
             </button>
             <button class="btn-download" id="download-btn" disabled>
-                <i class="fas fa-download"></i> Download Interactive Plot
+                <i class="fas fa-download"></i> Download Interactive (HTML)
             </button>
-            <span id="generate-spinner" style="display:none; font-size:.88rem;">
+            <button class="btn-download" id="download-png-btn" disabled>
+                <i class="fas fa-image"></i> Download PNG
+            </button>
+            <button class="btn-download" id="download-svg-btn" disabled>
+                <i class="fas fa-bezier-curve"></i> Download SVG
+            </button>
+            <span id="generate-spinner" style="display:none; font-size:.95rem;">
                 <i class="fas fa-circle-notch spin" style="color:#1976d2;"></i> Generating plot…
             </span>
         </div>
@@ -387,6 +431,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
 </div>
 
+<script src="{% static 'peptide/js/form_controls.js' %}?v=1"></script>
 <script>
 (function() {
 'use strict';
@@ -418,7 +463,7 @@ function enableStep2() {
     const step2 = document.getElementById('step2-card');
     step2.classList.remove('step-disabled');
     // Enable form controls
-    step2.querySelectorAll('select, input[type=text], input[type=checkbox], button').forEach(el => {
+    step2.querySelectorAll('select, input[type=text], input[type=number], input[type=checkbox], button').forEach(el => {
         el.disabled = false;
     });
     // Enable radio button groups
@@ -482,9 +527,30 @@ async function handleUpload(file) {
     populateSelectors(data);
     enableStep2();
     applyPlotFilterGreying();
+    applyPlotTypeGreying();  // set Show Stats visibility for the default plot type
+}
+
+// Announce whether the uploaded file carries replicate-level ('Grouped:')
+// columns — the same detection the Heatmap dashboard shows. Replicate data is
+// what enables the group-comparison statistics (SEM error bars + significance
+// testing); single-average files still plot, without those.
+function applyDaReplicateBanner(data) {
+    const banner = document.getElementById('da-replicate-banner');
+    if (!banner) return;
+    banner.style.display = 'block';
+    if (data.has_replicates) {
+        banner.className = 'status-box status-success';
+        banner.innerHTML =
+            "Replicate-level <code>'Grouped:'</code> columns detected — group-comparison statistics (SEM error bars, significance testing) available.";
+    } else {
+        banner.className = 'status-box status-info';
+        banner.innerHTML =
+            "No replicate columns found — showing <code>Avg_</code> averages only; SEM error bars and significance testing are unavailable. Re-export from Data Transformation with grouped replicates to enable them.";
+    }
 }
 
 function populateSelectors(data) {
+    applyDaReplicateBanner(data);
     const grpSel = document.getElementById('group-selector');
     grpSel.innerHTML = '';
     data.groups.forEach(g => grpSel.add(new Option(g, g, true, true)));
@@ -525,6 +591,19 @@ function applyPlotTypeGreying() {
     document.getElementById('corr-type-block').style.display =
         plotType === 'Corr. Scatter Plots' ? '' : 'none';
 
+    // The significance control is shown only for Grouped Bar Plots AND the
+    // Absolute metric. Significance testing on relative (normalized/composition)
+    // values is poor practice, so it is hidden (and cleared) for Relative. This
+    // single rule is the complete guard against invalid combinations.
+    const statsBox = document.getElementById('significance-controls');
+    if (statsBox) {
+        const isGrouped  = plotType === 'Grouped Bar Plots';
+        const isAbsolute = getRadioValue('metric-type') === 'Absolute';
+        const showStats  = isGrouped && isAbsolute;
+        statsBox.style.display = showStats ? 'flex' : 'none';
+        if (!showStats) document.getElementById('show-significance').checked = false;
+    }
+
     const step2Active = !document.getElementById('step2-card').classList.contains('step-disabled');
     const logChk  = document.getElementById('log-transform');
     const logLabel = logChk.closest('label');
@@ -532,28 +611,15 @@ function applyPlotTypeGreying() {
     // Pie Charts and Corr. Scatter Plots → force Absolute metric, grey out Relative
     const lockAbsolute = plotType === 'Pie Charts' || plotType === 'Corr. Scatter Plots';
     const relInput = document.querySelector('input[name="metric-type"][value="Relative"]');
-    const relLabel = relInput ? relInput.closest('label') : null;
     const absInput = document.querySelector('input[name="metric-type"][value="Absolute"]');
-    if (lockAbsolute) {
-        if (absInput) absInput.checked = true;
-        if (relInput) relInput.disabled = true;
-        if (relLabel) relLabel.style.opacity = '0.45';
-    } else {
-        if (relInput && step2Active) relInput.disabled = false;
-        if (relLabel) relLabel.style.opacity = '';
-    }
+    if (lockAbsolute && absInput) absInput.checked = true;
+    setControlEnabled(relInput, !lockAbsolute && step2Active);
 
     // Grey out log transform when Pie, or when metric is Relative
     const isRelative = getRadioValue('metric-type') === 'Relative';
     const isPie = plotType === 'Pie Charts';
-    if (isPie || isRelative) {
-        logChk.checked = false;
-        if (step2Active) logChk.disabled = true;
-        if (logLabel) logLabel.style.opacity = '0.45';
-    } else {
-        if (step2Active) logChk.disabled = false;
-        if (logLabel) logLabel.style.opacity = '';
-    }
+    setControlEnabled(logChk, !(isPie || isRelative) && step2Active,
+                      { row: logLabel, clearOnDisable: true });
 }
 document.getElementById('rg-plot-type').addEventListener('click', applyPlotTypeGreying);
 
@@ -570,14 +636,12 @@ function applyPlotFilterGreying() {
     const enableProt = filterVal === 'Selected Protein(s)' || filterVal === 'Both';
     const enableFn   = filterVal === 'Selected Function(s)' || filterVal === 'Both';
 
-    // Grey out protein selector when not relevant
-    protSel.disabled = !enableProt;
-    protSel.style.opacity = enableProt ? '1' : '0.45';
+    // Grey out protein selector when not relevant (dim the <select> itself).
+    setControlEnabled(protSel, enableProt, { row: protSel });
 
     // Grey out function selector when not relevant (only if visible)
     if (fnBlock.style.display !== 'none') {
-        fnSel.disabled = !enableFn;
-        fnSel.style.opacity = enableFn ? '1' : '0.45';
+        setControlEnabled(fnSel, enableFn, { row: fnSel });
     }
 
     // Item 12: Grey out invalid orientation options based on filter
@@ -591,12 +655,11 @@ function applyPlotFilterGreying() {
         const disableByProt = filterVal === 'Selected Function(s)' ||
                               filterVal === 'Functional vs Non-Functional Peptides';
 
-        byFnInput.disabled = disableByFn;
-        byFnInput.closest('label').style.opacity = disableByFn ? '0.45' : '';
+        // A disabled orientation that was selected falls back to "By Sample".
+        setControlEnabled(byFnInput, !disableByFn);
         if (disableByFn && byFnInput.checked) bySampInput.checked = true;
 
-        byProtInput.disabled = disableByProt;
-        byProtInput.closest('label').style.opacity = disableByProt ? '0.45' : '';
+        setControlEnabled(byProtInput, !disableByProt);
         if (disableByProt && byProtInput.checked) bySampInput.checked = true;
     }
 }
@@ -606,6 +669,8 @@ document.getElementById('plot-filter').addEventListener('change', applyPlotFilte
 // ── Generate Plot ─────────────────────────────────────────────────
 document.getElementById('generate-btn').addEventListener('click', generatePlot);
 document.getElementById('download-btn').addEventListener('click', downloadPlot);
+document.getElementById('download-png-btn').addEventListener('click', () => downloadImage('png'));
+document.getElementById('download-svg-btn').addEventListener('click', () => downloadImage('svg'));
 
 async function generatePlot() {
     const btn      = document.getElementById('generate-btn');
@@ -649,11 +714,21 @@ async function generatePlot() {
         color_scheme:     document.getElementById('color-scheme').value,
         log_transform:    document.getElementById('log-transform').checked,
         plot_minor:       document.getElementById('plot-minor').checked,
+        show_significance: document.getElementById('show-significance').checked,
+        significance_method: document.getElementById('significance-method').value,
         correlation_type: getRadioValue('correlation-type'),
         xlabel:       document.getElementById('xlabel').value,
         ylabel:       document.getElementById('ylabel').value,
         legend_title: document.getElementById('legend-title').value,
         plot_title:   document.getElementById('plot-title').value,
+        font_size_xlabel:       document.getElementById('font-size-xlabel').value,
+        font_size_ylabel:       document.getElementById('font-size-ylabel').value,
+        font_size_legend_title: document.getElementById('font-size-legend-title').value,
+        font_size_plot_title:   document.getElementById('font-size-plot-title').value,
+        font_size_xtick:        document.getElementById('font-size-xtick').value,
+        font_size_ytick:        document.getElementById('font-size-ytick').value,
+        font_size_value_label:  document.getElementById('font-size-value-label').value,
+        strip_protein_name: document.getElementById('strip-protein-name').checked,
     };
 
     let resp;
@@ -696,19 +771,33 @@ async function generatePlot() {
     const container = document.getElementById('plot-container');
     Plotly.react(container, data.figure.data, data.figure.layout, { responsive: true });
     document.getElementById('download-btn').disabled = false;
+    document.getElementById('download-png-btn').disabled = false;
+    document.getElementById('download-svg-btn').disabled = false;
     document.getElementById('step3-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Derives the same publication-style filename used by the PNG/SVG export
+// (download-static) from the current figure's title, so every export format
+// for a given plot shares one descriptive name instead of a generic one.
+function getPlotFilename(fallback) {
+    const rawTitle = currentFigJson && currentFigJson.layout && currentFigJson.layout.title
+        ? (currentFigJson.layout.title.text || currentFigJson.layout.title) : '';
+    return (String(rawTitle).replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '')) || fallback;
 }
 
 async function downloadPlot() {
     if (!currentFigJson) return;
 
+    const filename = getPlotFilename('data_analysis_plot');
+
     const htmlStr = `<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"><\/script>
+<style>html,body{margin:0;padding:0;width:100%;height:100%;}#plot{width:100%;height:100%;}</style>
 </head><body>
 <div id="plot"></div>
 <script>
-Plotly.newPlot('plot', ${JSON.stringify(currentFigJson.data)}, ${JSON.stringify(currentFigJson.layout)});
+Plotly.newPlot('plot', ${JSON.stringify(currentFigJson.data)}, ${JSON.stringify(currentFigJson.layout)}, {responsive: true});
 <\/script>
 </body></html>`;
 
@@ -718,14 +807,45 @@ Plotly.newPlot('plot', ${JSON.stringify(currentFigJson.data)}, ${JSON.stringify(
             headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
             body: JSON.stringify({ html: htmlStr }),
         });
-        if (resp.ok) { window.location.href = '/data_analysis/download-plot/'; return; }
+        if (resp.ok) {
+            window.location.href = `/data_analysis/download-plot/?filename=${encodeURIComponent(filename)}`;
+            return;
+        }
     } catch(e) { /* fall through to blob download */ }
 
     const blob = new Blob([htmlStr], { type: 'text/html' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href = url; a.download = 'data_analysis_plot.html'; a.click();
+    a.href = url; a.download = `${filename}.html`; a.click();
     URL.revokeObjectURL(url);
+}
+
+// Static-image export. Rendered SERVER-SIDE via Kaleido so the file is
+// resolution-deterministic: PNG at publication DPI (600, metadata-stamped), SVG
+// as true vector. We send the figure JSON plus the on-screen pixel size so the
+// export matches what the user sees.
+async function downloadImage(format) {
+    const container = document.getElementById('plot-container');
+    if (!currentFigJson || !container) return;
+    const filename = getPlotFilename('peptiline_plot');
+    const fl = container._fullLayout || {};
+    const resp = await fetch('/data_analysis/download-static/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            figure_json: JSON.stringify(currentFigJson),
+            format,
+            filename,
+            width:  Math.round(fl.width)  || undefined,
+            height: Math.round(fl.height) || undefined,
+        }),
+    });
+    if (!resp.ok) { alert('Download failed'); return; }
+    const blob = await resp.blob();
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = u; a.download = `${filename}.${format}`; a.click();
+    URL.revokeObjectURL(u);
 }
 
 // ── Color swatch preview ──────────────────────────────────────────
@@ -789,6 +909,7 @@ if (new URLSearchParams(window.location.search).get('from_dt') === '1') {
         populateSelectors(data);
         enableStep2();
         applyPlotFilterGreying();
+        applyPlotTypeGreying();  // set Show Stats visibility for the default plot type
     }
 }
 
@@ -799,7 +920,7 @@ document.getElementById('da-load-example').addEventListener('click', function(e)
     e.preventDefault();
     var link = this;
     var origHtml = link.innerHTML;
-    link.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:0.75rem;"></i> Loading...';
+    link.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:.85rem;"></i> Loading...';
     fetch('/static/peptide/examples/example_merged_dataframe.csv')
         .then(function(r) {
             if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -812,11 +933,11 @@ document.getElementById('da-load-example').addEventListener('click', function(e)
             var input = document.getElementById('merged-file-input');
             input.files = dt.files;
             input.dispatchEvent(new Event('change'));
-            link.innerHTML = '<i class="fas fa-check" style="font-size:0.75rem;"></i> Loaded';
+            link.innerHTML = '<i class="fas fa-check" style="font-size:.85rem;"></i> Loaded';
             setTimeout(function() { link.innerHTML = origHtml; }, 3000);
         })
         .catch(function() {
-            link.innerHTML = '<i class="fas fa-times" style="font-size:0.75rem;"></i> Failed';
+            link.innerHTML = '<i class="fas fa-times" style="font-size:.85rem;"></i> Failed';
             link.style.color = '#dc3545';
             setTimeout(function() { link.innerHTML = origHtml; link.style.color = ''; }, 3000);
         });

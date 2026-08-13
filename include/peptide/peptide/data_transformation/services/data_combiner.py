@@ -141,6 +141,103 @@ def create_unique_id(row):
     return str(unique_id).strip().rstrip('_')
 
 
+_PLACEHOLDER_PROTEIN_VALUES = {'Unknown', 'unknown', 'UNKNOWN', '', ' ', 'None', 'none', 'nan', 'NaN'}
+
+
+def _row_signature(row):
+    """NaN-safe, order-insensitive-for-lists string signature of a row's
+    values, used to test whether rows are true duplicates (not just sharing
+    a peptide identity)."""
+    parts = []
+    for v in row:
+        if isinstance(v, (list, tuple, np.ndarray)):
+            parts.append('|'.join(sorted(str(x) for x in v)))
+        elif v is None or (pd.api.types.is_scalar(v) and pd.isna(v)):
+            parts.append('\x00')
+        else:
+            parts.append(str(v))
+    return '\x1f'.join(parts)
+
+
+def _collect_proteins(values):
+    """Join Protein/Positions-in-Proteins values from multiple rows (each
+    possibly a list, or a ';'-separated string) into one deduplicated,
+    order-preserving '; '-joined string, matching how Proteome Discoverer,
+    MaxQuant, PEAKS, and Spectronaut already represent multi-protein
+    peptides in a single row."""
+    seen = []
+    for v in values:
+        if v is None or (not isinstance(v, (list, tuple, np.ndarray)) and pd.isna(v)):
+            continue
+        items = v if isinstance(v, (list, tuple, np.ndarray)) else str(v).split(';')
+        for item in items:
+            item = str(item).strip()
+            if item and item not in _PLACEHOLDER_PROTEIN_VALUES and item not in seen:
+                seen.append(item)
+    return '; '.join(seen) if seen else 'Unknown'
+
+
+def _collapse_multiprotein_duplicate_rows(df):
+    """Collapse rows that share a 'Unique Peptide ID' but differ only in
+    'Protein' / 'Positions in Proteins' into a single row with those columns
+    joined — the layout Proteome Discoverer, MaxQuant, PEAKS, and
+    Spectronaut already use for a peptide mapped to multiple proteins.
+
+    Skyline instead reports one row per (peptide, protein) pair with
+    otherwise identical data (abundances included), so without this the
+    same peptide's abundance would silently persist as several rows sharing
+    one 'Unique Peptide ID' — inflating any sum-based downstream analysis
+    and contradicting the "avoids errors from duplicate peptides" guarantee
+    the ID is meant to provide (Table 1, footnote a).
+
+    Only collapses when every non-protein column is identical (NaN-safe)
+    across the group; groups that differ elsewhere are left untouched since
+    that indicates genuinely distinct measurements, not a protein-mapping
+    artifact, and must not be silently merged.
+    """
+    if 'Unique Peptide ID' not in df.columns:
+        return df
+
+    uid = df['Unique Peptide ID']
+    dup_mask = uid.notna() & uid.duplicated(keep=False)
+    if not dup_mask.any():
+        return df
+
+    # Per-protein descriptor columns some engines report alongside 'Protein'
+    # (e.g. Skyline's 'Protein Name'/'Protein Description'/'Protein
+    # Accession', which duplicate 'Protein' one-for-one) — these legitimately
+    # differ across a peptide's protein rows and must be joined rather than
+    # required to match for a group to be considered collapsible.
+    protein_like_cols = [c for c in (
+        'Protein', 'Positions in Proteins', 'Protein Name',
+        'Protein Description', 'Protein Accession',
+        'Master Protein Descriptions', 'Leading razor protein',
+    ) if c in df.columns]
+    other_cols = [c for c in df.columns if c not in protein_like_cols + ['Unique Peptide ID']]
+
+    dup_df = df.loc[dup_mask]
+    signatures = dup_df[other_cols].apply(_row_signature, axis=1) if other_cols else pd.Series('', index=dup_df.index)
+
+    collapsible_ids = [
+        pid for pid, sig_group in signatures.groupby(dup_df['Unique Peptide ID'])
+        if sig_group.nunique() == 1
+    ]
+    if not collapsible_ids:
+        return df
+
+    collapsible_mask = dup_mask & uid.isin(collapsible_ids)
+    keep_asis = df.loc[~collapsible_mask]
+    to_collapse = df.loc[collapsible_mask]
+
+    agg = {c: 'first' for c in other_cols}
+    agg.update({c: _collect_proteins for c in protein_like_cols})
+
+    collapsed = to_collapse.groupby('Unique Peptide ID', as_index=False).agg(agg)
+
+    result = pd.concat([keep_asis, collapsed], ignore_index=True, sort=False)
+    return result[df.columns]
+
+
 def process_pd_results(pd_results_cleaned, mbpdb_results_grouped, protein_dict):
     """Process peptidomic results and merge with MBPDB data."""
     df = pd_results_cleaned.copy()
@@ -167,6 +264,7 @@ def process_pd_results(pd_results_cleaned, mbpdb_results_grouped, protein_dict):
             df['Sequence'] = df['Annotated Sequence'].apply(extract_seq)
 
     df['Unique Peptide ID'] = df.apply(create_unique_id, axis=1)
+    df = _collapse_multiprotein_duplicate_rows(df)
 
     # Extract start/stop positions
     try:

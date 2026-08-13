@@ -303,7 +303,7 @@ def build_no_group_data(selected_columns):
         tuple: (group_data, error_message or None)
     """
     if not selected_columns:
-        return None, "Please select at least one absorbance column"
+        return None, "Please select at least one abundance column"
 
     group_data = {}
     for column in selected_columns:

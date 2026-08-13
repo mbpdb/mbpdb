@@ -20,8 +20,8 @@ from django.core.cache import cache
 
 from django.shortcuts import render
 
-def supplementals_tables_and_figures(request):
-    return render(request, 'peptide/supplementals_tables_and_figures.html')
+def peptiline_supplementals(request):
+    return render(request, 'peptide/peptiline_supplementals.html')
 
 def zukaitis_2026(request):
     return render(request, 'peptide/zukaitis_2026.html')

@@ -105,6 +105,8 @@ def upload(request):
         'protein_ids': options['protein_ids'],
         'functions': options['functions'],
         'has_functions': options['has_functions'],
+        'var_replicates': options['var_replicates'],
+        'has_replicates': options['has_replicates'],
         'warnings': warnings,
     })
 
@@ -149,7 +151,9 @@ def transfer_from_dt(request):
         'rows': len(df), 'columns': len(df.columns),
         'groups': options['groups'], 'proteins': options['proteins'],
         'protein_ids': options['protein_ids'], 'functions': options['functions'],
-        'has_functions': options['has_functions'], 'warnings': warnings,
+        'has_functions': options['has_functions'],
+        'var_replicates': options['var_replicates'],
+        'has_replicates': options['has_replicates'], 'warnings': warnings,
     })
 
 
@@ -191,6 +195,12 @@ def plot(request):
 # Download plot as HTML
 # ---------------------------------------------------------------------------
 
+def _sanitize_filename(raw_name, fallback):
+    """Same title-derived naming scheme used across all plot export formats."""
+    cleaned = ''.join(c if c.isalnum() or c in ('-', '_', '.') else '_' for c in str(raw_name))
+    return cleaned or fallback
+
+
 @require_GET
 def download_plot(request):
     """Return a previously generated plot as a self-contained HTML file."""
@@ -202,10 +212,52 @@ def download_plot(request):
     if not os.path.exists(plot_path):
         return HttpResponse('No plot has been generated yet.', status=404)
 
+    filename = _sanitize_filename(request.GET.get('filename') or 'data_analysis_plot', 'data_analysis_plot')
+
     with open(plot_path, 'rb') as f:
         response = HttpResponse(f.read(), content_type='text/html')
-        response['Content-Disposition'] = 'attachment; filename="data_analysis_plot.html"'
+        response['Content-Disposition'] = f'attachment; filename="{filename}.html"'
         return response
+
+
+@require_POST
+def download_static_image(request):
+    """Server-side Kaleido export of the current Data Analysis figure.
+
+    POST JSON: {figure_json, format: 'png'|'svg', filename, width?, height?}.
+    PNG is rendered at publication DPI (see utils.plotly_export.PUBLICATION_DPI);
+    SVG is true vector. Returns the file as an attachment.
+    """
+    from peptide.utils import plotly_export
+
+    try:
+        body = json.loads(request.body)
+        figure_json = body.get('figure_json')
+        fmt = (body.get('format') or 'png').lower()
+        raw_name = body.get('filename') or 'peptiline_plot'
+        width = body.get('width') or None
+        height = body.get('height') or None
+    except Exception:
+        return HttpResponse('Invalid request.', status=400)
+
+    if not figure_json:
+        return HttpResponse('No figure data.', status=400)
+
+    filename = _sanitize_filename(raw_name, 'peptiline_plot')
+
+    try:
+        if fmt == 'svg':
+            data = plotly_export.svg_bytes(figure_json, width=width, height=height)
+            content_type, ext = 'image/svg+xml', 'svg'
+        else:
+            data = plotly_export.png_bytes(figure_json, width=width, height=height)
+            content_type, ext = 'image/png', 'png'
+    except Exception as exc:
+        return HttpResponse(f'Static export failed: {exc}', status=500)
+
+    response = HttpResponse(data, content_type=content_type)
+    response['Content-Disposition'] = f'attachment; filename="{filename}.{ext}"'
+    return response
 
 
 @require_POST

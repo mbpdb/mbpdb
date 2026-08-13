@@ -1,5 +1,12 @@
 {% extends 'peptide/base.html' %}
 {% load static %}
+
+{% block 'head' %}
+<!-- Citation-card styling, shared with the PeptiLine landing page design system -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link href="{% static 'peptide/theme/css/design-system.css' %}" rel="stylesheet">
+{% endblock 'head' %}
+
 {% block 'content' %}
     <h1><u>About Us</u></h1>
     <h2>Our Research</h2>
@@ -11,11 +18,33 @@ The PePEx platform allows visual mapping of these peptides on their parent prote
     </p><br/>
     <section id ='Cite'>
     <h2>Please Cite:</h2>
-    <ul>
-        <li><a href="http://www.sciencedirect.com/science/article/pii/S0308814617306222" target="_blank">Nielsen, Søren Drud, Robert L. Beverly, Yunyao Qu, and David C. Dallas. 2017. “Milk Bioactive Peptide Database: A Comprehensive Database of Milk Protein-Derived Bioactive Peptides and Novel Visualization.” Food Chemistry 232 (October). Elsevier: 673–82.</a></li>
-        <br>
-        <li><a href="https://www.tandfonline.com/doi/full/10.1080/10408398.2023.2240396" target="_blank">Søren Drud-Heydary Nielsen, Ningjian Liang, Harith Rathish, Bum Jin Kim, Jiraporn Lueangsakulthai, Jeewon Koh, Yunyao Qu, Hans-Jörg Schulz & David C. Dallas. 2023. “Bioactive milk peptides: an updated comprehensive overview and database.” Critical Reviews in Food Science and Nutrition. Taylor & Francis Online.</a></li>
-    </ul></section><br/><br/>
+    <div style="display:flex; flex-direction:column; gap:16px; max-width:800px;">
+        <div class="pl-pub">
+            <div class="pl-pub-icon"><i class="fas fa-book"></i></div>
+            <div>
+                <div class="pl-pub-title">Milk Bioactive Peptide Database: A Comprehensive Database of Milk Protein-Derived Bioactive Peptides and Novel Visualization</div>
+                <div class="pl-pub-meta">Nielsen SD, Beverly RL, Qu Y, Dallas DC. Food Chemistry 232 (October), 2017. Elsevier: 673-82.</div>
+                <a class="pl-link" href="http://www.sciencedirect.com/science/article/pii/S0308814617306222" target="_blank" rel="noopener">Read the paper <i class="fas fa-arrow-up-right-from-square"></i></a>
+            </div>
+        </div>
+        <div class="pl-pub">
+            <div class="pl-pub-icon"><i class="fas fa-book"></i></div>
+            <div>
+                <div class="pl-pub-title">Bioactive milk peptides: an updated comprehensive overview and database</div>
+                <div class="pl-pub-meta">Nielsen SD-H, Liang N, Rathish H, Kim BJ, Lueangsakulthai J, Koh J, Qu Y, Schulz H-J, Dallas DC. Critical Reviews in Food Science and Nutrition, 2023.</div>
+                <a class="pl-link" href="https://www.tandfonline.com/doi/full/10.1080/10408398.2023.2240396" target="_blank" rel="noopener">Read the paper <i class="fas fa-arrow-up-right-from-square"></i></a>
+            </div>
+        </div>
+        <div class="pl-pub">
+            <div class="pl-pub-icon"><i class="fas fa-book"></i></div>
+            <div>
+                <div class="pl-pub-title">PeptiLine: an interactive platform for customizable functional peptidomic analysis</div>
+                <div class="pl-pub-meta">Kuhfeld RF, Nielsen SD-H, Dallas DC. bioRxiv preprint, 2025.</div>
+                <a class="pl-link" href="https://www.biorxiv.org/content/10.1101/2025.10.23.684139v1" target="_blank" rel="noopener">Read the paper <i class="fas fa-arrow-up-right-from-square"></i></a>
+            </div>
+        </div>
+    </div>
+    </section><br/><br/>
     <h2>Contact Us</h2>
     <ul>
     <p>For specific inquiries or to add bioactive peptides and new proteins, please reach out to us at:
@@ -39,7 +68,10 @@ The PePEx platform allows visual mapping of these peptides on their parent prote
             <br>
     <h4>Web Development Team</h4>
     <ul>
-        <li>Russell Kuhfeld</li>
+        <li>Russell Kuhfeld (current)</li>
+    </ul>
+    <p style="margin:10px 0 4px 40px; font-size:0.85em; font-weight:600; color:#888; text-transform:uppercase; letter-spacing:.04em;">Previous contributors</p>
+    <ul style="margin-left:40px;">
         <li>Nikhil Joshi</li>
         <li>Adam Schaal</li>
         <li>Søren Drud Nielsen</li>

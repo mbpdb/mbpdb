@@ -151,7 +151,7 @@
                             <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag & drop or click to select</div>
                             <div class="file-name hidden"></div>
                         </div>
-                        <div class="help-text">CSV, TSV, or XLSX file containing peptidomic results</div>
+                        <div class="help-text">CSV, TSV, or XLSX peptidomic results. Column names are auto-detected for Proteome Discoverer, MaxQuant, PEAKS, Spectronaut, and Skyline exports.</div>
                         <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/example_peptidomic_data.csv' %}" download>Download example file</a> &middot; <a href="#" class="dt-load-example" data-input-id="peptidomic_file" data-url="{% static 'peptide/examples/example_peptidomic_data.csv' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
                     </div>
                     <div class="dt-or-divider">OR</div>
@@ -250,6 +250,40 @@
             <p style="color:#666;">Group your abundance columns into experimental conditions. If any columns are technical replicates, define them below first — they will be averaged into a single biological replicate and become available in the group selector.</p>
             <div id="dt-error-step2" class="dt-alert dt-alert-danger hidden" style="margin-bottom:12px;"></div>
 
+            <!-- Rename Abundance Columns (optional sub-section) -->
+            <div style="margin-bottom:20px; padding-bottom:20px; border-bottom:2px solid #dee2e6;">
+                <h5 style="margin-top:0;"><i class="fas fa-pen-to-square" style="color:#1976d2; margin-right:6px;"></i>Rename Abundance Columns <span style="font-weight:400; font-size:0.85rem; color:#6c757d;">(Optional)</span></h5>
+                <p style="color:#666; margin:4px 0 12px;">Instrument exports often use long sample names (e.g. <em>Abundance F1 Sample Threshold</em>). Map them to shorter labels here first — the simplified names are used throughout the technical-replicate and grouping steps below.</p>
+
+                <div class="dt-file-input" style="margin-bottom:14px;">
+                    <label>Upload Rename Definition <span style="color:#6c757d; font-weight:400;">(Optional)</span></label>
+                    <div class="dt-dropzone" data-input="rename_file" style="width:25%;">
+                        <input type="file" name="rename_file" id="rename-json-input" accept=".json">
+                        <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag &amp; drop or click to select</div>
+                        <div class="file-name hidden"></div>
+                    </div>
+                    <div class="help-text">JSON file mapping new names to original column names, e.g. <code>{"T_0.2a": "Abundance F1 Sample Threshold"}</code></div>
+                    <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/example_column_renames.json' %}" download>Example JSON</a> &middot; <a href="#" class="dt-load-example" data-input-id="rename-json-input" data-url="{% static 'peptide/examples/example_column_renames.json' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
+                </div>
+
+                <div style="margin-bottom:8px;">
+                    <label><strong>Original Column:</strong></label>
+                    <select id="rn-original-select" class="form-control" style="width:340px; display:inline-block; margin-left:8px;"></select>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <label><strong>New Name:</strong></label>
+                    <input type="text" id="rn-new-name-input" class="form-control" style="width:260px; display:inline-block; margin-left:8px;" placeholder="e.g., T_0.2a">
+                </div>
+                <button class="dt-btn dt-btn-primary" id="rn-add-btn" style="margin-bottom:10px;">
+                    <i class="fas fa-plus"></i> Add Rename
+                </button>
+
+                <div id="rn-defined-list-wrap" class="hidden">
+                    <strong>Renamed Columns:</strong>
+                    <div id="rn-list" style="margin-top:6px;"></div>
+                </div>
+            </div>
+
             <!-- Technical Replicate Assignment (optional sub-section) -->
             <div style="margin-bottom:20px; padding-bottom:20px; border-bottom:2px solid #dee2e6;">
                 <h5 style="margin-top:0;"><i class="fas fa-vials" style="color:#1976d2; margin-right:6px;"></i>Technical Replicate Assignment <span style="font-weight:400; font-size:0.85rem; color:#6c757d;">(Optional)</span></h5>
@@ -261,7 +295,7 @@
                         <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag &amp; drop or click to select</div>
                         <div class="file-name hidden"></div>
                     </div>
-                    <div class="help-text">JSON file mapping bio replicate names to lists of technical replicate columns</div>
+                    <div class="help-text">JSON file mapping bio replicate names to lists of technical replicate columns, e.g. <code>{"Sample_A": ["Sample_A ( rep1)", "Sample_A ( rep2)"]}</code></div>
                     <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/example_technical_replicates.json' %}" download>Example JSON</a></div>
                 </div>
 
@@ -300,7 +334,7 @@
                     <div class="drop-text"><i class="fas fa-cloud-upload-alt"></i>Drag &amp; drop or click to select</div>
                     <div class="file-name hidden"></div>
                 </div>
-                <div class="help-text">JSON file mapping group names to abundance columns</div>
+                <div class="help-text">JSON file mapping group names to abundance columns, e.g. <code>{"Control": ["T_0_2a", "T_0_2b"]}</code></div>
                 <div class="dt-example-links"><i class="fas fa-download" style="font-size:0.75rem;"></i> <a href="{% static 'peptide/examples/example_study_variables.json' %}" download>Example JSON</a> &middot; <a href="#" class="dt-load-example" data-input-id="group-json-input" data-url="{% static 'peptide/examples/example_study_variables.json' %}"><i class="fas fa-upload" style="font-size:0.75rem;"></i> Load example</a></div>
             </div>
 
@@ -341,7 +375,7 @@
                     <i class="fas fa-arrow-left"></i> Back
                 </button>
                 <button class="dt-btn dt-btn-success" id="submit-groups-btn" disabled>
-                    <i class="fas fa-save"></i> Save Groups &amp; Continue <i class="fas fa-arrow-right"></i>
+                    <i class="fas fa-save"></i> Save and Continue <i class="fas fa-arrow-right"></i>
                 </button>
                 <button class="dt-btn dt-btn-secondary" id="skip-groups-btn" style="margin-left:8px;">
                     Skip Grouping <i class="fas fa-forward"></i>
@@ -386,11 +420,26 @@
                 <div id="uniprot-progress-text" style="color: #666; font-size: 0.9rem;"></div>
             </div>
 
-            <!-- Protein combinations -->
+            <!-- Combined (multi-protein) peptides -->
             <div id="protein-combinations" class="hidden" style="margin: 12px 0;">
-                <h5>Protein Combinations</h5>
-                <p style="color: #666;">Select which protein ID to use for rows with multiple proteins.</p>
+                <h5>Combined Proteins <span style="color:#6c757d; font-weight:400;">(multi-protein peptides)</span></h5>
+                <p style="color: #666;">Select which protein ID to use for rows where a peptide maps to more than one protein.</p>
                 <div id="combinations-list"></div>
+            </div>
+
+            <!-- Merge / rename protein sources -->
+            <div id="source-renames" class="hidden" style="margin: 16px 0; padding-top: 12px; border-top: 1px solid #e0e0e0;">
+                <h5>Merge / Rename Protein Sources</h5>
+                <p style="color: #666;">
+                    Fold several protein accessions (including single-protein ones the section above can't reach,
+                    e.g. &beta;-casein variants <code>P02666A1</code> and <code>P02666A2</code>) into one canonical protein,
+                    or simply rename one. Resolve any combined (multi-protein) peptides above first: merges here are
+                    applied last and take precedence.
+                </p>
+                <div id="source-rename-groups"></div>
+                <button class="dt-btn dt-btn-secondary" id="add-merge-group-btn" style="margin-top: 8px;">
+                    <i class="fas fa-plus"></i> Add merge group
+                </button>
             </div>
 
             <div style="margin-top: 16px;">
@@ -398,10 +447,13 @@
                     <i class="fas fa-arrow-left"></i> Back
                 </button>
                 <button class="dt-btn dt-btn-success" id="submit-proteins-btn">
-                    Continue <i class="fas fa-arrow-right"></i>
+                    <i class="fas fa-save"></i> Save and Continue <i class="fas fa-arrow-right"></i>
                 </button>
                 <button class="dt-btn dt-btn-secondary" id="skip-proteins-btn" style="margin-left: 8px;">
                     Skip <i class="fas fa-forward"></i>
+                </button>
+                <button class="dt-btn dt-btn-secondary" id="reset-proteins-btn" style="margin-left: 8px;">
+                    <i class="fas fa-trash"></i> Reset Mapping
                 </button>
             </div>
         </div>
@@ -488,5 +540,5 @@
 {% endblock %}
 
 {% block 'scripts' %}
-<script src="{% static 'peptide/js/data_transformation.js' %}?v=27"></script>
+<script src="{% static 'peptide/js/data_transformation.js' %}?v=32"></script>
 {% endblock %}

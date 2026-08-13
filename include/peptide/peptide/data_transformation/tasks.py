@@ -118,7 +118,8 @@ def fetch_uniprot_task(self, missing_protein_ids):
             for pid, info_tuple in batch_results.items():
                 if info_tuple and len(info_tuple) >= 2:
                     name, species = info_tuple[0], info_tuple[1]
-                    found[pid] = {'name': name, 'species': species}
+                    signal_end = info_tuple[2] if len(info_tuple) >= 3 else None
+                    found[pid] = {'name': name, 'species': species, 'signal_end': signal_end}
         except Exception as exc:
             print(f'fetch_uniprot_task: batch error: {exc}')
 

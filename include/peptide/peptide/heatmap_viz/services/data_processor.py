@@ -14,6 +14,72 @@ import pandas as pd
 # heatmap_renderer, fasta_utils, and uniprot_client now live alongside this
 # file in heatmap_viz/services/ — no sys.path manipulation needed.
 
+# Raster resolution for rendered heatmaps. 300 dpi is the usual publication
+# floor; the preview and the downloaded PNG are the same encoded image.
+EXPORT_DPI = 300
+
+
+def _coerce_font_size(value, default: int) -> int:
+    """Parse an Appearance Settings font-size input, falling back to `default`
+    for blank/invalid/non-positive values (e.g. an emptied number input)."""
+    try:
+        size = int(float(value))
+    except (TypeError, ValueError):
+        return default
+    return size if size > 0 else default
+
+# Protein-name display cleaning. Two kinds of clutter are removed:
+#   * Trailing UniProt FASTA metadata — "Beta-casein OS=Bos taurus GN=CSN2 …".
+#   * A leading UniProt entry-name token — "LACB_BOVIN Beta-lactoglobulin",
+#     "B4GT1_BOVIN Beta-1,4-galactosyltransferase 1" (the "CAS_bovine" leader).
+# Entry names are always upper-case ID_SPECIES, so the leader regex is upper-case
+# only and requires a descriptive name after it — a bare "LACB_BOVIN" (no space)
+# and lower-cased names are left untouched, so ordinary names never get clipped.
+# Kept in sync verbatim with data_analysis/services/data_processor so the "Strip
+# protein name" toggle behaves identically in both apps.
+_FASTA_META_RE = re.compile(r'\s+(?:OS|OX|GN|PE|SV)=')
+_ENTRY_NAME_LEADER_RE = re.compile(r'^[A-Z0-9]+_[A-Z0-9]+\s+(?=\S)')
+
+
+def _clean_protein_name(name) -> str:
+    """Strip trailing UniProt FASTA metadata and a leading entry-name token."""
+    s = _FASTA_META_RE.split(str(name), 1)[0].strip()
+    return _ENTRY_NAME_LEADER_RE.sub('', s, count=1).strip()
+
+
+def _parse_grouped_replicates(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    """Parse the ``"<col> 'Grouped: (GrpA; GrpB)'"`` replicate-column convention.
+
+    Mirrors ``data_analysis.services.data_processor.process_group_data``: the
+    Data-Transformation export tags every replicate abundance column that feeds
+    an ``Avg_<var>`` mean with the group(s) it belongs to (see
+    ``data_transformation/services/data_combiner.py:update_column_names_with_groups``).
+    We rename those columns back to their base name and return a
+    ``{grouping_variable: [base_col, ...]}`` map, so the differential-comparison
+    track can reach the per-replicate values a pooled SD requires.
+
+    Returns ``(df_renamed, replicates_by_group)``. A single-average export with
+    no ``'Grouped:'`` columns yields an empty map and the frame unchanged —
+    comparison stays disabled and single-series heatmaps are unaffected.
+    """
+    grouped_cols = [c for c in df.columns if " 'Grouped:" in str(c)]
+    if not grouped_cols:
+        return df, {}
+
+    replicates_by_group: dict = {}
+    rename_map: dict = {}
+    for col in grouped_cols:
+        base = col.split(" 'Grouped:")[0].strip()
+        match = re.search(r"\((.*?)\)", col)
+        if not match:
+            continue
+        for grp in (g.strip() for g in match.group(1).split(";")):
+            if grp:
+                replicates_by_group.setdefault(grp, []).append(base)
+        rename_map[col] = base
+
+    return df.rename(columns=rename_map), replicates_by_group
+
 
 # ---------------------------------------------------------------------------
 # File loading helpers
@@ -30,11 +96,20 @@ def load_merged_file(file_obj, filename: str) -> tuple:
         if name_lower.endswith('.xlsx'):
             df = pd.read_excel(io.BytesIO(content))
         elif name_lower.endswith('.tsv') or name_lower.endswith('.txt'):
-            df = pd.read_csv(io.BytesIO(content), sep='\t')
+            df = pd.read_csv(io.BytesIO(content), sep='\t', low_memory=False)
         else:
-            df = pd.read_csv(io.BytesIO(content))
+            df = pd.read_csv(io.BytesIO(content), low_memory=False)
     except Exception as exc:
         return None, {}, {}, [], str(exc)
+
+    # Excel-sourced exports can carry thousands of fully-blank trailing rows
+    # (all-comma/all-empty lines past the real data). Their columns parse as
+    # NaN/float while the real rows parse as str, which is what triggers
+    # pandas' "mixed types" DtypeWarning — and every downstream iterrows()/
+    # apply() pass over the dataframe then wastes time on rows with no data.
+    # Same fix used by Data Transformation's loader and Data Analysis's load_file.
+    df = df.dropna(how='all')
+    df = df[~df.astype(str).apply(lambda row: row.str.strip().eq('').all(), axis=1)]
 
     df.columns = df.columns.str.strip()
 
@@ -46,6 +121,12 @@ def load_merged_file(file_obj, filename: str) -> tuple:
     # Required columns
     if 'Protein' not in df.columns:
         return None, {}, {}, [], "Missing required column 'Protein'."
+
+    # Parse the replicate-column framework (renames "'Grouped: (…)'" columns to
+    # their base names) so each group can carry the per-replicate columns the
+    # differential-comparison track needs for a pooled SD. Absent it the map is
+    # empty and comparison is simply unavailable.
+    df, replicates_by_group = _parse_grouped_replicates(df)
 
     # Build group_data_dict from Avg_ columns
     avg_columns = [col for col in df.columns if col.startswith('Avg_')]
@@ -59,6 +140,7 @@ def load_merged_file(file_obj, filename: str) -> tuple:
         group_data_dict[str(i)] = {
             'grouping_variable': group_name,
             'abundance_columns': [col],
+            'replicate_columns': replicates_by_group.get(group_name, []),
         }
 
     # Build protein_dict from data
@@ -85,17 +167,34 @@ def _validate_and_standardize_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, s
         'protein_accession',
     ]
 
+    # Case-insensitive matching (headers are already whitespace-stripped by
+    # load_merged_file() before this runs). The 'Grouped:'/'Avg_*' markers
+    # handled elsewhere in this module are generated internally by the app in
+    # a fixed case and are intentionally left out of this normalization.
+    start_stop_map_norm = {k.strip().lower(): v for k, v in START_STOP_MAP.items()}
+    protein_id_columns_norm = [c.strip().lower() for c in PROTEIN_ID_COLUMNS]
+
     if 'start' not in df.columns or 'end' not in df.columns:
         for col in list(df.columns):
-            if col in START_STOP_MAP:
-                new_name = START_STOP_MAP[col]
+            norm = col.strip().lower()
+            if norm in start_stop_map_norm:
+                new_name = start_stop_map_norm[norm]
                 if new_name not in df.columns:
                     df = df.rename(columns={col: new_name})
 
+    if 'start' not in df.columns or 'end' not in df.columns:
+        return df, (
+            "Missing required peptide position data ('start'/'end', or an "
+            "equivalent column such as 'Positions in Proteins', 'Peptide start'/"
+            "'Peptide end'). Sequence heatmaps require a start and end position "
+            "for every peptide and cannot be generated without this data."
+        )
+
     if 'Protein' not in df.columns:
-        for col in PROTEIN_ID_COLUMNS:
-            if col in df.columns:
-                df = df.rename(columns={col: 'Protein'})
+        cols_norm = {c.strip().lower(): c for c in df.columns}
+        for norm_name in protein_id_columns_norm:
+            if norm_name in cols_norm:
+                df = df.rename(columns={cols_norm[norm_name]: 'Protein'})
                 break
 
     if 'Protein' not in df.columns:
@@ -137,8 +236,12 @@ def _build_protein_dict_from_df(df: pd.DataFrame) -> dict:
             continue
         name = group['protein_name'].iloc[0] if has_info else str(protein_id)
         species = group['protein_species'].iloc[0] if has_info else 'Unknown'
+        raw_name = str(name) if pd.notna(name) else str(protein_id)
         protein_dict[protein_id] = {
-            'name': str(name) if pd.notna(name) else str(protein_id),
+            'name': _clean_protein_name(name) or str(protein_id) if pd.notna(name) else str(protein_id),
+            # Full, unstripped name — surfaced when the user unchecks "Strip
+            # protein name" in Appearance Settings.
+            'name_raw': raw_name,
             'species': str(species) if pd.notna(species) else 'Unknown',
             'sequence': '',
         }
@@ -198,11 +301,11 @@ def _parse_fasta_simple(content: str) -> dict:
             m = re.match(r'(?:sp|tr)\|([A-Z0-9]+)\|(\S+)\s*(.*)', header)
             if m:
                 current_id = m.group(1)
-                current_name = m.group(3).strip() or m.group(2)
+                current_name = _clean_protein_name(m.group(3)) or m.group(2)
             else:
                 parts = header.split(None, 1)
                 current_id = parts[0]
-                current_name = parts[1] if len(parts) > 1 else current_id
+                current_name = _clean_protein_name(parts[1]) if len(parts) > 1 else current_id
             current_seq = []
         else:
             current_seq.append(line)
@@ -220,15 +323,21 @@ def _parse_fasta_simple(content: str) -> dict:
 # UniProt sequence fetching
 # ---------------------------------------------------------------------------
 
-def fetch_sequence_from_uniprot(protein_id: str) -> str | None:
-    """Fetch protein sequence from UniProt API. Returns sequence string or None."""
+def fetch_sequence_from_uniprot(protein_id: str) -> tuple[str | None, int | None]:
+    """Fetch protein sequence (+ signal-peptide end, if annotated) from UniProt.
+
+    Returns (sequence, signal_end); either may be None on failure. signal_end
+    is the 1-indexed last residue of the annotated signal peptide, used as the
+    default "Strip start sequence" length in Heatmap's Appearance Settings.
+    """
     try:
         from peptide.utils.uniprot_client import UniProtClient
         client = UniProtClient()
         result = client.fetch_protein_info_with_sequence(protein_id)
         if result:
-            _, _, seq = result
-            return seq if seq else None
+            _, _, seq, signal_end = result
+            if seq:
+                return seq, signal_end
     except Exception:
         pass
     try:
@@ -236,9 +345,50 @@ def fetch_sequence_from_uniprot(protein_id: str) -> str | None:
         url = f'https://www.uniprot.org/uniprot/{protein_id}.fasta'
         with urllib.request.urlopen(url, timeout=10) as resp:
             lines = resp.read().decode('utf-8').splitlines()
-            return ''.join(l for l in lines if not l.startswith('>'))
+            return ''.join(l for l in lines if not l.startswith('>')), None
     except Exception:
-        return None
+        return None, None
+
+
+# ---------------------------------------------------------------------------
+# "Strip start sequence" — UniProt signal-peptide suggestion for the UI
+# ---------------------------------------------------------------------------
+
+def get_signal_peptide_suggestions(protein_dict: dict, selected_proteins: list) -> list:
+    """
+    Return the UniProt-annotated signal-peptide suggestion for each of
+    ``selected_proteins``, for the "Strip start sequence" UI to display next
+    to the manual residue-count override.
+
+    UniProt's API returns the signal peptide's position (start/end) but not
+    its amino-acid letters directly — those are only recoverable by slicing
+    the full sequence at that position, which is what this does: the letters
+    shown to the user (``signal_sequence``) are ``sequence[:signal_end]``.
+
+    Each entry: {protein_id, name, signal_end, signal_sequence, has_signal}.
+    ``signal_end``/``signal_sequence`` are None when UniProt has no "Signal"
+    feature annotated for that protein, or its sequence hasn't been fetched
+    yet; ``has_signal`` is False in both cases.
+    """
+    out = []
+    for pid in selected_proteins:
+        pinfo = protein_dict.get(pid, {})
+        signal_end = pinfo.get('signal_end')
+        sequence = pinfo.get('sequence', '') or ''
+        signal_sequence = None
+        if signal_end and sequence:
+            try:
+                signal_sequence = sequence[:int(signal_end)]
+            except (TypeError, ValueError):
+                signal_sequence = None
+        out.append({
+            'protein_id': pid,
+            'name': pinfo.get('name', pid),
+            'signal_end': signal_end,
+            'signal_sequence': signal_sequence,
+            'has_signal': signal_end is not None,
+        })
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -265,10 +415,22 @@ def get_selector_options(merged_df: pd.DataFrame, group_data_dict: dict, protein
     # Check if function data exists
     has_functions = 'function' in merged_df.columns and not merged_df['function'].isna().all()
 
+    # Which grouping variables carry replicate-level ('Grouped:') columns — the
+    # differential-comparison track (SMD / log2FC) needs ≥1 replicate per group to
+    # form a pooled SD. Surfaced so the UI can populate the Series A/B pickers and
+    # show the "comparison available / disabled" banner (Steps 2 & 6).
+    var_replicates = {
+        v['grouping_variable']: bool(v.get('replicate_columns'))
+        for v in group_data_dict.values()
+    }
+    has_replicates = any(var_replicates.values())
+
     return {
         'proteins': protein_options,
         'var_keys': var_key_options,
         'has_functions': has_functions,
+        'var_replicates': var_replicates,
+        'has_replicates': has_replicates,
     }
 
 
@@ -368,14 +530,45 @@ def build_available_data_variables(
     group_data_dict: dict,
     selected_proteins: list,
     selected_var_keys: list,
+    strip_start_sequence: bool = False,
+    strip_start_manual: int | None = None,
 ) -> tuple[dict, list]:
     """
     Build the available_data_variables_dict for the heatmap renderer.
+
+    strip_start_sequence / strip_start_manual implement the "Strip start
+    sequence" Appearance-Settings toggle: N residues are physically removed
+    from the FRONT of each protein's sequence before rendering, and the
+    reduced/mature sequence is what gets plotted. The dataset's peptide
+    start/end positions are assumed to already be numbered from that same
+    mature protein (position 1 = the first residue after the signal
+    peptide), so once the sequence is trimmed no further shift is applied —
+    dataset position 1 indexes straight to residue 1 of the reduced
+    sequence.
+
+    N, per selected protein: strip_start_manual — a plain residue COUNT
+    applied to every selected protein — when given; otherwise falls back to
+    each protein's own UniProt-annotated signal-peptide length
+    (protein_dict[pid]['signal_end']), else 0 (no trim). A manual value is
+    cross-checked against protein_dict[pid]['signal_end'] when that's known
+    (see below); for a custom/FASTA-only protein with no UniProt record at
+    all, it's simply unverifiable, which is expected and not flagged as an
+    error.
+
+    Whether peptide positions also have to MOVE is decided per protein by
+    heatmap_renderer.detect_dataset_numbering(), so one checkbox serves both
+    real-world cases: a dataset numbered from the mature protein (trim only,
+    positions stay put — trimming is what fixes the misalignment) and a
+    dataset already aligned to the full precursor (trim AND renumber every
+    peptide down by N, so a purely cosmetic strip cannot introduce a shift).
+
     Returns (available_data_variables_dict, messages).
     """
     # Import from heatmap_renderer (heatmap_viz/services/heatmap_renderer.py)
     try:
-        from .heatmap_renderer import export_heatmap_data_to_dict
+        from .heatmap_renderer import (
+            export_heatmap_data_to_dict, validate_peptide_alignment, detect_dataset_numbering,
+        )
     except ImportError:
         return {}, ['Could not import heatmap_renderer. Check notebook utils path.']
 
@@ -389,6 +582,7 @@ def build_available_data_variables(
         # Get protein info
         pinfo = protein_dict.get(protein_id, {})
         protein_name = pinfo.get('name', protein_id)
+        protein_name_raw = pinfo.get('name_raw', protein_name)
         protein_species = pinfo.get('species', 'Unknown')
         protein_sequence = pinfo.get('sequence', '')
 
@@ -397,16 +591,104 @@ def build_available_data_variables(
             messages.append(f"No sequence found for {protein_id} in protein dictionary or FASTA file.")
             continue
 
-        # Filter merged_df for this protein
+        # Filter merged_df for this protein (needed before the strip block so
+        # the numbering detection below can inspect this protein's peptides).
         protein_df = merged_df[merged_df['Protein'] == protein_id].copy()
         if protein_df.empty:
             messages.append(f"No data found for protein {protein_id} in merged data.")
             continue
 
+        # "Strip start sequence" — trim the signal peptide (or a manual
+        # residue count) off the FRONT of protein_sequence, so the plotted
+        # sequence is the mature protein.
+        # A manual override applies to every selected protein; otherwise each
+        # protein falls back to its own UniProt-annotated signal-peptide length.
+        strip_len = 0
+        # UniProt's own signal-peptide annotation for THIS protein (or None if
+        # it has none, or was never fetched — e.g. a custom protein list
+        # loaded straight from a FASTA with no UniProt lookup at all). Used
+        # both for the auto-strip fallback below and to sanity-check a
+        # manual override against it, when it's actually known.
+        signal_end = pinfo.get('signal_end')
+        if strip_start_sequence:
+            if strip_start_manual is not None:
+                try:
+                    strip_len = max(0, int(strip_start_manual))
+                except (TypeError, ValueError):
+                    strip_len = 0
+                # A manual override is one number applied to EVERY selected
+                # protein, so it silently goes stale if the user leaves the
+                # checkbox on after adding/switching to a protein it wasn't
+                # tuned for. Only flag it when there's an actual UniProt
+                # value to contradict — a custom/FASTA-only protein simply
+                # has nothing to cross-check against, which is expected and
+                # not an error.
+                if strip_len:
+                    if signal_end is None:
+                        messages.append(
+                            f"{protein_id} has no UniProt-annotated signal peptide on file, so "
+                            f"the manual Strip Start Sequence value ({strip_len} residue(s)) "
+                            "can't be automatically cross-checked — expected for a custom/"
+                            "FASTA-only protein."
+                        )
+                    elif int(signal_end) != strip_len:
+                        messages.append(
+                            f"Error: the manual Strip Start Sequence value ({strip_len} "
+                            f"residue(s)) does not match {protein_id}'s UniProt-annotated signal "
+                            f"peptide length ({signal_end} residue(s)) — verify this is "
+                            "intentional before trusting the plotted positions."
+                        )
+            else:
+                if signal_end:
+                    try:
+                        strip_len = max(0, int(signal_end))
+                    except (TypeError, ValueError):
+                        strip_len = 0
+            strip_len = min(strip_len, len(protein_sequence))
+
+        # Decide whether stripping also has to RENUMBER the peptides. Two
+        # different real-world datasets both reach this point:
+        #   'mature'    — positions are already numbered from the mature
+        #                 protein, so the FASTA's signal peptide is what made
+        #                 the plot misaligned; trimming alone fixes it and the
+        #                 positions must stay exactly where they are.
+        #   'precursor' — positions already line up with the untrimmed FASTA
+        #                 (the plot was correct before stripping); the strip is
+        #                 purely cosmetic, so every peptide must move down by
+        #                 strip_len to stay on the same residue.
+        position_offset = 0
+        if strip_len:
+            numbering, reason = detect_dataset_numbering(
+                pinfo.get('sequence', ''), protein_df, strip_len)
+            if numbering == 'precursor':
+                position_offset = strip_len
+                messages.append(
+                    f"{protein_id}: peptide positions are numbered against the full precursor "
+                    f"({reason}), so they were shifted down by {strip_len} to stay aligned with "
+                    "the trimmed sequence."
+                )
+            else:
+                messages.append(
+                    f"{protein_id}: peptide positions are numbered from the mature protein "
+                    f"({reason}), so {strip_len} residue(s) were trimmed from the sequence "
+                    "without moving any positions."
+                )
+            protein_sequence = protein_sequence[strip_len:]
+
         is_all_null = (
             'function' not in protein_df.columns
             or protein_df['function'].isna().all()
         )
+
+        # Sanity-check that peptide positions actually land inside the
+        # (already-trimmed, if applicable) protein sequence and, when the
+        # dataset carries the peptide's own sequence text, that the residues
+        # match. Runs once per protein (not per var_key) so a systematic
+        # mismatch isn't repeated.
+        messages.extend(validate_peptide_alignment(
+            protein_sequence, protein_df, position_offset=position_offset,
+            protein_id=protein_id,
+        ))
 
         for var_key in selected_var_keys:
             if var_key not in gvar_to_info:
@@ -419,7 +701,7 @@ def build_available_data_variables(
                 heatmap_data = export_heatmap_data_to_dict(
                     protein_id, group_key, group_info,
                     protein_sequence, protein_species, protein_name,
-                    protein_df, is_all_null,
+                    protein_df, is_all_null, position_offset=position_offset,
                 )
             except Exception as exc:
                 messages.append(f"Error processing {protein_id}/{var_key}: {exc}")
@@ -430,11 +712,29 @@ def build_available_data_variables(
                 'protein_id': protein_id,
                 'protein_sequence': protein_sequence,
                 'protein_name': protein_name,
+                'protein_name_raw': protein_name_raw,
                 'protein_species': protein_species,
+                # Per-replicate abundance columns for this group, carried so the
+                # differential-comparison track can compute a pooled SD. Empty
+                # when the file has no replicate-level ('Grouped:') columns.
+                'replicate_columns': group_info.get('replicate_columns', []),
+                # Raw peptide rows (with replicate columns) for the differential
+                # track; None-safe downstream when comparison is off.
+                'peptide_df': heatmap_data.get('peptide_df'),
+                # Residues the differential track must also shift peptide_df's
+                # (un-renumbered) start/end by — see detect_dataset_numbering.
+                'position_offset': position_offset,
                 'heatmap_df': heatmap_data.get('heatmap_df'),
                 'function_heatmap_df': heatmap_data.get('func_heatmap_df'),
                 'filtered_heatmap_df': heatmap_data.get('filtered_heatmap_df'),
-                'label': var_key if len(selected_proteins) > 1 or len(selected_var_keys) > 1 else var_key,
+                # Row/legend label. When more than one protein is being compared
+                # the bare sample name ("Bitter") repeats across proteins and can't
+                # tell them apart, so prefix the protein name ("Beta-casein Bitter");
+                # a single protein keeps the sample name alone. `var_label` always
+                # carries the bare sample name for callers (e.g. the differential
+                # comparison track) that build their own protein-aware labels.
+                'label': f"{protein_name} {var_key}" if len(selected_proteins) > 1 else var_key,
+                'var_label': var_key,
                 'is_func_df_all_none': (
                     heatmap_data.get('func_heatmap_df') is None
                     or (isinstance(heatmap_data.get('func_heatmap_df'), pd.DataFrame)
@@ -450,46 +750,9 @@ def build_available_data_variables(
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _derive_xaxis_label(available_data_variables_dict: dict) -> str:
-    """
-    Mirror the notebook's `process_data_variables` logic for `protein_name_short`.
-
-    Collect all unique protein IDs and protein names from the variable dict,
-    then build a label of the form "<Name> Sequence".
-
-    Rules (matching the notebook exactly):
-    - Multiple IDs, single unique name  → "<name> Sequence"
-    - Multiple IDs, multiple names      → "<name1>_<name2> Sequence"
-    - Single ID / single name           → "<name> Sequence"
-    If no names are found, fall back to "<protein_id> Sequence" or
-    'Protein Sequence Position'.
-    """
-    protein_id_list   = []
-    protein_name_list = []
-
-    for vd in available_data_variables_dict.values():
-        pid   = vd.get('protein_id',   '')
-        pname = vd.get('protein_name', '')
-        if pid:
-            protein_id_list.append(str(pid))
-        if pname:
-            protein_name_list.append(str(pname))
-
-    unique_ids   = list(dict.fromkeys(protein_id_list))    # ordered dedup
-    unique_names = list(dict.fromkeys(protein_name_list))  # ordered dedup
-
-    if len(unique_ids) > 1 and len(unique_names) == 1:
-        protein_name_short = unique_names[0]
-    elif len(unique_ids) > 1 and len(unique_names) > 1:
-        protein_name_short = '_'.join(unique_names)
-    elif unique_names:
-        protein_name_short = unique_names[0]
-    elif unique_ids:
-        protein_name_short = unique_ids[0]
-    else:
-        return 'Protein Sequence Position'
-
-    return f"{protein_name_short} Sequence"
+# The x-axis-label / short-protein-name logic is defined once in
+# heatmap_renderer (`_derive_xaxis_label` / `_derive_protein_short_name`) and
+# imported where needed — see generate_heatmap below.
 
 
 # Generate heatmap plot
@@ -511,7 +774,7 @@ def generate_heatmap(
     import base64
 
     try:
-        from .heatmap_renderer import update_plot
+        from .heatmap_renderer import update_plot, _derive_xaxis_label
     except ImportError:
         return None, None, None, ['Could not import heatmap_renderer.']
 
@@ -519,6 +782,15 @@ def generate_heatmap(
         return None, None, None, ['No data available for plotting.']
 
     pp = dict(plot_params)
+
+    # "Strip protein name" toggle (Appearance Settings), default on. When the
+    # user unchecks it, swap the short display name for the full raw name so the
+    # axis label, title, and comparison labels all show the unstripped form.
+    if not pp.get('strip_protein_name', True):
+        for vd in available_data_variables_dict.values():
+            raw = vd.get('protein_name_raw')
+            if raw:
+                vd['protein_name'] = raw
 
     # Auto-derive the x-axis label from protein name(s) when the user has left
     # the field blank — mirrors the notebook's `protein_name_short + " Sequence"` logic.
@@ -541,9 +813,9 @@ def generate_heatmap(
             legend_title_input_1=pp.get('legend_title_1', 'Sample Type:'),
             legend_title_input_2=pp.get('legend_title_2', 'Peptide Counts:'),
             legend_title_input_3=pp.get('legend_title_3', 'Abundance:'),
-            plot_land=pp.get('plot_landscape', False),
-            plot_port=pp.get('plot_portrait', True),
-            filter_type=pp.get('filter_type', 'All'),
+            # 'all-peptides' is the value the UI sends; 'All' was never a recognised
+            # filter_type and fell through every branch in process_available_data.
+            filter_type=pp.get('filter_type', 'all-peptides'),
             log_transform=pp.get('log_transform', False),
             manual_y_axis=pp.get('manual_y_axis', False),
             y_min_manual=pp.get('y_min', 0.0),
@@ -551,6 +823,26 @@ def generate_heatmap(
             plot_compact=pp.get('plot_compact', False),
             plot_landscape_interactive=pp.get('plot_landscape_interactive', False),
             plot_portrait_interactive=pp.get('plot_portrait_interactive', False),
+            # Optional user figure title; blank → renderers draw no title.
+            plot_title=pp.get('plot_title', '').strip(),
+            # Print the AA letter on each sample's colored tiles (portrait/landscape
+            # Plotly) instead of the shared grey sequence strip.
+            aa_on_tiles=pp.get('aa_on_tiles', False),
+            # Differential-comparison track (R2-2d): when comparison_mode is on,
+            # the row-1 panel shows a signed SMD/log2FC line for series_a vs
+            # series_b instead of the abundance line.
+            comparison_mode=pp.get('comparison_mode', False),
+            series_a=pp.get('series_a'),
+            series_b=pp.get('series_b'),
+            comparison_metric=pp.get('comparison_metric', 'smd'),
+            # Appearance Settings font-size overrides.
+            font_size_xaxis_label=_coerce_font_size(pp.get('font_size_xaxis_label'), 14),
+            font_size_yaxis_label=_coerce_font_size(pp.get('font_size_yaxis_label'), 15),
+            font_size_legend=_coerce_font_size(pp.get('font_size_legend'), 15),
+            font_size_plot_title=_coerce_font_size(pp.get('font_size_plot_title'), 16),
+            font_size_xaxis_tick=_coerce_font_size(pp.get('font_size_xaxis_tick'), 12),
+            font_size_yaxis_tick=_coerce_font_size(pp.get('font_size_yaxis_tick'), 12),
+            font_size_var_label=_coerce_font_size(pp.get('font_size_var_label'), 12),
         )
     except Exception as exc:
         return None, None, None, None, None, [f'Error generating heatmap: {exc}\n{traceback.format_exc()}']
@@ -569,7 +861,10 @@ def generate_heatmap(
         if fig is None:
             return None
         buf = _io.BytesIO()
-        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        # 300 dpi is the standard minimum for publication figures. The same
+        # encoded image backs both the on-screen preview and the download, so
+        # what a user exports matches what they see.
+        fig.savefig(buf, format='png', dpi=EXPORT_DPI, bbox_inches='tight')
         buf.seek(0)
         data = base64.b64encode(buf.read()).decode()
         plt.close(fig)

@@ -63,6 +63,36 @@ def _load_json(work_dir, name):
     return None
 
 
+def _delete_json(work_dir, name):
+    """Remove a saved JSON file from the work directory if it exists."""
+    path = os.path.join(work_dir, f'{name}.json')
+    if os.path.exists(path):
+        os.remove(path)
+
+
+def _apply_renames_to_list(cols, renames):
+    """Apply a column-rename mapping to a list of column names.
+
+    renames is stored as {new_name: original_column} (the user-facing JSON
+    format). Any column matching an original is swapped for its new name;
+    all others pass through unchanged.
+    """
+    if not renames:
+        return list(cols)
+    original_to_new = {orig: new for new, orig in renames.items()}
+    return [original_to_new.get(c, c) for c in cols]
+
+
+def _apply_renames_to_df(df, renames):
+    """Rename a DataFrame's columns in place-safe fashion using {new: original}."""
+    if df is None or not renames:
+        return df
+    original_to_new = {orig: new for new, orig in renames.items()}
+    # Only rename columns that actually exist to avoid clobbering
+    present = {orig: new for orig, new in original_to_new.items() if orig in df.columns}
+    return df.rename(columns=present) if present else df
+
+
 # ---------------------------------------------------------------------------
 # Main wizard page
 # ---------------------------------------------------------------------------
@@ -366,21 +396,32 @@ def get_step2_form(request):
         else:
             filtered = columns
 
-        # On resume: raw_columns is already saved — don't overwrite it.
-        raw_columns = _load_json(work_dir, 'raw_columns')
-        if not raw_columns:
-            raw_columns = list(filtered)
-            _save_json(work_dir, 'raw_columns', raw_columns)
+        # base_columns: the original (pre-rename) abundance columns, saved once so
+        # the rename picker always offers the true instrument names and renames can
+        # be edited/removed without losing the source list.
+        base_columns = _load_json(work_dir, 'base_columns')
+        if not base_columns:
+            base_columns = list(filtered)
+            _save_json(work_dir, 'base_columns', base_columns)
+
+        # Column renames: {new_name: original_column}. Layered on top of the base
+        # so the tech-rep and grouping panels display the simplified names.
+        column_renames = _load_json(work_dir, 'column_renames') or {}
+        raw_columns = _apply_renames_to_list(base_columns, column_renames)
+        _save_json(work_dir, 'raw_columns', raw_columns)
 
         # On resume: use the user's previously saved tech rep mapping instead of
         # re-running auto-detection (which would clobber any manual adjustments).
+        # Auto-detection only runs on a clean first load with no renames applied.
         tech_dup_mapping = _load_json(work_dir, 'tech_dup_mapping')
         if tech_dup_mapping is None:
             tech_dup_mapping = {}
-            if df is not None and filtered:
+            if df is not None and filtered and not column_renames:
                 _, tech_dup_mapping, filtered = group_processing.collapse_technical_duplicates(df, filtered)
                 if tech_dup_mapping:
                     _save_json(work_dir, 'tech_dup_mapping', tech_dup_mapping)
+            else:
+                filtered = list(raw_columns)
         else:
             # Recompute post-collapse column list from saved mapping
             filtered = group_processing.compute_bio_rep_columns(raw_columns, tech_dup_mapping)
@@ -397,6 +438,8 @@ def get_step2_form(request):
             'columns': filtered,
             'all_columns': columns,
             'raw_columns': raw_columns,
+            'base_columns': base_columns,
+            'column_renames': column_renames,
             'tech_dup_mapping': tech_dup_mapping,
             'saved_groups': saved_groups,
         })
@@ -472,11 +515,115 @@ def upload_tech_rep_json(request):
     return JsonResponse({'success': True, 'groups': groups})
 
 
+def _parse_rename_mapping(data, base_columns):
+    """Validate a {new_name: original_column} mapping against base columns.
+
+    Returns (renames, error). renames is a cleaned {new_name: original_column}
+    dict; error is a message string or None.
+    """
+    if not isinstance(data, dict):
+        return None, ('File must be a JSON object mapping new names to original '
+                      'column names, e.g. {"T_0.2a": "Abundance F1 Sample Threshold"}')
+    base_set = set(base_columns or [])
+    renames = {}
+    seen_originals = {}
+    errors = []
+    for new_name, original in data.items():
+        new_name = str(new_name).strip()
+        original = str(original).strip()
+        if not new_name or not original:
+            errors.append('New names and original columns must be non-empty')
+            continue
+        if base_set and original not in base_set:
+            errors.append(f'"{original}" is not one of the available columns')
+            continue
+        if original in seen_originals:
+            errors.append(f'"{original}" is mapped more than once')
+            continue
+        seen_originals[original] = new_name
+        renames[new_name] = original
+    if errors:
+        return None, '; '.join(errors)
+    return renames, None
+
+
+@require_POST
+def upload_rename_json(request):
+    """Upload and parse a column-rename definition JSON file.
+
+    Expected format: {new_name: original_column}, e.g.
+    {"T_0.2a": "Abundance F1 Sample Threshold"}. Validated against the original
+    (pre-rename) abundance columns but not persisted here — the frontend submits
+    the final mapping via submit-renames/.
+    """
+    work_dir = _get_work_dir(request)
+    if 'rename_file' not in request.FILES:
+        return JsonResponse({'error': 'No file provided'}, status=400)
+
+    try:
+        data = json.loads(request.FILES['rename_file'].read())
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'error': 'Invalid JSON file'}, status=400)
+
+    base_columns = _load_json(work_dir, 'base_columns') or []
+    renames, error = _parse_rename_mapping(data, base_columns)
+    if error:
+        return JsonResponse({'error': error}, status=400)
+
+    return JsonResponse({'success': True, 'renames': renames})
+
+
+@require_POST
+def submit_renames(request):
+    """Persist the column-rename mapping ({new_name: original_column})."""
+    work_dir = _get_work_dir(request)
+
+    try:
+        body = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    base_columns = _load_json(work_dir, 'base_columns') or []
+    renames, error = _parse_rename_mapping(body.get('renames', {}), base_columns)
+    if error:
+        return JsonResponse({'error': error}, status=400)
+
+    _save_json(work_dir, 'column_renames', renames)
+
+    # Keep the effective raw column list in sync for the tech-rep step.
+    raw_columns = _apply_renames_to_list(base_columns, renames)
+    _save_json(work_dir, 'raw_columns', raw_columns)
+
+    return JsonResponse({'success': True, 'renames': renames, 'raw_columns': raw_columns})
+
+
+@require_GET
+def download_rename_map(request):
+    """Download the column-rename mapping as a reusable JSON key.
+
+    Returns the saved {new_name: original_column} mapping, or an identity
+    template built from the current columns if none has been defined yet.
+    """
+    work_dir = _get_work_dir(request)
+    renames = _load_json(work_dir, 'column_renames')
+    if not renames:
+        base_columns = _load_json(work_dir, 'base_columns') or []
+        renames = {col: col for col in base_columns}
+
+    content = json.dumps(renames, indent=2)
+    response = HttpResponse(content, content_type='application/json')
+    response['Content-Disposition'] = 'attachment; filename="column_rename_key.json"'
+    return response
+
+
 @require_POST
 def upload_group_json(request):
     """Upload and parse a group definition JSON file."""
     work_dir = _get_work_dir(request)
     columns = _load_json(work_dir, 'columns') or []
+    # Validate uploaded groups against the renamed columns the user sees in the UI.
+    column_renames = _load_json(work_dir, 'column_renames') or {}
+    columns = _apply_renames_to_list(columns, column_renames)
 
     if 'group_file' not in request.FILES:
         return JsonResponse({'error': 'No file provided'}, status=400)
@@ -532,6 +679,19 @@ def submit_groups(request):
             for gid, info in group_data.items()
         },
     })
+
+
+@require_POST
+def reset_groups(request):
+    """Clear any saved group definitions (uploaded or manually built).
+
+    The Reset Groups button clears the client-side state, but the grouping
+    variable is also persisted server-side in group_data.json. Without deleting
+    it, a page resume / step-2 re-fetch restores the prior groups.
+    """
+    work_dir = _get_work_dir(request)
+    _delete_json(work_dir, 'group_data')
+    return JsonResponse({'success': True})
 
 
 @require_POST
@@ -617,6 +777,9 @@ def get_step3_form(request):
             'known_proteins': known_proteins[:50],
             'combinations': combo_details,
             'has_combinations': len(combo_details) > 0,
+            'saved_decisions': _decisions_to_ui(_load_json(work_dir, 'protein_decisions') or {}),
+            'protein_sources': protein_handler.get_protein_sources(df, protein_dict),
+            'saved_source_renames': _load_json(work_dir, 'source_renames') or [],
         })
     except Exception as e:
         return JsonResponse({'error': f'Could not load step 3: {str(e)}'}, status=500)
@@ -746,6 +909,78 @@ def _translate_decisions(raw_decisions):
     return decisions
 
 
+def _decisions_to_ui(raw_decisions):
+    """Normalize saved protein decisions into UI restore-hints.
+
+    Accepts either the simplified UI format ({combo: {action, protein_ids?,
+    protein_id?}}, as saved by the Step-3 form) or the backend format
+    ({combo: {protein_id: 'ASIS'|'NEW'|'REMOVE'|'CUSTOM:<id>'}}, as saved by an
+    uploaded mapping key). Returns a format-agnostic dict the frontend can use to
+    re-select the mode and repopulate the custom ID / split selection:
+
+        {combo: {'mode': 'asis'|'split'|'custom',
+                 'protein_ids': [...],      # for split
+                 'protein_id': '<custom>'}} # for custom
+    """
+    ui = {}
+    for combo, data in (raw_decisions or {}).items():
+        if not isinstance(data, dict):
+            continue
+        if 'action' in data:
+            # Simplified UI format
+            action = str(data.get('action', 'ASIS')).upper()
+            if action == 'SPLIT':
+                ui[combo] = {'mode': 'split',
+                             'protein_ids': list(data.get('protein_ids', []))}
+            elif action == 'NEW' and data.get('protein_id'):
+                ui[combo] = {'mode': 'split',
+                             'protein_ids': [data['protein_id'].strip()]}
+            elif action == 'CUSTOM' and data.get('protein_id'):
+                ui[combo] = {'mode': 'custom',
+                             'protein_id': data['protein_id'].strip()}
+                if data.get('protein_name'):
+                    ui[combo]['protein_name'] = str(data['protein_name']).strip()
+            else:
+                ui[combo] = {'mode': 'asis'}
+        else:
+            # Backend format: {protein_id: decision_str}
+            custom_id = None
+            split_ids = []
+            for pid, dec in data.items():
+                dec_str = str(dec)
+                if dec_str.startswith('CUSTOM:'):
+                    custom_id = dec_str.split('CUSTOM:', 1)[1].strip()
+                elif dec_str.upper() == 'NEW':
+                    split_ids.append(pid)
+            if custom_id:
+                ui[combo] = {'mode': 'custom', 'protein_id': custom_id}
+            elif split_ids:
+                ui[combo] = {'mode': 'split', 'protein_ids': split_ids}
+            else:
+                ui[combo] = {'mode': 'asis'}
+    return ui
+
+
+def _apply_custom_names(raw_decisions, protein_dict):
+    """
+    Persist any custom protein name entered alongside a CUSTOM decision into
+    protein_dict, so ``add_protein_info`` picks it up at process time (it only
+    overwrites 'Unknown' cells, and add_protein_info initializes protein_name
+    to 'Unknown' before looking it up). Only the simplified UI format
+    ({combo: {action, protein_id, protein_name}}) carries names; legacy
+    backend-format decisions have no room for one.
+    """
+    for data in (raw_decisions or {}).values():
+        if not isinstance(data, dict) or 'action' not in data:
+            continue
+        if str(data.get('action', '')).upper() != 'CUSTOM':
+            continue
+        protein_id = str(data.get('protein_id', '')).strip()
+        protein_name = str(data.get('protein_name', '')).strip()
+        if protein_id and protein_name:
+            protein_dict.setdefault(protein_id, {})['name'] = protein_name
+
+
 def _merge_uniprot_into_dict(request, protein_dict):
     """Merge any completed UniProt task results into protein_dict in place."""
     uniprot_task_id = request.session.get('dt_uniprot_task_id')
@@ -774,14 +1009,18 @@ def submit_protein_decisions(request):
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
     raw_decisions = body.get('decisions', {})
+    source_renames = body.get('source_renames', []) or []
     protein_dict = _load_json(work_dir, 'protein_dict') or {}
 
-    # Persist raw decisions so they can be downloaded as a mapping key
+    # Persist raw decisions + merge/rename groups so they can be downloaded as a
+    # reusable mapping key and restored on return to this step.
     _save_json(work_dir, 'protein_decisions', raw_decisions)
+    _save_json(work_dir, 'source_renames', source_renames)
 
     decisions = _translate_decisions(raw_decisions)
 
     _merge_uniprot_into_dict(request, protein_dict)
+    _apply_custom_names(raw_decisions, protein_dict)
 
     df = _load_df(work_dir, 'pd_results')
     if df is None:
@@ -793,9 +1032,33 @@ def submit_protein_decisions(request):
     if error:
         return JsonResponse({'error': error}, status=400)
 
+    # Merge/rename accessions run last (authoritative) on the cleaned frame.
+    if source_renames:
+        processed_df, error = protein_handler.apply_source_renames(
+            processed_df, source_renames, protein_dict
+        )
+        if error:
+            return JsonResponse({'error': error}, status=400)
+
     _save_df(work_dir, 'pd_results_cleaned', processed_df)
     _save_json(work_dir, 'protein_dict', protein_dict)
 
+    warnings = protein_handler.detect_rename_conflicts(source_renames, raw_decisions)
+    return JsonResponse({'success': True, 'warnings': warnings})
+
+
+@require_POST
+def reset_proteins(request):
+    """Clear any saved protein mapping decisions and merge/rename groups.
+
+    Mirrors reset_groups: the Reset Mapping button clears the client-side
+    combinations/merge-group state, but decisions are also persisted
+    server-side in protein_decisions.json / source_renames.json. Without
+    deleting them, a page resume / step-3 re-fetch restores the prior mapping.
+    """
+    work_dir = _get_work_dir(request)
+    _delete_json(work_dir, 'protein_decisions')
+    _delete_json(work_dir, 'source_renames')
     return JsonResponse({'success': True})
 
 
@@ -805,12 +1068,17 @@ def download_protein_map(request):
     Download the protein mapping decisions as a reusable JSON key.
     If decisions have been submitted, returns those; otherwise generates a
     template from current combinations using their default decisions.
+
+    Merge/rename groups are folded into ``protein_decisions`` as
+    ``action: "MERGE"`` entries (see protein_handler.merge_groups_as_decisions)
+    so the file has one unified shape instead of a separate array.
     """
     work_dir = _get_work_dir(request)
 
     saved = _load_json(work_dir, 'protein_decisions')
+    saved_renames = _load_json(work_dir, 'source_renames') or []
     if saved:
-        output_data = {'version': 1, 'protein_decisions': saved}
+        protein_decisions = dict(saved)
     else:
         # Generate a template from current combination defaults
         df = _load_df(work_dir, 'pd_results')
@@ -823,15 +1091,17 @@ def download_protein_map(request):
             protein_handler.get_combination_details(combinations, df, protein_dict)
             if combinations else []
         )
-        template = {}
+        protein_decisions = {}
         for c in combo_details:
             new_ids = [p['id'] for p in c['proteins'] if p.get('default_decision') == 'new']
             all_ids = [p['id'] for p in c['proteins']]
             if not new_ids or new_ids == all_ids:
-                template[c['combo']] = {'action': 'ASIS'}
+                protein_decisions[c['combo']] = {'action': 'ASIS'}
             else:
-                template[c['combo']] = {'action': 'SPLIT', 'protein_ids': new_ids}
-        output_data = {'version': 1, 'protein_decisions': template}
+                protein_decisions[c['combo']] = {'action': 'SPLIT', 'protein_ids': new_ids}
+
+    protein_decisions.update(protein_handler.merge_groups_as_decisions(saved_renames))
+    output_data = {'version': 3, 'protein_decisions': protein_decisions}
 
     content = json.dumps(output_data, indent=2)
     response = HttpResponse(content, content_type='application/json')
@@ -844,6 +1114,11 @@ def upload_protein_map(request):
     """
     Upload a previously downloaded protein mapping key JSON and apply it,
     replacing the need to manually configure combinations.
+
+    Accepts the current unified format (merge/rename groups embedded in
+    protein_decisions as ``action: "MERGE"`` entries), the older
+    {version, protein_decisions, source_renames} format, and a flat
+    {combo: decision} file, so previously downloaded keys keep working.
     """
     work_dir = _get_work_dir(request)
 
@@ -855,18 +1130,27 @@ def upload_protein_map(request):
     except (json.JSONDecodeError, UnicodeDecodeError):
         return JsonResponse({'error': 'Invalid JSON file'}, status=400)
 
-    # Accept both wrapped {version, protein_decisions} and flat {combo: decision}
+    source_renames = []
     if 'protein_decisions' in content and isinstance(content['protein_decisions'], dict):
         raw_decisions = content['protein_decisions']
+        if isinstance(content.get('source_renames'), list):
+            source_renames = content['source_renames']
     elif isinstance(content, dict) and content:
         raw_decisions = content
     else:
         return JsonResponse({'error': 'Unrecognised mapping file format'}, status=400)
 
+    # Pull any action:"MERGE" entries (current format) out into merge groups;
+    # combine with a legacy top-level source_renames array if present.
+    raw_decisions, embedded_groups = protein_handler.extract_merge_groups(raw_decisions)
+    source_renames = source_renames + embedded_groups
+
     protein_dict = _load_json(work_dir, 'protein_dict') or {}
     _merge_uniprot_into_dict(request, protein_dict)
+    _apply_custom_names(raw_decisions, protein_dict)
 
     _save_json(work_dir, 'protein_decisions', raw_decisions)
+    _save_json(work_dir, 'source_renames', source_renames)
     decisions = _translate_decisions(raw_decisions)
 
     df = _load_df(work_dir, 'pd_results')
@@ -879,10 +1163,22 @@ def upload_protein_map(request):
     if error:
         return JsonResponse({'error': error}, status=400)
 
+    # Merge/rename accessions run last (authoritative), mirroring submit.
+    if source_renames:
+        processed_df, error = protein_handler.apply_source_renames(
+            processed_df, source_renames, protein_dict
+        )
+        if error:
+            return JsonResponse({'error': error}, status=400)
+
     _save_df(work_dir, 'pd_results_cleaned', processed_df)
     _save_json(work_dir, 'protein_dict', protein_dict)
 
-    return JsonResponse({'success': True, 'applied': len(raw_decisions)})
+    return JsonResponse({
+        'success': True,
+        'applied': len(raw_decisions) + len(source_renames),
+        'warnings': protein_handler.detect_rename_conflicts(source_renames, raw_decisions),
+    })
 
 
 @require_POST
@@ -892,12 +1188,19 @@ def skip_protein_mapping(request):
 
     protein_dict = _load_json(work_dir, 'protein_dict') or {}
     _merge_uniprot_into_dict(request, protein_dict)
-    _save_json(work_dir, 'protein_dict', protein_dict)
 
-    # Copy pd_results as pd_results_cleaned
+    # Copy pd_results as pd_results_cleaned; still apply any previously-saved
+    # merge/rename groups so skipping the combinations doesn't silently drop them.
     df = _load_df(work_dir, 'pd_results')
     if df is not None:
+        source_renames = _load_json(work_dir, 'source_renames') or []
+        if source_renames:
+            df, error = protein_handler.apply_source_renames(df, source_renames, protein_dict)
+            if error:
+                return JsonResponse({'error': error}, status=400)
         _save_df(work_dir, 'pd_results_cleaned', df)
+
+    _save_json(work_dir, 'protein_dict', protein_dict)
 
     return JsonResponse({'success': True})
 
@@ -918,9 +1221,17 @@ def process_data(request):
         group_data = _load_json(work_dir, 'group_data')
         protein_dict = _load_json(work_dir, 'protein_dict') or {}
         tech_dup_mapping = _load_json(work_dir, 'tech_dup_mapping')
+        column_renames = _load_json(work_dir, 'column_renames') or {}
 
         if pd_results is None:
             return JsonResponse({'error': 'No peptidomic data loaded'}, status=400)
+
+        # Apply column renames first so every downstream reference (tech reps,
+        # groups, exports) resolves against the simplified names the user defined.
+        if column_renames:
+            pd_results = _apply_renames_to_df(pd_results, column_renames)
+            if pd_results_cleaned is not None:
+                pd_results_cleaned = _apply_renames_to_df(pd_results_cleaned, column_renames)
 
         # Apply technical duplicate collapsing so biological replicate columns exist
         # in the dataframe before group averaging runs.
@@ -977,6 +1288,7 @@ def process_data(request):
                 'replicate_correlation': has_groups,
                 'tech_rep_correlation': has_tech_rep_correlation,
                 'tech_rep_key': bool(tech_dup_mapping),
+                'column_rename_key': bool(column_renames),
                 'protein_map': True,
             }
         })
@@ -1069,7 +1381,7 @@ def view_export(request, export_type):
                 return JsonResponse({'error': 'No summed peptide data'}, status=404)
             summary_rows, rep_rows = [], []
             for g, v in data.items():
-                summary_rows.append([g, safe_val(v['total_Absorbance']),
+                summary_rows.append([g, safe_val(v['total_Abundance']),
                                       safe_val(v['abundance_sem']),
                                       safe_val(v['unique_peptides']), safe_val(v['count_sem'])])
                 ri = v['replicate_data']
@@ -1079,10 +1391,10 @@ def view_export(request, export_type):
                     rep_rows.append([g, rep, safe_val(ab), safe_val(ct)])
             sheets = [
                 {'name': 'Summary',
-                 'columns': ['Group', 'Total Absorbance', 'Abundance SEM', 'Unique Peptides', 'Count SEM'],
+                 'columns': ['Group', 'Total Abundance', 'Abundance SEM', 'Unique Peptides', 'Count SEM'],
                  'rows': summary_rows, 'total_rows': len(summary_rows), 'truncated': False},
                 {'name': 'Replicate Details',
-                 'columns': ['Group', 'Replicate', 'Total Absorbance', 'Unique Peptides'],
+                 'columns': ['Group', 'Replicate', 'Total Abundance', 'Unique Peptides'],
                  'rows': rep_rows, 'total_rows': len(rep_rows), 'truncated': False},
             ]
 
@@ -1181,10 +1493,23 @@ def view_export(request, export_type):
                        'columns': ['Bio Replicate Name', 'Technical Replicate Columns'],
                        'rows': rows, 'total_rows': len(rows), 'truncated': False}]
 
+        elif export_type == 'column_rename_key':
+            column_renames = _load_json(work_dir, 'column_renames')
+            if not column_renames:
+                return JsonResponse({'error': 'No column renames defined'}, status=404)
+            rows = [
+                [new_name, original]
+                for new_name, original in column_renames.items()
+            ]
+            sheets = [{'name': 'Column Rename Key',
+                       'columns': ['New Name', 'Original Column'],
+                       'rows': rows, 'total_rows': len(rows), 'truncated': False}]
+
         elif export_type == 'protein_map':
             saved = _load_json(work_dir, 'protein_decisions')
+            saved_renames = _load_json(work_dir, 'source_renames') or []
             if saved:
-                raw_mapping = saved
+                raw_mapping = dict(saved)
             else:
                 # Generate template from current combinations (mirrors download_protein_map)
                 df = _load_df(work_dir, 'pd_results')
@@ -1204,6 +1529,8 @@ def view_export(request, export_type):
                     else:
                         raw_mapping[c['combo']] = {'action': 'SPLIT', 'protein_ids': new_ids}
 
+            raw_mapping.update(protein_handler.merge_groups_as_decisions(saved_renames))
+
             rows = []
             for combo, decision in raw_mapping.items():
                 if isinstance(decision, dict):
@@ -1212,6 +1539,14 @@ def view_export(request, export_type):
                         details = ', '.join(decision.get('protein_ids', []))
                     elif action in ('NEW', 'CUSTOM'):
                         details = decision.get('protein_id', '')
+                        if action == 'CUSTOM' and decision.get('protein_name'):
+                            details += f" ({decision['protein_name']})"
+                    elif action == 'MERGE':
+                        sources = ', '.join(decision.get('protein_ids', []))
+                        target = decision.get('target_id', '')
+                        if decision.get('target_name'):
+                            target += f" ({decision['target_name']})"
+                        details = f"{sources} -> {target}"
                     else:
                         details = ''
                 else:
@@ -1282,7 +1617,7 @@ def download_export(request, export_type):
 
     elif export_type == 'summed_function':
         content = export_manager.export_summed_function_data(merged_df, group_data)
-        filename = 'processed_mbpdb_results.xlsx'
+        filename = 'functional_analysis.xlsx'
         content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
     elif export_type == 'group_correlation':
@@ -1304,6 +1639,13 @@ def download_export(request, export_type):
         if tech_dup_mapping:
             content = json.dumps(tech_dup_mapping, indent=2).encode('utf-8')
         filename = 'technical_replicate_key.json'
+        content_type = 'application/json'
+
+    elif export_type == 'column_rename_key':
+        column_renames = _load_json(work_dir, 'column_renames')
+        if column_renames:
+            content = json.dumps(column_renames, indent=2).encode('utf-8')
+        filename = 'column_rename_key.json'
         content_type = 'application/json'
 
     elif export_type == 'tech_rep_correlation':
@@ -1403,7 +1745,7 @@ def download_all_exports(request):
             _add('protein_analysis.xlsx', protein_content)
 
             if has_function:
-                _add('processed_mbpdb_results.xlsx',
+                _add('functional_analysis.xlsx',
                      export_manager.export_summed_function_data(merged_df, group_data))
 
             _add(f'group_correlations_{correlation_type.lower()}.xlsx',
@@ -1422,8 +1764,15 @@ def download_all_exports(request):
             _add('technical_replicate_key.json',
                  json.dumps(tech_dup_mapping, indent=2).encode('utf-8'))
 
-        saved_decisions = _load_json(work_dir, 'protein_decisions')
-        pm = {'version': 1, 'protein_decisions': saved_decisions or {}}
+        column_renames = _load_json(work_dir, 'column_renames')
+        if column_renames:
+            _add('column_rename_key.json',
+                 json.dumps(column_renames, indent=2).encode('utf-8'))
+
+        saved_decisions = dict(_load_json(work_dir, 'protein_decisions') or {})
+        saved_renames = _load_json(work_dir, 'source_renames') or []
+        saved_decisions.update(protein_handler.merge_groups_as_decisions(saved_renames))
+        pm = {'version': 3, 'protein_decisions': saved_decisions}
         _add('protein_mapping_key.json', json.dumps(pm, indent=2).encode('utf-8'))
 
     buf.seek(0)

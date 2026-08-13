@@ -10,4 +10,5 @@ urlpatterns = [
     path('plot/', views.plot, name='plot'),
     path('save-plot/', views.save_plot, name='save_plot'),
     path('download-plot/', views.download_plot, name='download_plot'),
+    path('download-static/', views.download_static_image, name='download_static_image'),
 ]

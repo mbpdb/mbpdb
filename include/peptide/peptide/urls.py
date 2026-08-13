@@ -26,7 +26,7 @@ urlpatterns = [
     path('bioactivity-viz/proteins/', views.bioactivity_viz_proteins, name='bioactivity_viz_proteins'),
     path('bioactivity-viz/plot/', views.bioactivity_viz_plot, name='bioactivity_viz_plot'),
     path('peptiline/', views.peptiline_landing, name='peptiline_landing'),
-    path('supplementals_tables_and_figures/', views.supplementals_tables_and_figures, name='supplementals_tables_and_figures'),
+    path('peptiline/supplementals/', views.peptiline_supplementals, name='peptiline_supplementals'),
     path('zukaitis_2026/', views.zukaitis_2026, name='zukaitis_2026'),
 ]
 
