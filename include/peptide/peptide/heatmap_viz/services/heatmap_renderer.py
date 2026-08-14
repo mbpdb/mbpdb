@@ -6,6 +6,7 @@ Those heavy libraries are imported lazily inside the rendering functions
 that actually use them — on the first plot call, not on notebook startup.
 """
 
+import json
 import logging
 import pandas as pd
 import numpy as np
@@ -78,27 +79,43 @@ PLOTLY_FONT_FAMILY = 'Arial, Helvetica, sans-serif'
 # ---------------------------------------------------------------------------
 # Legend placement
 # ---------------------------------------------------------------------------
-# 'right' — the historical layout: ONE combined Plotly legend to the right of
-#           the plot, every group (Sample Type, Peptide Counts, Average
-#           Abundance) stacked vertically inside it, text reading downwards.
-# 'below' — each group becomes its OWN boxed legend unit placed under the
-#           x-axis (i.e. under the protein-sequence label), the units spread
-#           evenly so they read as one centred strip side by side. Nothing is
-#           reserved to the right, so the heatmap keeps the full figure width —
-#           which is what a publication figure panel needs.
-LEGEND_POSITIONS = ('right', 'below')
+# 'right'         — the historical layout: ONE combined Plotly legend to the
+#                   right of the plot, every group (Sample Type, Peptide Counts,
+#                   Average Abundance) stacked inside it, text reading downwards.
+# 'below'         — each group becomes its OWN boxed legend unit placed under the
+#                   x-axis (i.e. under the protein-sequence label), the units
+#                   centred side by side and wrapped onto further rows when they
+#                   do not fit across one. Nothing is reserved to the right, so
+#                   the heatmap keeps the full figure width.
+# 'below-stacked' — same units, but one per row: each sits above the next,
+#                   centred. Width can never crowd them, at the cost of height.
+LEGEND_POSITIONS = ('right', 'below', 'below-stacked')
 
-# Geometry of the 'below' legend strip. Plotly places each legend box by its
-# anchor point but never lays multiple legends out for you, so the units are
-# positioned here from an ESTIMATE of how wide each one draws. The estimate is
-# in pixels while Plotly wants paper fractions, and the figure width is only
-# known in the browser — so widths are expressed as fractions of a reference
-# width. A wider figure just spreads the units further apart (still centred);
-# only a much narrower one can crowd them.
-LEGEND_REF_WIDTH_PX = 900     # reference width the fractions are computed against
+# Geometry of the 'below' legend strip, in pixels. Plotly anchors each legend
+# box for you but never lays MULTIPLE legends out relative to each other, so the
+# units are positioned here from an estimate of how wide each one draws. The
+# estimate is in pixels while Plotly positions in paper fractions, so the layout
+# needs the width of the plotting area to convert between them:
+#   * the browser knows it exactly — heatmap.html re-packs on render and resize
+#     (repackBelowLegends), and the static-export view re-packs server-side with
+#     the width the client sends (see repack_below_legends below);
+#   * LEGEND_REF_WIDTH_PX is only the fallback used to build the first layout,
+#     before any of that runs.
+LEGEND_REF_WIDTH_PX = 900     # fallback width when the real one isn't known yet
 LEGEND_UNIT_GAP_PX = 30       # gap between neighbouring units in a row
 LEGEND_ROW_PX = 72            # vertical room one row of units needs
 LEGEND_AXIS_ZONE_PX = 58      # x-axis ticks + title, cleared before the strip
+LEGEND_BASE_BOTTOM_PX = 60    # bottom margin before the strip is added
+
+
+def normalize_legend_position(value) -> str:
+    """Coerce a user-supplied legend position to one of :data:`LEGEND_POSITIONS`."""
+    text = str(value or '').strip().lower().replace('_', '-').replace(' ', '-')
+    if text in ('below-stacked', 'bottom-stacked', 'stacked'):
+        return 'below-stacked'
+    if text in ('below', 'bottom', 'under'):
+        return 'below'
+    return 'right'
 
 
 def _estimate_legend_unit_px(title, labels, font_size_legend) -> float:
@@ -109,33 +126,6 @@ def _estimate_legend_unit_px(title, labels, font_size_legend) -> float:
     return max(title_px, items_px) + 24        # + box padding / border
 
 
-def _pack_legend_rows(units, font_size_legend):
-    """Group legend units into rows that each fit the reference width.
-
-    ``units`` is the ordered ``{title: {'ref', 'labels'}}`` registry. Returns a
-    list of rows, each a list of ``(ref, title, width_px)``.
-    """
-    rows, row, row_px = [], [], 0.0
-    for title, unit in units.items():
-        w = _estimate_legend_unit_px(title, unit['labels'], font_size_legend)
-        if row and row_px + LEGEND_UNIT_GAP_PX + w > LEGEND_REF_WIDTH_PX:
-            rows.append(row)
-            row, row_px = [], 0.0
-        row_px += w + (LEGEND_UNIT_GAP_PX if row else 0)
-        row.append((unit['ref'], title, w))
-    if row:
-        rows.append(row)
-    return rows
-
-
-def normalize_legend_position(value) -> str:
-    """Coerce a user-supplied legend position to 'right' (default) or 'below'."""
-    text = str(value or '').strip().lower()
-    if text in ('below', 'bottom', 'under'):
-        return 'below'
-    return 'right'
-
-
 def _make_legend_placer(legend_position, font_size_legend):
     """Build the (kwargs-factory, registry) pair used to place legend entries.
 
@@ -143,10 +133,10 @@ def _make_legend_placer(legend_position, font_size_legend):
     legendgroup, entry=None)`` yields the trace kwargs for one legend entry and
     ``units`` is the ordered ``{group title: {'ref', 'labels'}}`` registry —
     empty in 'right' mode, one entry per group (in first-drawn order, i.e. left
-    to right) in 'below' mode. ``entry`` is the visible item label, recorded so
-    the unit's drawn width can be estimated. See :data:`LEGEND_POSITIONS`.
+    to right) in the 'below' modes. ``entry`` is the visible item label, recorded
+    so the unit's drawn width can be estimated. See :data:`LEGEND_POSITIONS`.
     """
-    below = normalize_legend_position(legend_position) == 'below'
+    below = normalize_legend_position(legend_position).startswith('below')
     units = {}
 
     def legend_kwargs(group_title, legendgroup, entry=None):
@@ -172,40 +162,140 @@ def _make_legend_placer(legend_position, font_size_legend):
     return legend_kwargs, units
 
 
-def _below_legend_strip_px(units, font_size_legend) -> int:
-    """Vertical room the 'below' legend strip needs, in pixels."""
-    return LEGEND_ROW_PX * max(len(_pack_legend_rows(units, font_size_legend)), 1)
+def _below_legend_plan(units, font_size_legend):
+    """Serialisable [{ref, title, width}] for every registered unit, in draw order."""
+    return [
+        {'ref': unit['ref'], 'title': title,
+         'width': _estimate_legend_unit_px(title, unit['labels'], font_size_legend)}
+        for title, unit in units.items()
+    ]
 
 
-def _below_legend_layout(units, font_size_legend, plot_area_px):
-    """Layout dict placing each registered legend unit under the x-axis.
+def _pack_legend_rows(plan, avail_px, stacked=False):
+    """Group the planned units into rows that each fit ``avail_px``.
 
-    Units sit side by side as separate boxes, each row of them centred on the
-    figure, wrapping to a second row when they would not fit across one. Items
-    inside a unit run horizontally under the unit's own title (the vertical,
-    text-going-down form is what the combined 'right' legend is for).
+    ``stacked`` forces one unit per row, which no width can crowd. Returns a
+    list of rows, each a list of the plan's unit dicts.
     """
-    rows = _pack_legend_rows(units, font_size_legend)
-    layout = {}
+    rows, row, row_px = [], [], 0.0
+    for unit in plan:
+        too_wide = row_px + LEGEND_UNIT_GAP_PX + unit['width'] > avail_px
+        if row and (stacked or too_wide):
+            rows.append(row)
+            row, row_px = [], 0.0
+        row_px += unit['width'] + (LEGEND_UNIT_GAP_PX if row else 0)
+        row.append(unit)
+    if row:
+        rows.append(row)
+    return rows
+
+
+def _below_legend_geometry(plan, stacked, avail_w_px, top_px, base_height_px):
+    """Where every 'below' legend unit goes, for a known plotting-area width.
+
+    This is the single source of truth for the strip's arithmetic — the initial
+    server-side layout, the browser's re-pack, and the static-export re-pack all
+    call it (the browser through the JS mirror in heatmap.html). Returns
+    ``(positions, height_px, bottom_margin_px, n_rows)`` where ``positions`` maps
+    each legend ref to its ``(x, y)`` in Plotly paper fractions.
+    """
+    rows = _pack_legend_rows(plan, avail_w_px, stacked)
+    strip_px = LEGEND_ROW_PX * max(len(rows), 1)
+    height = base_height_px + strip_px
+    bottom = LEGEND_BASE_BOTTOM_PX + strip_px
+    plot_h = max(height - top_px - bottom, 1)
+
+    positions = {}
     for r, row in enumerate(rows):
-        row_px = sum(w for _, _, w in row) + LEGEND_UNIT_GAP_PX * (len(row) - 1)
-        # walk left→right from the row's left edge, measured from figure centre
-        cursor = -row_px / 2
-        y_px = LEGEND_AXIS_ZONE_PX + r * LEGEND_ROW_PX
-        for ref, title, w in row:
-            layout[ref] = dict(
-                title=dict(text=title, font=dict(size=font_size_legend, color='black'),
-                           side='top center'),
-                orientation='h',
-                x=0.5 + (cursor + w / 2) / LEGEND_REF_WIDTH_PX, xanchor='center',
-                y=-(y_px / max(plot_area_px, 1)), yanchor='top',
-                bordercolor='black', borderwidth=1,
-                bgcolor='rgba(255,255,255,0.9)',
-                font=dict(size=font_size_legend),
-                itemsizing='constant',
-            )
-            cursor += w + LEGEND_UNIT_GAP_PX
-    return layout
+        span = sum(u['width'] for u in row) + LEGEND_UNIT_GAP_PX * (len(row) - 1)
+        cursor = -span / 2      # walk left→right from the row's left edge
+        y = -((LEGEND_AXIS_ZONE_PX + r * LEGEND_ROW_PX) / plot_h)
+        for unit in row:
+            positions[unit['ref']] = (0.5 + (cursor + unit['width'] / 2) / avail_w_px, y)
+            cursor += unit['width'] + LEGEND_UNIT_GAP_PX
+    return positions, height, bottom, len(rows)
+
+
+def _below_legend_layout(plan, stacked, top_px, base_height_px, font_size_legend,
+                         avail_w_px=None):
+    """Full layout for the 'below' strip: legend objects, height, margin, meta.
+
+    Returns ``(layout, height_px, bottom_margin_px, meta)``. ``meta`` is stored
+    on ``layout.meta`` so the browser and the export path can re-pack the units
+    once the real width is known — see :func:`repack_below_legends`.
+    """
+    avail = avail_w_px or LEGEND_REF_WIDTH_PX
+    positions, height, bottom, _rows = _below_legend_geometry(
+        plan, stacked, avail, top_px, base_height_px)
+
+    layout = {}
+    for unit in plan:
+        x, y = positions[unit['ref']]
+        layout[unit['ref']] = dict(
+            title=dict(text=unit['title'],
+                       font=dict(size=font_size_legend, color='black'),
+                       side='top center'),
+            orientation='h',
+            x=x, xanchor='center',
+            y=y, yanchor='top',
+            bordercolor='black', borderwidth=1,
+            bgcolor='rgba(255,255,255,0.9)',
+            font=dict(size=font_size_legend),
+            itemsizing='constant',
+        )
+
+    meta = {'below_legend': {
+        'units': plan,
+        'stacked': bool(stacked),
+        'gap_px': LEGEND_UNIT_GAP_PX,
+        'row_px': LEGEND_ROW_PX,
+        'axis_zone_px': LEGEND_AXIS_ZONE_PX,
+        'base_bottom_px': LEGEND_BASE_BOTTOM_PX,
+        'base_height_px': base_height_px,
+        'top_px': top_px,
+    }}
+    return layout, height, bottom, meta
+
+
+def repack_below_legends(figure_json: str, width_px) -> str:
+    """Re-lay the 'below' legend units for a figure being exported at ``width_px``.
+
+    The server builds the first layout against :data:`LEGEND_REF_WIDTH_PX`
+    because it cannot know the browser's width; a static export at a different
+    width would otherwise place the units for the wrong figure — crowding them
+    when it is narrower. Returns the figure JSON unchanged when it carries no
+    'below' legend plan (every 'right'-legend figure, and every figure from the
+    other dashboards) or when no width is supplied.
+    """
+    if not figure_json or not width_px:
+        return figure_json
+    try:
+        fig = json.loads(figure_json) if isinstance(figure_json, str) else figure_json
+        layout = fig.get('layout') or {}
+        plan_meta = (layout.get('meta') or {}).get('below_legend')
+        if not plan_meta:
+            return figure_json
+
+        margin = layout.get('margin') or {}
+        avail = float(width_px) - float(margin.get('l', 0)) - float(margin.get('r', 0))
+        if avail <= 0:
+            return figure_json
+
+        positions, height, bottom, _rows = _below_legend_geometry(
+            plan_meta['units'], plan_meta['stacked'], avail,
+            plan_meta['top_px'], plan_meta['base_height_px'])
+
+        for ref, (x, y) in positions.items():
+            legend = layout.setdefault(ref, {})
+            legend['x'], legend['y'] = x, y
+        layout['height'] = height
+        margin['b'] = bottom
+        layout['margin'] = margin
+        fig['layout'] = layout
+        return json.dumps(fig)
+    except Exception as exc:      # never block an export over legend placement
+        logger.warning('Could not re-pack below-axis legends: %s', exc)
+        return figure_json
 
 
 # Define functions outside of class
@@ -1747,11 +1837,13 @@ def visualize_sequence_heatmap_interactive(
     # (legend_title[2]) is shown directly on the row-1 y-axis, not duplicated here.
     sample_type_title = legend_title[0] if legend_title else 'Sample Type:'
 
-    # Legend placement ('right' = one combined legend beside the plot;
-    # 'below' = one boxed unit per group under the x-axis). _legend_kwargs()
-    # returns the per-trace kwargs; _legend_units is filled in draw order.
+    # Legend placement ('right' = one combined legend beside the plot; 'below' /
+    # 'below-stacked' = one boxed unit per group under the x-axis, side by side
+    # or one per row). _legend_kwargs() returns the per-trace kwargs;
+    # _legend_units is filled in draw order.
     legend_position = normalize_legend_position(legend_position)
-    legend_below = legend_position == 'below'
+    legend_below = legend_position.startswith('below')
+    legend_stacked = legend_position == 'below-stacked'
     _legend_kwargs, _legend_units = _make_legend_placer(legend_position, font_size_legend)
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -2452,20 +2544,23 @@ def visualize_sequence_heatmap_interactive(
     title_str = (plot_title or '').strip()
 
     # ── margins + legend geometry ────────────────────────────────────────────
-    # 'below' frees the right margin entirely (that width goes to the heatmap)
-    # and buys the reclaimed space back at the bottom for the legend strip.
-    top_margin    = 60 if title_str else 30
-    right_margin  = 40 if legend_below else 180
-    _strip_px     = _below_legend_strip_px(_legend_units, font_size_legend) if legend_below else 0
-    bottom_margin = 60 + _strip_px
+    # The 'below' modes free the right margin entirely (that width goes to the
+    # heatmap) and buy the reclaimed space back at the bottom for the legend
+    # strip, which grows with the number of rows the units pack into.
+    top_margin   = 60 if title_str else 30
+    right_margin = 40 if legend_below else 180
 
-    # total figure height = sum of pixel heights for every row + margins
-    fig_height = total_px + top_margin + bottom_margin + 10
-    plot_area_px = fig_height - top_margin - bottom_margin
+    # figure height with NO legend strip = every row's pixel height + margins
+    base_height  = total_px + top_margin + LEGEND_BASE_BOTTOM_PX + 10
+    legend_meta  = None
 
     if legend_below:
-        legend_layout = _below_legend_layout(_legend_units, font_size_legend, plot_area_px)
+        legend_layout, fig_height, bottom_margin, legend_meta = _below_legend_layout(
+            _below_legend_plan(_legend_units, font_size_legend),
+            legend_stacked, top_margin, base_height, font_size_legend)
     else:
+        fig_height    = base_height
+        bottom_margin = LEGEND_BASE_BOTTOM_PX
         legend_layout = dict(legend=dict(
             yanchor="top", y=0.99,
             xanchor="left", x=1.01,
@@ -2480,6 +2575,11 @@ def visualize_sequence_heatmap_interactive(
             itemsizing='constant',
             groupclick="toggleitem",
         ))
+
+    if legend_meta is not None:
+        # Lets the browser and the static-export view re-pack the units once the
+        # real plotting width is known. See repack_below_legends().
+        fig.update_layout(meta=legend_meta)
 
     fig.update_layout(
         title=dict(text=title_str, font=dict(size=font_size_plot_title, color='black'), x=0.5),
@@ -2672,9 +2772,12 @@ def visualize_sequence_heatmap_compact(
     legend_title_pep  = legend_title[1] if len(legend_title) > 1 else 'Peptide Counts:'
     legend_title_abun = legend_title[2] if len(legend_title) > 2 else 'Average Abundance:'
 
-    # Legend placement — 'right' keeps one combined legend beside the plot,
-    # 'below' gives each group its own unit under the x-axis. See LEGEND_POSITIONS.
-    legend_below = normalize_legend_position(legend_position) == 'below'
+    # Legend placement — 'right' keeps one combined legend beside the plot, the
+    # 'below' modes give each group its own unit under the x-axis (side by side,
+    # or one per row when stacked). See LEGEND_POSITIONS.
+    legend_position = normalize_legend_position(legend_position)
+    legend_below = legend_position.startswith('below')
+    legend_stacked = legend_position == 'below-stacked'
     _legend_kwargs, _legend_units = _make_legend_placer(legend_position, font_size_legend)
 
     heatmap_legend_handles, heatmap_legend_labels = create_heatmap_legend_handles(
@@ -2740,16 +2843,18 @@ def visualize_sequence_heatmap_compact(
     row_height = max(130, 600 // max(num_vars, 1))
 
     # ── margins + legend geometry (see the landscape renderer for the rationale) ──
-    top_margin    = 60 if title_str else 30
-    right_margin  = 40 if legend_below else 180
-    _strip_px     = _below_legend_strip_px(_legend_units, font_size_legend) if legend_below else 0
-    bottom_margin = 60 + _strip_px
-    fig_height    = max(row_height * num_vars + 80, 300) + _strip_px
-    plot_area_px  = fig_height - top_margin - bottom_margin
+    top_margin   = 60 if title_str else 30
+    right_margin = 40 if legend_below else 180
+    base_height  = max(row_height * num_vars + 80, 300)
+    legend_meta  = None
 
     if legend_below:
-        legend_layout = _below_legend_layout(_legend_units, font_size_legend, plot_area_px)
+        legend_layout, fig_height, bottom_margin, legend_meta = _below_legend_layout(
+            _below_legend_plan(_legend_units, font_size_legend),
+            legend_stacked, top_margin, base_height, font_size_legend)
     else:
+        fig_height    = base_height
+        bottom_margin = LEGEND_BASE_BOTTOM_PX
         legend_layout = dict(legend=dict(
             yanchor="top",
             y=0.99,
@@ -2766,6 +2871,11 @@ def visualize_sequence_heatmap_compact(
             itemsizing='constant',
             groupclick="toggleitem",
         ))
+
+    if legend_meta is not None:
+        # See the landscape renderer: lets the browser / export re-pack the
+        # units once the real plotting width is known.
+        fig.update_layout(meta=legend_meta)
 
     fig.update_layout(
         title=dict(text=title_str, font=dict(size=font_size_plot_title, color='black'), x=0.5),

@@ -620,6 +620,12 @@ def download_static_image(request):
     # Sanitize the download filename (header-safe).
     filename = ''.join(c if c.isalnum() or c in ('-', '_', '.') else '_' for c in str(raw_name)) or 'heatmap'
 
+    # Below-axis legends are positioned in paper fractions from a pixel-width
+    # estimate, so re-lay them for the width this export actually renders at
+    # (no-op for right-legend figures — see repack_below_legends).
+    from peptide.heatmap_viz.services.heatmap_renderer import repack_below_legends
+    figure_json = repack_below_legends(figure_json, width)
+
     try:
         if fmt == 'svg':
             data = plotly_export.svg_bytes(figure_json, width=width, height=height)

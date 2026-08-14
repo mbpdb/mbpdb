@@ -501,10 +501,11 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend Position</label>
-                        <select id="legend-position" title="Right: one combined legend beside the plot, groups stacked with the text going down. Below: each legend group becomes its own unit under the protein-sequence x-axis, the units centred side by side — frees the full figure width for the heatmap." disabled
+                        <select id="legend-position" title="Right: one combined legend beside the plot, groups stacked with the text going down. Below (side by side): each legend group becomes its own unit under the protein-sequence x-axis, centred side by side and wrapped onto another row when they don't fit — frees the full figure width for the heatmap. Below (stacked): the same units one above the other, one per row, so no figure width can crowd them." disabled
                                 style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                             <option value="right" selected>Right of plot (combined)</option>
                             <option value="below">Below x-axis (side by side)</option>
+                            <option value="below-stacked">Below x-axis (stacked)</option>
                         </select>
                     </div>
 
@@ -1248,6 +1249,66 @@ document.querySelectorAll('#y-scale-seg .seg-btn').forEach(function(btn) {
 // ── Generate heatmap ──────────────────────────────────────────────
 document.getElementById('generate-btn').addEventListener('click', generateHeatmap);
 
+// Re-pack the "below x-axis" legend units for the width the figure actually
+// rendered at. The server can only position them against a reference width
+// (LEGEND_REF_WIDTH_PX), and legend boxes draw at a fixed pixel size while
+// Plotly positions them in paper fractions — so on a narrower figure the
+// units would overlap. This mirrors _below_legend_geometry() in
+// heatmap_renderer.py; keep the two in step.
+function repackBelowLegends(gd) {
+    const plan = gd && gd.layout && gd.layout.meta && gd.layout.meta.below_legend;
+    if (!plan) return;                       // right-legend figure: nothing to do
+    const fl = gd._fullLayout || {};
+    const margin = fl.margin || {};
+    const avail = (fl.width || 0) - (margin.l || 0) - (margin.r || 0);
+    if (!(avail > 0)) return;
+
+    const rows = [];
+    let row = [], rowPx = 0;
+    plan.units.forEach(function(u) {
+        const tooWide = rowPx + plan.gap_px + u.width > avail;
+        if (row.length && (plan.stacked || tooWide)) { rows.push(row); row = []; rowPx = 0; }
+        rowPx += u.width + (row.length ? plan.gap_px : 0);
+        row.push(u);
+    });
+    if (row.length) rows.push(row);
+
+    const strip  = plan.row_px * Math.max(rows.length, 1);
+    const height = plan.base_height_px + strip;
+    const bottom = plan.base_bottom_px + strip;
+    const plotH  = Math.max(height - plan.top_px - bottom, 1);
+
+    const update = { height: height, 'margin.b': bottom };
+    rows.forEach(function(r, ri) {
+        const span = r.reduce(function(s, u) { return s + u.width; }, 0)
+                     + plan.gap_px * (r.length - 1);
+        let cursor = -span / 2;
+        const y = -((plan.axis_zone_px + ri * plan.row_px) / plotH);
+        r.forEach(function(u) {
+            update[u.ref + '.x'] = 0.5 + (cursor + u.width / 2) / avail;
+            update[u.ref + '.y'] = y;
+            cursor += u.width + plan.gap_px;
+        });
+    });
+    Plotly.relayout(gd, update);
+}
+
+// Re-flow the below-axis legend strip when the window (and so the figure) is
+// resized — units may now fit on one row, or need to wrap onto another.
+window.addEventListener('resize', (function() {
+    let timer = null;
+    return function() {
+        clearTimeout(timer);
+        timer = setTimeout(function() {
+            ['landscape-interactive-div', 'portrait-interactive-div', 'compact-plotly-div']
+                .forEach(function(id) {
+                    const gd = document.getElementById(id);
+                    if (gd && gd._fullLayout) repackBelowLegends(gd);
+                });
+        }, 200);
+    };
+})());
+
 async function generateHeatmap() {
     const btn         = document.getElementById('generate-btn');
     const spinner     = document.getElementById('generate-spinner');
@@ -1432,8 +1493,11 @@ async function generateHeatmap() {
                 useResizeObserver: true,
             });
             cont.classList.remove('hidden');
-            // Force a resize after the container becomes visible
-            requestAnimationFrame(() => Plotly.Plots.resize(div));
+            // Force a resize after the container becomes visible, then place any
+            // below-axis legend units against the width we actually got.
+            requestAnimationFrame(() => {
+                Plotly.Plots.resize(div).then(() => repackBelowLegends(div));
+            });
         } catch(e) {
             cont.classList.add('hidden');
             appendStatus(msgs, `Warning: could not render interactive plot (${containerId}).`, 'warning');
@@ -1483,7 +1547,7 @@ async function generateHeatmap() {
                 scrollZoom: true,
                 displayModeBar: true,
                 modeBarButtonsToAdd: ['zoom2d', 'pan2d', 'resetScale2d'],
-            });
+            }).then(() => repackBelowLegends(compactDiv));
             compactCont.classList.remove('hidden');
         } catch(e) {
             appendStatus(msgs, 'Warning: could not render compact interactive plot.', 'warning');

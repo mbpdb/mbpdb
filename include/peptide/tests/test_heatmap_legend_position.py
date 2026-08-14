@@ -155,51 +155,135 @@ class TestBelowSplitsIntoUnits(unittest.TestCase):
 
 
 class TestUnitPacking(unittest.TestCase):
-    def test_units_wrap_to_a_second_row_when_too_wide(self):
+    """Row packing and the pixel→paper-fraction arithmetic behind the strip."""
+
+    @staticmethod
+    def _plan(n_units, n_entries=6):
         units = {
             f'Group {i}:': {'ref': 'legend' if i == 0 else f'legend{i + 1}',
-                            'labels': [f'entry {j}' for j in range(6)]}
-            for i in range(4)
+                            'labels': [f'entry {j}' for j in range(n_entries)]}
+            for i in range(n_units)
         }
-        rows = R._pack_legend_rows(units, 15)
+        return R._below_legend_plan(units, 15)
+
+    def test_units_wrap_to_a_second_row_when_too_wide(self):
+        plan = self._plan(4)
+        rows = R._pack_legend_rows(plan, R.LEGEND_REF_WIDTH_PX)
         self.assertGreater(len(rows), 1)
         self.assertEqual(sum(len(r) for r in rows), 4)
-        # each row stays within the reference width
         for row in rows:
-            span = (sum(w for _, _, w in row)
+            span = (sum(u['width'] for u in row)
                     + R.LEGEND_UNIT_GAP_PX * (len(row) - 1))
             self.assertLessEqual(span, R.LEGEND_REF_WIDTH_PX)
-        # rows stack downwards, each row centred on its own y
-        layout = R._below_legend_layout(units, 15, plot_area_px=600)
-        ys = sorted({leg['y'] for leg in layout.values()}, reverse=True)
-        self.assertEqual(len(ys), len(rows))
-        self.assertTrue(all(y < 0 for y in ys))
+
+    def test_stacked_puts_one_unit_per_row(self):
+        plan = self._plan(3, n_entries=1)      # narrow units that WOULD share a row
+        self.assertEqual(len(R._pack_legend_rows(plan, R.LEGEND_REF_WIDTH_PX)), 1)
+        stacked = R._pack_legend_rows(plan, R.LEGEND_REF_WIDTH_PX, stacked=True)
+        self.assertEqual([len(r) for r in stacked], [1, 1, 1])
+
+    def test_stacked_never_crowds_however_narrow_the_figure(self):
+        plan = self._plan(3)
+        for width in (1600, 1000, 700, 420):
+            positions, _h, _b, rows = R._below_legend_geometry(
+                plan, True, width, top_px=30, base_height_px=500)
+            self.assertEqual(rows, 3)
+            # one unit per row → every unit centred, none beside another
+            self.assertEqual({round(x, 6) for x, _y in positions.values()}, {0.5})
+            self.assertEqual(len({y for _x, y in positions.values()}), 3)
+
+    def test_rows_stack_downwards_below_the_axis(self):
+        plan = self._plan(4)
+        positions, height, bottom, rows = R._below_legend_geometry(
+            plan, False, R.LEGEND_REF_WIDTH_PX, top_px=30, base_height_px=500)
+        ys = sorted({y for _x, y in positions.values()}, reverse=True)
+        self.assertEqual(len(ys), rows)
+        self.assertTrue(all(y < 0 for y in ys))          # all under the x-axis
+        self.assertEqual(height, 500 + R.LEGEND_ROW_PX * rows)
+        self.assertEqual(bottom, R.LEGEND_BASE_BOTTOM_PX + R.LEGEND_ROW_PX * rows)
 
     def test_each_row_is_centred_on_the_figure(self):
-        units = {
-            'Sample Type:': {'ref': 'legend', 'labels': ['High NE', 'Low NE']},
-            'Peptide Counts:': {'ref': 'legend2',
-                                'labels': ['1 - 2', '2 - 3', '3 - 4']},
-        }
-        layout = R._below_legend_layout(units, 15, plot_area_px=600)
-        for row in R._pack_legend_rows(units, 15):
+        plan = self._plan(3)
+        width = 1000
+        positions, _h, _b, _rows = R._below_legend_geometry(
+            plan, False, width, top_px=30, base_height_px=500)
+        for row in R._pack_legend_rows(plan, width):
             # left edge of the first unit and right edge of the last, in the
             # same paper fractions Plotly positions them with
-            first_ref, _, first_w = row[0]
-            last_ref, _, last_w = row[-1]
-            left = layout[first_ref]['x'] - first_w / (2 * R.LEGEND_REF_WIDTH_PX)
-            right = layout[last_ref]['x'] + last_w / (2 * R.LEGEND_REF_WIDTH_PX)
+            left = positions[row[0]['ref']][0] - row[0]['width'] / (2 * width)
+            right = positions[row[-1]['ref']][0] + row[-1]['width'] / (2 * width)
             self.assertAlmostEqual((left + right) / 2, 0.5, places=6)
 
-    def test_strip_height_grows_with_row_count(self):
-        one = {'A:': {'ref': 'legend', 'labels': ['x']}}
-        many = {
-            f'Group {i}:': {'ref': f'legend{i + 1}',
-                            'labels': [f'entry {j}' for j in range(6)]}
-            for i in range(4)
-        }
-        self.assertLess(R._below_legend_strip_px(one, 15),
-                        R._below_legend_strip_px(many, 15))
+    def test_units_never_overlap_at_the_width_they_were_packed_for(self):
+        plan = self._plan(3)
+        for width in (1600, 1200, 1000, 800, 600):
+            positions, _h, _b, _rows = R._below_legend_geometry(
+                plan, False, width, top_px=30, base_height_px=500)
+            for row in R._pack_legend_rows(plan, width):
+                edges = [(positions[u['ref']][0] * width - u['width'] / 2,
+                          positions[u['ref']][0] * width + u['width'] / 2)
+                         for u in row]
+                for (_l1, r1), (l2, _r2) in zip(edges, edges[1:]):
+                    self.assertGreaterEqual(l2 - r1, 0, f'overlap at width {width}')
+
+
+class TestRepackForExportWidth(unittest.TestCase):
+    """The static-export path re-lays the units for the width it renders at."""
+
+    @staticmethod
+    def _json(fig):
+        import plotly.io as pio
+        return pio.to_json(fig)
+
+    def test_narrow_export_is_repacked_without_overlap(self):
+        import json as _json
+        fig = _interactive('Portrait', 'below')
+        packed = R.repack_below_legends(self._json(fig), 700)
+        layout = _json.loads(packed)['layout']
+        plan = layout['meta']['below_legend']
+        avail = 700 - layout['margin']['l'] - layout['margin']['r']
+
+        by_y = {}
+        for unit in plan['units']:
+            leg = layout[unit['ref']]
+            by_y.setdefault(round(leg['y'], 9), []).append((leg['x'], unit['width']))
+        for row in by_y.values():
+            row.sort()
+            edges = [(x * avail - w / 2, x * avail + w / 2) for x, w in row]
+            for (_l1, r1), (l2, _r2) in zip(edges, edges[1:]):
+                self.assertGreaterEqual(l2 - r1, 0)
+        # height and bottom margin follow the row count it settled on
+        self.assertEqual(layout['height'],
+                         plan['base_height_px'] + R.LEGEND_ROW_PX * len(by_y))
+        self.assertEqual(layout['margin']['b'],
+                         plan['base_bottom_px'] + R.LEGEND_ROW_PX * len(by_y))
+
+    def test_right_legend_figures_pass_through_untouched(self):
+        original = self._json(_interactive('Landscape', 'right'))
+        self.assertEqual(R.repack_below_legends(original, 700), original)
+
+    def test_missing_width_or_bad_json_is_a_no_op(self):
+        original = self._json(_interactive('Landscape', 'below'))
+        self.assertEqual(R.repack_below_legends(original, None), original)
+        self.assertEqual(R.repack_below_legends('not json', 700), 'not json')
+
+
+class TestStackedFigures(unittest.TestCase):
+    def test_stacked_gives_every_unit_its_own_row(self):
+        fig = _interactive('Portrait', 'below-stacked')
+        legends = _legends(fig)
+        self.assertEqual(len(legends), 3)
+        self.assertEqual({round(leg.x, 6) for leg in legends.values()}, {0.5})
+        self.assertEqual(len({leg.y for leg in legends.values()}), 3)
+
+    def test_stacked_is_taller_than_side_by_side(self):
+        self.assertGreater(_interactive('Portrait', 'below-stacked').layout.height,
+                           _interactive('Portrait', 'below').layout.height)
+
+    def test_compact_and_landscape_accept_stacked(self):
+        for fig in (_compact('below-stacked'), _interactive('Landscape', 'below-stacked')):
+            legends = _legends(fig)
+            self.assertEqual({round(leg.x, 6) for leg in legends.values()}, {0.5})
 
 
 if __name__ == '__main__':
