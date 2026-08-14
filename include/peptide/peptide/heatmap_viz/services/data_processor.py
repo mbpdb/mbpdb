@@ -843,6 +843,10 @@ def generate_heatmap(
             font_size_xaxis_tick=_coerce_font_size(pp.get('font_size_xaxis_tick'), 12),
             font_size_yaxis_tick=_coerce_font_size(pp.get('font_size_yaxis_tick'), 12),
             font_size_var_label=_coerce_font_size(pp.get('font_size_var_label'), 12),
+            # Legend placement: 'right' (one combined legend beside the plot) or
+            # 'below' (one unit per legend group under the x-axis, side by side),
+            # which frees the figure width for the heatmap itself.
+            legend_position=pp.get('legend_position', 'right'),
         )
     except Exception as exc:
         return None, None, None, None, None, [f'Error generating heatmap: {exc}\n{traceback.format_exc()}']

@@ -4,7 +4,7 @@
 {% block 'head' %}
 <title>Sequence Heatmap Dashboard – MBPDb</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 <style>
 .hm-page { padding: 10px 20px 80px; }
 .hm-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
@@ -500,8 +500,17 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                        <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend Position</label>
+                        <select id="legend-position" title="Right: one combined legend beside the plot, groups stacked with the text going down. Below: each legend group becomes its own unit under the protein-sequence x-axis, the units centred side by side — frees the full figure width for the heatmap." disabled
+                                style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
+                            <option value="right" selected>Right of plot (combined)</option>
+                            <option value="below">Below x-axis (side by side)</option>
+                        </select>
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend</label>
-                        <input type="number" id="font-size-legend" value="15" min="6" max="48" step="1" title="Font size applied to all legend headers and items above (Sample Type, Peptide Counts, Average Abundance) — one shared legend, so one shared size" disabled
+                        <input type="number" id="font-size-legend" value="15" min="6" max="48" step="1" title="Font size applied to all legend headers and items above (Sample Type, Peptide Counts, Average Abundance) — one shared size, whether they render as one combined legend or as separate units below the x-axis" disabled
                                style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
                     </div>
 
@@ -1341,6 +1350,7 @@ async function generateHeatmap() {
         font_size_xaxis_tick:      document.getElementById('font-size-xaxis-tick').value,
         font_size_yaxis_tick:      document.getElementById('font-size-yaxis-tick').value,
         font_size_var_label:       document.getElementById('font-size-var-label').value,
+        legend_position:      document.getElementById('legend-position').value,
         strip_protein_name:   document.getElementById('strip-protein-name').checked,
         strip_start_sequence: document.getElementById('strip-start-sequence').checked,
         strip_start_manual:   (function() {
@@ -1516,7 +1526,7 @@ function downloadInteractiveHtml() {
     const figSpec = JSON.parse(p.json);
     const htmlStr = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>${p.filename}</title>
-<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"><\/script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"><\/script>
 <style>body{margin:0;padding:10px;} #plot{width:100%;}<\/style>
 </head><body>
 <div id="plot"></div>
