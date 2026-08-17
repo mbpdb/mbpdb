@@ -10,6 +10,7 @@ import traceback
 
 import numpy as np
 import pandas as pd
+from django.conf import settings
 
 # heatmap_renderer, fasta_utils, and uniprot_client now live alongside this
 # file in heatmap_viz/services/ — no sys.path manipulation needed.
@@ -323,8 +324,68 @@ def _parse_fasta_simple(content: str) -> dict:
 # UniProt sequence fetching
 # ---------------------------------------------------------------------------
 
-def fetch_sequence_from_uniprot(protein_id: str) -> tuple[str | None, int | None]:
+def _resolve_mnemonic_accession(protein_id: str, species: str | None = None) -> str | None:
+    """Resolve a UniProt *mnemonic* (entry-name prefix, e.g. 'APOA1' or the
+    pepnets-style short codes like 'A1AT') to an accession, when `protein_id`
+    isn't itself a valid accession.
+
+    UniProt entry names are ``{MNEMONIC}_{ORGANISM_CODE}`` (e.g.
+    'APOA1_HUMAN'); the accession-only fetch in `fetch_sequence_from_uniprot`
+    can't resolve a bare mnemonic. This searches the `id` field with a
+    wildcard organism suffix, restricted to reviewed (Swiss-Prot) entries,
+    and ranks matches by organism so results are deterministic when a
+    mnemonic exists in multiple species (as most do).
+    """
+    try:
+        import requests
+        resp = requests.get(
+            'https://rest.uniprot.org/uniprotkb/search',
+            params={
+                'query': f'id:{protein_id}_* AND reviewed:true',
+                'fields': 'accession,id,organism_name',
+                'format': 'json',
+                'size': 25,
+            },
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return None
+        results = resp.json().get('results') or []
+        if not results:
+            return None
+
+        # Rank: species hint (if resolvable to a known UniProt organism code)
+        # first, else Human, else the first (UniProt's own relevance order).
+        preferred_codes = []
+        if species:
+            for spec_group in settings.SPEC_TRANSLATE_LIST:
+                if species.lower() in [t.lower() for t in spec_group]:
+                    preferred_codes.append(spec_group[-1].upper())
+                    break
+        preferred_codes.append('HUMAN')
+
+        for code in preferred_codes:
+            for entry in results:
+                if entry.get('uniProtkbId', '').upper().endswith(f'_{code}'):
+                    return entry.get('primaryAccession')
+
+        return results[0].get('primaryAccession')
+    except Exception:
+        return None
+
+
+def fetch_sequence_from_uniprot(
+    protein_id: str, species: str | None = None,
+) -> tuple[str | None, int | None]:
     """Fetch protein sequence (+ signal-peptide end, if annotated) from UniProt.
+
+    `protein_id` is normally a UniProt accession (e.g. 'P02647'). If the
+    direct accession fetch fails, falls back to resolving `protein_id` as a
+    UniProt mnemonic/entry-name prefix (e.g. 'APOA1', or the short codes used
+    by some external peptidomics datasets like pepnets) via
+    `_resolve_mnemonic_accession`, then retries with the resolved accession.
+    `species` (a common name from SPEC_TRANSLATE_LIST, e.g. 'Human') is an
+    optional hint used only to disambiguate a mnemonic shared across species.
 
     Returns (sequence, signal_end); either may be None on failure. signal_end
     is the 1-indexed last residue of the annotated signal peptide, used as the
@@ -345,9 +406,27 @@ def fetch_sequence_from_uniprot(protein_id: str) -> tuple[str | None, int | None
         url = f'https://www.uniprot.org/uniprot/{protein_id}.fasta'
         with urllib.request.urlopen(url, timeout=10) as resp:
             lines = resp.read().decode('utf-8').splitlines()
-            return ''.join(l for l in lines if not l.startswith('>')), None
+            seq = ''.join(l for l in lines if not l.startswith('>'))
+            if seq:
+                return seq, None
     except Exception:
+        pass
+
+    # protein_id wasn't a fetchable accession — try it as a bare mnemonic.
+    accession = _resolve_mnemonic_accession(protein_id, species)
+    if not accession or accession == protein_id:
         return None, None
+    try:
+        from peptide.utils.uniprot_client import UniProtClient
+        client = UniProtClient()
+        result = client.fetch_protein_info_with_sequence(accession)
+        if result:
+            _, _, seq, signal_end = result
+            if seq:
+                return seq, signal_end
+    except Exception:
+        pass
+    return None, None
 
 
 # ---------------------------------------------------------------------------
@@ -837,12 +916,12 @@ def generate_heatmap(
             comparison_metric=pp.get('comparison_metric', 'smd'),
             # Appearance Settings font-size overrides.
             font_size_xaxis_label=_coerce_font_size(pp.get('font_size_xaxis_label'), 14),
-            font_size_yaxis_label=_coerce_font_size(pp.get('font_size_yaxis_label'), 15),
-            font_size_legend=_coerce_font_size(pp.get('font_size_legend'), 15),
+            font_size_yaxis_label=_coerce_font_size(pp.get('font_size_yaxis_label'), 14),
+            font_size_legend=_coerce_font_size(pp.get('font_size_legend'), 14),
             font_size_plot_title=_coerce_font_size(pp.get('font_size_plot_title'), 16),
-            font_size_xaxis_tick=_coerce_font_size(pp.get('font_size_xaxis_tick'), 12),
-            font_size_yaxis_tick=_coerce_font_size(pp.get('font_size_yaxis_tick'), 12),
-            font_size_var_label=_coerce_font_size(pp.get('font_size_var_label'), 12),
+            font_size_xaxis_tick=_coerce_font_size(pp.get('font_size_xaxis_tick'), 14),
+            font_size_yaxis_tick=_coerce_font_size(pp.get('font_size_yaxis_tick'), 14),
+            font_size_var_label=_coerce_font_size(pp.get('font_size_var_label'), 14),
             # Legend placement: 'right' (one combined legend beside the plot) or
             # 'below' (one unit per legend group under the x-axis, side by side),
             # which frees the figure width for the heatmap itself.

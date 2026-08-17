@@ -236,7 +236,7 @@ def compare_groups(rep_arrays, alpha=ALPHA, method='tukey'):
 
     arrays = [cleaned[g] for g in valid]
     # Degenerate: every value identical across all groups -> no test possible.
-    if np.concatenate(arrays).ptp() == 0:
+    if np.ptp(np.concatenate(arrays)) == 0:
         base['reason'] = 'no variance among replicates'
         return base
 

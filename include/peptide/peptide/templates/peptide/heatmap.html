@@ -457,7 +457,7 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">X-Axis Ticks</label>
-                        <input type="number" id="font-size-xaxis-tick" value="12" min="6" max="48" step="1" title="Position-tick font size along the shared x-axis (protein position numbers)" disabled
+                        <input type="number" id="font-size-xaxis-tick" value="14" min="6" max="48" step="1" title="Position-tick font size along the shared x-axis (protein position numbers)" disabled
                                style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
                     </div>
 
@@ -465,19 +465,19 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">Y-Axis Label</label>
                         <input type="text" id="yaxis-label" placeholder="Averaged Peptide Abundance" title="Y-axis label text" disabled
                                style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
-                        <input type="number" id="font-size-yaxis-label" value="15" min="6" max="48" step="1" title="Y-axis label font size" disabled
+                        <input type="number" id="font-size-yaxis-label" value="14" min="6" max="48" step="1" title="Y-axis label font size" disabled
                                style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">Y-Axis Ticks</label>
-                        <input type="number" id="font-size-yaxis-tick" value="12" min="6" max="48" step="1" title="Numeric y-axis tick font size on the abundance line plot (Landscape only; Portrait/Compact show these values in the legend instead)" disabled
+                        <input type="number" id="font-size-yaxis-tick" value="14" min="6" max="48" step="1" title="Numeric y-axis tick font size on the abundance line plot (Landscape only; Portrait/Compact show these values in the legend instead)" disabled
                                style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:130px;">Peptide Count Label</label>
-                        <input type="number" id="font-size-var-label" value="12" min="6" max="48" step="1" title="Font size of each row's variable/sample label on the peptide-count heatmap (e.g. 'High NE'). Portrait/Landscape only." disabled
+                        <input type="number" id="font-size-var-label" value="14" min="6" max="48" step="1" title="Font size of each row's variable/sample label on the peptide-count heatmap (e.g. 'High NE'). Portrait/Landscape only." disabled
                                style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
                     </div>
 
@@ -501,17 +501,16 @@ select.multi-select:disabled { background: #f8f9fa; color: #aaa; }
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend Position</label>
-                        <select id="legend-position" title="Right: one combined legend beside the plot, groups stacked with the text going down. Below (side by side): each legend group becomes its own unit under the protein-sequence x-axis, centred side by side and wrapped onto another row when they don't fit — frees the full figure width for the heatmap. Below (stacked): the same units one above the other, one per row, so no figure width can crowd them." disabled
+                        <select id="legend-position" title="Right: one combined legend beside the plot, groups stacked with the text going down. Below x-axis: each legend group becomes its own unit under the protein-sequence x-axis, one per row, so no figure width can crowd them — frees the full figure width for the heatmap." disabled
                                 style="flex:1; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 8px; font-size:.92rem;">
                             <option value="right" selected>Right of plot (combined)</option>
-                            <option value="below">Below x-axis (side by side)</option>
-                            <option value="below-stacked">Below x-axis (stacked)</option>
+                            <option value="below">Below x-axis</option>
                         </select>
                     </div>
 
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <label style="font-weight:600; font-size:.92rem; white-space:nowrap; flex-shrink:0; width:195px;">Legend</label>
-                        <input type="number" id="font-size-legend" value="15" min="6" max="48" step="1" title="Font size applied to all legend headers and items above (Sample Type, Peptide Counts, Average Abundance) — one shared size, whether they render as one combined legend or as separate units below the x-axis" disabled
+                        <input type="number" id="font-size-legend" value="14" min="6" max="48" step="1" title="Font size applied to all legend headers and items above (Sample Type, Peptide Counts, Average Abundance) — one shared size, whether they render as one combined legend or as separate units below the x-axis" disabled
                                style="width:44px; flex-shrink:0; min-width:0; border:1px solid #ced4da; border-radius:4px; padding:4px 4px; font-size:.92rem;">
                     </div>
 
@@ -694,6 +693,7 @@ function toggleComparisonControls() {
     const on   = cb && cb.checked && !cb.disabled;
     ctrl.classList.toggle('hidden', !on);
     if (on) refreshComparisonSeries();
+    syncManualYAxisDefaults();
 
     // The differential track is only drawn on the Landscape / Portrait line
     // panel, so grey out + deactivate the Compact orientation while comparison
@@ -1232,6 +1232,36 @@ document.getElementById('manual-y-axis').addEventListener('change', function() {
     else              { inputs.classList.add('hidden'); inputs.style.display = ''; }
 });
 
+// Manual Y-axis defaults depend on what's being plotted: plain abundance is
+// non-negative, but the SMD / log2FC comparison track is signed and centered
+// on 0, so the 0/1 abundance default would clip it. Re-sync the Y Min/Max
+// fields whenever comparison mode or its metric changes, unless the user has
+// already edited them away from the previous default (don't clobber a manual entry).
+const Y_AXIS_DEFAULTS = { abundance: [0, 1], smd: [-2, 2], log2fc: [-1, 1] };
+let _lastYAxisDefaultMode = 'abundance';
+
+function syncManualYAxisDefaults() {
+    const cb = document.getElementById('comparison-mode');
+    const mode = (cb && cb.checked && !cb.disabled) ? (getRadioValue('comparison-metric') || 'smd') : 'abundance';
+    if (mode === _lastYAxisDefaultMode) return;
+
+    const yMin = document.getElementById('y-min');
+    const yMax = document.getElementById('y-max');
+    const [prevMin, prevMax] = Y_AXIS_DEFAULTS[_lastYAxisDefaultMode];
+    const untouched = parseFloat(yMin.value) === prevMin && parseFloat(yMax.value) === prevMax;
+    if (untouched) {
+        const [newMin, newMax] = Y_AXIS_DEFAULTS[mode];
+        yMin.value = newMin;
+        yMax.value = newMax;
+        updateYPreviews();
+    }
+    _lastYAxisDefaultMode = mode;
+}
+
+document.querySelectorAll('input[name="comparison-metric"]').forEach(function(r) {
+    r.addEventListener('change', syncManualYAxisDefaults);
+});
+
 document.getElementById('strip-start-sequence').addEventListener('change', _updateStripStartState);
 
 document.querySelectorAll('#y-scale-seg .seg-btn').forEach(function(btn) {
@@ -1273,23 +1303,37 @@ function repackBelowLegends(gd) {
     });
     if (row.length) rows.push(row);
 
-    const strip  = plan.row_px * Math.max(rows.length, 1);
+    const nRows  = Math.max(rows.length, 1);
+    const strip  = plan.row_px * nRows;
     const height = plan.base_height_px + strip;
     const bottom = plan.base_bottom_px + strip;
     const plotH  = Math.max(height - plan.top_px - bottom, 1);
 
     const update = { height: height, 'margin.b': bottom };
+    let x0 = Infinity, x1 = -Infinity;
+    // 'below' is stacked-only — one unit per row, centred. Mirrors
+    // _below_legend_geometry() in heatmap_renderer.py.
     rows.forEach(function(r, ri) {
-        const span = r.reduce(function(s, u) { return s + u.width; }, 0)
-                     + plan.gap_px * (r.length - 1);
-        let cursor = -span / 2;
+        const contentW = r.reduce(function(s, u) { return s + u.width; }, 0);
+        let cursor = -(contentW + plan.gap_px * (r.length - 1)) / 2;
         const y = -((plan.axis_zone_px + ri * plan.row_px) / plotH);
         r.forEach(function(u) {
             update[u.ref + '.x'] = 0.5 + (cursor + u.width / 2) / avail;
             update[u.ref + '.y'] = y;
+            x0 = Math.min(x0, 0.5 + cursor / avail);
+            x1 = Math.max(x1, 0.5 + (cursor + u.width) / avail);
             cursor += u.width + plan.gap_px;
         });
     });
+
+    // Single outline around the whole strip (all units, all rows) — mirrors
+    // the 'shapes[0]' rect built by _below_legend_layout() in heatmap_renderer.py.
+    const padX = plan.outline_pad_px / avail;
+    const padY = plan.outline_pad_px / plotH;
+    update['shapes[0].x0'] = x0 - padX;
+    update['shapes[0].x1'] = x1 + padX;
+    update['shapes[0].y0'] = -((plan.axis_zone_px / plotH)) + padY;
+    update['shapes[0].y1'] = -((plan.axis_zone_px + nRows * plan.row_px) / plotH) - padY;
     Plotly.relayout(gd, update);
 }
 

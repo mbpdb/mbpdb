@@ -282,7 +282,8 @@ def fetch_sequence(request):
     if existing.get('sequence'):
         return JsonResponse({'success': True, 'cached': True, 'protein_id': protein_id})
 
-    seq, signal_end = data_processor.fetch_sequence_from_uniprot(protein_id)
+    seq, signal_end = data_processor.fetch_sequence_from_uniprot(
+        protein_id, species=existing.get('species'))
     if not seq:
         return JsonResponse({'error': f'Could not fetch sequence for {protein_id}.'}, status=404)
 
