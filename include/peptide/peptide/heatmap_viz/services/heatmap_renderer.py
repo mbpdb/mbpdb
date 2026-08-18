@@ -6,6 +6,7 @@ Those heavy libraries are imported lazily inside the rendering functions
 that actually use them — on the first plot call, not on notebook startup.
 """
 
+import json
 import logging
 import pandas as pd
 import numpy as np
@@ -74,6 +75,291 @@ num_colors       = 0
 # two dashboards share one look. Applied as layout.font so it cascades to title,
 # axes and legend.
 PLOTLY_FONT_FAMILY = 'Arial, Helvetica, sans-serif'
+
+# ---------------------------------------------------------------------------
+# Legend placement
+# ---------------------------------------------------------------------------
+# 'right'  — the historical layout: ONE combined Plotly legend to the right of
+#            the plot, every group (Sample Type, Peptide Counts, Average
+#            Abundance / Standardized Mean Difference / log2 Fold Change)
+#            stacked inside it, text reading downwards.
+# 'below'  — each group becomes its OWN boxed legend unit placed under the
+#            x-axis (i.e. under the protein-sequence label), one per row,
+#            centred, stacked above one another. Nothing is reserved to the
+#            right, so the heatmap keeps the full figure width. (A side-by-side
+#            packing was tried and dropped — it read poorly once wrapped onto
+#            multiple rows, so 'below' is stacked-only now.)
+LEGEND_POSITIONS = ('right', 'below')
+
+# Geometry of the 'below' legend strip, in pixels, tuned at LEGEND_FONT_REF_PX
+# and scaled from there by the actual font_size_legend (see _below_legend_layout)
+# so a much larger legend font gets a proportionally taller box instead of
+# overflowing it. Plotly anchors each legend box for you but never lays
+# MULTIPLE legends out relative to each other, so the units are positioned here
+# from an estimate of how wide each one draws. The estimate is in pixels while
+# Plotly positions in paper fractions, so the layout needs the width of the
+# plotting area to convert between them:
+#   * the browser knows it exactly — heatmap.html re-packs on render and resize
+#     (repackBelowLegends), and the static-export view re-packs server-side with
+#     the width the client sends (see repack_below_legends below);
+#   * LEGEND_REF_WIDTH_PX is only the fallback used to build the first layout,
+#     before any of that runs.
+LEGEND_REF_WIDTH_PX = 900     # fallback width when the real one isn't known yet
+LEGEND_FONT_REF_PX = 14       # font size the pixel constants below are tuned for
+LEGEND_UNIT_GAP_PX = 30       # gap between neighbouring units in a row
+LEGEND_ROW_PX = 40            # vertical room one row of units needs (single inline
+                               # line now that the title sits left of its entries
+                               # instead of stacked above them) at LEGEND_FONT_REF_PX
+LEGEND_AXIS_ZONE_PX = 90      # x-axis ticks + title, cleared before the strip, at
+                               # LEGEND_FONT_REF_PX — generous enough that a
+                               # wrapped/large x-axis title never collides with it
+LEGEND_BASE_BOTTOM_PX = 80    # bottom margin below the whole strip
+LEGEND_OUTLINE_PAD_PX = 4     # padding between the strip's content and its
+                               # single outline, at LEGEND_FONT_REF_PX (see
+                               # _below_legend_geometry)
+
+
+def normalize_legend_position(value) -> str:
+    """Coerce a user-supplied legend position to one of :data:`LEGEND_POSITIONS`."""
+    text = str(value or '').strip().lower().replace('_', '-').replace(' ', '-')
+    if text in ('below', 'below-stacked', 'bottom', 'bottom-stacked', 'stacked', 'under'):
+        return 'below'
+    return 'right'
+
+
+def _estimate_legend_unit_px(title, labels, font_size_legend) -> float:
+    """Approximate drawn width of one horizontal legend unit, in pixels.
+
+    The title sits inline to the LEFT of its entries (``title.side='left'``),
+    not stacked above them, so the unit's width is the title's width PLUS the
+    entries' width rather than the max of the two.
+    """
+    char_px = 0.58 * font_size_legend
+    items_px = sum(40 + len(str(lbl)) * char_px for lbl in labels)
+    title_px = len(str(title)) * char_px + 20
+    return title_px + items_px + 24            # + box padding / border
+
+
+def _make_legend_placer(legend_position, font_size_legend):
+    """Build the (kwargs-factory, registry) pair used to place legend entries.
+
+    Returns ``(legend_kwargs, units)`` where ``legend_kwargs(group_title,
+    legendgroup, entry=None)`` yields the trace kwargs for one legend entry and
+    ``units`` is the ordered ``{group title: {'ref', 'labels'}}`` registry —
+    empty in 'right' mode, one entry per group (in first-drawn order, i.e. left
+    to right) in the 'below' modes. ``entry`` is the visible item label, recorded
+    so the unit's drawn width can be estimated. See :data:`LEGEND_POSITIONS`.
+    """
+    below = normalize_legend_position(legend_position) == 'below'
+    units = {}
+
+    def legend_kwargs(group_title, legendgroup, entry=None):
+        if not below:
+            return dict(
+                legendgroup=legendgroup,
+                legendgrouptitle=dict(text=group_title, font=dict(size=font_size_legend)),
+            )
+        unit = units.setdefault(
+            group_title,
+            {'ref': 'legend' if not units else f'legend{len(units) + 1}', 'labels': []},
+        )
+        if entry is not None:
+            unit['labels'].append(entry)
+        # The unit's own legend title carries the header, so the per-group title
+        # is dropped — it would otherwise print twice in the same box. The
+        # legendgroup goes too: inside a HORIZONTAL legend Plotly lays each
+        # legendgroup out as its own vertical column, so keeping it would stack
+        # the entries downwards and defeat the point of the below-axis strip.
+        # Each unit is already one group, so nothing is lost.
+        return dict(legend=unit['ref'])
+
+    return legend_kwargs, units
+
+
+def _below_legend_plan(units, font_size_legend):
+    """Serialisable [{ref, title, width}] for every registered unit, in draw order."""
+    return [
+        {'ref': unit['ref'], 'title': title,
+         'width': _estimate_legend_unit_px(title, unit['labels'], font_size_legend)}
+        for title, unit in units.items()
+    ]
+
+
+def _pack_legend_rows(plan, avail_px, stacked=False):
+    """Group the planned units into rows that each fit ``avail_px``.
+
+    ``stacked`` forces one unit per row, which no width can crowd. Returns a
+    list of rows, each a list of the plan's unit dicts.
+    """
+    rows, row, row_px = [], [], 0.0
+    for unit in plan:
+        too_wide = row_px + LEGEND_UNIT_GAP_PX + unit['width'] > avail_px
+        if row and (stacked or too_wide):
+            rows.append(row)
+            row, row_px = [], 0.0
+        row_px += unit['width'] + (LEGEND_UNIT_GAP_PX if row else 0)
+        row.append(unit)
+    if row:
+        rows.append(row)
+    return rows
+
+
+def _outline_pad_px(plan, font_scale=1.0) -> float:
+    """Padding between the strip's content and its single outline, in pixels.
+
+    Three groups (Sample Type / Peptide Counts / Average Abundance-or-SMD-or-
+    log2FC — the Portrait comparison case) pack noticeably tighter than one or
+    two, so they get a little more breathing room. ``font_scale`` (see
+    :func:`_below_legend_layout`) grows the padding along with the legend font.
+    """
+    base = LEGEND_OUTLINE_PAD_PX + (8 if len(plan) == 3 else 0)
+    return base * font_scale
+
+
+def _below_legend_geometry(plan, stacked, avail_w_px, top_px, base_height_px,
+                           row_px=LEGEND_ROW_PX, axis_zone_px=LEGEND_AXIS_ZONE_PX,
+                           outline_pad_px=None):
+    """Where every 'below' legend unit goes, for a known plotting-area width.
+
+    This is the single source of truth for the strip's arithmetic — the initial
+    server-side layout, the browser's re-pack, and the static-export re-pack all
+    call it (the browser through the JS mirror in heatmap.html). Returns
+    ``(positions, height_px, bottom_margin_px, n_rows, bbox)`` where
+    ``positions`` maps each legend ref to its ``(x, y)`` in Plotly paper
+    fractions, and ``bbox`` is ``(x0, x1, y0, y1)`` — the single outline drawn
+    around the WHOLE strip (all units, all rows) instead of a border per unit.
+
+    ``row_px``, ``axis_zone_px`` and ``outline_pad_px`` default to the module
+    constants (tuned at :data:`LEGEND_FONT_REF_PX`) but callers pass in
+    font-scaled values — see :func:`_below_legend_layout`. Units are always one
+    per row, centred: the 'below' position is stacked-only (a side-by-side
+    packing was tried and dropped for looking crowded once wrapped).
+    """
+    rows = _pack_legend_rows(plan, avail_w_px, stacked)
+    n_rows = max(len(rows), 1)
+    strip_px = row_px * n_rows
+    height = base_height_px + strip_px
+    bottom = LEGEND_BASE_BOTTOM_PX + strip_px
+    plot_h = max(height - top_px - bottom, 1)
+
+    positions = {}
+    x0, x1 = float('inf'), float('-inf')
+    for r, row in enumerate(rows):
+        span = sum(u['width'] for u in row) + LEGEND_UNIT_GAP_PX * (len(row) - 1)
+        cursor = -span / 2      # centred cluster (one unit per row, so just that unit)
+        y = -((axis_zone_px + r * row_px) / plot_h)
+        for unit in row:
+            positions[unit['ref']] = (0.5 + (cursor + unit['width'] / 2) / avail_w_px, y)
+            x0 = min(x0, 0.5 + cursor / avail_w_px)
+            x1 = max(x1, 0.5 + (cursor + unit['width']) / avail_w_px)
+            cursor += unit['width'] + LEGEND_UNIT_GAP_PX
+
+    pad = outline_pad_px if outline_pad_px is not None else _outline_pad_px(plan)
+    pad_x = pad / avail_w_px
+    pad_y = pad / plot_h
+    bbox = (
+        x0 - pad_x, x1 + pad_x,
+        -(axis_zone_px / plot_h) + pad_y,                        # top
+        -((axis_zone_px + n_rows * row_px) / plot_h) - pad_y,    # bottom
+    )
+    return positions, height, bottom, len(rows), bbox
+
+
+def _below_legend_layout(plan, stacked, top_px, base_height_px, font_size_legend,
+                         avail_w_px=None):
+    """Full layout for the 'below' strip: legend objects, height, margin, meta.
+
+    Returns ``(layout, height_px, bottom_margin_px, meta)``. ``meta`` is stored
+    on ``layout.meta`` so the browser and the export path can re-pack the units
+    once the real width is known — see :func:`repack_below_legends`.
+    """
+    # Row height, axis clearance and outline padding all grow with the legend
+    # font — otherwise a large font_size_legend (e.g. 28 vs. the tuned-at 14)
+    # overflows a box sized for the small default and crowds the x-axis title
+    # above it.
+    font_scale = font_size_legend / LEGEND_FONT_REF_PX
+    row_px = LEGEND_ROW_PX * font_scale
+    axis_zone_px = LEGEND_AXIS_ZONE_PX * font_scale
+    outline_pad_px = _outline_pad_px(plan, font_scale)
+
+    avail = avail_w_px or LEGEND_REF_WIDTH_PX
+    positions, height, bottom, _rows, _bbox = _below_legend_geometry(
+        plan, stacked, avail, top_px, base_height_px,
+        row_px=row_px, axis_zone_px=axis_zone_px, outline_pad_px=outline_pad_px)
+
+    layout = {}
+    for unit in plan:
+        x, y = positions[unit['ref']]
+        layout[unit['ref']] = dict(
+            # Title sits inline to the LEFT of its entries ("Peptide Counts: ⬤ 0  ⬤ 1…")
+            # instead of stacked above them.
+            title=dict(text=unit['title'],
+                       font=dict(size=font_size_legend, color='black'),
+                       side='left'),
+            orientation='h',
+            x=x, xanchor='center',
+            y=y, yanchor='top',
+            borderwidth=0,
+            bgcolor='rgba(255,255,255,0.9)',
+            font=dict(size=font_size_legend),
+            itemsizing='constant',
+        )
+
+    meta = {'below_legend': {
+        'units': plan,
+        'stacked': bool(stacked),
+        'gap_px': LEGEND_UNIT_GAP_PX,
+        'row_px': row_px,
+        'axis_zone_px': axis_zone_px,
+        'base_bottom_px': LEGEND_BASE_BOTTOM_PX,
+        'base_height_px': base_height_px,
+        'top_px': top_px,
+        'outline_pad_px': outline_pad_px,
+    }}
+    return layout, height, bottom, meta
+
+
+def repack_below_legends(figure_json: str, width_px) -> str:
+    """Re-lay the 'below' legend units for a figure being exported at ``width_px``.
+
+    The server builds the first layout against :data:`LEGEND_REF_WIDTH_PX`
+    because it cannot know the browser's width; a static export at a different
+    width would otherwise place the units for the wrong figure — crowding them
+    when it is narrower. Returns the figure JSON unchanged when it carries no
+    'below' legend plan (every 'right'-legend figure, and every figure from the
+    other dashboards) or when no width is supplied.
+    """
+    if not figure_json or not width_px:
+        return figure_json
+    try:
+        fig = json.loads(figure_json) if isinstance(figure_json, str) else figure_json
+        layout = fig.get('layout') or {}
+        plan_meta = (layout.get('meta') or {}).get('below_legend')
+        if not plan_meta:
+            return figure_json
+
+        margin = layout.get('margin') or {}
+        avail = float(width_px) - float(margin.get('l', 0)) - float(margin.get('r', 0))
+        if avail <= 0:
+            return figure_json
+
+        positions, height, bottom, _rows, _bbox = _below_legend_geometry(
+            plan_meta['units'], plan_meta['stacked'], avail,
+            plan_meta['top_px'], plan_meta['base_height_px'],
+            row_px=plan_meta['row_px'], axis_zone_px=plan_meta['axis_zone_px'],
+            outline_pad_px=plan_meta['outline_pad_px'])
+
+        for ref, (x, y) in positions.items():
+            legend = layout.setdefault(ref, {})
+            legend['x'], legend['y'] = x, y
+        layout['height'] = height
+        margin['b'] = bottom
+        layout['margin'] = margin
+        fig['layout'] = layout
+        return json.dumps(fig)
+    except Exception as exc:      # never block an export over legend placement
+        logger.warning('Could not re-pack below-axis legends: %s', exc)
+        return figure_json
 
 
 # Define functions outside of class
@@ -879,10 +1165,11 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                 plot_title='', aa_on_tiles=False,
                 comparison_mode=False, series_a=None, series_b=None,
                 comparison_metric='smd',
-                font_size_xaxis_label=14, font_size_yaxis_label=15,
-                font_size_legend=15, font_size_plot_title=16,
-                font_size_xaxis_tick=12, font_size_yaxis_tick=12,
-                font_size_var_label=12):
+                font_size_xaxis_label=14, font_size_yaxis_label=14,
+                font_size_legend=14, font_size_plot_title=16,
+                font_size_xaxis_tick=14, font_size_yaxis_tick=14,
+                font_size_var_label=14,
+                legend_position='right'):
     # Every heatmap orientation is now rendered by Plotly
     # (visualize_sequence_heatmap_interactive / _compact); the matplotlib
     # landscape/portrait renderers and their chunking machinery were retired.
@@ -1067,6 +1354,7 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                 font_size_xaxis_tick    = font_size_xaxis_tick,
                 font_size_yaxis_tick    = font_size_yaxis_tick,
                 font_size_var_label     = font_size_var_label,
+                legend_position         = legend_position,
             )
 
             # In comparison mode the density heatmap should show ONLY the two
@@ -1120,6 +1408,7 @@ def update_plot(available_data_variables_dict, ms_average_choice, bio_or_pep, se
                             font_size_legend=font_size_legend,
                             font_size_plot_title=font_size_plot_title,
                             font_size_xaxis_tick=font_size_xaxis_tick,
+                            legend_position=legend_position,
                         )
                     except Exception as exc:
                         all_errors.append(f'Error generating compact plot: {exc}')
@@ -1510,10 +1799,11 @@ def visualize_sequence_heatmap_interactive(
     # Appearance Settings font-size overrides. font_size_legend sizes every
     # legend group's header AND item text (Sample Type, Peptide Counts,
     # Average Abundance) uniformly, in one shared Plotly legend.
-    font_size_xaxis_label=14, font_size_yaxis_label=15,
-    font_size_legend=15, font_size_plot_title=16,
-    font_size_xaxis_tick=12, font_size_yaxis_tick=12,
-    font_size_var_label=12,     # per-row peptide-count heatmap label (e.g. "High NE")
+    font_size_xaxis_label=14, font_size_yaxis_label=14,
+    font_size_legend=14, font_size_plot_title=16,
+    font_size_xaxis_tick=14, font_size_yaxis_tick=14,
+    font_size_var_label=14,     # per-row peptide-count heatmap label (e.g. "High NE")
+    legend_position='right',    # 'right' | 'below' — see LEGEND_POSITIONS
 ):
     """
     Plotly interactive version of the landscape / portrait heatmap.
@@ -1610,6 +1900,13 @@ def visualize_sequence_heatmap_interactive(
     # and the peptide-count swatches with legend_title[1]. The abundance scale
     # (legend_title[2]) is shown directly on the row-1 y-axis, not duplicated here.
     sample_type_title = legend_title[0] if legend_title else 'Sample Type:'
+
+    # Legend placement ('right' = one combined legend beside the plot; 'below' =
+    # one boxed unit per group under the x-axis, one per row). _legend_kwargs()
+    # returns the per-trace kwargs; _legend_units is filled in draw order.
+    legend_position = normalize_legend_position(legend_position)
+    legend_below = legend_position == 'below'
+    _legend_kwargs, _legend_units = _make_legend_placer(legend_position, font_size_legend)
 
     # ══════════════════════════════════════════════════════════════════════════
     # PRECOMPUTE — build every trace once at full sequence length, then slice it
@@ -2071,9 +2368,9 @@ def visualize_sequence_heatmap_interactive(
                     x=xs, y=ys, mode='lines', name=spec['name'],
                     line=dict(color=spec['color'], width=1.2 if spec['is_indiv'] else 1.5),
                     hoverinfo='text', hovertext=hs,
-                    legendgroup=spec['legendgroup'],
-                    legendgrouptitle=dict(text=spec.get('grouptitle', sample_type_title),
-                                          font=dict(size=font_size_legend)),
+                    **_legend_kwargs(spec.get('grouptitle', sample_type_title),
+                                     spec['legendgroup'],
+                                     entry=spec['name'] if show_leg else None),
                     showlegend=show_leg,
                 ),
                 row=line_row, col=1,
@@ -2274,8 +2571,8 @@ def visualize_sequence_heatmap_interactive(
                 color=f'rgba({int(r_c*255)},{int(g_c*255)},{int(b_c*255)},{a_c:.3f})',
                 symbol='square', line=dict(width=1, color='black'),
             ),
-            name=lbl, showlegend=True, legendgroup='pep_count',
-            legendgrouptitle=dict(text=legend_title_pep, font=dict(size=font_size_legend)),
+            name=lbl, showlegend=True,
+            **_legend_kwargs(legend_title_pep, 'pep_count', entry=lbl),
         ))
 
     # ── legend: abundance/contrast scale reference (Portrait only) ───────────
@@ -2295,8 +2592,8 @@ def visualize_sequence_heatmap_interactive(
                 marker=dict(size=10, symbol='line-ew', color='black', line=dict(width=2)),
                 name=f"{tick_lbl}: {_fmt_tick(tick_val)}",
                 showlegend=True,
-                legendgroup='abundance_ticks',
-                legendgrouptitle=dict(text=_abun_legend_title, font=dict(size=font_size_legend)),
+                **_legend_kwargs(_abun_legend_title, 'abundance_ticks',
+                                 entry=f"{tick_lbl}: {_fmt_tick(tick_val)}"),
             ))
 
     # ── overall layout ────────────────────────────────────────────────────────
@@ -2304,12 +2601,60 @@ def visualize_sequence_heatmap_interactive(
     # x-axis and the page heading, so a plot title only repeats it. The original
     # notebook heatmaps carried none either.
 
-    # total figure height = sum of pixel heights for every row + margins
-    fig_height = total_px + 100   # 100px = top+bottom margin
-
     # Optional user title (blank → Plotly draws none). Reserve top margin only
     # when a title is present so the untitled default stays tight.
     title_str = (plot_title or '').strip()
+
+    # ── margins + legend geometry ────────────────────────────────────────────
+    # The 'below' modes free the right margin entirely (that width goes to the
+    # heatmap) and buy the reclaimed space back at the bottom for the legend
+    # strip, which grows with the number of rows the units pack into.
+    top_margin   = 60 if title_str else 30
+    right_margin = 40 if legend_below else 180
+
+    # figure height with NO legend strip = every row's pixel height + margins
+    base_height  = total_px + top_margin + LEGEND_BASE_BOTTOM_PX + 10
+    legend_meta  = None
+
+    # Portrait wraps the sequence into many stacked bands, so a comparison's
+    # zero-line ticks and/or a below-axis legend strip sit closer to the last
+    # band than in Landscape (one band, more headroom). A little extra bottom
+    # margin keeps them from crowding the final band. Added post-hoc to both
+    # fig_height and bottom_margin so the plotted rows themselves are unchanged
+    # — only the blank space below them grows.
+    _extra_bottom_px = 20 if (is_portrait and (contrast_is_active or legend_below)) else 0
+
+    if legend_below:
+        legend_layout, fig_height, bottom_margin, legend_meta = _below_legend_layout(
+            _below_legend_plan(_legend_units, font_size_legend),
+            True, top_margin, base_height, font_size_legend)
+    else:
+        fig_height    = base_height
+        bottom_margin = LEGEND_BASE_BOTTOM_PX
+
+    fig_height    += _extra_bottom_px
+    bottom_margin += _extra_bottom_px
+
+    if not legend_below:
+        legend_layout = dict(legend=dict(
+            yanchor="top", y=0.99,
+            xanchor="left", x=1.01,
+            bordercolor="black", borderwidth=1,
+            orientation="v",
+            bgcolor="rgba(255,255,255,0.9)",
+            # One shared font size for every legend group's header AND items —
+            # Sample Type, Peptide Counts, and (Portrait only) Average Abundance
+            # all live in this one Plotly legend.
+            font=dict(size=font_size_legend),
+            grouptitlefont=dict(size=font_size_legend, color='black'),
+            itemsizing='constant',
+            groupclick="toggleitem",
+        ))
+
+    if legend_meta is not None:
+        # Lets the browser and the static-export view re-pack the units once the
+        # real plotting width is known. See repack_below_legends().
+        fig.update_layout(meta=legend_meta)
 
     fig.update_layout(
         title=dict(text=title_str, font=dict(size=font_size_plot_title, color='black'), x=0.5),
@@ -2323,24 +2668,12 @@ def visualize_sequence_heatmap_interactive(
         plot_bgcolor='white',
         paper_bgcolor='white',
         showlegend=True,
-        margin=dict(l=left_margin, r=180, t=60 if title_str else 30, b=60),  # left sized to longest sample name + y-title
+        # left sized to longest sample name + y-title
+        margin=dict(l=left_margin, r=right_margin, t=top_margin, b=bottom_margin),
         # Force bar text to always render, even when bars are narrower than the text.
         # Without this Plotly silently hides inside-text on narrow bars (e.g. 200+ AA sequence).
         uniformtext=dict(mode='show', minsize=10),
-        legend=dict(
-            yanchor="top", y=0.99,
-            xanchor="left", x=1.01,
-            bordercolor="black", borderwidth=1,
-            orientation="v",
-            bgcolor="rgba(255,255,255,0.9)",
-            # One shared font size for every legend group's header AND items —
-            # Sample Type, Peptide Counts, and (Portrait only) Average Abundance
-            # all live in this one Plotly legend.
-            font=dict(size=font_size_legend),
-            grouptitlefont=dict(size=font_size_legend, color='black'),
-            itemsizing='constant',
-            groupclick="toggleitem",
-        ),
+        **legend_layout,
     )
     return fig
 
@@ -2354,9 +2687,10 @@ def visualize_sequence_heatmap_compact(
     y_ticks,
     log_transform,
     plot_title='',        # optional user figure title; blank → no title
-    font_size_xaxis_label=14, font_size_yaxis_label=15,
-    font_size_legend=15,
-    font_size_plot_title=16, font_size_xaxis_tick=12,
+    font_size_xaxis_label=14, font_size_yaxis_label=14,
+    font_size_legend=14,
+    font_size_plot_title=16, font_size_xaxis_tick=14,
+    legend_position='right',   # 'right' | 'below' — see LEGEND_POSITIONS
 ):
     """
     Generate an interactive Plotly compact heatmap.
@@ -2513,6 +2847,13 @@ def visualize_sequence_heatmap_compact(
     legend_title_pep  = legend_title[1] if len(legend_title) > 1 else 'Peptide Counts:'
     legend_title_abun = legend_title[2] if len(legend_title) > 2 else 'Average Abundance:'
 
+    # Legend placement — 'right' keeps one combined legend beside the plot,
+    # 'below' gives each group its own unit under the x-axis, one per row.
+    # See LEGEND_POSITIONS.
+    legend_position = normalize_legend_position(legend_position)
+    legend_below = legend_position == 'below'
+    _legend_kwargs, _legend_units = _make_legend_placer(legend_position, font_size_legend)
+
     heatmap_legend_handles, heatmap_legend_labels = create_heatmap_legend_handles(
         cmap, num_colors, max_count, plot_zero
     )
@@ -2527,8 +2868,7 @@ def visualize_sequence_heatmap_compact(
             ),
             name=lbl,
             showlegend=True,
-            legendgroup='pep_count',
-            legendgrouptitle=dict(text=legend_title_pep, font=dict(size=font_size_legend)),
+            **_legend_kwargs(legend_title_pep, 'pep_count', entry=lbl),
         ))
 
     # ── legend: abundance y-range reference ───────────────────────────────────
@@ -2538,8 +2878,8 @@ def visualize_sequence_heatmap_compact(
             marker=dict(size=10, symbol='line-ew', color='black', line=dict(width=2)),
             name=f"{tick_lbl}: {tick_val:.3g}",
             showlegend=True,
-            legendgroup='abundance_ticks',
-            legendgrouptitle=dict(text=legend_title_abun, font=dict(size=font_size_legend)),
+            **_legend_kwargs(legend_title_abun, 'abundance_ticks',
+                                     entry=f"{tick_lbl}: {tick_val:.3g}"),
         ))
 
     # ── x-axes ────────────────────────────────────────────────────────────────
@@ -2576,17 +2916,20 @@ def visualize_sequence_heatmap_compact(
 
     row_height = max(130, 600 // max(num_vars, 1))
 
-    fig.update_layout(
-        title=dict(text=title_str, font=dict(size=font_size_plot_title, color='black'), x=0.5),
-        font=dict(family=PLOTLY_FONT_FAMILY, color='black', size=12),
-        height=max(row_height * num_vars + 80, 300),
-        bargap=0,
-        bargroupgap=0,
-        plot_bgcolor='white',
-        paper_bgcolor='white',
-        showlegend=True,
-        margin=dict(l=60, r=180, t=60 if title_str else 30, b=60),
-        legend=dict(
+    # ── margins + legend geometry (see the landscape renderer for the rationale) ──
+    top_margin   = 60 if title_str else 30
+    right_margin = 40 if legend_below else 180
+    base_height  = max(row_height * num_vars + 80, 300)
+    legend_meta  = None
+
+    if legend_below:
+        legend_layout, fig_height, bottom_margin, legend_meta = _below_legend_layout(
+            _below_legend_plan(_legend_units, font_size_legend),
+            True, top_margin, base_height, font_size_legend)
+    else:
+        fig_height    = base_height
+        bottom_margin = LEGEND_BASE_BOTTOM_PX
+        legend_layout = dict(legend=dict(
             yanchor="top",
             y=0.99,
             xanchor="left",
@@ -2601,7 +2944,24 @@ def visualize_sequence_heatmap_compact(
             grouptitlefont=dict(size=font_size_legend, color='black'),
             itemsizing='constant',
             groupclick="toggleitem",
-        ),
+        ))
+
+    if legend_meta is not None:
+        # See the landscape renderer: lets the browser / export re-pack the
+        # units once the real plotting width is known.
+        fig.update_layout(meta=legend_meta)
+
+    fig.update_layout(
+        title=dict(text=title_str, font=dict(size=font_size_plot_title, color='black'), x=0.5),
+        font=dict(family=PLOTLY_FONT_FAMILY, color='black', size=12),
+        height=fig_height,
+        bargap=0,
+        bargroupgap=0,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        showlegend=True,
+        margin=dict(l=60, r=right_margin, t=top_margin, b=bottom_margin),
+        **legend_layout,
     )
 
     return fig

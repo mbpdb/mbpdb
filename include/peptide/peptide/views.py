@@ -565,7 +565,7 @@ def peptiline_landing(request):
 
 def download_supplemental_table(request):
     """Serve the supplemental table file for download."""
-    file_path = os.path.join(settings.STATIC_ROOT, 'peptide', 'publications', 'zukaitis_2026', 'supplementals', 'correlation_analysis_pearson_log10_20250917_194233.xlsx')
+    file_path = os.path.join(settings.STATIC_ROOT, 'peptide', 'publications', 'kuhfeld_2026', 'supplementals', 'correlation_analysis_pearson_log10_20250917_194233.xlsx')
     
     try:
         response = FileResponse(open(file_path, 'rb'), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -576,7 +576,7 @@ def download_supplemental_table(request):
 
 def serve_supplemental_figure_1(request):
     """Serve scatter_plot_1.html as supplemental figure 1."""
-    file_path = os.path.join(settings.STATIC_ROOT, 'peptide', 'publications', 'zukaitis_2026', 'supplementals', 'scatter_plot_1.html')
+    file_path = os.path.join(settings.STATIC_ROOT, 'peptide', 'publications', 'kuhfeld_2026', 'supplementals', 'scatter_plot_1.html')
     
     try:
         with open(file_path, 'r') as f:
@@ -587,7 +587,7 @@ def serve_supplemental_figure_1(request):
 
 def serve_supplemental_figure_2(request):
     """Serve scatter_plot_2.html as supplemental figure 2."""
-    file_path = os.path.join(settings.STATIC_ROOT, 'peptide', 'publications', 'zukaitis_2026', 'supplementals', 'scatter_plot_2.html')
+    file_path = os.path.join(settings.STATIC_ROOT, 'peptide', 'publications', 'kuhfeld_2026', 'supplementals', 'scatter_plot_2.html')
     
     try:
         with open(file_path, 'r') as f:
