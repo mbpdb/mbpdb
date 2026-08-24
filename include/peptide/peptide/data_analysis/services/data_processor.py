@@ -112,6 +112,53 @@ def _compute_function_counts(df: pd.DataFrame) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Selection sentinels + plot-filter derivation
+# ---------------------------------------------------------------------------
+# The UI used to carry an explicit "Plot Filter" dropdown that decided which of
+# the protein / function selectors actually applied; the selectors themselves
+# were greyed out until the dropdown said otherwise, which users consistently
+# missed. The dropdown is gone: what the user selects IS the filter. Each
+# selector carries an explicit "None" sentinel at the top so that "no filter on
+# this dimension" stays distinguishable from "every protein/function", which are
+# genuinely different plots (the latter breaks the data out per item).
+
+NO_PROTEIN_FILTER = 'No Protein Filter'
+ALL_PROTEINS = 'All Proteins (No Filter)'
+NO_FUNCTION_FILTER = 'No Function Filter'
+ALL_FUNCTIONAL = 'All Functional Peptides'
+NON_FUNCTIONAL = 'Non-Functional Peptides'
+
+
+def _selection_is_active(raw, none_sentinel) -> bool:
+    """True when a selector actually restricts/breaks out the plot."""
+    return bool([v for v in (raw or []) if v and v != none_sentinel])
+
+
+def derive_plot_filter(selected_proteins_raw, selected_functions_raw) -> str:
+    """Infer the legacy plot_filter mode from the two selections.
+
+    Kept as a string because the plotting layer branches on these five modes
+    throughout; only its *source* changed (selections instead of a dropdown).
+    Selecting both "All Functional Peptides" and "Non-Functional Peptides" is
+    how the old "Functional vs Non-Functional" mode is now requested.
+    """
+    prot = _selection_is_active(selected_proteins_raw, NO_PROTEIN_FILTER)
+    func = _selection_is_active(selected_functions_raw, NO_FUNCTION_FILTER)
+
+    fn_set = set(selected_functions_raw or [])
+    if func and ALL_FUNCTIONAL in fn_set and NON_FUNCTIONAL in fn_set:
+        return 'Functional vs Non-Functional Peptides'
+
+    if prot and func:
+        return 'Both'
+    if prot:
+        return 'Selected Protein(s)'
+    if func:
+        return 'Selected Function(s)'
+    return 'No Filter'
+
+
+# ---------------------------------------------------------------------------
 # File loading
 # ---------------------------------------------------------------------------
 
@@ -457,10 +504,21 @@ class DataAnalysisState:
 
         # Widget-state equivalents from params
         self.selected_groups: list = params.get('selected_groups', list(group_data_dict.keys()))
-        self.selected_proteins_raw: list = params.get('selected_proteins', ['All Proteins (No Filter)'])
-        self.selected_functions_raw: list = params.get('selected_functions', ['All Functional Peptides'])
+        self.selected_proteins_raw: list = params.get('selected_proteins', [NO_PROTEIN_FILTER])
+        self.selected_functions_raw: list = params.get('selected_functions', [NO_FUNCTION_FILTER])
         self.plot_type: str = params.get('plot_type', 'Grouped Bar Plots')
-        self.plot_filter: str = params.get('plot_filter', 'No Filter')
+        # The Plot Filter dropdown is gone from the UI: the mode is derived from
+        # what the user selected. An explicit plot_filter is still honoured so
+        # programmatic callers (and the test suite) can pin a mode directly.
+        self.plot_filter: str = params.get('plot_filter') or derive_plot_filter(
+            self.selected_proteins_raw, self.selected_functions_raw)
+        # Which dimensions the user actually restricted. Derived from the raw
+        # selections rather than from plot_filter so that an explicitly-passed
+        # mode and a derived one behave the same.
+        self.protein_filter_active: bool = _selection_is_active(
+            self.selected_proteins_raw, NO_PROTEIN_FILTER)
+        self.function_filter_active: bool = _selection_is_active(
+            self.selected_functions_raw, NO_FUNCTION_FILTER)
         self.abs_or_count: str = params.get('abs_or_count', 'Abundance')
         self.metric_type: str = params.get('metric_type', 'Absolute')
         self.orientation: str = params.get('orientation', 'By Sample')
@@ -573,12 +631,19 @@ class DataAnalysisState:
         self._resolve_all_proteins()
         names_to_ids = {self.protein_dict[pid].get('name', pid): pid for pid in self.protein_dict}
 
-        if 'All Proteins (No Filter)' in self.selected_proteins_raw:
+        # "All Proteins", or no protein restriction at all, both resolve to every
+        # protein: downstream lookups (protein_df, reps dicts) always need a
+        # concrete list — whether the plot breaks out per protein is decided by
+        # plot_filter, not here.
+        if (ALL_PROTEINS in self.selected_proteins_raw
+                or not self.protein_filter_active):
             self.selected_proteins = list(self.all_proteins)
             return
 
         resolved = []
         for sel in self.selected_proteins_raw:
+            if sel == NO_PROTEIN_FILTER:
+                continue
             if sel in self.protein_dict:
                 resolved.append(sel)
             elif sel in names_to_ids:
@@ -599,10 +664,16 @@ class DataAnalysisState:
 
         if self.plot_filter == 'Functional vs Non-Functional Peptides':
             self.selected_functions = ['Functional Peptides', 'Non-Functional Peptides']
-        elif 'All Functional Peptides' in self.selected_functions_raw:
+        elif (ALL_FUNCTIONAL in self.selected_functions_raw
+                or not self.function_filter_active):
+            # "All Functional Peptides", or no function restriction: same as for
+            # proteins, resolve to the full list for downstream lookups.
             self.selected_functions = [f for f in self.all_functions if f not in broader]
         else:
-            self.selected_functions = [f for f in self.selected_functions_raw if f not in broader]
+            self.selected_functions = [
+                f for f in self.selected_functions_raw
+                if f not in broader and f != NO_FUNCTION_FILTER
+            ]
 
         # Generate function color map
         colors = get_color_sequence(len(self.all_functions), self.color_scheme)
@@ -623,10 +694,12 @@ class DataAnalysisState:
         # Protein filter – match by ID against the 'Protein' column (semicolon-separated IDs).
         # When plot_minor=True, skip the protein restriction so all protein rows remain in
         # filtered_df; process_protein_data() will aggregate non-selected ones into "Other Proteins".
-        if (self.plot_filter in ('Selected Protein(s)', 'Both')
+        if (self.plot_filter in ('Selected Protein(s)', 'Both',
+                                 'Functional vs Non-Functional Peptides')
+                and self.protein_filter_active
                 and 'Protein' in df.columns
                 and not self.plot_minor):
-            if 'All Proteins (No Filter)' not in self.selected_proteins_raw:
+            if ALL_PROTEINS not in self.selected_proteins_raw:
                 sel_ids = set(self.selected_proteins)
                 protein_mask = df['Protein'].fillna('').apply(
                     lambda x: bool(sel_ids.intersection(p.strip() for p in x.split(';')))
@@ -655,7 +728,11 @@ class DataAnalysisState:
             combined = protein_mask & function_mask
         elif self.plot_filter == 'Selected Protein(s)':
             combined = protein_mask
-        elif self.plot_filter in ('Selected Function(s)', 'Functional vs Non-Functional Peptides'):
+        elif self.plot_filter == 'Functional vs Non-Functional Peptides':
+            # function_mask stays all-True here (the split is made downstream, not
+            # by filtering); the protein restriction, if any, still applies.
+            combined = protein_mask & function_mask
+        elif self.plot_filter == 'Selected Function(s)':
             combined = function_mask
         else:
             combined = pd.Series(True, index=df.index)
