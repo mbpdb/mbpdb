@@ -2388,6 +2388,12 @@ def visualize_sequence_heatmap_interactive(
         fig.update_yaxes(
             title=None,
             type=lp_type, range=lp_range,
+            # Zoom is sequence-direction only: the abundance scale is shared by
+            # every band and doubles as the legend's Min/Mid/Max key, so letting
+            # the user rescale it (modebar zoom-in / box-zoom / scroll) would
+            # silently break that correspondence and clip the trace. See the
+            # matching fixedrange on the tile rows below.
+            fixedrange=True,
             showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
             tickvals=[tick1, tick2, tick3],
             ticktext=[_fmt_tick(tick1), _fmt_tick(tick2), _fmt_tick(tick3)],
@@ -2440,7 +2446,7 @@ def visualize_sequence_heatmap_interactive(
                 row=seq_row, col=1,
             )
             fig.update_yaxes(range=[0, 1], showgrid=False, showticklabels=False,
-                             ticks='', row=seq_row, col=1)
+                             ticks='', fixedrange=True, row=seq_row, col=1)
 
         # ── colored heatmap tile rows (one per variable, sliced) ─────────────
         for spec in hm_specs:
@@ -2469,8 +2475,12 @@ def visualize_sequence_heatmap_interactive(
                     ),
                     row=hm_row_num, col=1,
                 )
+            # [0, 1] is a pure layout device (every tile is a full-height bar) —
+            # there is nothing to zoom into vertically, and a y-zoom here just
+            # slices the tiles in half.
             fig.update_yaxes(type='linear', range=[0, 1], showgrid=False,
-                             showticklabels=False, ticks='', row=hm_row_num, col=1)
+                             showticklabels=False, ticks='', fixedrange=True,
+                             row=hm_row_num, col=1)
             # variable-name label on the left (mirrors ax.text(..., ha='right')).
             # Skip when this variable contributes no residues to the band (ragged
             # multi-protein: a shorter sequence doesn't reach later chunks) so the
@@ -2501,6 +2511,14 @@ def visualize_sequence_heatmap_interactive(
             showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.4)',
             zeroline=False,
         )
+        # Every row in the band is a window onto the SAME residue axis (line
+        # plot, AA strip, tile rows), so they must zoom and pan as one unit —
+        # otherwise zooming the abundance trace leaves the tiles beneath it at
+        # the old scale and the figure stops lining up. `matches` makes the
+        # band's bottom row (the one carrying the tick ladder) the master.
+        # Bands are NOT matched to each other: each shows a different residue
+        # window, so a shared range would be meaningless.
+        _x_master = 'x' if band_bottom == 1 else f'x{band_bottom}'
         for r in band_rows:
             if r == band_bottom:
                 # x-axis TITLE only on the final band; every band shows its ladder.
@@ -2510,14 +2528,15 @@ def visualize_sequence_heatmap_interactive(
                     showticklabels=True, **x_common, row=r, col=1,
                 )
             else:
-                fig.update_xaxes(showticklabels=False, **x_common, row=r, col=1)
+                fig.update_xaxes(showticklabels=False, matches=_x_master,
+                                 **x_common, row=r, col=1)
 
         # ── silence the spacer 'gap' row above this band (portrait only) ──────
         if c > 0:
             gap_row = _row_num('gap', c)
             fig.update_xaxes(visible=False, row=gap_row, col=1)
             fig.update_yaxes(visible=False, range=[0, 1], showticklabels=False,
-                             row=gap_row, col=1)
+                             fixedrange=True, row=gap_row, col=1)
 
     # ── dynamic left margin + single shared y-axis title ─────────────────────
     # Paper-fraction offsets scale with plot width (tiny when the window is narrow
@@ -2824,6 +2843,9 @@ def visualize_sequence_heatmap_compact(
             showgrid=True,
             gridwidth=1,
             gridcolor='rgba(0,0,0,0.3)',
+            # Uniform scale across subplots is the whole point of this view, and
+            # the tick values are published in the legend — so zoom x only.
+            fixedrange=True,
             row=row, col=1,
         )
 
@@ -2832,6 +2854,7 @@ def visualize_sequence_heatmap_compact(
         type=_axis_type,
         range=_y_range,
         autorange=False,
+        fixedrange=True,
         tickvals=_tick_vals,
         showticklabels=False,
         ticks='',
