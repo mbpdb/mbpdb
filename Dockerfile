@@ -4,16 +4,24 @@ FROM python:3.10
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV DJANGO_SETTINGS_MODULE=peptide.settings
-ENV BASE_PYTHONPATH=/app/include/peptide
+ENV PYTHONPATH=/app/include/peptide
 ENV PIP_ROOT_USER_ACTION=ignore
 
-# Add gosu for privilege dropping
-RUN apt-get update && apt-get install -y gosu && \
-    useradd -r -s /sbin/nologin celery_user && \
-    rm -rf /var/lib/apt/lists/*
-
-# Update apt-get and install system dependencies
+# System dependencies + gosu (privilege dropping) + celery_user, in one
+# update/install/cleanup instead of two (was two separate `apt-get update`
+# round-trips and layers for no reason).
+#
+# Removed vs. the previous list: python3-dev/pip/setuptools/wheel/cffi and
+# libcairo2/libpango-1.0-0/libpangocairo-1.0-0/libgdk-pixbuf-2.0-0/libffi-dev/
+# shared-mime-info. Nothing in requirements.txt or the app code touches
+# system cairo/pango/cffi (no weasyprint/cairosvg/cairocffi; kaleido bundles
+# its own headless Chromium), and the app's pip installs always run against
+# the base image's own /usr/local Python, not the system python3 that
+# python3-pip/setuptools/wheel would provide. build-essential is kept as a
+# fallback in case a requirements.txt package ever needs to compile from
+# source instead of using a prebuilt wheel.
 RUN apt-get update && apt-get install -y \
+    gosu \
     nginx \
     dos2unix \
     nano \
@@ -23,18 +31,8 @@ RUN apt-get update && apt-get install -y \
     git \
     redis-server \
     build-essential \
-    python3-dev \
-    python3-pip \
-    python3-setuptools \
-    python3-wheel \
-    python3-cffi \
-    libcairo2 \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libgdk-pixbuf-2.0-0 \
-    libffi-dev \
-    shared-mime-info \
     curl \
+    && useradd -r -s /sbin/nologin celery_user \
     && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
@@ -48,15 +46,18 @@ RUN pip install --upgrade pip && \
 # Copy application files
 COPY include /app/include
 
-# Create required directories and set permissions
-RUN mkdir -p /app/include/peptide/uploads/temp && \
-    chmod 750 /app/include/peptide/uploads/temp
-
+# Ownership + baseline permissions first, then the tighter/looser
+# exceptions on top -- the previous order set uploads/temp to 750 and then
+# immediately overwrote it back to 755 with the recursive chmod below, so
+# that restriction never actually took effect.
 RUN chown -R celery_user:celery_user /app/include/peptide && \
     chmod -R 755 /app/include/peptide && \
     touch /app/include/peptide/db.sqlite3 && \
     chown celery_user:celery_user /app/include/peptide/db.sqlite3 && \
-    chmod 664 /app/include/peptide/db.sqlite3
+    chmod 664 /app/include/peptide/db.sqlite3 && \
+    mkdir -p /app/include/peptide/uploads/temp && \
+    chown celery_user:celery_user /app/include/peptide/uploads/temp && \
+    chmod 750 /app/include/peptide/uploads/temp
 
 # Copy and setup start script
 COPY start.sh /app/start.sh
@@ -65,22 +66,11 @@ RUN chmod +x /app/start.sh
 # Copy Nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
 
-
-# Set PYTHONPATH properly
-ENV PYTHONPATH=/app/include/peptide:${BASE_PYTHONPATH}
-
-# Add these new commands for static files handling
 WORKDIR /app/include/peptide
 
 # Collect static files (BUILDING=true allows this without SECRET_KEY)
 # --verbosity 1 reduces "Found another file" duplicate messages
-RUN BUILDING=true python manage.py collectstatic --noinput --verbosity 1
-
-# Make sure static files are accessible
-RUN chmod -R 755 /app/include/peptide/static_files
-
-# Create required directories and set permissions
-RUN mkdir -p /app/include/peptide/static_files && \
+RUN BUILDING=true python manage.py collectstatic --noinput --verbosity 1 && \
     chmod -R 755 /app/include/peptide/static_files
 
 # Expose port for Django

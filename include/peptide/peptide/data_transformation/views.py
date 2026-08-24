@@ -1,11 +1,12 @@
 """
 Django views for the data transformation wizard.
 """
+from __future__ import annotations
+
 import json
 import os
 import uuid
 
-import pandas as pd
 from django.conf import settings
 from django.core.cache import cache
 from django.http import JsonResponse, HttpResponse, FileResponse
@@ -14,9 +15,21 @@ from django.views.decorators.http import require_POST, require_GET
 from celery.result import AsyncResult
 
 from .forms import PeptidomicUploadForm, GroupUploadForm, FastaUploadForm
-from .services import data_loader, blast_search, group_processing, protein_handler, data_combiner, export_manager
-from .tasks import run_blast_search_task, fetch_uniprot_task
 from peptide.toolbox import handle_uploaded_file, clear_temp_directory
+from peptide.utils.lazy_import import LazyModule
+
+# pandas/numpy/scipy (via these services, and via .tasks -> services.blast_search)
+# are heavy; the URLconf import chain loads this module on the very first
+# request handled after boot (probe or otherwise), so they're deferred until
+# a view actually uses them.
+pd = LazyModule('pandas')
+data_loader = LazyModule('peptide.data_transformation.services.data_loader')
+blast_search = LazyModule('peptide.data_transformation.services.blast_search')
+group_processing = LazyModule('peptide.data_transformation.services.group_processing')
+protein_handler = LazyModule('peptide.data_transformation.services.protein_handler')
+data_combiner = LazyModule('peptide.data_transformation.services.data_combiner')
+export_manager = LazyModule('peptide.data_transformation.services.export_manager')
+tasks = LazyModule('peptide.data_transformation.tasks')
 
 
 def _get_work_dir(request):
@@ -338,7 +351,7 @@ def start_blast_search(request):
             'count': count,
         })
 
-    task = run_blast_search_task.delay(work_dir, sequences, threshold)
+    task = tasks.run_blast_search_task.delay(work_dir, sequences, threshold)
     request.session['dt_blast_task_id'] = task.id
 
     return JsonResponse({'task_id': task.id})
@@ -843,7 +856,7 @@ def start_uniprot_fetch(request):
     if not missing_ids:
         return JsonResponse({'skipped': True, 'message': 'No missing proteins to fetch'})
 
-    task = fetch_uniprot_task.delay(missing_ids)
+    task = tasks.fetch_uniprot_task.delay(missing_ids)
     request.session['dt_uniprot_task_id'] = task.id
 
     return JsonResponse({'task_id': task.id, 'count': len(missing_ids)})

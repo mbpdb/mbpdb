@@ -3,6 +3,7 @@ from django.contrib import admin
 from . import views
 import uuid
 urlpatterns = [
+    re_path(r'^health/$', views.health_check, name='health_check'),
     re_path(r'^$', views.peptide_search, name='index'),
     re_path(r'^pepex/$', views.pepex_tool, name='pepex'),
     re_path(r'^add_proteins/$', views.add_proteins_tool, name='add_proteins'),

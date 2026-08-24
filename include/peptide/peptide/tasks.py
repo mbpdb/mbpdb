@@ -22,7 +22,6 @@ from chardet.universaldetector import UniversalDetector
 from django.db.models import Count
 from django.http import HttpResponse
 import shutil
-from Bio import SeqIO
 
 
 #2nd function in toolbox data pipeline, handles the input from the pepdb_multi_search_manual

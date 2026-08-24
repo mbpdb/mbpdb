@@ -20,6 +20,13 @@ from django.core.cache import cache
 
 from django.shortcuts import render
 
+def health_check(request):
+    # Deliberately cheap (no DB hit): this exists so Container Apps probes
+    # hit HTTP through nginx -> gunicorn instead of a bare TCP check against
+    # nginx's listening socket, which used to pass before gunicorn was ready
+    # to serve anything behind it.
+    return HttpResponse("ok", content_type="text/plain")
+
 def peptiline_supplementals(request):
     return render(request, 'peptide/peptiline_supplementals.html')
 

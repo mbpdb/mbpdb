@@ -1,5 +1,4 @@
 import subprocess, os, shutil, time, csv, re, sys
-import pandas as pd
 from django.conf import settings
 from django.utils.text import get_valid_filename
 from .models import PeptideInfo, Reference, Function, ProteinInfo, Submission, ProteinVariant
@@ -8,10 +7,13 @@ from django.contrib.auth.models import User
 from chardet.universaldetector import UniversalDetector
 from django.db.models import Count
 from django.http import HttpResponse
-from Bio import SeqIO
 from pathlib import Path
 from collections import defaultdict
 from django.db.models import Q
+# pandas and Bio.SeqIO are only needed by pepdb_add_csv()/add_proteins() below;
+# importing them at module load pulls the whole pandas/Bio stack into every
+# process that touches toolbox.py (i.e. the first request handled after boot).
+# Deferred to those two functions instead.
 
 
 
@@ -39,6 +41,7 @@ def get_tsv_path(request_file,directory_path=None):
 
 #Uploads csv to sqsqlite3 database
 def pepdb_add_csv(csv_file, messages):
+    import pandas as pd
     work_path = create_work_directory(settings.WORK_DIRECTORY)
     # Sanitize filename to prevent path traversal attacks
     safe_name = get_valid_filename(csv_file.name).replace(' ','_')
@@ -291,6 +294,7 @@ def run_pepex(input_tsv, count_pep):
 
 #adds proteins to database, Only used by site admin not user
 def add_proteins(input_fasta_files, messages):
+    from Bio import SeqIO
     work_path = create_work_directory(settings.WORK_DIRECTORY)
     count=0
     for input_fasta_file in input_fasta_files:
