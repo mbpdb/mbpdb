@@ -20,14 +20,8 @@ urlpatterns = [
     path('check-progress/<str:task_id>/', views.check_progress, name='check_progress'),
     path('get-active-tasks/', views.get_active_tasks, name='get_active_tasks'),
     path('return_render_results/<uuid:task_id>/', views.return_render_results, name='return_render_results'),
-    path('heatmap/', include('peptide.heatmap_viz.urls', namespace='heatmap_viz')),
-    path('data_transformation/', include('peptide.data_transformation.urls')),
-    path('data_analysis/', include('peptide.data_analysis.urls', namespace='data_analysis')),
-    path('all-peptides/', views.all_peptides_view, name='all_peptides'),
     path('bioactivity-viz/proteins/', views.bioactivity_viz_proteins, name='bioactivity_viz_proteins'),
     path('bioactivity-viz/plot/', views.bioactivity_viz_plot, name='bioactivity_viz_plot'),
-    path('peptiline/', views.peptiline_landing, name='peptiline_landing'),
-    path('peptiline/supplementals/', views.peptiline_supplementals, name='peptiline_supplementals'),
     path('zukaitis_2026/', views.zukaitis_2026, name='zukaitis_2026'),
 ]
 

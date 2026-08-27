@@ -517,28 +517,6 @@
         });
     }
 
-    // ---- Load all peptides by default on page load ----
-    function loadDefaultPeptides() {
-        $('#default-loading-spinner').show();
-        $.ajax({
-            url: '/all-peptides/',
-            method: 'GET',
-            success: function(data) {
-                $('#default-loading-spinner').hide();
-                let mainContainer = $('#results-container');
-                mainContainer.html(data);
-                mainContainer.show();
-                attachToggleContentListeners();
-            },
-            error: function(err) {
-                $('#default-loading-spinner').hide();
-                console.error('Error loading default peptides:', err);
-                $('#results-container').html('<p style="color: orange; padding: 20px;">Could not load default peptide list.</p>');
-                $('#results-container').show();
-            }
-        });
-    }
-
     // Default peptide loading removed to speed up initial page load
 
     $('#search-db-btn').click(function(event) {

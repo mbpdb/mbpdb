@@ -15,20 +15,8 @@ django-celery-progress
 numpy>=1.24.3
 pandas>=2.0.0
 matplotlib>=3.8.0
-seaborn
-scipy
-#ipydatagrid>=1.3.0,<2.0.0
-statsmodels
 plotly
 openpyxl
-# kaleido — server-side static image export for Plotly figures (publication PNG
-# at 600 dpi + true-vector SVG) via peptide/utils/plotly_export.py, used by the
-# Heatmap and Data Analysis download buttons. 0.2.x bundles its own headless
-# Chromium, so no separate system-Chrome dependency is added.
-kaleido==0.2.1
-# Pillow — stamps the DPI (pHYs) metadata into exported PNGs so the file
-# self-reports 600 dpi. (Also a transitive matplotlib dep; pinned explicitly.)
-Pillow>=10.0.0
 python-dotenv
 
 # Pin to avoid RequestsDependencyWarning from pre-release versions

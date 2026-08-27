@@ -27,9 +27,6 @@ def health_check(request):
     # to serve anything behind it.
     return HttpResponse("ok", content_type="text/plain")
 
-def peptiline_supplementals(request):
-    return render(request, 'peptide/peptiline_supplementals.html')
-
 def zukaitis_2026(request):
     return render(request, 'peptide/zukaitis_2026.html')
 
@@ -567,41 +564,6 @@ def peptide_db_csv(request):
                 return render(request, 'peptide/peptide_db_csv.html', {'errors':[e.output]})
     return render(request, 'peptide/peptide_db_csv.html', {'errors':errors, 'messages':messages})
 
-def peptiline_landing(request):
-    return render(request, 'peptide/peptiline_landing.html')
-
-def download_supplemental_table(request):
-    """Serve the supplemental table file for download."""
-    file_path = os.path.join(settings.STATIC_ROOT, 'peptide', 'publications', 'kuhfeld_2026', 'supplementals', 'correlation_analysis_pearson_log10_20250917_194233.xlsx')
-    
-    try:
-        response = FileResponse(open(file_path, 'rb'), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition'] = 'attachment; filename="supplemental_table_1.xlsx"'
-        return response
-    except FileNotFoundError:
-        return HttpResponse("Supplemental table file not found", status=404)
-
-def serve_supplemental_figure_1(request):
-    """Serve scatter_plot_1.html as supplemental figure 1."""
-    file_path = os.path.join(settings.STATIC_ROOT, 'peptide', 'publications', 'kuhfeld_2026', 'supplementals', 'scatter_plot_1.html')
-    
-    try:
-        with open(file_path, 'r') as f:
-            content = f.read()
-        return HttpResponse(content, content_type='text/html')
-    except FileNotFoundError:
-        return HttpResponse("Supplemental figure 1 not found", status=404)
-
-def serve_supplemental_figure_2(request):
-    """Serve scatter_plot_2.html as supplemental figure 2."""
-    file_path = os.path.join(settings.STATIC_ROOT, 'peptide', 'publications', 'kuhfeld_2026', 'supplementals', 'scatter_plot_2.html')
-    
-    try:
-        with open(file_path, 'r') as f:
-            content = f.read()
-        return HttpResponse(content, content_type='text/html')
-    except FileNotFoundError:
-        return HttpResponse("Supplemental figure 2 not found", status=404)
 """
 def serve_plot(request, plot_name):
     #Serve Plotly HTML files.
@@ -626,132 +588,6 @@ def log_message(request):
         return JsonResponse({"status": "success"})
     return JsonResponse({"status": "error"}, status=400)
 """
-
-
-# ---------------------------------------------------------------------------
-# Default all-peptides view (loaded on page open)
-# ---------------------------------------------------------------------------
-
-@require_GET
-def all_peptides_view(request):
-    """Return all peptides in the database rendered as results_section.html."""
-    results_headers = [
-        'Protein ID', 'Peptide', 'Protein description', 'Species',
-        'Intervals', 'Function', 'Additional details', 'IC50 (μM)',
-        'Inhibition type', 'Inhibited microorganisms', 'PTM',
-        'Title', 'Authors', 'Abstract', 'DOI'
-    ]
-
-    peptides = (
-        PeptideInfo.objects.all()
-        .select_related('protein')
-        .prefetch_related('functions__references')
-    )
-
-    results = []
-    for info in peptides:
-        for func in info.functions.all():
-            pp = info.protein.pid
-            pd = info.protein.desc
-            if info.protein_variants:
-                pp = pp + " Genetic Variant " + info.protein_variants
-                pd = pd + " Genetic Variant " + info.protein_variants
-
-            refs = list(func.references.all())
-            titles, authors, abstracts, dois = [], [], [], []
-            ad, ic, it, im, ptms = [], [], [], [], []
-            titnum = 1
-            for ref in refs:
-                if ref.title:
-                    append_with_titnum(titles, ref.title, titnum)
-                if ref.additional_details:
-                    append_with_titnum(ad, ref.additional_details, titnum)
-                if ref.ic50 is not None and str(ref.ic50) != '':
-                    append_with_titnum(ic, str(ref.ic50), titnum)
-                if ref.inhibition_type:
-                    append_with_titnum(it, ref.inhibition_type, titnum)
-                if ref.inhibited_microorganisms:
-                    append_with_titnum(im, ref.inhibited_microorganisms, titnum)
-                if ref.ptm:
-                    append_with_titnum(ptms, ref.ptm, titnum)
-                if ref.authors:
-                    append_with_titnum(authors, ref.authors, titnum)
-                if ref.abstract:
-                    append_with_titnum(abstracts, ref.abstract, titnum)
-                if ref.doi:
-                    append_with_titnum(dois, ref.doi, titnum)
-                titnum += 1
-
-            row = {
-                'Protein ID': pp,
-                'Peptide': info.peptide,
-                'Protein description': pd,
-                'Species': info.protein.species,
-                'Intervals': info.intervals,
-                'Function': func.function,
-                'Additional details': ',<br>'.join(ad),
-                'IC50 (μM)': ',<br>'.join(ic),
-                'Inhibition type': ',<br>'.join(it),
-                'Inhibited microorganisms': ',<br>'.join(im),
-                'PTM': ',<br>'.join(ptms),
-                'Title': ',<br>'.join(titles),
-                'Authors': ',<br>'.join(authors),
-                'Abstract': ',<br>'.join(abstracts),
-                'DOI': ',<br>'.join(dois),
-            }
-            # Remove 'None' strings
-            row = {k: ('' if v == 'None' else v) for k, v in row.items()}
-            results.append(row)
-
-    # Remove empty columns
-    columns_to_check = [
-        'Additional details', 'IC50 (μM)', 'Inhibition type',
-        'Inhibited microorganisms', 'PTM'
-    ]
-    for column in columns_to_check:
-        if all(r.get(column, '').strip() == '' for r in results):
-            for r in results:
-                r.pop(column, None)
-            if column in results_headers:
-                results_headers.remove(column)
-
-    combined_results = [{"type": "result", "data": r} for r in results]
-
-    # Build counts
-    species_counts, function_counts, protein_id_counts, peptide_counts = {}, {}, {}, {}
-    for item in combined_results:
-        d = item['data']
-        pep = d.get('Peptide')
-        sp = d.get('Species')
-        fn = d.get('Function')
-        pid = d.get('Protein ID')
-        if pep:
-            peptide_counts[pep] = peptide_counts.get(pep, 0) + 1
-        if sp:
-            species_counts[sp] = species_counts.get(sp, 0) + 1
-        if fn:
-            function_counts[fn] = function_counts.get(fn, 0) + 1
-        if pid:
-            protein_id_counts[pid] = protein_id_counts.get(pid, 0) + 1
-
-    return render(request, 'peptide/results_section.html', {
-        'combined_results': combined_results,
-        'output_path': '',
-        'data': {},
-        'peptide_option': [],
-        'matrix': [],
-        'latest_peptides': [],
-        'description_to_pid': {},
-        'functions': [],
-        'common_to_sci_list': {},
-        'formated_header': '',
-        'table_headers': results_headers,
-        'function_counts': function_counts,
-        'species_counts': species_counts,
-        'protein_id_counts': protein_id_counts,
-        'peptide_counts': peptide_counts,
-        'is_default_view': True,
-    })
 
 
 # ---------------------------------------------------------------------------
