@@ -62,7 +62,18 @@ GUNICORN_PID=$!
 
 # Start Celery worker in background with non-root user
 echo "Starting Celery worker..."
-gosu celery_user celery -A peptide worker --loglevel=info &
+# --concurrency: celery defaults to the number of CPUs it can see, and it reads
+# the *host's* count rather than the container's cgroup limit -- on this 1-CPU
+# container it was forking 4 prefork children, each with its own Django heap.
+# That was the main driver of the ~1.67Gi peak against a 2Gi limit. 2 children
+# lets one task overlap another's I/O without oversubscribing a single core.
+#
+# --max-tasks-per-child: recycle children periodically so pandas/numpy
+# allocations in the search tasks can't accumulate across a long-lived replica.
+# Safe for celery (unlike gunicorn) since a child is only recycled between
+# tasks, never mid-request.
+gosu celery_user celery -A peptide worker --loglevel=info \
+    --concurrency 2 --max-tasks-per-child 20 &
 CELERY_PID=$!
 
 # Wait for all background processes
