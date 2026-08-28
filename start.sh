@@ -28,9 +28,32 @@ cd /app/include/peptide
 echo "Running startup bootstrap (migrate, clearsessions, superuser check)..."
 python manage.py bootstrap || echo "WARNING: bootstrap step failed"
 
-# Start Gunicorn in background
+# Start Gunicorn in background.
+#
+# Concurrency note: this used to run gunicorn's default of a single sync
+# worker, i.e. exactly one request in flight at a time with everything else
+# queued in nginx. That contradicted the Container App scale rule, which is
+# concurrentRequests=10 -- KEDA waited for 10 requests to pile up on a replica
+# that could only ever serve one, so load turned into queueing latency instead
+# of a second replica.
+#
+# Threads rather than extra worker processes, for two reasons:
+#   - Memory. Peak WorkingSetBytes is ~1.67Gi against this container's 2Gi
+#     limit (~78%), largely because the celery worker forks 4 prefork children.
+#     Another gunicorn process would carry its own Django heap; threads share
+#     one.
+#   - SQLite. Each additional process means another connection contending for
+#     the same write lock; threads don't reduce that to zero but don't multiply
+#     the process count either.
+# Work that is actually CPU-heavy goes to celery, so the GIL is not the binding
+# constraint here -- these threads are waiting on SQLite reads and I/O.
+#
+# 8 threads also keeps /health/ answerable while a slow view is in flight,
+# which the readiness probe (httpGet /health/, 5s timeout x3) depends on.
 echo "Starting Gunicorn..."
-gunicorn -b 127.0.0.1:8001 --timeout=600 peptide.wsgi:application &
+gunicorn -b 127.0.0.1:8001 --timeout=600 \
+    --worker-class gthread --workers 1 --threads 8 \
+    peptide.wsgi:application &
 GUNICORN_PID=$!
 
 # celery_user and the ownership/permissions of uploads/ and db.sqlite3 are
