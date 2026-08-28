@@ -73,3 +73,6 @@ jobs:
           "DJANGO_SUPERUSER_USERNAME=${{ secrets.DJANGO_SUPERUSER_USERNAME }}" \
           "DJANGO_SUPERUSER_EMAIL=${{ secrets.DJANGO_SUPERUSER_EMAIL }}" \
           "DJANGO_SUPERUSER_PASSWORD=${{ secrets.DJANGO_SUPERUSER_PASSWORD }}"
+
+    - name: Apply health probe configuration
+      run: ./deploy/apply-probes.sh
