@@ -1,8 +1,23 @@
 from django.urls import include, re_path, path
 from django.contrib import admin
+from django.views.generic.base import RedirectView
 from . import views
 import uuid
+
+# PeptiLine moved to its own domain. Permanently redirect the old MBPDB-hosted
+# paths so links in the published preprint keep working.
+PEPTILINE_HOME = 'https://peptiline.nws.oregonstate.edu/'
+PEPTILINE_SUPPLEMENTALS = 'https://peptiline.nws.oregonstate.edu/supplementals/'
+
 urlpatterns = [
+    re_path(r'^peptiline/supplementals/?$',
+            RedirectView.as_view(url=PEPTILINE_SUPPLEMENTALS, permanent=True, query_string=True)),
+    re_path(r'^peptiline/supplementals/(?P<rest>.+)$',
+            RedirectView.as_view(url=PEPTILINE_SUPPLEMENTALS + '%(rest)s', permanent=True, query_string=True)),
+    re_path(r'^peptiline/?$',
+            RedirectView.as_view(url=PEPTILINE_HOME, permanent=True, query_string=True)),
+    re_path(r'^peptiline/(?P<rest>.+)$',
+            RedirectView.as_view(url=PEPTILINE_HOME + '%(rest)s', permanent=True, query_string=True)),
     re_path(r'^health/$', views.health_check, name='health_check'),
     re_path(r'^$', views.peptide_search, name='index'),
     re_path(r'^pepex/$', views.pepex_tool, name='pepex'),
