@@ -78,8 +78,9 @@ def pepdb_search_tsv_line_manual(writer, q, peptide, peptide_option, seqsim, mat
             q = q.filter(id__in=search_ids)
 
     if (q.count() == 0):
-        peptide_db_list = list(PeptideInfo.objects.values_list('peptide', flat=True))
-        if peptide in peptide_db_list:
+        # One indexed existence check — was loading every peptide in the DB into
+        # a Python list on each zero-result line.
+        if peptide and PeptideInfo.objects.filter(peptide=peptide).exists():
             #results.append("<h4>WARNING: Peptide: " + ''.join(peptide) + " does not meet other search critera.</h4>")
             results.append("<h4>Peptide: " + ''.join(peptide) + " does not meet other search critera.</h4>")
             writer.writerow(["Peptide: " + ''.join(peptide) + " does not meet other search critera."])
@@ -90,12 +91,15 @@ def pepdb_search_tsv_line_manual(writer, q, peptide, peptide_option, seqsim, mat
             writer.writerow(["Peptide: " + ''.join(peptide) + "  does not exist in database."])
             return results
 
-    for info in q:
+    # Pull the protein, functions and references for the whole result set in a
+    # handful of queries instead of a Function query + a Reference query per
+    # matched peptide (the N+1 that made a multi-hit search slow).
+    for info in q.select_related('protein').prefetch_related('functions__references'):
         if function:
-            # Filters peptides mapped to function
-            fcheck = Function.objects.filter(pep=info, function__in=function)
+            # Filters peptides mapped to the requested function(s)
+            fcheck = [f for f in info.functions.all() if f.function in function]
         else:
-            fcheck = Function.objects.filter(pep=info)
+            fcheck = list(info.functions.all())
 
         for func in fcheck:
             pp = info.protein.pid
@@ -103,7 +107,7 @@ def pepdb_search_tsv_line_manual(writer, q, peptide, peptide_option, seqsim, mat
             if info.protein_variants:
                 pp = pp + " Genetic Variant " + info.protein_variants
                 pd = pd + " Genetic Variant " + info.protein_variants
-            refs = Reference.objects.filter(func=func)
+            refs = list(func.references.all())
             titles=[]
             authors=[]
             abstracts=[]
@@ -345,9 +349,12 @@ def pepdb_multi_search_manual(self, pepfile_path, peptide_option, pid, function,
     with open(input_pep_path, 'r') as pepfile:
         content = pepfile.read().strip()
 
+    # Split once and reuse — this file was re-split three separate times below.
+    content_lines = content.splitlines()
+
     # for celery progress
     start_time = time.time()
-    cont_size = len(content.splitlines())  # Split the content into lines and store it in a variable
+    cont_size = len(content_lines)
     cache.set(f'size_{self.request.id}', cont_size)
     #(f'size_{self.request.id} = {cont_size}')
     for header in common_csv_headers:
@@ -374,7 +381,7 @@ def pepdb_multi_search_manual(self, pepfile_path, peptide_option, pid, function,
         #print(f'size_{self.request.id} = {cont_size}, Cache set: progress_{self.request.id} = {1}, elapsed_time_{self.request.id} = {elapsed_time}')
         results.extend(pepdb_search_tsv_line_manual(writer, q, "", peptide_option, seqsim, matrix, extra, pid, function, species, no_pep, results_headers))
     else:
-        for i, cont in enumerate(content.splitlines(), start=1):
+        for i, cont in enumerate(content_lines, start=1):
             elapsed_time = time.time() - start_time
             # Update progress in cache without timeout
             cache.set(f'progress_{self.request.id}', i)
@@ -388,15 +395,16 @@ def pepdb_multi_search_manual(self, pepfile_path, peptide_option, pid, function,
             results.extend(pepdb_search_tsv_line_manual(writer, q, pep, peptide_option, seqsim, matrix, extra, pid, function, species,no_pep, results_headers))
 
     params_list = []
-    for cont in content.splitlines():
+    for cont in content_lines:
         # Split the cont string into pep and peptide_option
         pep, peptide_option, matrix = cont.split(' ', 2)
         pep_list.append(pep)
-        peptide_option_list.append((peptide_option))
+        peptide_option_list.append(peptide_option)
         matrix_list.append(matrix)
-        pep_list=list(set(pep_list))
-        peptide_option_list=list(set(peptide_option_list))
-        matrix_list=list(set(matrix_list))
+    # Dedupe once, after the loop — was rebuilt on every iteration (O(n^2)).
+    pep_list = list(set(pep_list))
+    peptide_option_list = list(set(peptide_option_list))
+    matrix_list = list(set(matrix_list))
 
     if (peptide_option_list != ['sequence'] and peptide_option_list != []) or seqsim != 100 or ( matrix_list != ['IDENTITY'] and matrix_list != []):
         params_list.append(f"<b>Search type:</b> {', '.join(peptide_option_list)},")

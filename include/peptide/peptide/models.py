@@ -6,7 +6,9 @@ def protein_pid(obj):
 
 class ProteinInfo(models.Model):
     header = models.CharField(max_length=1000)
-    pid = models.CharField(max_length=30)
+    # Indexed: looked up by `pid` once per row in the CSV/FASTA bulk-add tools
+    # and per protein filter in search.
+    pid = models.CharField(max_length=30, db_index=True)
     seq = models.CharField(max_length=10000)
     desc = models.CharField(max_length=500)
     species = models.CharField(max_length=150)
@@ -17,7 +19,8 @@ class ProteinVariant(models.Model):
     protein = models.ForeignKey(ProteinInfo, on_delete=models.CASCADE, related_name="orig_proteins")
 
 class PeptideInfo(models.Model):
-    peptide = models.CharField(max_length=500)
+    # Indexed: exact-sequence lookups per row in bulk-add and per search line.
+    peptide = models.CharField(max_length=500, db_index=True)
     protein = models.ForeignKey(ProteinInfo, on_delete=models.CASCADE, related_name="proteins")
     protein_variants = models.CharField(max_length=100,default='')
     intervals = models.CharField(max_length=100)
