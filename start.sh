@@ -51,7 +51,11 @@ python manage.py bootstrap || echo "WARNING: bootstrap step failed"
 # 8 threads also keeps /health/ answerable while a slow view is in flight,
 # which the readiness probe (httpGet /health/, 5s timeout x3) depends on.
 echo "Starting Gunicorn..."
-gunicorn -b 127.0.0.1:8001 --timeout=600 \
+# -c gunicorn.conf.py: enables per-request access logging to stdout (real
+# client IP, path, status, user agent, referer) so Container App wake-ups can
+# be attributed to real traffic vs crawlers. /health/ probe hits are filtered
+# out there to keep the log readable.
+gunicorn -c gunicorn.conf.py -b 127.0.0.1:8001 --timeout=600 \
     --worker-class gthread --workers 1 --threads 8 \
     peptide.wsgi:application &
 GUNICORN_PID=$!
