@@ -92,6 +92,7 @@ INSTALLED_APPS = (
     'django_celery_progress',
 )
 MIDDLEWARE = [
+    'peptide.middleware.HealthCheckMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
