@@ -6,6 +6,7 @@ from datetime import datetime
 from django.contrib.auth.models import User
 from chardet.universaldetector import UniversalDetector
 from django.db.models import Count
+from django.db import transaction
 from django.http import HttpResponse
 from pathlib import Path
 from collections import defaultdict
@@ -102,71 +103,95 @@ def pepdb_add_csv(csv_file, messages):
             output="Error: Input file does not have the correct headers (proteinID, peptide, function, 'additional_details', 'ic50' , 'inhibition_type','inhibited_microorganisms', ptm, title, authors, abstract, and doi).")
 
     err = 0
-    count = 0
     tn = datetime.now()
-    
-    for row in data:
-        rownum = count + 2  # +2 because Excel/CSV files typically start at row 2 (after header)
+
+    # Bulk-load the proteins + variants this file references, ONCE, so the
+    # per-row loop below issues zero database queries (previously: one protein
+    # lookup per row, plus one variants query per row that fell through to the
+    # variant check). At a few thousand rows that N+1 was the whole runtime.
+    wanted_pids = {(row.get('proteinID') or '').strip() for row in data}
+    wanted_pids.discard('')
+    proteins_by_pid = {p.pid: p for p in ProteinInfo.objects.filter(pid__in=wanted_pids)}
+    variants_by_pid = defaultdict(list)
+    for pv in ProteinVariant.objects.filter(protein__pid__in=wanted_pids).select_related('protein'):
+        variants_by_pid[pv.protein.pid].append(pv)
+
+    to_create = []
+
+    for i, row in enumerate(data):
+        rownum = i + 2  # header is row 1
+
+        pep = (row.get('peptide') or '').strip()
+        pid = (row.get('proteinID') or '').strip()
 
         # Validate required fields
-        if (row['peptide']=='' or row['proteinID']=='' or row['function']=='' or row['title']=='' or row['authors']=='' or row['doi']==''):
+        if not (pep and pid and (row.get('function') or '').strip()
+                and (row.get('title') or '').strip()
+                and (row.get('authors') or '').strip()
+                and (row.get('doi') or '').strip()):
             messages.append("Error: Line "+str(rownum)+" in file has values that cannot be empty (only abstract, additional_details, ic50 , inhibition_type, inhibited_microorganisms, and ptm can be empty).")
-            err+=1
-            continue
-
-        # Check if protein exists
-        idcheck = ProteinInfo.objects.filter(pid=row['proteinID']).first()
-        if idcheck is None:
-            messages.append("Error: Protein ID " + row['proteinID'] + " not found in database (Line " + str(rownum) + "). Skipping. You can use the Add Fasta Files tool to add the protein to the database.")
             err += 1
             continue
 
-        # Check if peptide exists in protein or variants
-        prot = idcheck.seq
-        intervals = ', '.join([str(m.start()+1) + "-" + str(m.start()+len(row['peptide'])) for m in re.finditer(row['peptide'], prot)])
-        pvid_list = []
+        idcheck = proteins_by_pid.get(pid)
+        if idcheck is None:
+            messages.append("Error: Protein ID " + pid + " not found in database (Line " + str(rownum) + "). Skipping. You can use the Add Fasta Files tool to add the protein to the database.")
+            err += 1
+            continue
 
+        # Locate the peptide in the protein sequence, then (if absent) its
+        # variants. re.escape: the peptide is literal data, not a pattern — a
+        # stray metacharacter would mis-match or raise.
+        pep_re = re.escape(pep)
+        intervals = ', '.join(f"{m.start()+1}-{m.start()+len(pep)}"
+                              for m in re.finditer(pep_re, idcheck.seq))
+        pvid_list = []
         if not intervals:
-            gv_check = ProteinVariant.objects.filter(protein=idcheck)
-            for pv in gv_check:
-                intervals = ', '.join(
-                    [str(m.start() + 1) + "-" + str(m.start() + len(row['peptide'])) for m in
-                     re.finditer(row['peptide'], pv.seq)])
-                if intervals:
+            for pv in variants_by_pid.get(pid, []):
+                iv = ', '.join(f"{m.start()+1}-{m.start()+len(pep)}"
+                               for m in re.finditer(pep_re, pv.seq))
+                if iv:
+                    if not intervals:
+                        intervals = iv          # first matching variant wins
                     pvid_list.append(pv.pvid)
             if not pvid_list:
-                messages.append(f"Error: Peptide sequence '{row['peptide']}' was not found in protein ID {row['proteinID']} or any of its variants. This occurred in line {rownum} of your input file.")
+                messages.append(f"Error: Peptide sequence '{pep}' was not found in protein ID {pid} or any of its variants. This occurred in line {rownum} of your input file.")
                 err += 1
                 continue
 
-        # Check and handle the ic50 value
         ic50_value = None
-        if row['ic50'] and row['ic50'].strip():
+        raw_ic50 = (row.get('ic50') or '').strip()
+        if raw_ic50:
             try:
-                ic50_value = float(row['ic50'])
+                ic50_value = float(raw_ic50)
             except ValueError:
-                messages.append(f"Warning: Invalid IC50 value '{row['ic50']}' in line {rownum}. Setting to null.")
+                messages.append(f"Warning: Invalid IC50 value '{row.get('ic50')}' in line {rownum}. Setting to null.")
                 ic50_value = None
 
-        # If we get here, the entry is valid - create the submission
-        sub = Submission(protein_id=row['proteinID'], 
-                        peptide=row['peptide'], 
-                        function=row['function'], 
-                        additional_details=row['additional_details'], 
-                        ic50=ic50_value, 
-                        inhibition_type=row['inhibition_type'],
-                        inhibited_microorganisms=row['inhibited_microorganisms'], 
-                        ptm=row['ptm'], 
-                        title=row['title'], 
-                        authors=row['authors'], 
-                        abstract=row['abstract'], 
-                        doi=row['doi'], 
-                        intervals=intervals, 
-                        protein_variants=','.join(pvid_list), 
-                        length=len(row['peptide']), 
-                        time_submitted=tn)
-        sub.save()
-        count += 1
+        to_create.append(Submission(
+            protein_id=pid,
+            peptide=pep,
+            function=row['function'],
+            additional_details=row.get('additional_details', ''),
+            ic50=ic50_value,
+            inhibition_type=row.get('inhibition_type', ''),
+            inhibited_microorganisms=row.get('inhibited_microorganisms', ''),
+            ptm=row.get('ptm', ''),
+            title=row['title'],
+            authors=row['authors'],
+            abstract=row.get('abstract', ''),
+            doi=row['doi'],
+            intervals=intervals,
+            protein_variants=','.join(pvid_list),
+            length=len(pep),
+            time_submitted=tn,
+        ))
+
+    # One batched INSERT in a single transaction, instead of a .save() per row.
+    if to_create:
+        with transaction.atomic():
+            Submission.objects.bulk_create(to_create, batch_size=500)
+    count = len(to_create)
 
     if file_extension == '.tsv' and detector.result['encoding'].lower() != "utf-8":
         messages.append("Warning: Detected encoding for input file was not UTF-8 (It was detected as "+detector.result['encoding']+"). Recoding was attempted but if this is not the correct original encoding, then non-standard characters may not have been recoded correctly.")
@@ -488,19 +513,34 @@ def export_database(request):
     return response
 
 #Function clears the temp directory at the onset of peptide_search in views.py
-def clear_temp_directory(directory_path):
-    # Get all directories in the path
-    dirs = [f for f in os.scandir(directory_path) if f.is_dir()]
+def clear_temp_directory(directory_path, keep=10, max_age_hours=6):
+    """Remove stale per-search work directories (each holds a BLAST db / FASTA
+    build + search output).
 
-    # Sort the directories by modification time, most recent first
-    dirs.sort(key=lambda x: os.path.getmtime(x.path), reverse=True)
+    Two rules: anything older than ``max_age_hours`` goes regardless of count
+    (a search finishes in seconds, so 6 h is orphaned-for-certain and stops a
+    crashed run leaking disk forever); then only the ``keep`` most-recent of
+    what's left survive.
+    """
+    try:
+        dirs = [f for f in os.scandir(directory_path) if f.is_dir()]
+    except FileNotFoundError:
+        return
 
-    # Keep the 10 most recent directories, delete the rest
-    for dir_entry in dirs[25:]:
+    cutoff = time.time() - max_age_hours * 3600
+    survivors = []
+    for entry in dirs:
         try:
-            shutil.rmtree(dir_entry.path)
-        except Exception as e:
-            pass  # Handle or log the exception as needed
+            if os.path.getmtime(entry.path) < cutoff:
+                shutil.rmtree(entry.path, ignore_errors=True)
+            else:
+                survivors.append(entry)
+        except Exception:
+            pass
+
+    survivors.sort(key=lambda x: os.path.getmtime(x.path), reverse=True)
+    for dir_entry in survivors[keep:]:
+        shutil.rmtree(dir_entry.path, ignore_errors=True)
 
 # init db to git repo
 def git_init(modeladmin, request, queryset):
